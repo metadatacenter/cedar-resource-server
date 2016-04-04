@@ -27,4 +27,9 @@ public class ResourceServiceMongoDB implements IResourceService {
     return resourceDao.find(resourceId);
   }
 
+  @Override
+  public CedarResource findFolder(@NonNull String path) {
+    return null;
+  }
+
 }

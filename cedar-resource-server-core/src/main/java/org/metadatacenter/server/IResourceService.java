@@ -12,4 +12,5 @@ public interface IResourceService {
 
   public CedarResource findResource(@NonNull String id) throws IOException, ProcessingException;
 
+  public CedarResource findFolder(@NonNull String path);
 }
