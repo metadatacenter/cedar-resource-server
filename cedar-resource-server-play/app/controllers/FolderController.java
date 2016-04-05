@@ -165,7 +165,7 @@ public class FolderController extends AbstractResourceServerController {
       generateRandomResources(resourceList, req, resourceTypeList);
 
 
-      r.setTotalCount(resourceList.size());
+      r.setTotalCount(offset + limit + ThreadLocalRandom.current().nextInt(10, 30));
       r.setCurrentOffset(offset);
 
       r.setResources(resourceList);
