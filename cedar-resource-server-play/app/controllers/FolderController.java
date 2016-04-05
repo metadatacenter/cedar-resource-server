@@ -16,6 +16,7 @@ import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.IAccountInfo;
+import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.json.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +77,7 @@ public class FolderController extends AbstractResourceServerController {
 
 
   public static Result findFolder(F.Option<String> pathParam, F.Option<String> resourceTypes, F.Option<String> sort, F
-      .Option<Long> limitParam, F.Option<Long> offsetParam) {
+      .Option<Integer> limitParam, F.Option<Integer> offsetParam) {
     try {
 
       // Test path
@@ -109,7 +110,7 @@ public class FolderController extends AbstractResourceServerController {
       }
 
       // Test limit
-      long limit = 50; // set default
+      int limit = 50; // set default
       if (limitParam.isDefined()) {
         if (limitParam.get() <= 0) {
           throw new IllegalArgumentException("You should specify a positive limit!");
@@ -120,7 +121,7 @@ public class FolderController extends AbstractResourceServerController {
       }
 
       // Test offset
-      long offset = 0;
+      int offset = 0;
       if (offsetParam.isDefined()) {
         if (offsetParam.get() < 0) {
           throw new IllegalArgumentException("You should specify a positive or zero offset!");
@@ -164,11 +165,19 @@ public class FolderController extends AbstractResourceServerController {
 
       generateRandomResources(resourceList, req, resourceTypeList);
 
+      long total = offset + limit + ThreadLocalRandom.current().nextInt(10, 30);
 
-      r.setTotalCount(offset + limit + ThreadLocalRandom.current().nextInt(10, 30));
+
+      r.setTotalCount(total);
       r.setCurrentOffset(offset);
 
       r.setResources(resourceList);
+
+      F.Option<Integer> none = new F.None<>();
+      String absoluteUrl = routes.FolderController.findFolder(pathParam, resourceTypes, sort, none, none).absoluteURL
+          (request());
+
+      r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, total, limit, offset));
 
 
       ObjectMapper mapper = new ObjectMapper();

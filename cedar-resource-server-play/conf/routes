@@ -7,7 +7,7 @@ GET            /                    controllers.MainResourceServerController.ind
 
 # Folders
 POST           /folders             controllers.FolderController.createResource()
-GET            /folders             controllers.FolderController.findFolder(path: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[java.lang.Long], offset: play.libs.F.Option[java.lang.Long])
+GET            /folders             controllers.FolderController.findFolder(path: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
 
 # Search
 POST           /search              controllers.SearchController.search()
