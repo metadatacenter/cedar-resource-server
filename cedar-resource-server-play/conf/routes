@@ -13,6 +13,31 @@ GET            /folders             controllers.FolderController.findFolder(path
 POST           /search              controllers.SearchController.search()
 GET            /search              controllers.SearchController.search()
 
+# Templates
+POST           /templates                     controllers.TemplateServerController.createTemplate()
+GET            /templates/:id                 controllers.TemplateServerController.findTemplate(id: String)
+GET            /templates                     controllers.TemplateServerController.findAllTemplates(limit: Integer ?= null, offset: Integer ?= 0, summary: Boolean ?= false, fieldNames: String ?= null)
+PUT            /templates/:id                 controllers.TemplateServerController.updateTemplate(id: String)
+DELETE         /templates/:id                 controllers.TemplateServerController.deleteTemplate(id: String)
+
+# Template Elements
+POST           /template-elements             controllers.TemplateElementServerController.createTemplateElement()
+GET            /template-elements/:id         controllers.TemplateElementServerController.findTemplateElement(id: String)
+GET            /template-elements             controllers.TemplateElementServerController.findAllTemplateElements(limit: Integer ?= null, offset: Integer ?= 0, summary: Boolean ?= false, fieldNames: String ?= null)
+PUT            /template-elements/:id         controllers.TemplateElementServerController.updateTemplateElement(id: String)
+DELETE         /template-elements/:id         controllers.TemplateElementServerController.deleteTemplateElement(id: String)
+
+# Template Fields
+GET            /template-fields/:id           controllers.TemplateFieldServerController.findTemplateField(id: String)
+GET            /template-fields               controllers.TemplateFieldServerController.findAllTemplateFields(limit: Integer ?= null, offset: Integer ?= 0, summary: Boolean ?= false, fieldNames: String ?= null)
+
+# Template Instances
+POST           /template-instances            controllers.TemplateInstanceServerController.createTemplateInstance()
+GET            /template-instances/:id        controllers.TemplateInstanceServerController.findTemplateInstance(id: String)
+GET            /template-instances            controllers.TemplateInstanceServerController.findAllTemplateInstances(limit: Integer ?= null, offset: Integer ?= 0, summary: Boolean ?= false, fieldNames: String ?= null)
+PUT            /template-instances/:id        controllers.TemplateInstanceServerController.updateTemplateInstance(id: String)
+DELETE         /template-instances/:id        controllers.TemplateInstanceServerController.deleteTemplateInstance(id: String)
+
 # For CORS - preflight request
 OPTIONS        /*all                controllers.MainResourceServerController.preflight(all)
 
