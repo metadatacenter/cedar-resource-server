@@ -116,8 +116,8 @@ public class FolderController extends AbstractResourceServerController {
         } else if (limitParam.get() > 100) {
           throw new IllegalArgumentException("You should specify a limit smaller than 100!");
         }
+        limit = limitParam.get();
       }
-      limit = limitParam.get();
 
       // Test offset
       long offset = 0;
@@ -125,8 +125,8 @@ public class FolderController extends AbstractResourceServerController {
         if (offsetParam.get() < 0) {
           throw new IllegalArgumentException("You should specify a positive or zero offset!");
         }
+        offset = offsetParam.get();
       }
-      offset = offsetParam.get();
 
       // Test sort
       String sortString;
@@ -162,7 +162,7 @@ public class FolderController extends AbstractResourceServerController {
 
       ArrayList<CedarResource> resourceList = new ArrayList<>();
 
-      generateRandomResources(resourceList, req, resourceTypeList) ;
+      generateRandomResources(resourceList, req, resourceTypeList);
 
 
       r.setTotalCount(resourceList.size());
@@ -182,10 +182,12 @@ public class FolderController extends AbstractResourceServerController {
     }
   }
 
-  private static void generateRandomResources(ArrayList<CedarResource> resourceList, ResourceListRequest req, List<String> resourceTypeList) {
+  private static void generateRandomResources(ArrayList<CedarResource> resourceList, ResourceListRequest req,
+                                              List<String> resourceTypeList) {
     while (resourceList.size() < req.getLimit()) {
       int i = ThreadLocalRandom.current().nextInt(0, resourceTypeList.size());
-      resourceList.add(generateOneResource(CedarResourceType.forValue(resourceTypeList.get(i)), resourceList.size(), req));
+      resourceList.add(generateOneResource(CedarResourceType.forValue(resourceTypeList.get(i)), resourceList.size(),
+          req));
     }
   }
 
