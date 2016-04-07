@@ -8,7 +8,6 @@ import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.server.security.model.auth.IAccountInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.mvc.Result;
@@ -29,8 +28,6 @@ public class SearchController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
-
-      IAccountInfo ai = Authorization.getAccountInfo(frontendRequest);
 
       List<CedarResource> hits = new ArrayList<>();
 

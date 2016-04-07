@@ -15,7 +15,6 @@ import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.server.security.model.auth.IAccountInfo;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.json.JsonUtils;
 import org.slf4j.Logger;
@@ -50,8 +49,6 @@ public class FolderController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
-
-      IAccountInfo ai = Authorization.getAccountInfo(frontendRequest);
 
       CedarResource resource = null;
 
