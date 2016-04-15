@@ -1,7 +1,7 @@
 package org.metadatacenter.server.dao;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.metadatacenter.server.model.CedarResource;
+import org.metadatacenter.model.CedarResource;
 
 import java.io.IOException;
 

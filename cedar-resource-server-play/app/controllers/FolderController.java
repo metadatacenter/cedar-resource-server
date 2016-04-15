@@ -4,13 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.metadatacenter.constant.HttpConstants;
+import org.metadatacenter.model.CedarResource;
+import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.request.ResourceListRequest;
+import org.metadatacenter.model.response.ResourceListResponse;
+import org.metadatacenter.provenance.ProvenanceTime;
+import org.metadatacenter.provenance.ProvenanceUser;
 import org.metadatacenter.server.IResourceService;
-import org.metadatacenter.server.model.CedarResource;
-import org.metadatacenter.server.model.CedarResourceType;
-import org.metadatacenter.server.model.ProvenanceTime;
-import org.metadatacenter.server.model.ProvenanceUser;
-import org.metadatacenter.server.model.response.ResourceListRequest;
-import org.metadatacenter.server.model.response.ResourceListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
@@ -95,14 +95,17 @@ public class FolderController extends AbstractResourceServerController {
         resourceTypesString = resourceTypes.get();
       }
 
-      List<String> resourceTypeList = Arrays.asList(StringUtils.split(resourceTypesString, ","));
-      Set<String> knownResourceTypes = Arrays.asList(CedarResourceType.values()).stream().map(crt -> crt.getValue())
-          .collect(Collectors.toSet());
+      List<String> resourceTypeStringList = Arrays.asList(StringUtils.split(resourceTypesString, ","));
+      List<CedarResourceType> resourceTypeList = new ArrayList<>();
 
-      for (String rt : resourceTypeList) {
-        if (!knownResourceTypes.contains(rt)) {
-          throw new IllegalArgumentException("You passed an illegal resource type:'" + rt + "'. The allowed values " +
-              "are:" + knownResourceTypes);
+      for (String t : resourceTypeStringList) {
+        CedarResourceType rt = CedarResourceType.forValue(t);
+        if (rt == null) {
+          throw new IllegalArgumentException("You passed an illegal resource type:'" + t + "'. The allowed values " +
+              "are:" + CedarResourceType.values());
+
+        } else {
+          resourceTypeList.add(rt);
         }
       }
 
@@ -189,16 +192,16 @@ public class FolderController extends AbstractResourceServerController {
   }
 
   private static void generateRandomResources(ArrayList<CedarResource> resourceList, ResourceListRequest req,
-                                              List<String> resourceTypeList) {
+                                              List<CedarResourceType> resourceTypeList) {
     while (resourceList.size() < req.getLimit()) {
       int i = ThreadLocalRandom.current().nextInt(0, resourceTypeList.size());
-      resourceList.add(generateOneResource(CedarResourceType.forValue(resourceTypeList.get(i)), resourceList.size(),
+      resourceList.add(generateOneResource(resourceTypeList.get(i), resourceList.size(),
           req));
     }
   }
 
   private static CedarResource generateOneResource(CedarResourceType type, int idx, ResourceListRequest req) {
-    CedarResource newResource = new CedarResource();
+    CedarResource newResource = CedarResource.forType(type);
 
     newResource.setId(UUID.randomUUID().toString());
     newResource.setName("Name " + idx);
@@ -209,7 +212,6 @@ public class FolderController extends AbstractResourceServerController {
     }
     path += newResource.getName();
     newResource.setPath(path);
-    newResource.setResourceType(type);
 
     ProvenanceTime now = new ProvenanceTime(new Date());
     newResource.setCreatedOn(now);

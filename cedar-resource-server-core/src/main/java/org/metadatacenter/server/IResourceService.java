@@ -2,7 +2,7 @@ package org.metadatacenter.server;
 
 import com.github.fge.jsonschema.core.exceptions.ProcessingException;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.metadatacenter.server.model.CedarResource;
+import org.metadatacenter.model.CedarResource;
 
 import java.io.IOException;
 

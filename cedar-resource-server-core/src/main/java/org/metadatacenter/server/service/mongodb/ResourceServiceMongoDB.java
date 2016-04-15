@@ -2,9 +2,9 @@ package org.metadatacenter.server.service.mongodb;
 
 import com.github.fge.jsonschema.core.exceptions.ProcessingException;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.metadatacenter.model.CedarResource;
 import org.metadatacenter.server.IResourceService;
 import org.metadatacenter.server.dao.mongodb.ResourceDaoMongoDB;
-import org.metadatacenter.server.model.CedarResource;
 
 import java.io.IOException;
 
