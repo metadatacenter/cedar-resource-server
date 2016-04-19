@@ -20,22 +20,13 @@ import play.mvc.Result;
 import play.mvc.Results;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class FolderController extends AbstractResourceServerController {
   private static Logger log = LoggerFactory.getLogger(FolderController.class);
 
-  final static List<String> knownSortKeys;
-
   final static String folderBase;
 
-
   static {
-    knownSortKeys = new ArrayList<>();
-    knownSortKeys.add("name");
-    knownSortKeys.add("createdOn");
-    knownSortKeys.add("lastUpdatedOn");
     folderBase = config.getString(ConfigConstants.FOLDER_SERVER_BASE);
   }
 
