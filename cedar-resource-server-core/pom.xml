@@ -47,6 +47,11 @@
       <artifactId>slf4j-api</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>com.typesafe.play</groupId>
+      <artifactId>play_${play2.scala.version}</artifactId>
+    </dependency>
+
   </dependencies>
 
   <build>

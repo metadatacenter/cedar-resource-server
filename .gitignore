@@ -14,3 +14,4 @@ dist
 */RUNNING_PID
 /.settings
 keycloak.json
+cedar-resource-server-play/conf/application-include-folder.conf
