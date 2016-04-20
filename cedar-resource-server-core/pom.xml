@@ -17,6 +17,12 @@
   <name>CEDAR Resource Server Core</name>
 
   <dependencies>
+
+    <dependency>
+      <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-server-utils-core</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>com.github.fge</groupId>
       <artifactId>json-schema-validator</artifactId>
