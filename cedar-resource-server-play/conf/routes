@@ -5,15 +5,16 @@
 # Home page
 GET            /                              controllers.MainResourceServerController.index()
 
+
+# Folder contents
+GET            /folders/contents              controllers.FolderContentsController.findFolderContentsByPath(path: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
+GET            /folders/:id/contents          controllers.FolderContentsController.findFolderContentsById(id: String, resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
+
 # Folders
 POST           /folders                       controllers.FolderController.createFolder()
 GET            /folders/:id                   controllers.FolderController.findFolder(id: String)
 PUT            /folders/:id                   controllers.FolderController.updateFolder(id: String)
 DELETE         /folders/:id                   controllers.FolderController.deleteFolder(id: String)
-
-# Folder contents
-GET            /folder-contents               controllers.FolderContentsController.findFolderContents(path: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
-
 
 # Search
 POST           /search                        controllers.SearchController.search()

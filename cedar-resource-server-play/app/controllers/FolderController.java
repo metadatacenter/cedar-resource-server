@@ -3,13 +3,14 @@ package controllers;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
-import org.metadatacenter.model.CedarFolder;
+import org.metadatacenter.model.resourceserver.CedarRSResource;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
@@ -64,7 +65,8 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      String url = folderBase + "folders/" + folderId;
+      String url = folderBase + "folders/" + new URLCodec().encode(folderId);
+      System.out.println(url);
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
@@ -72,6 +74,7 @@ public class FolderController extends AbstractResourceServerController {
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
 
       HttpEntity entity = proxyResponse.getEntity();
+      System.out.println(EntityUtils.toString(proxyResponse.getEntity()));
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
           return ok(folderWithExpandedProvenanceInfo(proxyResponse));
@@ -95,7 +98,7 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      String url = folderBase + "folders/" + folderId;
+      String url = folderBase + "folders/" + new URLCodec().encode(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
@@ -120,12 +123,11 @@ public class FolderController extends AbstractResourceServerController {
   }
 
   public static Result deleteFolder(String folderId) {
-    System.out.println("HERE in delete folder");
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      String url = folderBase + "folders/" + folderId;
+      String url = folderBase + "folders/" + new URLCodec().encode(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
@@ -145,26 +147,26 @@ public class FolderController extends AbstractResourceServerController {
     }
   }
 
-  private static CedarFolder deserializeAndAddProvenanceInfoToFolder(HttpResponse proxyResponse) throws IOException {
+  private static CedarRSResource deserializeAndAddProvenanceInfoToFolder(HttpResponse proxyResponse) throws
+      IOException {
     ObjectMapper mapper = new ObjectMapper();
-    CedarFolder folder = null;
+    CedarRSResource folder = null;
     try {
       String responseString = EntityUtils.toString(proxyResponse.getEntity());
-      System.out.println("Response string:" + responseString);
-      folder = mapper.readValue(responseString, CedarFolder.class);
+      folder = mapper.readValue(responseString, CedarRSResource.class);
     } catch (JsonProcessingException e) {
       e.printStackTrace();
     }
-    if (folder != null) {
-      // TODO: get real user names here
+    // TODO: get real user names here
+    /*if (folder != null) {
       folder.getCreatedBy().setName("Foo Bar");
       folder.getLastUpdatedBy().setName("Foo Bar");
-    }
+    }*/
     return folder;
   }
 
   private static JsonNode folderWithExpandedProvenanceInfo(HttpResponse proxyResponse) throws IOException {
-    CedarFolder foundFolder = deserializeAndAddProvenanceInfoToFolder(proxyResponse);
+    CedarRSResource foundFolder = deserializeAndAddProvenanceInfoToFolder(proxyResponse);
     ObjectMapper mapper = new ObjectMapper();
     return mapper.valueToTree(foundFolder);
   }
