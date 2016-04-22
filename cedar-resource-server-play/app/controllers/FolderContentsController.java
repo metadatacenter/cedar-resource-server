@@ -50,6 +50,7 @@ public class FolderContentsController extends AbstractResourceServerController {
       String url = folderBase + suffix;
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
 
@@ -83,6 +84,7 @@ public class FolderContentsController extends AbstractResourceServerController {
       String url = folderBase + suffix;
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
 

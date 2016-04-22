@@ -59,4 +59,14 @@ public class ProxyUtil {
     return proxyRequest.execute().returnResponse();
   }
 
+  public static void proxyResponseHeaders(HttpResponse proxyResponse, Http.Response response) {
+    HeaderIterator headerIterator = proxyResponse.headerIterator();
+    while (headerIterator.hasNext()) {
+      Header header = headerIterator.nextHeader();
+      if (HttpHeaders.CONTENT_TYPE.equals(header.getName())) {
+        response.setHeader(header.getName(), header.getValue());
+      }
+    }
+  }
+
 }

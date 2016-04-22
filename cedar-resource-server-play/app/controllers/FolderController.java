@@ -25,6 +25,7 @@ public class FolderController extends AbstractResourceServerController {
       String url = folderBase + "folders";
 
       HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       HttpEntity entity = proxyResponse.getEntity();
@@ -53,6 +54,7 @@ public class FolderController extends AbstractResourceServerController {
       String url = folderBase + "folders/" + new URLCodec().encode(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
 
@@ -83,6 +85,7 @@ public class FolderController extends AbstractResourceServerController {
       String url = folderBase + "folders/" + new URLCodec().encode(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       HttpEntity entity = proxyResponse.getEntity();
@@ -111,6 +114,7 @@ public class FolderController extends AbstractResourceServerController {
       String url = folderBase + "folders/" + new URLCodec().encode(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       HttpEntity entity = proxyResponse.getEntity();
