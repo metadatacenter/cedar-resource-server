@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.sun.tools.doclets.formats.html.SourceToHTMLConverter;
 import org.apache.http.Header;
 import org.apache.http.HeaderIterator;
 import org.apache.http.HttpHeaders;
@@ -58,16 +57,6 @@ public class ProxyUtil {
         .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
     proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request.getHeader(HttpHeaders.AUTHORIZATION));
     return proxyRequest.execute().returnResponse();
-  }
-
-  public static void proxyResponseHeaders(HttpResponse proxyResponse, Http.Response response) {
-    HeaderIterator headerIterator = proxyResponse.headerIterator();
-    while (headerIterator.hasNext()) {
-      Header header = headerIterator.nextHeader();
-      if (HttpHeaders.CONTENT_TYPE.equals(header.getName())) {
-        response.setHeader(header.getName(), header.getValue());
-      }
-    }
   }
 
 }

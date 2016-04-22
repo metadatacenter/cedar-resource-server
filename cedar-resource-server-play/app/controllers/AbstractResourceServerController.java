@@ -36,7 +36,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     String url = folderBase + "folders/" + new URLCodec().encode(id);
 
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
 

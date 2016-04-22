@@ -68,8 +68,6 @@ public class TemplateElementServerController extends AbstractResourceServerContr
       String url = templateBase + "template-elements";
 
       HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_CREATED) {
