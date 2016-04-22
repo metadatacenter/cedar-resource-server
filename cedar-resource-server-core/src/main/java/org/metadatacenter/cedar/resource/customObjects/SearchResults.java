@@ -1,6 +1,6 @@
 package org.metadatacenter.cedar.resource.customObjects;
 
-import org.metadatacenter.model.CedarResource;
+import org.metadatacenter.model.resourceserver.CedarRSResource;
 
 import java.util.List;
 
@@ -11,9 +11,9 @@ public class SearchResults {
   private int pageSize;
   private int prevPage;
   private int nextPage;
-  private List<CedarResource> collection;
+  private List<CedarRSResource> collection;
 
-  public SearchResults(int page, int pageCount, int pageSize, int prevPage, int nextPage, List<CedarResource>
+  public SearchResults(int page, int pageCount, int pageSize, int prevPage, int nextPage, List<CedarRSResource>
       collection) {
     this.page = page;
     this.pageCount = pageCount;
@@ -63,11 +63,11 @@ public class SearchResults {
     this.nextPage = nextPage;
   }
 
-  public List<CedarResource> getCollection() {
+  public List<CedarRSResource> getCollection() {
     return collection;
   }
 
-  public void setCollection(List<CedarResource> collection) {
+  public void setCollection(List<CedarRSResource> collection) {
     this.collection = collection;
   }
 

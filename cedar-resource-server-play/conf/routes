@@ -18,7 +18,7 @@ DELETE         /folders/:id                   controllers.FolderController.delet
 
 # Search
 POST           /search                        controllers.SearchController.search()
-GET            /search                        controllers.SearchController.search()
+GET            /search                        controllers.SearchController.search(resourceTypes: String ?= "all", limit: Int ?= null, offset: Int ?= 0, folders_first: Boolean ?= false, order: String ?= "byName")
 
 # Templates
 POST           /templates                     controllers.TemplateServerController.createTemplate()
