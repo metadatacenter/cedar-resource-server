@@ -1,4 +1,4 @@
-package org.metadatacenter.cedar.resource.search.util;
+package org.metadatacenter.cedar.resource.search;
 
 import org.metadatacenter.cedar.resource.model.MyResourceListResponse;
 
