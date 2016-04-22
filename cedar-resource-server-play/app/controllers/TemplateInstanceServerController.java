@@ -5,16 +5,11 @@ import org.slf4j.LoggerFactory;
 import play.mvc.Result;
 
 
-public class TemplateInstanceServerController extends AbstractTemplateServerController {
+public class TemplateInstanceServerController extends AbstractResourceServerController {
   private static Logger log = LoggerFactory.getLogger(TemplateInstanceServerController.class);
 
   public static Result createTemplateInstance() {
     return ok();
-  }
-
-  public static Result findAllTemplateInstances(Integer limit, Integer offset, boolean summary, String fieldNames) {
-    return ok();
-
   }
 
   public static Result findTemplateInstance(String templateInstanceId) {
