@@ -3,7 +3,7 @@ package controllers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.metadatacenter.cedar.resource.model.MyResourceListResponse;
-import org.metadatacenter.cedar.resource.search.util.SearchService;
+import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
