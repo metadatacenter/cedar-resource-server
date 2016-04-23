@@ -20,9 +20,10 @@ public class ProxyUtil {
     Request proxyRequest = Request.Get(url)
         .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
         .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
+    System.out.println("ProxyUtil.proxyGet:" + url);
     proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request.getHeader(HttpHeaders.AUTHORIZATION));
     proxyRequest.addHeader(HttpHeaders.CONTENT_LENGTH, ZERO_LENGTH);
-    proxyRequest.addHeader(HttpHeaders.CONTENT_TYPE, request.getHeader(ContentType.APPLICATION_JSON.toString()));
+    proxyRequest.addHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.toString());
     return proxyRequest.execute().returnResponse();
   }
 
@@ -32,7 +33,7 @@ public class ProxyUtil {
         .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
     proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request.getHeader(HttpHeaders.AUTHORIZATION));
     proxyRequest.addHeader(HttpHeaders.CONTENT_LENGTH, ZERO_LENGTH);
-    proxyRequest.addHeader(HttpHeaders.CONTENT_TYPE, request.getHeader(ContentType.APPLICATION_JSON.toString()));
+    proxyRequest.addHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.toString());
     return proxyRequest.execute().returnResponse();
   }
 
