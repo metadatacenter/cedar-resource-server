@@ -2,8 +2,8 @@ package controllers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.metadatacenter.cedar.resource.model.MyResourceListResponse;
 import org.metadatacenter.cedar.resource.search.SearchService;
+import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
@@ -29,7 +29,7 @@ public class SearchController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      MyResourceListResponse results = searchService.search(query);
+      RSNodeListResponse results = searchService.search(query);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
@@ -48,7 +48,7 @@ public class SearchController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      MyResourceListResponse results = searchService.search("");
+      RSNodeListResponse results = searchService.search("");
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);

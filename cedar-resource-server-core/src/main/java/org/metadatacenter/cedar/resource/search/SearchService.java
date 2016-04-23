@@ -1,8 +1,8 @@
 package org.metadatacenter.cedar.resource.search;
 
-import org.metadatacenter.cedar.resource.model.MyResourceListResponse;
 import org.metadatacenter.constant.CedarConstants;
 import org.metadatacenter.model.resourceserver.*;
+import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.provenance.ProvenanceTime;
 
 import java.time.Instant;
@@ -12,19 +12,19 @@ import java.util.List;
 
 public class SearchService {
 
-  public MyResourceListResponse search(String query) {
+  public RSNodeListResponse search(String query) {
     if (query.trim().compareTo("dummy")==0) {
       return getDummySearchResults();
     }
     else {
-      MyResourceListResponse results = new MyResourceListResponse();
+      RSNodeListResponse results = new RSNodeListResponse();
       results.setResources(new ArrayList<>());
       return results;
     }
   }
 
-  private MyResourceListResponse getDummySearchResults() {
-    List<CedarRSResource> resources = new ArrayList<>();
+  private RSNodeListResponse getDummySearchResults() {
+    List<CedarRSNode> resources = new ArrayList<>();
 
     Instant now = Instant.now();
     String nowString = CedarConstants.xsdDateTimeFormatter.format(now);
@@ -95,7 +95,7 @@ public class SearchService {
     resources.add(f2);
 
     // Folders
-    CedarRSResource fo1 = new CedarRSFolder();
+    CedarRSNode fo1 = new CedarRSFolder();
     fo1.setName("Folder1");
     fo1.setDescription("Folder1 description");
     fo1.setId("https://repo.metadatacenter.orgx/folders/" + java.util.UUID.randomUUID());
@@ -105,7 +105,7 @@ public class SearchService {
     fo1.setLastUpdatedBy("https://user.metadatacenter.net/users/cd36dea6-9222-412b-99ab-bec50f6ecd00");
     resources.add(fo1);
 
-    CedarRSResource fo2 = new CedarRSFolder();
+    CedarRSNode fo2 = new CedarRSFolder();
     fo2.setName("Folder2");
     fo2.setDescription("Folder2 description");
     fo2.setId("https://repo.metadatacenter.orgx/folders/" + java.util.UUID.randomUUID());
@@ -115,7 +115,7 @@ public class SearchService {
     fo2.setLastUpdatedBy("https://user.metadatacenter.net/users/cd36dea6-9222-412b-99ab-bec50f6ecd00");
     resources.add(fo2);
 
-    MyResourceListResponse results = new MyResourceListResponse();
+    RSNodeListResponse results = new RSNodeListResponse();
     results.setResources(resources);
 
     return results;

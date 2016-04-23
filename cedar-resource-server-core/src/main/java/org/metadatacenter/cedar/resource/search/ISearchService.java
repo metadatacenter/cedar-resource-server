@@ -1,9 +1,9 @@
 package org.metadatacenter.cedar.resource.search;
 
-import org.metadatacenter.cedar.resource.model.MyResourceListResponse;
+import org.metadatacenter.model.response.RSNodeListResponse;
 
 public interface ISearchService {
 
-  MyResourceListResponse search(String query);
+  RSNodeListResponse search(String query);
 
 }
