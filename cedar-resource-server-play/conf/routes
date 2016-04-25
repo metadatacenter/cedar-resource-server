@@ -33,7 +33,10 @@ PUT            /template-elements/:id         controllers.TemplateElementServerC
 DELETE         /template-elements/:id         controllers.TemplateElementServerController.deleteTemplateElement(id: String)
 
 # Template Fields
+POST           /template-fields               controllers.TemplateFieldServerController.createTemplateField()
 GET            /template-fields/:id           controllers.TemplateFieldServerController.findTemplateField(id: String)
+PUT            /template-fields/:id           controllers.TemplateFieldServerController.updateTemplateField(id: String)
+DELETE         /template-fields/:id           controllers.TemplateFieldServerController.deleteTemplateField(id: String)
 
 # Template Instances
 POST           /template-instances            controllers.TemplateInstanceServerController.createTemplateInstance()
