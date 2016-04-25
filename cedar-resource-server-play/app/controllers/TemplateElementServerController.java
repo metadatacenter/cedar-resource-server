@@ -1,30 +1,28 @@
 package controllers;
 
+import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.mvc.Result;
 
-public class TemplateElementServerController extends AbstractTemplateServerController {
+public class TemplateElementServerController extends AbstractResourceServerController {
   private static Logger log = LoggerFactory.getLogger(TemplateElementServerController.class);
 
   public static Result createTemplateElement() {
-    return ok();
+    return executeResourcePostByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_CREATE);
   }
 
-  public static Result findAllTemplateElements(Integer limit, Integer offset, boolean summary, String fieldNames) {
-    return ok();
+  public static Result findTemplateElement(String elementId) {
+    return executeResourcePostByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_READ, elementId);
   }
 
-  public static Result findTemplateElement(String templateElementId) {
-    return ok();
+  public static Result updateTemplateElement(String elementId) {
+    return executeResourcePutByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_UPDATE, elementId);
   }
 
-  public static Result updateTemplateElement(String templateElementId) {
-    return ok();
-  }
-
-  public static Result deleteTemplateElement(String templateElementId) {
-    return ok();
+  public static Result deleteTemplateElement(String elementId) {
+    return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_DELETE, elementId);
   }
 
 }
