@@ -7,10 +7,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.net.URLCodec;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
+import org.apache.http.*;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -159,6 +156,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
         // resource was created
         HttpEntity entity = proxyResponse.getEntity();
         if (entity != null) {
+          Header locationHeader = proxyResponse.getFirstHeader(HttpHeaders.LOCATION);
           String entityContent = EntityUtils.toString(entity);
           JsonNode jsonNode = MAPPER.readTree(entityContent);
           String id = jsonNode.get("@id").asText();
@@ -171,10 +169,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           resourceRequestBody.put("parentId", targetFolder.getId());
           resourceRequestBody.put("id", uuid);
           resourceRequestBody.put("resourceType", nodeType.getValue());
-          // TODO name of the template element comes here
-          resourceRequestBody.put("name", "new resource name");
-          // TODO description of the template element comes here
-          resourceRequestBody.put("description", "new resource description");
+          resourceRequestBody.put("name", extractNameFromResponseObject(nodeType, jsonNode));
+          resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
           String resourceRequestBodyAsString = MAPPER.writeValueAsString(resourceRequestBody);
 
           Request proxyRequest = Request.Post(resourceUrl)
@@ -189,6 +185,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           HttpEntity resourceEntity = resourceCreateResponse.getEntity();
           if (resourceEntity != null) {
             if (HttpStatus.SC_CREATED == resourceCreateStatusCode) {
+              if (locationHeader != null) {
+                response().setHeader(locationHeader.getName(), locationHeader.getValue());
+              }
               if (proxyResponse.getEntity() != null) {
                 return created(proxyResponse.getEntity().getContent());
               } else {
@@ -214,6 +213,32 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   }
 
+  private static String extractNameFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
+    String title = "";
+    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
+      JsonNode titleNode = jsonNode.at("/_ui/title");
+      if (titleNode != null && !titleNode.isMissingNode()) {
+        title = titleNode.textValue();
+      }
+    } else if(nodeType == CedarNodeType.INSTANCE) {
+      JsonNode titleNode = jsonNode.at("/_ui/templateTitle");
+      if (titleNode != null && !titleNode.isMissingNode()) {
+        title = titleNode.textValue();
+      }
+    }
+    return title;
+  }
+
+  private static String extractDescriptionFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
+    String description = "";
+    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
+      JsonNode titleNode = jsonNode.at("/_ui/description");
+      if (titleNode != null && !titleNode.isMissingNode()) {
+        description = titleNode.textValue();
+      }
+    }
+    return description;
+  }
 
   protected static Result executeResourceGetByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
     try {
