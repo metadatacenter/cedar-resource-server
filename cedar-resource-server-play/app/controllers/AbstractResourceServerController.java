@@ -215,7 +215,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
 
-  protected static Result executeResourcePostByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
+  protected static Result executeResourceGetByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
     try {
       IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(authRequest, permission);

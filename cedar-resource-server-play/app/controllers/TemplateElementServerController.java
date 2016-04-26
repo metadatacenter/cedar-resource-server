@@ -14,7 +14,7 @@ public class TemplateElementServerController extends AbstractResourceServerContr
   }
 
   public static Result findTemplateElement(String elementId) {
-    return executeResourcePostByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_READ, elementId);
+    return executeResourceGetByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_READ, elementId);
   }
 
   public static Result updateTemplateElement(String elementId) {
