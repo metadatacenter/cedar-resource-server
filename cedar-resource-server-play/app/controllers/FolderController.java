@@ -5,6 +5,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
+import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
@@ -22,7 +23,7 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      String url = folderBase + "folders";
+      String url = folderBase + CedarNodeType.Prefix.FOLDERS;
 
       HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
@@ -51,7 +52,7 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      String url = folderBase + "folders/" + new URLCodec().encode(folderId);
+      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
@@ -82,7 +83,7 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      String url = folderBase + "folders/" + new URLCodec().encode(folderId);
+      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
@@ -111,7 +112,7 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      String url = folderBase + "folders/" + new URLCodec().encode(folderId);
+      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
