@@ -190,6 +190,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           if (resourceEntity != null) {
             if (HttpStatus.SC_CREATED == resourceCreateStatusCode) {
               if (proxyResponse.getEntity() != null) {
+                // TODO: indexing here - fix name and description
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();

@@ -1,6 +1,7 @@
 package org.metadatacenter.cedar.resource.search;
 
 import org.metadatacenter.constant.CedarConstants;
+import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.resourceserver.*;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.provenance.ProvenanceTime;
@@ -11,6 +12,14 @@ import java.util.Date;
 import java.util.List;
 
 public class SearchService {
+
+  public void addToIndex(CedarIndexResource resource) {
+
+  }
+
+  public void removeFromIndex(String resourceId) {
+
+  }
 
   public RSNodeListResponse search(String query) {
     if (query.trim().compareTo("dummy")==0) {
