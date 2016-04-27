@@ -17,6 +17,10 @@ public class TemplateFieldServerController extends AbstractResourceServerControl
     return executeResourceGetByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_READ, fieldId);
   }
 
+  public static Result findTemplateFieldDetails(String fieldId) {
+    return executeResourceGetDetailsByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_READ, fieldId);
+  }
+
   public static Result updateTemplateField(String fieldId) {
     return executeResourcePutByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_UPDATE, fieldId);
   }

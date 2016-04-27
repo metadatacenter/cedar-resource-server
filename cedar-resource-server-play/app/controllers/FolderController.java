@@ -58,7 +58,6 @@ public class FolderController extends AbstractResourceServerController {
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
-
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
@@ -77,6 +76,9 @@ public class FolderController extends AbstractResourceServerController {
     }
   }
 
+  public static Result findFolderDetails(String folderId) {
+    return findFolder(folderId);
+  }
 
   public static Result updateFolder(String folderId) {
     try {

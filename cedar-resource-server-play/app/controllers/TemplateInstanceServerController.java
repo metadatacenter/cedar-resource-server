@@ -18,6 +18,10 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
     return executeResourceGetByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_READ, instanceId);
   }
 
+  public static Result findTemplateInstanceDetails(String instanceId) {
+    return executeResourceGetDetailsByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_READ, instanceId);
+  }
+
   public static Result updateTemplateInstance(String instanceId) {
     return executeResourcePutByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_UPDATE, instanceId);
   }

@@ -8,15 +8,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.*;
-import org.apache.http.client.fluent.Request;
-import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
+import org.metadatacenter.cedar.resource.user.UserProvider;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
-import org.metadatacenter.constant.HttpConnectionConstants;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.folderserver.CedarFSFolder;
 import org.metadatacenter.model.folderserver.CedarFSNode;
-import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.server.play.AbstractCedarController;
 import org.metadatacenter.server.security.Authorization;
@@ -24,6 +22,7 @@ import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.user.CedarUser;
 import play.Configuration;
 import play.Play;
 import play.mvc.Result;
@@ -46,7 +45,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     templateBase = config.getString(ConfigConstants.TEMPLATE_SERVER_BASE);
   }
 
-  protected static CedarRSFolder getCedarFolderById(String id) throws IOException, EncoderException {
+  protected static CedarFSFolder getCedarFolderById(String id) throws IOException, EncoderException {
     String url = folderBase + "folders/" + new URLCodec().encode(id);
 
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
@@ -57,7 +56,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
       if (HttpStatus.SC_OK == statusCode) {
-        return (CedarRSFolder) deserializeAndAddProvenanceInfoToResource(proxyResponse);
+        return (CedarFSFolder) deserializeResource(proxyResponse);
       }
     }
     return null;
@@ -85,10 +84,15 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     } catch (JsonProcessingException e) {
       e.printStackTrace();
     }
-    // TODO: get real user names here
     if (resource != null) {
-      resource.setCreatedByUserName("Foo Bar");
-      resource.setLastUpdatedByUserName("Foo Bar");
+      CedarUser creator = UserProvider.getUser(resource.getCreatedBy());
+      CedarUser updater = UserProvider.getUser(resource.getLastUpdatedBy());
+      if (creator != null) {
+        resource.setCreatedByUserName(creator.getScreenName());
+      }
+      if (updater != null) {
+        resource.setLastUpdatedByUserName(updater.getScreenName());
+      }
     }
     return resource;
   }
@@ -128,7 +132,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
             "You must specify the folderId as a request parameter!", errorParams));
       }
 
-      CedarRSFolder targetFolder = getCedarFolderById(folderId);
+      CedarFSFolder targetFolder = getCedarFolderById(folderId);
       if (targetFolder == null) {
         ObjectNode errorParams = JsonNodeFactory.instance.objectNode();
         errorParams.put("folderId", folderId);
@@ -166,15 +170,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
           String resourceRequestBodyAsString = MAPPER.writeValueAsString(resourceRequestBody);
 
-          // TODO have this wrapped as well
-          Request proxyRequest = Request.Post(resourceUrl)
-              .bodyString(resourceRequestBodyAsString, ContentType.APPLICATION_JSON)
-              .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
-              .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
-          proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request().getHeader(HttpHeaders.AUTHORIZATION));
-
-          HttpResponse resourceCreateResponse = proxyRequest.execute().returnResponse();
-
+          HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, request(),
+              resourceRequestBodyAsString);
           int resourceCreateStatusCode = resourceCreateResponse.getStatusLine().getStatusCode();
           HttpEntity resourceEntity = resourceCreateResponse.getEntity();
           if (resourceEntity != null) {
@@ -271,6 +268,34 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     }
   }
 
+  protected static Result executeResourceGetDetailsByProxy(CedarNodeType nodeType, CedarPermission permission, String
+      id) {
+    try {
+      IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.mustHavePermission(authRequest, permission);
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access error while reading details of " + nodeType.getValue(), e);
+      return forbiddenWithError(e);
+    }
+
+    try {
+      String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + new URLCodec().encode(id);
+      System.out.println(resourceUrl);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+      HttpEntity entity = proxyResponse.getEntity();
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      if (entity != null) {
+        return Results.status(statusCode, entity.getContent());
+      } else {
+        return Results.status(statusCode);
+      }
+    } catch (Exception e) {
+      play.Logger.error("Error while reading details of " + nodeType.getValue(), e);
+      return internalServerErrorWithError(e);
+    }
+  }
+
   protected static Result executeResourcePutByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
     try {
       IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -304,15 +329,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
           String resourceRequestBodyAsString = MAPPER.writeValueAsString(resourceRequestBody);
 
-          // TODO have this wrapped as well
-          Request proxyRequest = Request.Put(resourceUrl)
-              .bodyString(resourceRequestBodyAsString, ContentType.APPLICATION_JSON)
-              .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
-              .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
-          proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request().getHeader(HttpHeaders.AUTHORIZATION));
-
-          HttpResponse resourceUpdateResponse = proxyRequest.execute().returnResponse();
-
+          HttpResponse resourceUpdateResponse = ProxyUtil.proxyPut(resourceUrl, request(), resourceRequestBodyAsString);
           int resourceUpdateStatusCode = resourceUpdateResponse.getStatusLine().getStatusCode();
           HttpEntity resourceEntity = resourceUpdateResponse.getEntity();
           if (resourceEntity != null) {
@@ -364,14 +381,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
         String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + new URLCodec().encode(id);
         System.out.println(resourceUrl);
 
-        // TODO have this wrapped as well
-        Request proxyRequest = Request.Delete(resourceUrl)
-            .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
-            .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
-        proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request().getHeader(HttpHeaders.AUTHORIZATION));
-
-        HttpResponse resourceDeleteResponse = proxyRequest.execute().returnResponse();
-
+        HttpResponse resourceDeleteResponse = ProxyUtil.proxyDelete(resourceUrl, request());
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           return noContent();

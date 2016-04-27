@@ -17,6 +17,10 @@ public class TemplateServerController extends AbstractResourceServerController {
     return executeResourceGetByProxy(CedarNodeType.TEMPLATE, CedarPermission.TEMPLATE_READ, templateId);
   }
 
+  public static Result findTemplateDetails(String templateId) {
+    return executeResourceGetDetailsByProxy(CedarNodeType.TEMPLATE, CedarPermission.TEMPLATE_READ, templateId);
+  }
+
   public static Result updateTemplate(String templateId) {
     return executeResourcePutByProxy(CedarNodeType.TEMPLATE, CedarPermission.TEMPLATE_UPDATE, templateId);
   }
