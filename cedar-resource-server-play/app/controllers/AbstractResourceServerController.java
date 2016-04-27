@@ -160,19 +160,19 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           String entityContent = EntityUtils.toString(entity);
           JsonNode jsonNode = MAPPER.readTree(entityContent);
           String id = jsonNode.get("@id").asText();
-          String uuid = CedarResourceUtil.extractUUID(id);
 
           String resourceUrl = folderBase + PREFIX_RESOURCES;
           System.out.println(resourceUrl);
 
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           resourceRequestBody.put("parentId", targetFolder.getId());
-          resourceRequestBody.put("id", uuid);
+          resourceRequestBody.put("id", id);
           resourceRequestBody.put("resourceType", nodeType.getValue());
           resourceRequestBody.put("name", extractNameFromResponseObject(nodeType, jsonNode));
           resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
           String resourceRequestBodyAsString = MAPPER.writeValueAsString(resourceRequestBody);
 
+          // TODO have this wrapped as well
           Request proxyRequest = Request.Post(resourceUrl)
               .bodyString(resourceRequestBodyAsString, ContentType.APPLICATION_JSON)
               .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
@@ -309,12 +309,44 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       System.out.println(url);
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-      HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
+      if (statusCode != HttpStatus.SC_NO_CONTENT) {
+        // resource was not deleted
+        HttpEntity entity = proxyResponse.getEntity();
+        if (entity != null) {
+          return Results.status(statusCode, entity.getContent());
+        } else {
+          return Results.status(statusCode);
+        }
       } else {
-        return Results.status(statusCode);
+        String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + new URLCodec().encode(id);
+        System.out.println(resourceUrl);
+
+        // TODO have this wrapped as well
+        Request proxyRequest = Request.Delete(resourceUrl)
+            .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
+            .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
+        proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request().getHeader(HttpHeaders.AUTHORIZATION));
+
+        HttpResponse resourceDeleteResponse = proxyRequest.execute().returnResponse();
+
+        int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
+          if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
+            if (proxyResponse.getEntity() != null) {
+              return created(proxyResponse.getEntity().getContent());
+            } else {
+              return noContent();
+            }
+          } else {
+            HttpEntity resourceEntity = resourceDeleteResponse.getEntity();
+            if (resourceEntity != null) {
+              System.out.println("Resource not deleted #1, rollback resource and signal error");
+              return Results.status(resourceDeleteStatusCode, resourceEntity.getContent());
+            } else {
+              System.out.println("Resource not deleted #2, rollback resource and signal error");
+              return Results.status(resourceDeleteStatusCode);
+            }
+          }
       }
     } catch (Exception e) {
       play.Logger.error("Error while deleting " + nodeType.getValue(), e);
