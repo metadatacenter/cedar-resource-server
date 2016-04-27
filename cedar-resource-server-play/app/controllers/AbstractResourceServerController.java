@@ -9,12 +9,12 @@ import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.*;
 import org.apache.http.util.EntityUtils;
-import org.metadatacenter.cedar.resource.user.UserProvider;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.CedarFSFolder;
 import org.metadatacenter.model.folderserver.CedarFSNode;
+import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.server.play.AbstractCedarController;
 import org.metadatacenter.server.security.Authorization;
@@ -25,6 +25,7 @@ import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import play.Configuration;
 import play.Play;
+import play.mvc.Http;
 import play.mvc.Result;
 import play.mvc.Results;
 
@@ -37,15 +38,17 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   protected static Configuration config;
   protected final static String folderBase;
   protected final static String templateBase;
+  protected final static String userBase;
   protected final static ObjectMapper MAPPER = new ObjectMapper();
 
   static {
     config = Play.application().configuration();
     folderBase = config.getString(ConfigConstants.FOLDER_SERVER_BASE);
     templateBase = config.getString(ConfigConstants.TEMPLATE_SERVER_BASE);
+    userBase = config.getString(ConfigConstants.USER_SERVER_BASE);
   }
 
-  protected static CedarFSFolder getCedarFolderById(String id) throws IOException, EncoderException {
+  protected static CedarRSFolder getCedarFolderById(String id) throws IOException, EncoderException {
     String url = folderBase + "folders/" + new URLCodec().encode(id);
 
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
@@ -56,18 +59,18 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
       if (HttpStatus.SC_OK == statusCode) {
-        return (CedarFSFolder) deserializeResource(proxyResponse);
+        return (CedarRSFolder) deserializeResource(proxyResponse);
       }
     }
     return null;
   }
 
-  protected static CedarFSNode deserializeResource(HttpResponse proxyResponse) throws
+  protected static CedarRSNode deserializeResource(HttpResponse proxyResponse) throws
       IOException {
-    CedarFSNode resource = null;
+    CedarRSNode resource = null;
     try {
       String responseString = EntityUtils.toString(proxyResponse.getEntity());
-      resource = MAPPER.readValue(responseString, CedarFSNode.class);
+      resource = MAPPER.readValue(responseString, CedarRSNode.class);
     } catch (JsonProcessingException e) {
       e.printStackTrace();
     }
@@ -75,7 +78,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
 
-  protected static CedarRSNode deserializeAndAddProvenanceInfoToResource(HttpResponse proxyResponse) throws
+  protected static CedarRSNode deserializeAndAddProvenanceInfoToResource(Http.Request request, HttpResponse
+      proxyResponse) throws
       IOException {
     CedarRSNode resource = null;
     try {
@@ -85,8 +89,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       e.printStackTrace();
     }
     if (resource != null) {
-      CedarUser creator = UserProvider.getUser(resource.getCreatedBy());
-      CedarUser updater = UserProvider.getUser(resource.getLastUpdatedBy());
+      CedarUser creator = getUserSummary(request, resource.getCreatedBy());
+      CedarUser updater = getUserSummary(request, resource.getLastUpdatedBy());
       if (creator != null) {
         resource.setCreatedByUserName(creator.getScreenName());
       }
@@ -97,8 +101,46 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return resource;
   }
 
-  protected static JsonNode resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse) throws IOException {
-    CedarRSNode foundResource = deserializeAndAddProvenanceInfoToResource(proxyResponse);
+  private static CedarUser getUserSummary(Http.Request request, String userURL) {
+    String id = userURL;
+    try {
+      int pos = userURL.lastIndexOf('/');
+      if (pos > -1) {
+        id = userURL.substring(pos+1);
+      }
+      id = new URLCodec().encode(id);
+    } catch (EncoderException e) {
+      e.printStackTrace();
+    }
+    String url = userBase + "users" + "/" + id + "/" + "summary";
+    //System.out.println(url);
+    HttpResponse proxyResponse = null;
+    try {
+      proxyResponse = ProxyUtil.proxyGet(url, request);
+      HttpEntity entity = proxyResponse.getEntity();
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      if (entity != null) {
+        String userSummaryString = EntityUtils.toString(entity);
+        if (userSummaryString != null && !userSummaryString.isEmpty()) {
+          JsonNode jsonNode = MAPPER.readTree(userSummaryString);
+          JsonNode at = jsonNode.at("/screenName");
+          if (at != null && !at.isMissingNode()) {
+            CedarUser summary = new CedarUser();
+            summary.setScreenName(at.asText());
+            summary.setUserId(id);
+            return summary;
+          }
+        }
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return null;
+  }
+
+  protected static JsonNode resourceWithExpandedProvenanceInfo(Http.Request request, HttpResponse proxyResponse)
+      throws IOException {
+    CedarRSNode foundResource = deserializeAndAddProvenanceInfoToResource(request, proxyResponse);
     return MAPPER.valueToTree(foundResource);
   }
 
@@ -132,7 +174,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
             "You must specify the folderId as a request parameter!", errorParams));
       }
 
-      CedarFSFolder targetFolder = getCedarFolderById(folderId);
+      CedarRSFolder targetFolder = getCedarFolderById(folderId);
       if (targetFolder == null) {
         ObjectNode errorParams = JsonNodeFactory.instance.objectNode();
         errorParams.put("folderId", folderId);
@@ -161,7 +203,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
           String resourceUrl = folderBase + PREFIX_RESOURCES;
           System.out.println(resourceUrl);
-
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           resourceRequestBody.put("parentId", targetFolder.getId());
           resourceRequestBody.put("id", id);
@@ -286,7 +327,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
+        return Results.status(statusCode, resourceWithExpandedProvenanceInfo(request(), proxyResponse));
       } else {
         return Results.status(statusCode);
       }

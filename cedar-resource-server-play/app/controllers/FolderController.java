@@ -32,7 +32,7 @@ public class FolderController extends AbstractResourceServerController {
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_CREATED == statusCode) {
-          return ok(resourceWithExpandedProvenanceInfo(proxyResponse));
+          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
         }
@@ -61,7 +61,7 @@ public class FolderController extends AbstractResourceServerController {
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
-          return ok(resourceWithExpandedProvenanceInfo(proxyResponse));
+          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
         }
@@ -94,7 +94,7 @@ public class FolderController extends AbstractResourceServerController {
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
-          return ok(resourceWithExpandedProvenanceInfo(proxyResponse));
+          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
         }
