@@ -1,8 +1,14 @@
 package controllers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
+import org.metadatacenter.model.resourceserver.CedarRSFolder;
+import org.metadatacenter.model.resourceserver.CedarRSNode;
+import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
@@ -10,8 +16,11 @@ import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.libs.F;
+import play.mvc.Http;
 import play.mvc.Result;
+import play.mvc.Results;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,7 +58,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-      return generateStatusResponse(proxyResponse);
+      return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {
@@ -74,11 +83,39 @@ public class FolderContentsController extends AbstractResourceServerController {
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-      return generateStatusResponse(proxyResponse);
+      return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {
       return internalServerErrorWithError(e);
+    }
+  }
+
+  private static Result deserializeAndConvertFolderNamesIfNecessary(HttpResponse proxyResponse) throws IOException {
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    HttpEntity entity = proxyResponse.getEntity();
+    if (entity != null) {
+      RSNodeListResponse response = null;
+      try {
+        String responseString = EntityUtils.toString(proxyResponse.getEntity());
+        response = MAPPER.readValue(responseString, RSNodeListResponse.class);
+      } catch (JsonProcessingException e) {
+        e.printStackTrace();
+      }
+      // it can not be deserialized as RSNodeListResponse
+      if (response == null) {
+        return Results.status(statusCode, entity.getContent());
+      } else {
+        if (response.getResources() != null) {
+          response.getResources().forEach(rsNode -> addUserHomeFolderDisplayName(rsNode, request()));
+        }
+        if (response.getPathInfo() != null) {
+          response.getPathInfo().forEach(rsNode -> addUserHomeFolderDisplayName(rsNode, request()));
+        }
+        return Results.status(statusCode, MAPPER.writeValueAsString(response));
+      }
+    } else {
+      return Results.status(statusCode);
     }
   }
 
