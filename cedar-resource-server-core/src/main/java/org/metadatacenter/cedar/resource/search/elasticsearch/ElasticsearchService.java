@@ -6,7 +6,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.metadatacenter.util.config.PropertiesManager;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -20,12 +19,12 @@ public class ElasticsearchService implements IElasticsearchService {
   private String esType;
   private int esTransportPort;
 
-  public ElasticsearchService() {
-    esCluster = PropertiesManager.getProperty("es.cluster").get();
-    esHost = PropertiesManager.getProperty("es.host").get();
-    esIndex = PropertiesManager.getProperty("es.index").get();
-    esType = PropertiesManager.getProperty("es.type").get();
-    esTransportPort = PropertiesManager.getPropertyInt("es.transport-port").get();
+  public ElasticsearchService(String esCluster, String esHost, String esIndex, String esType, int esTransportPort) {
+    this.esCluster = esCluster;
+    this.esHost = esHost;
+    this.esIndex = esIndex;
+    this.esType = esType;
+    this.esTransportPort = esTransportPort;
 
     settings = Settings.settingsBuilder()
         .put("cluster.name", esCluster).build();
@@ -36,8 +35,8 @@ public class ElasticsearchService implements IElasticsearchService {
     try {
       client = TransportClient.builder().settings(settings).build().addTransportAddress(new
           InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
-      IndexResponse response = client.prepareIndex(esIndex, esType).setSource(json.asText()).get();
-      System.out.println(response.toString());
+      IndexResponse response = client.prepareIndex(esIndex, esType).setSource(json.toString()).get();
+          System.out.println(response.toString());
     } catch (UnknownHostException e) {
       throw e;
     } finally {

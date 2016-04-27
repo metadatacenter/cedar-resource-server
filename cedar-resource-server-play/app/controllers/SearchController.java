@@ -2,7 +2,6 @@ package controllers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
@@ -12,15 +11,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.libs.F;
 import play.mvc.Result;
+import utils.DataServices;
 
 public class SearchController extends AbstractResourceServerController {
   private static Logger log = LoggerFactory.getLogger(SearchController.class);
-
-  private static SearchService searchService;
-
-  static {
-    searchService = new SearchService();
-  }
 
   // GET
   public static Result search(String query, F.Option<String> resourceTypes, F.Option<String> sort, F.Option<Integer>
@@ -29,11 +23,11 @@ public class SearchController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      RSNodeListResponse results = searchService.search(query);
+      RSNodeListResponse results = DataServices.getInstance().getSearchService().search(query);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
-      return created(resultsNode);
+      return ok(resultsNode);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {
@@ -48,11 +42,11 @@ public class SearchController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      RSNodeListResponse results = searchService.search("");
+      RSNodeListResponse results = DataServices.getInstance().getSearchService().search("");
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
-      return created(resultsNode);
+      return ok(resultsNode);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {

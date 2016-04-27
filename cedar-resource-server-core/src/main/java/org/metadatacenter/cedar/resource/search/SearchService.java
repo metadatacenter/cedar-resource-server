@@ -1,11 +1,15 @@
 package org.metadatacenter.cedar.resource.search;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.constant.CedarConstants;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.resourceserver.*;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.provenance.ProvenanceTime;
 
+import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
@@ -13,8 +17,15 @@ import java.util.List;
 
 public class SearchService {
 
-  public void addToIndex(CedarIndexResource resource) {
+  private ElasticsearchService esService;
 
+  public SearchService(ElasticsearchService esService) {
+    this.esService = esService;
+  }
+
+  public void addToIndex(CedarIndexResource resource) throws UnknownHostException {
+    JsonNode jsonResource = new ObjectMapper().convertValue(resource, JsonNode.class);
+    esService.addToIndex(jsonResource);
   }
 
   public void removeFromIndex(String resourceId) {
@@ -59,7 +70,6 @@ public class SearchService {
     t2.setCreatedBy("https://user.metadatacenter.net/users/cd36dea6-9222-412b-99ab-bec50f6ecd00");
     t2.setLastUpdatedBy("https://user.metadatacenter.net/users/cd36dea6-9222-412b-99ab-bec50f6ecd00");
     resources.add(t2);
-
 
     // Elements
     CedarRSResource e1 = new CedarRSElement();

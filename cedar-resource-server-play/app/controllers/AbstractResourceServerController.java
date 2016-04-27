@@ -14,13 +14,16 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
+import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
 import org.metadatacenter.constant.HttpConnectionConstants;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.CedarFSNode;
+import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
+import org.metadatacenter.model.resourceserver.CedarRSResource;
 import org.metadatacenter.server.play.AbstractCedarController;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
@@ -32,8 +35,10 @@ import play.Configuration;
 import play.Play;
 import play.mvc.Result;
 import play.mvc.Results;
+import utils.DataServices;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 
 public abstract class AbstractResourceServerController extends AbstractCedarController {
 
@@ -190,7 +195,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           if (resourceEntity != null) {
             if (HttpStatus.SC_CREATED == resourceCreateStatusCode) {
               if (proxyResponse.getEntity() != null) {
-                // TODO: indexing here - fix name and description
+                // index the resource that has been created
+                indexResource(MAPPER.readValue(resourceCreateResponse.getEntity().getContent(), CedarRSResource.class));
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -296,6 +302,12 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       play.Logger.error("Error while deleting " + nodeType.getValue(), e);
       return internalServerErrorWithError(e);
     }
+  }
+
+  private static void indexResource(CedarRSResource rs) throws UnknownHostException {
+    play.Logger.info("Indexing the resource that has been created (id = " + rs.getId());
+    CedarIndexResource ir = new CedarIndexResource(rs);
+    DataServices.getInstance().getSearchService().addToIndex(ir);
   }
 
 }
