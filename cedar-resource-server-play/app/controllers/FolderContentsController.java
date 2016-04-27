@@ -1,6 +1,5 @@
 package controllers;
 
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
@@ -12,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.libs.F;
 import play.mvc.Result;
-import play.mvc.Results;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,16 +49,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
-      } else {
-        return Results.status(statusCode);
-      }
-
+      return generateStatusResponse(proxyResponse);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {
@@ -85,16 +74,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
-      } else {
-        return Results.status(statusCode);
-      }
-
+      return generateStatusResponse(proxyResponse);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {

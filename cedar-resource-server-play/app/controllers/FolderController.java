@@ -32,7 +32,7 @@ public class FolderController extends AbstractResourceServerController {
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_CREATED == statusCode) {
-          return ok(resourceWithExpandedProvenanceInfo(proxyResponse));
+          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
         }
@@ -58,11 +58,10 @@ public class FolderController extends AbstractResourceServerController {
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
-
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
-          return ok(resourceWithExpandedProvenanceInfo(proxyResponse));
+          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
         }
@@ -77,6 +76,9 @@ public class FolderController extends AbstractResourceServerController {
     }
   }
 
+  public static Result findFolderDetails(String folderId) {
+    return findFolder(folderId);
+  }
 
   public static Result updateFolder(String folderId) {
     try {
@@ -92,7 +94,7 @@ public class FolderController extends AbstractResourceServerController {
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
-          return ok(resourceWithExpandedProvenanceInfo(proxyResponse));
+          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
         }
@@ -117,14 +119,7 @@ public class FolderController extends AbstractResourceServerController {
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
-      } else {
-        return Results.status(statusCode);
-      }
-
+      return generateStatusResponse(proxyResponse);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {

@@ -44,6 +44,11 @@
     </dependency>
 
     <dependency>
+      <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-auth-operations</artifactId>
+    </dependency>
+
+    <dependency>
       <groupId>org.apache.httpcomponents</groupId>
       <artifactId>fluent-hc</artifactId>
     </dependency>

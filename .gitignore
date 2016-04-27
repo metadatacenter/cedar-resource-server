@@ -16,3 +16,4 @@ dist
 keycloak.json
 cedar-resource-server-play/conf/application-include-folder.conf
 cedar-resource-server-play/conf/application-include-template.conf
+cedar-resource-server-play/conf/application-include-user.conf
