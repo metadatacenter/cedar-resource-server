@@ -117,14 +117,7 @@ public class FolderController extends AbstractResourceServerController {
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
-      } else {
-        return Results.status(statusCode);
-      }
-
+      return generateStatusResponse(proxyResponse);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {

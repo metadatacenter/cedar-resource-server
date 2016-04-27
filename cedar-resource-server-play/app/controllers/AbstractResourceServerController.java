@@ -24,7 +24,6 @@ import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.util.resource.CedarResourceUtil;
 import play.Configuration;
 import play.Play;
 import play.mvc.Result;
@@ -146,12 +145,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_CREATED) {
         // resource was not created
-        HttpEntity entity = proxyResponse.getEntity();
-        if (entity != null) {
-          return Results.status(statusCode, entity.getContent());
-        } else {
-          return Results.status(statusCode);
-        }
+        return generateStatusResponse(proxyResponse);
       } else {
         // resource was created
         HttpEntity entity = proxyResponse.getEntity();
@@ -213,6 +207,16 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   }
 
+  protected static Result generateStatusResponse(HttpResponse proxyResponse) throws IOException {
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    HttpEntity entity = proxyResponse.getEntity();
+    if (entity != null) {
+      return Results.status(statusCode, entity.getContent());
+    } else {
+      return Results.status(statusCode);
+    }
+  }
+
   private static String extractNameFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
     String title = "";
     if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
@@ -220,7 +224,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       if (titleNode != null && !titleNode.isMissingNode()) {
         title = titleNode.textValue();
       }
-    } else if(nodeType == CedarNodeType.INSTANCE) {
+    } else if (nodeType == CedarNodeType.INSTANCE) {
       JsonNode titleNode = jsonNode.at("/_ui/templateTitle");
       if (titleNode != null && !titleNode.isMissingNode()) {
         title = titleNode.textValue();
@@ -281,12 +285,55 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       System.out.println(url);
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-      HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
+      if (statusCode != HttpStatus.SC_OK) {
+        // resource was not created
+        return generateStatusResponse(proxyResponse);
       } else {
-        return Results.status(statusCode);
+        // resource was created
+        HttpEntity entity = proxyResponse.getEntity();
+        if (entity != null) {
+          String entityContent = EntityUtils.toString(entity);
+          JsonNode jsonNode = MAPPER.readTree(entityContent);
+
+          String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + new URLCodec().encode(id);
+          System.out.println(resourceUrl);
+
+          ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
+          resourceRequestBody.put("name", extractNameFromResponseObject(nodeType, jsonNode));
+          resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
+          String resourceRequestBodyAsString = MAPPER.writeValueAsString(resourceRequestBody);
+
+          // TODO have this wrapped as well
+          Request proxyRequest = Request.Put(resourceUrl)
+              .bodyString(resourceRequestBodyAsString, ContentType.APPLICATION_JSON)
+              .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
+              .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
+          proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request().getHeader(HttpHeaders.AUTHORIZATION));
+
+          HttpResponse resourceUpdateResponse = proxyRequest.execute().returnResponse();
+
+          int resourceUpdateStatusCode = resourceUpdateResponse.getStatusLine().getStatusCode();
+          HttpEntity resourceEntity = resourceUpdateResponse.getEntity();
+          if (resourceEntity != null) {
+            if (HttpStatus.SC_OK == resourceUpdateStatusCode) {
+              if (proxyResponse.getEntity() != null) {
+                return ok(proxyResponse.getEntity().getContent());
+              } else {
+                return ok();
+              }
+            } else {
+              System.out.println("Resource not updated #1, rollback resource and signal error");
+              return Results.status(resourceUpdateStatusCode, resourceEntity.getContent());
+            }
+          } else {
+            System.out.println("Resource not updated #2, rollback resource and signal error");
+            return Results.status(resourceUpdateStatusCode);
+          }
+
+        } else {
+          return ok();
+        }
       }
     } catch (Exception e) {
       play.Logger.error("Error while updating " + nodeType.getValue(), e);
@@ -312,12 +359,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_NO_CONTENT) {
         // resource was not deleted
-        HttpEntity entity = proxyResponse.getEntity();
-        if (entity != null) {
-          return Results.status(statusCode, entity.getContent());
-        } else {
-          return Results.status(statusCode);
-        }
+        return generateStatusResponse(proxyResponse);
       } else {
         String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + new URLCodec().encode(id);
         System.out.println(resourceUrl);
@@ -331,22 +373,11 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
         HttpResponse resourceDeleteResponse = proxyRequest.execute().returnResponse();
 
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
-          if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
-            if (proxyResponse.getEntity() != null) {
-              return created(proxyResponse.getEntity().getContent());
-            } else {
-              return noContent();
-            }
-          } else {
-            HttpEntity resourceEntity = resourceDeleteResponse.getEntity();
-            if (resourceEntity != null) {
-              System.out.println("Resource not deleted #1, rollback resource and signal error");
-              return Results.status(resourceDeleteStatusCode, resourceEntity.getContent());
-            } else {
-              System.out.println("Resource not deleted #2, rollback resource and signal error");
-              return Results.status(resourceDeleteStatusCode);
-            }
-          }
+        if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
+          return noContent();
+        } else {
+          return generateStatusResponse(resourceDeleteResponse);
+        }
       }
     } catch (Exception e) {
       play.Logger.error("Error while deleting " + nodeType.getValue(), e);
