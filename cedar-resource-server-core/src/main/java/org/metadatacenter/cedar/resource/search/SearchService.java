@@ -1,7 +1,10 @@
 package org.metadatacenter.cedar.resource.search;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.SearchHit;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.constant.CedarConstants;
 import org.metadatacenter.model.index.CedarIndexResource;
@@ -9,6 +12,7 @@ import org.metadatacenter.model.resourceserver.*;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.provenance.ProvenanceTime;
 
+import java.io.IOException;
 import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -32,14 +36,23 @@ public class SearchService {
 
   }
 
-  public RSNodeListResponse search(String query) {
+  public RSNodeListResponse search(String query) throws IOException {
     if (query.trim().compareTo("dummy")==0) {
       return getDummySearchResults();
     }
     else {
-      RSNodeListResponse results = new RSNodeListResponse();
-      results.setResources(new ArrayList<>());
-      return results;
+      ObjectMapper mapper = new ObjectMapper();
+      SearchResponse esResults = esService.search(query);
+      RSNodeListResponse response = new RSNodeListResponse();
+      List<CedarRSNode> resources = new ArrayList<>();
+      for (SearchHit hit : esResults.getHits()) {
+        String hitJson = hit.sourceAsString();
+        CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
+        resources.add(resource.getInfo());
+      }
+      response.setTotalCount(esResults.getHits().getTotalHits());
+      response.setResources(resources);
+      return response;
     }
   }
 

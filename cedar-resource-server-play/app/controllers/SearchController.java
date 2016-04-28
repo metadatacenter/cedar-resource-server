@@ -23,7 +23,7 @@ public class SearchController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      RSNodeListResponse results = DataServices.getInstance().getSearchService().search(query);
+      RSNodeListResponse results = DataServices.getInstance().getSearchService().search(query.trim());
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);

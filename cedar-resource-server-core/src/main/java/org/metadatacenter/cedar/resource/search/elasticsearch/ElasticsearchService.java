@@ -1,11 +1,16 @@
 package org.metadatacenter.cedar.resource.search.elasticsearch;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.index.query.QueryBuilders;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -36,7 +41,7 @@ public class ElasticsearchService implements IElasticsearchService {
       client = TransportClient.builder().settings(settings).build().addTransportAddress(new
           InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
       IndexResponse response = client.prepareIndex(esIndex, esType).setSource(json.toString()).get();
-          System.out.println(response.toString());
+      System.out.println(response.toString());
     } catch (UnknownHostException e) {
       throw e;
     } finally {
@@ -48,7 +53,36 @@ public class ElasticsearchService implements IElasticsearchService {
   public void removeFromIndex(String id) {
   }
 
-  public JsonNode search(String query) {
-    return null;
+  public SearchResponse search(String query) throws UnknownHostException {
+    query = query.trim();
+    Client client = null;
+
+    try {
+      client = TransportClient.builder().settings(settings).build().addTransportAddress(new
+          InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
+
+      SearchRequestBuilder searchRequest = client.prepareSearch(esIndex)
+          .setTypes(esType);
+
+      if (query.length() > 0) {
+        searchRequest.setQuery(QueryBuilders.fuzzyQuery("info.name", query));
+      }
+      // Retrieve all
+      else {
+        searchRequest.setQuery(QueryBuilders.matchAllQuery());
+      }
+
+      System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
+
+      SearchResponse response = searchRequest
+          .execute()
+          .actionGet();
+      return response;
+    } catch (UnknownHostException e) {
+      throw e;
+    } finally {
+      // Close client
+      client.close();
+    }
   }
 }

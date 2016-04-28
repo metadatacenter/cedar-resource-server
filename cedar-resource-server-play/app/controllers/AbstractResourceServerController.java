@@ -9,12 +9,10 @@ import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.*;
 import org.apache.http.util.EntityUtils;
-import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
+import org.elasticsearch.ElasticsearchException;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.CedarFSFolder;
-import org.metadatacenter.model.folderserver.CedarFSNode;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
@@ -245,7 +243,16 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           return ok();
         }
       }
-    } catch (Exception e) {
+    }
+    catch (UnknownHostException e) {
+      play.Logger.error("Error while indexing the resource", e);
+      return internalServerErrorWithError(e);
+    }
+    catch (ElasticsearchException e) {
+      play.Logger.error("Error while indexing the resource", e);
+      return internalServerErrorWithError(e);
+    }
+    catch (Exception e) {
       play.Logger.error("Error while creating the resource", e);
       return internalServerErrorWithError(e);
     }
