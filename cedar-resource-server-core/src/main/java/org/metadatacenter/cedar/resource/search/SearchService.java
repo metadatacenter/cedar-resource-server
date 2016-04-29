@@ -1,25 +1,58 @@
 package org.metadatacenter.cedar.resource.search;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.SearchHit;
+import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.constant.CedarConstants;
+import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.resourceserver.*;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.provenance.ProvenanceTime;
 
+import java.io.IOException;
+import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-public class SearchService {
+public class SearchService implements ISearchService {
 
-  public RSNodeListResponse search(String query) {
-    if (query.trim().compareTo("dummy")==0) {
+  private ElasticsearchService esService;
+
+  public SearchService(ElasticsearchService esService) {
+    this.esService = esService;
+  }
+
+  public void addToIndex(CedarIndexResource resource) throws UnknownHostException {
+    JsonNode jsonResource = new ObjectMapper().convertValue(resource, JsonNode.class);
+    esService.addToIndex(jsonResource);
+  }
+
+  public void removeFromIndex(String resourceId) {
+
+  }
+
+  public RSNodeListResponse search(String query, List<String> resourceTypes) throws IOException {
+    if (query !=null && query.compareTo("dummy")==0) {
       return getDummySearchResults();
     }
     else {
-      RSNodeListResponse results = new RSNodeListResponse();
-      results.setResources(new ArrayList<>());
-      return results;
+      ObjectMapper mapper = new ObjectMapper();
+      SearchResponse esResults = esService.search(query, resourceTypes);
+      RSNodeListResponse response = new RSNodeListResponse();
+      List<CedarRSNode> resources = new ArrayList<>();
+      for (SearchHit hit : esResults.getHits()) {
+        String hitJson = hit.sourceAsString();
+        CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
+        resources.add(resource.getInfo());
+      }
+      response.setTotalCount(esResults.getHits().getTotalHits());
+      response.setResources(resources);
+      return response;
     }
   }
 
@@ -50,7 +83,6 @@ public class SearchService {
     t2.setCreatedBy("https://user.metadatacenter.net/users/cd36dea6-9222-412b-99ab-bec50f6ecd00");
     t2.setLastUpdatedBy("https://user.metadatacenter.net/users/cd36dea6-9222-412b-99ab-bec50f6ecd00");
     resources.add(t2);
-
 
     // Elements
     CedarRSResource e1 = new CedarRSElement();

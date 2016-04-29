@@ -9,11 +9,14 @@ import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.*;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
+import org.metadatacenter.model.resourceserver.CedarRSResource;
 import org.metadatacenter.server.play.AbstractCedarController;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
@@ -26,8 +29,10 @@ import play.Play;
 import play.mvc.Http;
 import play.mvc.Result;
 import play.mvc.Results;
+import utils.DataServices;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 
 public abstract class AbstractResourceServerController extends AbstractCedarController {
 
@@ -234,6 +239,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
                 response().setHeader(locationHeader.getName(), locationHeader.getValue());
               }
               if (proxyResponse.getEntity() != null) {
+                // index the resource that has been created
+                indexResource(MAPPER.readValue(resourceCreateResponse.getEntity().getContent(), CedarRSResource.class));
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -251,7 +258,16 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           return ok();
         }
       }
-    } catch (Exception e) {
+    }
+    catch (UnknownHostException e) {
+      play.Logger.error("Error while indexing the resource", e);
+      return internalServerErrorWithError(e);
+    }
+    catch (ElasticsearchException e) {
+      play.Logger.error("Error while indexing the resource", e);
+      return internalServerErrorWithError(e);
+    }
+    catch (Exception e) {
       play.Logger.error("Error while creating the resource", e);
       return internalServerErrorWithError(e);
     }
@@ -447,6 +463,12 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       play.Logger.error("Error while deleting " + nodeType.getValue(), e);
       return internalServerErrorWithError(e);
     }
+  }
+
+  private static void indexResource(CedarRSResource rs) throws UnknownHostException {
+    play.Logger.info("Indexing resource (id = " + rs.getId());
+    CedarIndexResource ir = new CedarIndexResource(rs);
+    DataServices.getInstance().getSearchService().addToIndex(ir);
   }
 
 }
