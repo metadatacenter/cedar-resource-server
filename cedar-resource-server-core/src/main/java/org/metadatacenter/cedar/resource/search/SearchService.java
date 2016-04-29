@@ -32,8 +32,8 @@ public class SearchService implements ISearchService {
     esService.addToIndex(jsonResource);
   }
 
-  public void removeFromIndex(String resourceId) {
-
+  public void removeFromIndex(String resourceId) throws UnknownHostException {
+    esService.removeFromIndex(resourceId);
   }
 
   public RSNodeListResponse search(String query, List<String> resourceTypes) throws IOException {

@@ -17,10 +17,6 @@ GET            /folders/:id/details             controllers.FolderController.fin
 PUT            /folders/:id                     controllers.FolderController.updateFolder(id: String)
 DELETE         /folders/:id                     controllers.FolderController.deleteFolder(id: String)
 
-# Search
-GET            /search                          controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer], folders_first: play.libs.F.Option[java.lang.Boolean])
-POST           /search                          controllers.SearchController.searchByPost()
-
 # Templates
 POST           /templates                       controllers.TemplateServerController.createTemplate()
 GET            /templates/:id                   controllers.TemplateServerController.findTemplate(id: String)
@@ -48,6 +44,10 @@ GET            /template-instances/:id          controllers.TemplateInstanceServ
 GET            /template-instances/:id/details  controllers.TemplateInstanceServerController.findTemplateInstanceDetails(id: String)
 PUT            /template-instances/:id          controllers.TemplateInstanceServerController.updateTemplateInstance(id: String)
 DELETE         /template-instances/:id          controllers.TemplateInstanceServerController.deleteTemplateInstance(id: String)
+
+# Search
+GET            /search                          controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer], folders_first: play.libs.F.Option[java.lang.Boolean])
+#POST           /search                          controllers.SearchController.searchByPost()
 
 # For CORS - preflight request
 OPTIONS        /*all                            controllers.MainResourceServerController.preflight(all)

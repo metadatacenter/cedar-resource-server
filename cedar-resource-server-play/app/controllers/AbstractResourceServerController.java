@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.model.resourceserver.CedarRSResource;
@@ -29,7 +28,7 @@ import play.Play;
 import play.mvc.Http;
 import play.mvc.Result;
 import play.mvc.Results;
-import utils.DataServices;
+import utils.IndexUtils;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -240,7 +239,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
               }
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                indexResource(MAPPER.readValue(resourceCreateResponse.getEntity().getContent(), CedarRSResource.class));
+                IndexUtils.indexResource(MAPPER.readValue(resourceCreateResponse.getEntity().getContent(),
+                    CedarRSResource.class));
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -405,6 +405,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           if (resourceEntity != null) {
             if (HttpStatus.SC_OK == resourceUpdateStatusCode) {
               if (proxyResponse.getEntity() != null) {
+                // update the resource on the index
+                IndexUtils.updateIndexedResource(MAPPER.readValue(resourceUpdateResponse.getEntity().getContent(),
+                    CedarRSResource.class));
                 return ok(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -422,7 +425,16 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           return ok();
         }
       }
-    } catch (Exception e) {
+    }
+    catch (UnknownHostException e) {
+      play.Logger.error("Error while updating the resource on the index", e);
+      return internalServerErrorWithError(e);
+    }
+    catch (ElasticsearchException e) {
+      play.Logger.error("Error while updating the resource on the index", e);
+      return internalServerErrorWithError(e);
+    }
+    catch (Exception e) {
       play.Logger.error("Error while updating " + nodeType.getValue(), e);
       return internalServerErrorWithError(e);
     }
@@ -454,21 +466,23 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
         HttpResponse resourceDeleteResponse = ProxyUtil.proxyDelete(resourceUrl, request());
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
+          // remove the resource from the index
+          IndexUtils.unindexResource(id);
           return noContent();
         } else {
           return generateStatusResponse(resourceDeleteResponse);
         }
       }
+    } catch (UnknownHostException e) {
+      play.Logger.error("Error while un-indexing the resource", e);
+      return internalServerErrorWithError(e);
+    } catch (ElasticsearchException e) {
+      play.Logger.error("Error while un-indexing the resource", e);
+      return internalServerErrorWithError(e);
     } catch (Exception e) {
       play.Logger.error("Error while deleting " + nodeType.getValue(), e);
       return internalServerErrorWithError(e);
     }
-  }
-
-  private static void indexResource(CedarRSResource rs) throws UnknownHostException {
-    play.Logger.info("Indexing resource (id = " + rs.getId());
-    CedarIndexResource ir = new CedarIndexResource(rs);
-    DataServices.getInstance().getSearchService().addToIndex(ir);
   }
 
 }

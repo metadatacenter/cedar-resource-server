@@ -11,7 +11,7 @@ import java.util.List;
 public interface ISearchService {
 
   void addToIndex(CedarIndexResource resource) throws UnknownHostException;;
-  void removeFromIndex(String resourceId);
+  void removeFromIndex(String resourceId) throws UnknownHostException;
   // TODO: Update resource on index
   RSNodeListResponse search(String query, List<String> resourceTypes) throws IOException;
 

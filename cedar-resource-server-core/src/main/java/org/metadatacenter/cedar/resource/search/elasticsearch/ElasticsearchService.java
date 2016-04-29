@@ -2,6 +2,8 @@ package org.metadatacenter.cedar.resource.search.elasticsearch;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import javassist.NotFoundException;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -10,8 +12,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -25,13 +29,16 @@ public class ElasticsearchService implements IElasticsearchService {
   private String esIndex;
   private String esType;
   private int esTransportPort;
+  private int esSize;
 
-  public ElasticsearchService(String esCluster, String esHost, String esIndex, String esType, int esTransportPort) {
+  public ElasticsearchService(String esCluster, String esHost, String esIndex, String esType, int esTransportPort, int esSize) {
     this.esCluster = esCluster;
     this.esHost = esHost;
     this.esIndex = esIndex;
     this.esType = esType;
     this.esTransportPort = esTransportPort;
+    this.esSize = esSize;
+
 
     settings = Settings.settingsBuilder()
         .put("cluster.name", esCluster).build();
@@ -43,7 +50,7 @@ public class ElasticsearchService implements IElasticsearchService {
       client = TransportClient.builder().settings(settings).build().addTransportAddress(new
           InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
       IndexResponse response = client.prepareIndex(esIndex, esType).setSource(json.toString()).get();
-      System.out.println(response.toString());
+      System.out.println("The resource has been indexed");
     } catch (UnknownHostException e) {
       throw e;
     } finally {
@@ -52,7 +59,31 @@ public class ElasticsearchService implements IElasticsearchService {
     }
   }
 
-  public void removeFromIndex(String id) {
+  public void removeFromIndex(String resourceId) throws UnknownHostException {
+    Client client = null;
+
+    try {
+      client = TransportClient.builder().settings(settings).build().addTransportAddress(new
+          InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
+
+      // Get resources by resource id
+      SearchResponse responseSearch = client.prepareSearch(esIndex)
+          .setTypes(esType).setQuery(QueryBuilders.matchQuery("info.@id", resourceId))
+          .execute().actionGet();
+
+      // Delete by Elasticsearch id
+      for (SearchHit hit : responseSearch.getHits()) {
+        DeleteResponse responseDelete = client.prepareDelete(esIndex, esType, hit.id())
+            .execute()
+            .actionGet();
+        System.out.println("The resource has been removed from the index");
+      }
+    } catch (UnknownHostException e) {
+      throw e;
+    } finally {
+      // Close client
+      client.close();
+    }
   }
 
   public SearchResponse search(String query, List<String> resourceTypes) throws UnknownHostException {
@@ -63,7 +94,7 @@ public class ElasticsearchService implements IElasticsearchService {
           InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
 
       SearchRequestBuilder searchRequest = client.prepareSearch(esIndex)
-          .setTypes(esType);
+          .setTypes(esType).setSize(esSize);
 
       if (query != null && query.length() > 0) {
         searchRequest.setQuery(
