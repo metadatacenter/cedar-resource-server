@@ -466,7 +466,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
   private static void indexResource(CedarRSResource rs) throws UnknownHostException {
-    play.Logger.info("Indexing the resource that has been created (id = " + rs.getId());
+    play.Logger.info("Indexing resource (id = " + rs.getId());
     CedarIndexResource ir = new CedarIndexResource(rs);
     DataServices.getInstance().getSearchService().addToIndex(ir);
   }

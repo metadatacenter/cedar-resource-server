@@ -18,7 +18,7 @@ PUT            /folders/:id                     controllers.FolderController.upd
 DELETE         /folders/:id                     controllers.FolderController.deleteFolder(id: String)
 
 # Search
-GET            /search                          controllers.SearchController.search(q: String ?="", resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer], folders_first: play.libs.F.Option[java.lang.Boolean])
+GET            /search                          controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer], folders_first: play.libs.F.Option[java.lang.Boolean])
 POST           /search                          controllers.SearchController.searchByPost()
 
 # Templates

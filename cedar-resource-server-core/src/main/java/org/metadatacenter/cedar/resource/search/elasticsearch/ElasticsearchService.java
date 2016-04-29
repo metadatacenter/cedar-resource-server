@@ -10,10 +10,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.List;
 
 public class ElasticsearchService implements IElasticsearchService {
 
@@ -53,8 +55,7 @@ public class ElasticsearchService implements IElasticsearchService {
   public void removeFromIndex(String id) {
   }
 
-  public SearchResponse search(String query) throws UnknownHostException {
-    query = query.trim();
+  public SearchResponse search(String query, List<String> resourceTypes) throws UnknownHostException {
     Client client = null;
 
     try {
@@ -64,15 +65,27 @@ public class ElasticsearchService implements IElasticsearchService {
       SearchRequestBuilder searchRequest = client.prepareSearch(esIndex)
           .setTypes(esType);
 
-      if (query.length() > 0) {
-        searchRequest.setQuery(QueryBuilders.fuzzyQuery("info.name", query));
+      if (query != null && query.length() > 0) {
+        searchRequest.setQuery(
+            QueryBuilders.boolQuery()
+            .should(QueryBuilders.fuzzyQuery("info.name", query))
+                .should(QueryBuilders.fuzzyQuery("info.description", query)));
       }
       // Retrieve all
       else {
         searchRequest.setQuery(QueryBuilders.matchAllQuery());
       }
 
-      System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
+      if (resourceTypes != null && resourceTypes.size() > 0) {
+        // Filter by resource type
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+        for (String rt : resourceTypes) {
+          boolQueryBuilder.should(QueryBuilders.termQuery("info.resourceType", rt));
+        }
+        searchRequest.setPostFilter(boolQueryBuilder);
+      }
+
+      //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
 
       SearchResponse response = searchRequest
           .execute()

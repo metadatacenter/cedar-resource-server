@@ -12,18 +12,27 @@ import org.slf4j.LoggerFactory;
 import play.libs.F;
 import play.mvc.Result;
 import utils.DataServices;
+import utils.InputValidator;
+
+import java.util.List;
 
 public class SearchController extends AbstractResourceServerController {
   private static Logger log = LoggerFactory.getLogger(SearchController.class);
 
   // GET
-  public static Result search(String query, F.Option<String> resourceTypes, F.Option<String> sort, F.Option<Integer>
+  public static Result search(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> sort, F
+      .Option<Integer>
       limit, F.Option<Integer> offset, F.Option<Boolean> foldersFirst) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      RSNodeListResponse results = DataServices.getInstance().getSearchService().search(query.trim());
+      // Parameters validation
+      String queryString = InputValidator.validateQuery(query);
+      List<String> resourceTypeStringList = InputValidator.validateResourceTypes(resourceTypes);
+
+      RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
+          resourceTypeStringList);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
@@ -42,11 +51,12 @@ public class SearchController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
-      RSNodeListResponse results = DataServices.getInstance().getSearchService().search("");
+      //RSNodeListResponse results = DataServices.getInstance().getSearchService().search("");
 
       ObjectMapper mapper = new ObjectMapper();
-      JsonNode resultsNode = mapper.valueToTree(results);
-      return ok(resultsNode);
+      //JsonNode resultsNode = mapper.valueToTree(results);
+      //return ok(resultsNode);
+      return ok();
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {

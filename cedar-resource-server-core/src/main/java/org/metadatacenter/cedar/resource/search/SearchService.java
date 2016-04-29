@@ -1,12 +1,12 @@
 package org.metadatacenter.cedar.resource.search;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.constant.CedarConstants;
+import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.resourceserver.*;
 import org.metadatacenter.model.response.RSNodeListResponse;
@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-public class SearchService {
+public class SearchService implements ISearchService {
 
   private ElasticsearchService esService;
 
@@ -36,13 +36,13 @@ public class SearchService {
 
   }
 
-  public RSNodeListResponse search(String query) throws IOException {
-    if (query.trim().compareTo("dummy")==0) {
+  public RSNodeListResponse search(String query, List<String> resourceTypes) throws IOException {
+    if (query !=null && query.compareTo("dummy")==0) {
       return getDummySearchResults();
     }
     else {
       ObjectMapper mapper = new ObjectMapper();
-      SearchResponse esResults = esService.search(query);
+      SearchResponse esResults = esService.search(query, resourceTypes);
       RSNodeListResponse response = new RSNodeListResponse();
       List<CedarRSNode> resources = new ArrayList<>();
       for (SearchHit hit : esResults.getHits()) {
