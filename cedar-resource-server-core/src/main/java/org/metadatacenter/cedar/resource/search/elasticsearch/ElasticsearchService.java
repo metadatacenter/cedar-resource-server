@@ -1,18 +1,16 @@
 package org.metadatacenter.cedar.resource.search.elasticsearch;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import javassist.NotFoundException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -31,7 +29,8 @@ public class ElasticsearchService implements IElasticsearchService {
   private int esTransportPort;
   private int esSize;
 
-  public ElasticsearchService(String esCluster, String esHost, String esIndex, String esType, int esTransportPort, int esSize) {
+  public ElasticsearchService(String esCluster, String esHost, String esIndex, String esType, int esTransportPort,
+                              int esSize) {
     this.esCluster = esCluster;
     this.esHost = esHost;
     this.esIndex = esIndex;
@@ -39,17 +38,19 @@ public class ElasticsearchService implements IElasticsearchService {
     this.esTransportPort = esTransportPort;
     this.esSize = esSize;
 
-
     settings = Settings.settingsBuilder()
         .put("cluster.name", esCluster).build();
   }
 
-  public void addToIndex(JsonNode json) throws UnknownHostException {
+  public void addToIndex(JsonNode json) throws Exception {
     Client client = null;
     try {
       client = TransportClient.builder().settings(settings).build().addTransportAddress(new
           InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
       IndexResponse response = client.prepareIndex(esIndex, esType).setSource(json.toString()).get();
+      if (!response.isCreated()) {
+        throw new Exception("Failed to index resource");
+      }
       System.out.println("The resource has been indexed");
     } catch (UnknownHostException e) {
       throw e;
@@ -59,7 +60,7 @@ public class ElasticsearchService implements IElasticsearchService {
     }
   }
 
-  public void removeFromIndex(String resourceId) throws UnknownHostException {
+  public void removeFromIndex(String resourceId) throws Exception {
     Client client = null;
 
     try {
@@ -76,6 +77,9 @@ public class ElasticsearchService implements IElasticsearchService {
         DeleteResponse responseDelete = client.prepareDelete(esIndex, esType, hit.id())
             .execute()
             .actionGet();
+        if (!responseDelete.isFound()) {
+          throw new Exception("Failed to remove resource from the index");
+        }
         System.out.println("The resource has been removed from the index");
       }
     } catch (UnknownHostException e) {
@@ -86,7 +90,14 @@ public class ElasticsearchService implements IElasticsearchService {
     }
   }
 
-  public SearchResponse search(String query, List<String> resourceTypes) throws UnknownHostException {
+  public SearchResponse search(String query, List<String> resourceTypes) throws Exception {
+    // Create search index if it does not exist in order to avoid an Elasticsearch exception. The index will be
+    // empty, so no results will be returned
+    if (!indexExists(esIndex)) {
+      System.out.println("The index '" + esIndex + "' does not exist. Creating it...");
+      createIndex(esIndex);
+    }
+
     Client client = null;
 
     try {
@@ -99,14 +110,13 @@ public class ElasticsearchService implements IElasticsearchService {
       if (query != null && query.length() > 0) {
         searchRequest.setQuery(
             QueryBuilders.boolQuery()
-            .should(QueryBuilders.fuzzyQuery("info.name", query))
+                .should(QueryBuilders.fuzzyQuery("info.name", query))
                 .should(QueryBuilders.fuzzyQuery("info.description", query)));
       }
       // Retrieve all
       else {
         searchRequest.setQuery(QueryBuilders.matchAllQuery());
       }
-
       if (resourceTypes != null && resourceTypes.size() > 0) {
         // Filter by resource type
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
@@ -115,9 +125,7 @@ public class ElasticsearchService implements IElasticsearchService {
         }
         searchRequest.setPostFilter(boolQueryBuilder);
       }
-
       //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
-
       SearchResponse response = searchRequest
           .execute()
           .actionGet();
@@ -129,4 +137,43 @@ public class ElasticsearchService implements IElasticsearchService {
       client.close();
     }
   }
+
+  private boolean indexExists(String indexName) throws UnknownHostException {
+    Client client = null;
+    try {
+      client = TransportClient.builder().settings(settings).build().addTransportAddress(new
+          InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
+      boolean exists = client.admin().indices().prepareExists(indexName)
+          .execute().actionGet().isExists();
+      return exists;
+    } catch (UnknownHostException e) {
+      throw e;
+    } finally {
+      // Close client
+      client.close();
+    }
+  }
+
+  private void createIndex(String indexName) throws Exception {
+    Client client = null;
+    try {
+      client = TransportClient.builder().settings(settings).build().addTransportAddress(new
+          InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
+
+      CreateIndexResponse createIndexResponse =
+          client.admin().indices().create(new CreateIndexRequest(indexName)).actionGet();
+
+      if (!createIndexResponse.isAcknowledged()) {
+        throw new Exception("Failed to create index '" + esIndex + "'");
+      }
+      System.out.println("The index '" + esIndex + "' has been created");
+
+    } catch (UnknownHostException e) {
+      throw e;
+    } finally {
+      // Close client
+      client.close();
+    }
+  }
+
 }
