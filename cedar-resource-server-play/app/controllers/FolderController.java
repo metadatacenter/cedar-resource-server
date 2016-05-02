@@ -6,6 +6,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
@@ -14,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.mvc.Result;
 import play.mvc.Results;
+import utils.IndexUtils;
 
 public class FolderController extends AbstractResourceServerController {
   private static Logger log = LoggerFactory.getLogger(FolderController.class);
@@ -32,6 +34,8 @@ public class FolderController extends AbstractResourceServerController {
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_CREATED == statusCode) {
+          // index the folder that has been created
+          IndexUtils.indexResource(MAPPER.readValue(entity.getContent(), CedarRSFolder.class));
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
         } else {
           return Results.status(statusCode, entity.getContent());
@@ -94,6 +98,8 @@ public class FolderController extends AbstractResourceServerController {
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
+          // update the folder on the index
+          IndexUtils.updateIndexedResource(MAPPER.readValue(entity.getContent(), CedarRSFolder.class));
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
         } else {
           return Results.status(statusCode, entity.getContent());
@@ -119,7 +125,14 @@ public class FolderController extends AbstractResourceServerController {
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
-      return generateStatusResponse(proxyResponse);
+      int folderDeleteStatusCode = proxyResponse.getStatusLine().getStatusCode();
+      if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
+        // remove the folder from the index
+        IndexUtils.unindexResource(folderId);
+        return noContent();
+      } else {
+        return generateStatusResponse(proxyResponse);
+      }
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {
