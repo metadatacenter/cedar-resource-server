@@ -166,7 +166,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
   // Proxy methods for resource types
-
   protected static Result executeResourcePostByProxy(CedarNodeType nodeType, CedarPermission permission) {
     try {
       IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -177,8 +176,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     }
 
     try {
-      JsonNode originalRequestContent = request().body().asJson();
-
       String folderId = request().getQueryString("folderId");
       if (folderId != null) {
         folderId = folderId.trim();
@@ -240,7 +237,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
                 IndexUtils.indexResource(MAPPER.readValue(resourceCreateResponse.getEntity().getContent(),
-                    CedarRSResource.class));
+                    CedarRSResource.class), jsonNode);
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();

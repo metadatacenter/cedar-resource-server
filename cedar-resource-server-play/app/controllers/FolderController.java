@@ -35,7 +35,7 @@ public class FolderController extends AbstractResourceServerController {
       if (entity != null) {
         if (HttpStatus.SC_CREATED == statusCode) {
           // index the folder that has been created
-          IndexUtils.indexResource(MAPPER.readValue(entity.getContent(), CedarRSFolder.class));
+          IndexUtils.indexResource(MAPPER.readValue(entity.getContent(), CedarRSFolder.class), null);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
         } else {
           return Results.status(statusCode, entity.getContent());
