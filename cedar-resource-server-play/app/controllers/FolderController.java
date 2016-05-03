@@ -45,8 +45,10 @@ public class FolderController extends AbstractResourceServerController {
       }
 
     } catch (IllegalArgumentException e) {
+      System.out.println(e.getMessage());
       return badRequestWithError(e);
     } catch (Exception e) {
+      System.out.println(e.getMessage());
       return internalServerErrorWithError(e);
     }
   }

@@ -108,6 +108,7 @@ public class ElasticsearchService implements IElasticsearchService {
           .setTypes(esType).setSize(esSize);
 
       if (query != null && query.length() > 0) {
+        query = query.toLowerCase();
         searchRequest.setQuery(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.fuzzyQuery("info.name", query))
