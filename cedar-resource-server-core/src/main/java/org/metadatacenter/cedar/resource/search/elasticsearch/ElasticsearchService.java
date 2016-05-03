@@ -62,7 +62,7 @@ public class ElasticsearchService implements IElasticsearchService {
 
   public void removeFromIndex(String resourceId) throws Exception {
     Client client = null;
-
+    System.out.println("Removing resource @id=" + resourceId + "from the index");
     try {
       client = TransportClient.builder().settings(settings).build().addTransportAddress(new
           InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
@@ -78,9 +78,9 @@ public class ElasticsearchService implements IElasticsearchService {
             .execute()
             .actionGet();
         if (!responseDelete.isFound()) {
-          throw new Exception("Failed to remove resource from the index");
+          throw new Exception("Failed to remove resource " + resourceId + " from the index");
         }
-        System.out.println("The resource has been removed from the index");
+        System.out.println("The resource " + resourceId + " has been removed from the index");
       }
     } catch (UnknownHostException e) {
       throw e;
@@ -93,10 +93,10 @@ public class ElasticsearchService implements IElasticsearchService {
   public SearchResponse search(String query, List<String> resourceTypes) throws Exception {
     // Create search index if it does not exist in order to avoid an Elasticsearch exception. The index will be
     // empty, so no results will be returned
-    if (!indexExists(esIndex)) {
-      System.out.println("The index '" + esIndex + "' does not exist. Creating it...");
-      createIndex(esIndex);
-    }
+//    if (!indexExists(esIndex)) {
+//      System.out.println("The index '" + esIndex + "' does not exist. Creating it...");
+//      createIndex(esIndex);
+//    }
 
     Client client = null;
 
@@ -108,11 +108,8 @@ public class ElasticsearchService implements IElasticsearchService {
           .setTypes(esType).setSize(esSize);
 
       if (query != null && query.length() > 0) {
-        query = query.toLowerCase();
         searchRequest.setQuery(
-            QueryBuilders.boolQuery()
-                .should(QueryBuilders.fuzzyQuery("info.name", query))
-                .should(QueryBuilders.fuzzyQuery("info.description", query)));
+            QueryBuilders.queryStringQuery(query).field("info.name").field("info.description"));
       }
       // Retrieve all
       else {
