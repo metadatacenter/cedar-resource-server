@@ -16,10 +16,15 @@ import org.slf4j.LoggerFactory;
 import play.mvc.Result;
 import play.mvc.Results;
 import utils.IndexUtils;
+import com.wordnik.swagger.annotations.*;
 
+@Api(value = "/folders", description = "Folder operations")
 public class FolderController extends AbstractResourceServerController {
   private static Logger log = LoggerFactory.getLogger(FolderController.class);
 
+  @ApiOperation(
+      value = "Create folder",
+      httpMethod = "POST")
   public static Result createFolder() {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -53,6 +58,9 @@ public class FolderController extends AbstractResourceServerController {
     }
   }
 
+  @ApiOperation(
+      value = "Find folder by id",
+      httpMethod = "GET")
   public static Result findFolder(String folderId) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -82,10 +90,16 @@ public class FolderController extends AbstractResourceServerController {
     }
   }
 
+  @ApiOperation(
+      value = "Find folder details by id",
+      httpMethod = "GET")
   public static Result findFolderDetails(String folderId) {
     return findFolder(folderId);
   }
 
+  @ApiOperation(
+      value = "Update folder",
+      httpMethod = "PUT")
   public static Result updateFolder(String folderId) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -117,6 +131,9 @@ public class FolderController extends AbstractResourceServerController {
     }
   }
 
+  @ApiOperation(
+      value = "Delete folder",
+      httpMethod = "DELETE")
   public static Result deleteFolder(String folderId) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
