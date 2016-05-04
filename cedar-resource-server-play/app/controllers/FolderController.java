@@ -101,7 +101,7 @@ public class FolderController extends AbstractResourceServerController {
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
           // update the folder on the index
-          IndexUtils.updateIndexedResource(MAPPER.readValue(entity.getContent(), CedarRSFolder.class));
+          IndexUtils.updateIndexedResource(MAPPER.readValue(entity.getContent(), CedarRSFolder.class), null);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
         } else {
           return Results.status(statusCode, entity.getContent());

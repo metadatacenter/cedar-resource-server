@@ -404,7 +404,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
               if (proxyResponse.getEntity() != null) {
                 // update the resource on the index
                 IndexUtils.updateIndexedResource(MAPPER.readValue(resourceUpdateResponse.getEntity().getContent(),
-                    CedarRSResource.class));
+                    CedarRSResource.class), jsonNode);
                 return ok(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
