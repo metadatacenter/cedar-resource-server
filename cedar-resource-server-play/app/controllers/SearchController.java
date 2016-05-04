@@ -2,6 +2,8 @@ package controllers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wordnik.swagger.annotations.Api;
+import com.wordnik.swagger.annotations.ApiOperation;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
@@ -16,10 +18,13 @@ import utils.InputValidator;
 
 import java.util.List;
 
+@Api(value = "/search", description = "Search for resources")
 public class SearchController extends AbstractResourceServerController {
   private static Logger log = LoggerFactory.getLogger(SearchController.class);
 
-  // GET
+  @ApiOperation(
+      value = "Search for resources",
+      httpMethod = "GET")
   public static Result search(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> sort, F
       .Option<Integer>
       limit, F.Option<Integer> offset, F.Option<Boolean> foldersFirst) {

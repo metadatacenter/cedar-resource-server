@@ -97,6 +97,12 @@
       <artifactId>jboss-logging</artifactId>
     </dependency>
 
+    <!-- Swagger-Play2 -->
+    <dependency>
+      <groupId>com.wordnik</groupId>
+      <artifactId>swagger-play2_${play2.scala.version}</artifactId>
+    </dependency>
+
   </dependencies>
 
   <build>
