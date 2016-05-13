@@ -3,54 +3,57 @@
 # ~~~~
 
 # Home page
-GET            /                                controllers.MainResourceServerController.index()
+GET            /                                      controllers.MainResourceServerController.index()
 
 
 # Folder contents
-GET            /folders/contents                controllers.FolderContentsController.findFolderContentsByPath(path: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
-GET            /folders/:id/contents            controllers.FolderContentsController.findFolderContentsById(id: String, resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
+GET            /folders/contents                      controllers.FolderContentsController.findFolderContentsByPath(path: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
+GET            /folders/:id/contents                  controllers.FolderContentsController.findFolderContentsById(id: String, resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
 
 # Folders
-POST           /folders                         controllers.FolderController.createFolder()
-GET            /folders/:id                     controllers.FolderController.findFolder(id: String)
-GET            /folders/:id/details             controllers.FolderController.findFolderDetails(id: String)
-PUT            /folders/:id                     controllers.FolderController.updateFolder(id: String)
-DELETE         /folders/:id                     controllers.FolderController.deleteFolder(id: String)
+POST           /folders                               controllers.FolderController.createFolder()
+GET            /folders/:id                           controllers.FolderController.findFolder(id: String)
+GET            /folders/:id/details                   controllers.FolderController.findFolderDetails(id: String)
+PUT            /folders/:id                           controllers.FolderController.updateFolder(id: String)
+DELETE         /folders/:id                           controllers.FolderController.deleteFolder(id: String)
 
 # Templates
-POST           /templates                       controllers.TemplateServerController.createTemplate()
-GET            /templates/:id                   controllers.TemplateServerController.findTemplate(id: String)
-GET            /templates/:id/details           controllers.TemplateServerController.findTemplateDetails(id: String)
-PUT            /templates/:id                   controllers.TemplateServerController.updateTemplate(id: String)
-DELETE         /templates/:id                   controllers.TemplateServerController.deleteTemplate(id: String)
+POST           /templates                             controllers.TemplateServerController.createTemplate()
+GET            /templates/:id                         controllers.TemplateServerController.findTemplate(id: String)
+GET            /templates/:id/details                 controllers.TemplateServerController.findTemplateDetails(id: String)
+PUT            /templates/:id                         controllers.TemplateServerController.updateTemplate(id: String)
+DELETE         /templates/:id                         controllers.TemplateServerController.deleteTemplate(id: String)
 
 # Template Elements
-POST           /template-elements               controllers.TemplateElementServerController.createTemplateElement()
-GET            /template-elements/:id           controllers.TemplateElementServerController.findTemplateElement(id: String)
-GET            /template-elements/:id/details   controllers.TemplateElementServerController.findTemplateElementDetails(id: String)
-PUT            /template-elements/:id           controllers.TemplateElementServerController.updateTemplateElement(id: String)
-DELETE         /template-elements/:id           controllers.TemplateElementServerController.deleteTemplateElement(id: String)
+POST           /template-elements                     controllers.TemplateElementServerController.createTemplateElement()
+GET            /template-elements/:id                 controllers.TemplateElementServerController.findTemplateElement(id: String)
+GET            /template-elements/:id/details         controllers.TemplateElementServerController.findTemplateElementDetails(id: String)
+PUT            /template-elements/:id                 controllers.TemplateElementServerController.updateTemplateElement(id: String)
+DELETE         /template-elements/:id                 controllers.TemplateElementServerController.deleteTemplateElement(id: String)
 
 # Template Fields
-POST           /template-fields                 controllers.TemplateFieldServerController.createTemplateField()
-GET            /template-fields/:id             controllers.TemplateFieldServerController.findTemplateField(id: String)
-GET            /template-fields/:id/details     controllers.TemplateFieldServerController.findTemplateFieldDetails(id: String)
-PUT            /template-fields/:id             controllers.TemplateFieldServerController.updateTemplateField(id: String)
-DELETE         /template-fields/:id             controllers.TemplateFieldServerController.deleteTemplateField(id: String)
+POST           /template-fields                       controllers.TemplateFieldServerController.createTemplateField()
+GET            /template-fields/:id                   controllers.TemplateFieldServerController.findTemplateField(id: String)
+GET            /template-fields/:id/details           controllers.TemplateFieldServerController.findTemplateFieldDetails(id: String)
+PUT            /template-fields/:id                   controllers.TemplateFieldServerController.updateTemplateField(id: String)
+DELETE         /template-fields/:id                   controllers.TemplateFieldServerController.deleteTemplateField(id: String)
 
 # Template Instances
-POST           /template-instances              controllers.TemplateInstanceServerController.createTemplateInstance()
-GET            /template-instances/:id          controllers.TemplateInstanceServerController.findTemplateInstance(id: String)
-GET            /template-instances/:id/details  controllers.TemplateInstanceServerController.findTemplateInstanceDetails(id: String)
-PUT            /template-instances/:id          controllers.TemplateInstanceServerController.updateTemplateInstance(id: String)
-DELETE         /template-instances/:id          controllers.TemplateInstanceServerController.deleteTemplateInstance(id: String)
+POST           /template-instances                    controllers.TemplateInstanceServerController.createTemplateInstance()
+GET            /template-instances/:id                controllers.TemplateInstanceServerController.findTemplateInstance(id: String)
+GET            /template-instances/:id/details        controllers.TemplateInstanceServerController.findTemplateInstanceDetails(id: String)
+PUT            /template-instances/:id                controllers.TemplateInstanceServerController.updateTemplateInstance(id: String)
+DELETE         /template-instances/:id                controllers.TemplateInstanceServerController.deleteTemplateInstance(id: String)
 
 # Search
-GET            /search                          controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer], folders_first: play.libs.F.Option[java.lang.Boolean])
+GET            /search                                controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer], folders_first: play.libs.F.Option[java.lang.Boolean])
 #POST           /search                          controllers.SearchController.searchByPost()
 
+# Index operations
+POST           /regenerateSearchIndex                 controllers.SearchController.regenerateSearchIndex()
+
 # For CORS - preflight request
-OPTIONS        /*all                            controllers.MainResourceServerController.preflight(all)
+OPTIONS        /*all                                  controllers.MainResourceServerController.preflight(all)
 
 # Map static resources from the /public folder to the /assets URL path
-GET            /assets/*file                    controllers.Assets.at(path="/public", file)
+GET            /assets/*file                          controllers.Assets.at(path="/public", file)
