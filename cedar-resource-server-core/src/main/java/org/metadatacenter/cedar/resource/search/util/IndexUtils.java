@@ -6,6 +6,7 @@ import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.constants.SearchConstants;
@@ -25,26 +26,29 @@ import java.util.Map;
 
 public class IndexUtils {
 
-  private static final String folderBase;
-  private static final String templateBase;
-  private static final String FOLDER_ALL_NODES = "nodes";
+  private final String FOLDER_ALL_NODES = "nodes";
+  private final int limit = 50;
+  private final int maxAttemps = 3;
+  private final int delayAttemps = 10000;
 
-  static {
-    folderBase = "https://folder." + System.getenv("CEDAR_HOST") + "/";
-    templateBase = "https://template." + System.getenv("CEDAR_HOST") + "/";
+  private String folderBase;
+  private String templateBase;
+
+  public IndexUtils(String folderBase, String templateBase) {
+    this.folderBase = folderBase;
+    this.templateBase = templateBase;
   }
 
   /**
    * This method retrieves all the resources from the Folder Server that are expected to be in the search index. Those
    * resources that don't have to be in the index, such as the "/" folder and the "Lost+Found" folder are ignored.
    */
-  public static List<CedarRSNode> findAllResources(String apiKey) throws IOException, InterruptedException {
+  public List<CedarRSNode> findAllResources(String apiKey) throws IOException, InterruptedException {
     play.Logger.info("Retrieving all resources:");
     List<CedarRSNode> resources = new ArrayList<>();
     boolean finished = false;
     String baseUrl = folderBase + FOLDER_ALL_NODES;
     int offset = 0;
-    int limit = 50;
     int countSoFar = 0;
     while (!finished) {
       String url = baseUrl + "?offset=" + offset + "&limit=" + limit;
@@ -59,21 +63,20 @@ public class IndexUtils {
       HttpResponse response = null;
       int statusCode = -1;
       int attemp = 1;
-      int maxAttemps = 3;
       while (true) {
         response = request.execute().returnResponse();
         statusCode = response.getStatusLine().getStatusCode();
-        if ((statusCode != 502) || (attemp > maxAttemps)) {
+        if ((statusCode != HttpStatus.SC_BAD_GATEWAY) || (attemp > maxAttemps)) {
           break;
         } else {
           play.Logger.info("Failed to retrieve resource. The Folder Server might have not been started yet. " +
               "Retrying... (attemp " + attemp + "/" + maxAttemps + ")");
           attemp++;
-          Thread.sleep(10000);
+          Thread.sleep(delayAttemps);
         }
       }
       // The resources were successfully retrieved
-      if (statusCode == 200) {
+      if (statusCode == HttpStatus.SC_OK) {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode resultJson = mapper.readTree(EntityUtils.toString(response.getEntity()));
         int count = resultJson.get("resources").size();
@@ -106,25 +109,10 @@ public class IndexUtils {
   /**
    * Returns the full content of a particular resource
    */
-  public static JsonNode findResourceContent(String resourceId, CedarNodeType resourceType, String apiKey) throws
+  public JsonNode findResourceContent(String resourceId, CedarNodeType resourceType, String apiKey) throws
       CedarAccessException, IOException, EncoderException {
     CedarPermission permission = null;
-    String resourceUrl = templateBase;
-    if (resourceType == CedarNodeType.TEMPLATE) {
-      permission = CedarPermission.TEMPLATE_READ;
-      resourceUrl += "templates";
-    } else if (resourceType == CedarNodeType.ELEMENT) {
-      permission = CedarPermission.TEMPLATE_ELEMENT_READ;
-      resourceUrl += "template-elements";
-    } else if (resourceType == CedarNodeType.FIELD) {
-      permission = CedarPermission.TEMPLATE_FIELD_READ;
-      resourceUrl += "template-fields";
-    } else if (resourceType == CedarNodeType.INSTANCE) {
-      permission = CedarPermission.TEMPLATE_INSTANCE_READ;
-      resourceUrl += "template-instances";
-    } else {
-      return null;
-    }
+    String resourceUrl = templateBase + resourceType.getPrefix();
     resourceUrl += "/" + new URLCodec().encode(resourceId);
     // Retrieve resource by id
     JsonNode resource = null;
@@ -137,7 +125,7 @@ public class IndexUtils {
     // Execute request
     HttpResponse response = request.execute().returnResponse();
     int statusCode = response.getStatusLine().getStatusCode();
-    if (statusCode == 200) {
+    if (statusCode == HttpStatus.SC_OK) {
       String resourceString = EntityUtils.toString(response.getEntity());
       resource = new ObjectMapper().readTree(resourceString);
     } else {
@@ -147,7 +135,7 @@ public class IndexUtils {
   }
 
   // Recursively extract all field names
-  public static List<String> extractFieldNames(CedarNodeType resourceType, JsonNode resourceContent, List<String>
+  public List<String> extractFieldNames(CedarNodeType resourceType, JsonNode resourceContent, List<String>
       results) {
     if (resourceType.compareTo(CedarNodeType.TEMPLATE) == 0
         || resourceType.compareTo(CedarNodeType.ELEMENT) == 0) {
@@ -195,7 +183,7 @@ public class IndexUtils {
   }
 
   // Recursively extract all field values (only for instances)
-  public static List<String> extractFieldValues(CedarNodeType resourceType, JsonNode resourceContent, List<String>
+  public List<String> extractFieldValues(CedarNodeType resourceType, JsonNode resourceContent, List<String>
       results) {
     if (resourceType.compareTo(CedarNodeType.INSTANCE) == 0) {
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
@@ -213,6 +201,5 @@ public class IndexUtils {
     }
     return results;
   }
-
 
 }

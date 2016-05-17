@@ -20,6 +20,6 @@ public interface IElasticsearchService {
   void addAlias(String indexName, String aliasName) throws IOException;
   void deleteAlias(String indexName, String aliasName) throws IOException;
   List<String> getIndexesByAlias(String aliasName) throws UnknownHostException;
-  List<String> findAll(String fieldName, String indexName, String documentType) throws UnknownHostException;
+  List<String> findAllValuesForField(String fieldName, String indexName, String documentType) throws UnknownHostException;
 
 }

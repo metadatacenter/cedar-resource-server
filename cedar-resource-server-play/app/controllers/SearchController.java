@@ -10,7 +10,8 @@ import org.metadatacenter.server.security.model.auth.CedarPermission;
 import play.libs.F;
 import play.mvc.Result;
 import utils.DataServices;
-import utils.InputValidator;
+import utils.HttpRequestUtil;
+import utils.ParametersValidator;
 
 import java.util.List;
 
@@ -24,11 +25,12 @@ public class SearchController extends AbstractResourceServerController {
       Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 
       // Parameters validation
-      String queryString = InputValidator.validateQuery(query);
-      List<String> resourceTypeStringList = InputValidator.validateResourceTypes(resourceTypes);
+      String queryString = ParametersValidator.validateQuery(query);
+      List<String> resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
+      List<String> sortList = ParametersValidator.validateSort(sort);
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeStringList);
+          resourceTypeList, sortList);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
@@ -70,8 +72,8 @@ public class SearchController extends AbstractResourceServerController {
       if (json.get("force") != null) {
         force = Boolean.parseBoolean(json.get("force").toString());
       }
-      // TODO: get apiKey from request
-      String apiKey = "";
+      // Get apikey from request
+      String apiKey = HttpRequestUtil.getApikeyFromRequest(request());
       DataServices.getInstance().getSearchService().regenerateSearchIndex(force, apiKey);
     } catch (Exception e) {
       return internalServerErrorWithError(e);
