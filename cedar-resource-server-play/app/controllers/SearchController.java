@@ -2,6 +2,8 @@ package controllers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wordnik.swagger.annotations.Api;
+import com.wordnik.swagger.annotations.ApiOperation;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
@@ -15,14 +17,17 @@ import utils.ParametersValidator;
 
 import java.util.List;
 
+@Api(value = "/search", description = "Search for resources")
 public class SearchController extends AbstractResourceServerController {
 
-  // GET
+  @ApiOperation(
+      value = "Search for resources",
+      httpMethod = "GET")
   public static Result search(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> sort, F
       .Option<Integer> limit, F.Option<Integer> offset, F.Option<Boolean> foldersFirst) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       // Parameters validation
       String queryString = ParametersValidator.validateQuery(query);
@@ -65,7 +70,7 @@ public class SearchController extends AbstractResourceServerController {
   public static Result regenerateSearchIndex() {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
       // Read input parameters from body
       JsonNode json = request().body().asJson();
       boolean force = false;
@@ -75,6 +80,7 @@ public class SearchController extends AbstractResourceServerController {
       // Get apikey from request
       String apiKey = HttpRequestUtil.getApikeyFromRequest(request());
       DataServices.getInstance().getSearchService().regenerateSearchIndex(force, apiKey);
+
     } catch (Exception e) {
       return internalServerErrorWithError(e);
     }

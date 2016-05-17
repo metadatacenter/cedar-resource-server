@@ -31,7 +31,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String absoluteUrl = routes.FolderContentsController.findFolderContentsByPath(pathParam, resourceTypes, sort,
           limitParam, offsetParam).absoluteURL(request());
@@ -56,7 +56,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String absoluteUrl = routes.FolderContentsController.findFolderContentsById(id, resourceTypes, sort,
           limitParam, offsetParam).absoluteURL(request());
