@@ -1,5 +1,7 @@
 package controllers;
 
+import com.wordnik.swagger.annotations.Api;
+import com.wordnik.swagger.annotations.ApiOperation;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -16,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import play.mvc.Result;
 import play.mvc.Results;
 import utils.IndexUtils;
-import com.wordnik.swagger.annotations.*;
 
 @Api(value = "/folders", description = "Folder operations")
 public class FolderController extends AbstractResourceServerController {
@@ -28,7 +29,7 @@ public class FolderController extends AbstractResourceServerController {
   public static Result createFolder() {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS;
 
@@ -64,7 +65,7 @@ public class FolderController extends AbstractResourceServerController {
   public static Result findFolder(String folderId) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
 
@@ -103,7 +104,7 @@ public class FolderController extends AbstractResourceServerController {
   public static Result updateFolder(String folderId) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
 
@@ -137,7 +138,7 @@ public class FolderController extends AbstractResourceServerController {
   public static Result deleteFolder(String folderId) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
 

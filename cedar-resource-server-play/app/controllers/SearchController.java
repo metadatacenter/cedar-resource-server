@@ -30,7 +30,7 @@ public class SearchController extends AbstractResourceServerController {
       limit, F.Option<Integer> offset, F.Option<Boolean> foldersFirst) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       // Parameters validation
       String queryString = InputValidator.validateQuery(query);
@@ -54,7 +54,7 @@ public class SearchController extends AbstractResourceServerController {
   public static Result searchByPost() {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       //RSNodeListResponse results = DataServices.getInstance().getSearchService().search("");
 

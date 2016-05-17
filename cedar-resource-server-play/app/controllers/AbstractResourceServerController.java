@@ -23,6 +23,7 @@ import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarUser;
+import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import play.Configuration;
 import play.Play;
 import play.mvc.Http;
@@ -80,8 +81,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   private static CedarRSNode addProvenanceDisplayName(CedarRSNode resource, Http.Request request) {
     if (resource != null) {
-      CedarUser creator = getUserSummary(request, extractUserUUID(resource.getCreatedBy()));
-      CedarUser updater = getUserSummary(request, extractUserUUID(resource.getLastUpdatedBy()));
+      CedarUserSummary creator = getUserSummary(request, extractUserUUID(resource.getCreatedBy()));
+      CedarUserSummary updater = getUserSummary(request, extractUserUUID(resource.getLastUpdatedBy()));
       if (creator != null) {
         resource.setCreatedByUserName(creator.getScreenName());
       }
@@ -95,9 +96,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   protected static CedarRSNode addUserHomeFolderDisplayName(CedarRSNode resource, Http.Request request) {
     if (resource != null) {
       if (resource instanceof CedarRSFolder) {
-        CedarRSFolder f = (CedarRSFolder)resource;
+        CedarRSFolder f = (CedarRSFolder) resource;
         if (f.isUserHome()) {
-          CedarUser owner = getUserSummary(request, f.getName());
+          CedarUserSummary owner = getUserSummary(request, f.getName());
           if (owner != null) {
             resource.setName(owner.getScreenName());
           }
@@ -121,7 +122,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return id;
   }
 
-  private static CedarUser getUserSummary(Http.Request request, String id) {
+  private static CedarUserSummary getUserSummary(Http.Request request, String id) {
     String url = userBase + "users" + "/" + id + "/" + "summary";
     HttpResponse proxyResponse = null;
     try {
@@ -134,7 +135,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           JsonNode jsonNode = MAPPER.readTree(userSummaryString);
           JsonNode at = jsonNode.at("/screenName");
           if (at != null && !at.isMissingNode()) {
-            CedarUser summary = new CedarUser();
+            CedarUserSummary summary = new CedarUserSummary();
             summary.setScreenName(at.asText());
             summary.setUserId(id);
             return summary;
@@ -170,7 +171,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   protected static Result executeResourcePostByProxy(CedarNodeType nodeType, CedarPermission permission) {
     try {
       IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(authRequest, permission);
+      Authorization.getUserAndEnsurePermission(authRequest, permission);
     } catch (CedarAccessException e) {
       play.Logger.error("Access error while creating " + nodeType.getValue(), e);
       return forbiddenWithError(e);
@@ -258,16 +259,13 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           return ok();
         }
       }
-    }
-    catch (UnknownHostException e) {
+    } catch (UnknownHostException e) {
       play.Logger.error("Error while indexing the resource", e);
       return internalServerErrorWithError(e);
-    }
-    catch (ElasticsearchException e) {
+    } catch (ElasticsearchException e) {
       play.Logger.error("Error while indexing the resource", e);
       return internalServerErrorWithError(e);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       play.Logger.error("Error while creating the resource", e);
       return internalServerErrorWithError(e);
     }
@@ -314,7 +312,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   protected static Result executeResourceGetByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
     try {
       IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(authRequest, permission);
+      Authorization.getUserAndEnsurePermission(authRequest, permission);
     } catch (CedarAccessException e) {
       play.Logger.error("Access error while reading " + nodeType.getValue(), e);
       return forbiddenWithError(e);
@@ -342,7 +340,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       id) {
     try {
       IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(authRequest, permission);
+      Authorization.getUserAndEnsurePermission(authRequest, permission);
     } catch (CedarAccessException e) {
       play.Logger.error("Access error while reading details of " + nodeType.getValue(), e);
       return forbiddenWithError(e);
@@ -369,7 +367,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   protected static Result executeResourcePutByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
     try {
       IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(authRequest, permission);
+      Authorization.getUserAndEnsurePermission(authRequest, permission);
     } catch (CedarAccessException e) {
       play.Logger.error("Access error while updating " + nodeType.getValue(), e);
       return forbiddenWithError(e);
@@ -425,16 +423,13 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           return ok();
         }
       }
-    }
-    catch (UnknownHostException e) {
+    } catch (UnknownHostException e) {
       play.Logger.error("Error while updating the resource on the index", e);
       return internalServerErrorWithError(e);
-    }
-    catch (ElasticsearchException e) {
+    } catch (ElasticsearchException e) {
       play.Logger.error("Error while updating the resource on the index", e);
       return internalServerErrorWithError(e);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       play.Logger.error("Error while updating " + nodeType.getValue(), e);
       return internalServerErrorWithError(e);
     }
@@ -444,7 +439,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   protected static Result executeResourceDeleteByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
     try {
       IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(authRequest, permission);
+      Authorization.getUserAndEnsurePermission(authRequest, permission);
     } catch (CedarAccessException e) {
       play.Logger.error("Access error while deleting " + nodeType.getValue(), e);
       return forbiddenWithError(e);

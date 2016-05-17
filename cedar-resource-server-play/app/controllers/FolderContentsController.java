@@ -6,8 +6,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
-import org.metadatacenter.model.resourceserver.CedarRSFolder;
-import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
@@ -16,7 +14,6 @@ import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.libs.F;
-import play.mvc.Http;
 import play.mvc.Result;
 import play.mvc.Results;
 
@@ -46,7 +43,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String absoluteUrl = routes.FolderContentsController.findFolderContentsByPath(pathParam, resourceTypes, sort,
           limitParam, offsetParam).absoluteURL(request());
@@ -71,7 +68,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String absoluteUrl = routes.FolderContentsController.findFolderContentsById(id, resourceTypes, sort,
           limitParam, offsetParam).absoluteURL(request());
