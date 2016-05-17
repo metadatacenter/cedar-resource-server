@@ -28,7 +28,7 @@ import play.Play;
 import play.mvc.Http;
 import play.mvc.Result;
 import play.mvc.Results;
-import utils.IndexUtils;
+import utils.DataServices;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -236,7 +236,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
               }
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                IndexUtils.indexResource(MAPPER.readValue(resourceCreateResponse.getEntity().getContent(),
+                DataServices.getInstance().getSearchService().indexResource(MAPPER.readValue(resourceCreateResponse
+                        .getEntity().getContent(),
                     CedarRSResource.class), jsonNode);
                 return created(proxyResponse.getEntity().getContent());
               } else {
@@ -403,8 +404,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
             if (HttpStatus.SC_OK == resourceUpdateStatusCode) {
               if (proxyResponse.getEntity() != null) {
                 // update the resource on the index
-                IndexUtils.updateIndexedResource(MAPPER.readValue(resourceUpdateResponse.getEntity().getContent(),
-                    CedarRSResource.class), jsonNode);
+                DataServices.getInstance().getSearchService().updateIndexedResource(MAPPER.readValue
+                    (resourceUpdateResponse.getEntity().getContent(),
+                        CedarRSResource.class), jsonNode);
                 return ok(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -464,7 +466,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           // remove the resource from the index
-          IndexUtils.unindexResource(id);
+          DataServices.getInstance().getSearchService().removeResourceFromIndex(id);
           return noContent();
         } else {
           return generateStatusResponse(resourceDeleteResponse);

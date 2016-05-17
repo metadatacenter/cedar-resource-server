@@ -28,7 +28,8 @@ public class DataServices {
         config.getString(MONGODB_DATABASE_NAME),
         config.getString(USERS_COLLECTION_NAME));
     searchService = new SearchService(new ElasticsearchService(config.getString(ES_CLUSTER),
-        config.getString(ES_HOST), config.getInt(ES_TRANSPORT_PORT), config.getInt(ES_SIZE)),
+        config.getString(ES_HOST), config.getInt(ES_TRANSPORT_PORT), config.getInt(ES_SIZE),
+        config.getInt(ES_SCROLL_KEEP_ALIVE)),
         config.getString(ES_INDEX),
         config.getString(ES_TYPE));
 

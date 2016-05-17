@@ -15,7 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.mvc.Result;
 import play.mvc.Results;
-import utils.IndexUtils;
+import utils.DataServices;
 
 public class FolderController extends AbstractResourceServerController {
   private static Logger log = LoggerFactory.getLogger(FolderController.class);
@@ -35,7 +35,8 @@ public class FolderController extends AbstractResourceServerController {
       if (entity != null) {
         if (HttpStatus.SC_CREATED == statusCode) {
           // index the folder that has been created
-          IndexUtils.indexResource(MAPPER.readValue(entity.getContent(), CedarRSFolder.class), null);
+          DataServices.getInstance().getSearchService().indexResource(MAPPER.readValue(entity.getContent(),
+              CedarRSFolder.class), null);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
         } else {
           return Results.status(statusCode, entity.getContent());
@@ -101,7 +102,8 @@ public class FolderController extends AbstractResourceServerController {
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
           // update the folder on the index
-          IndexUtils.updateIndexedResource(MAPPER.readValue(entity.getContent(), CedarRSFolder.class), null);
+          DataServices.getInstance().getSearchService().updateIndexedResource(MAPPER.readValue(entity.getContent(),
+              CedarRSFolder.class), null);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
         } else {
           return Results.status(statusCode, entity.getContent());
@@ -130,7 +132,7 @@ public class FolderController extends AbstractResourceServerController {
       int folderDeleteStatusCode = proxyResponse.getStatusLine().getStatusCode();
       if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
         // remove the folder from the index
-        IndexUtils.unindexResource(folderId);
+        DataServices.getInstance().getSearchService().removeResourceFromIndex(folderId);
         return noContent();
       } else {
         return generateStatusResponse(proxyResponse);
