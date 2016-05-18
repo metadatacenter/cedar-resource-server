@@ -8,6 +8,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.metadatacenter.constant.HttpConnectionConstants;
+import org.metadatacenter.server.security.model.IAuthRequest;
 import play.mvc.Http;
 
 import java.io.IOException;
@@ -21,6 +22,14 @@ public class ProxyUtil {
         .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
         .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
     proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request.getHeader(HttpHeaders.AUTHORIZATION));
+    return proxyRequest.execute().returnResponse();
+  }
+
+  public static HttpResponse proxyGet(String url, IAuthRequest authRequest) throws IOException {
+    Request proxyRequest = Request.Get(url)
+        .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
+        .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
+    proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, authRequest.getAuthHeader());
     return proxyRequest.execute().returnResponse();
   }
 

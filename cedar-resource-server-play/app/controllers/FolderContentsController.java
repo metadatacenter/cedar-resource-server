@@ -11,30 +11,18 @@ import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import play.libs.F;
 import play.mvc.Result;
 import play.mvc.Results;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class FolderContentsController extends AbstractResourceServerController {
-  private static Logger log = LoggerFactory.getLogger(FolderContentsController.class);
-
-  final static List<String> knownSortKeys;
-
   public static final String folderBase;
   private static final String ROOT_PATH_BY_PATH = "folders/contents";
   private static final String ROOT_PATH_BY_ID = "folders/";
 
   static {
-    knownSortKeys = new ArrayList<>();
-    knownSortKeys.add("name");
-    knownSortKeys.add("createdOn");
-    knownSortKeys.add("lastUpdatedOn");
     folderBase = config.getString(ConfigConstants.FOLDER_SERVER_BASE);
   }
 

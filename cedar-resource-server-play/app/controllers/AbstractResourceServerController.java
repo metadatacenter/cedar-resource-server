@@ -29,7 +29,7 @@ import play.Play;
 import play.mvc.Http;
 import play.mvc.Result;
 import play.mvc.Results;
-import utils.IndexUtils;
+import utils.DataServices;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -123,7 +123,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
   private static CedarUserSummary getUserSummary(Http.Request request, String id) {
-    String url = userBase + "users" + "/" + id + "/" + "summary";
+    String url = userBase + id + "/" + "summary";
     HttpResponse proxyResponse = null;
     try {
       proxyResponse = ProxyUtil.proxyGet(url, request);
@@ -167,7 +167,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
   // Proxy methods for resource types
-
   protected static Result executeResourcePostByProxy(CedarNodeType nodeType, CedarPermission permission) {
     try {
       IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -178,8 +177,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     }
 
     try {
-      JsonNode originalRequestContent = request().body().asJson();
-
       String folderId = request().getQueryString("folderId");
       if (folderId != null) {
         folderId = folderId.trim();
@@ -240,8 +237,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
               }
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                IndexUtils.indexResource(MAPPER.readValue(resourceCreateResponse.getEntity().getContent(),
-                    CedarRSResource.class));
+                DataServices.getInstance().getSearchService().indexResource(MAPPER.readValue(resourceCreateResponse
+                        .getEntity().getContent(),
+                    CedarRSResource.class), jsonNode);
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -404,8 +402,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
             if (HttpStatus.SC_OK == resourceUpdateStatusCode) {
               if (proxyResponse.getEntity() != null) {
                 // update the resource on the index
-                IndexUtils.updateIndexedResource(MAPPER.readValue(resourceUpdateResponse.getEntity().getContent(),
-                    CedarRSResource.class));
+                DataServices.getInstance().getSearchService().updateIndexedResource(MAPPER.readValue
+                    (resourceUpdateResponse.getEntity().getContent(),
+                        CedarRSResource.class), jsonNode);
                 return ok(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -462,7 +461,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           // remove the resource from the index
-          IndexUtils.unindexResource(id);
+          DataServices.getInstance().getSearchService().removeResourceFromIndex(id);
           return noContent();
         } else {
           return generateStatusResponse(resourceDeleteResponse);
