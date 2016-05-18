@@ -168,8 +168,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   // Proxy methods for resource types
   protected static Result executeResourcePostByProxy(CedarNodeType nodeType, CedarPermission permission) {
+    IAuthRequest authRequest = null;
     try {
-      IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(authRequest, permission);
     } catch (CedarAccessException e) {
       play.Logger.error("Access error while creating " + nodeType.getValue(), e);
@@ -239,7 +240,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
                 // index the resource that has been created
                 DataServices.getInstance().getSearchService().indexResource(MAPPER.readValue(resourceCreateResponse
                         .getEntity().getContent(),
-                    CedarRSResource.class), jsonNode);
+                    CedarRSResource.class), jsonNode, authRequest);
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -252,7 +253,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
             System.out.println("Resource not created #2, rollback resource and signal error");
             return Results.status(resourceCreateStatusCode);
           }
-
         } else {
           return ok();
         }
@@ -363,8 +363,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
   protected static Result executeResourcePutByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
+    IAuthRequest authRequest = null;
     try {
-      IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(authRequest, permission);
     } catch (CedarAccessException e) {
       play.Logger.error("Access error while updating " + nodeType.getValue(), e);
@@ -404,7 +405,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
                 // update the resource on the index
                 DataServices.getInstance().getSearchService().updateIndexedResource(MAPPER.readValue
                     (resourceUpdateResponse.getEntity().getContent(),
-                        CedarRSResource.class), jsonNode);
+                        CedarRSResource.class), jsonNode, authRequest);
                 return ok(proxyResponse.getEntity().getContent());
               } else {
                 return ok();

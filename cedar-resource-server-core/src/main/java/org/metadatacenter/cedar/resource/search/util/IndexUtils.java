@@ -124,7 +124,7 @@ public class IndexUtils {
 
   // Recursively extract all field names
   public List<String> extractFieldNames(CedarNodeType resourceType, JsonNode resourceContent, List<String>
-      results) {
+      results, IAuthRequest authRequest) throws EncoderException, CedarAccessException {
     if (resourceType.compareTo(CedarNodeType.TEMPLATE) == 0
         || resourceType.compareTo(CedarNodeType.ELEMENT) == 0) {
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
@@ -139,33 +139,22 @@ public class IndexUtils {
             String fieldName = field.getValue().get("_ui").get("title").asText();
             results.add(fieldName);
           } else {
-            extractFieldNames(resourceType, field.getValue(), results);
+            extractFieldNames(resourceType, field.getValue(), results, authRequest);
           }
         }
       }
+      // If the resource is an instance, the field names must be extracted from the template
     } else if (resourceType.compareTo(CedarNodeType.INSTANCE) == 0) {
-//        if (resourceContent.get("_templateId") != null) {
-//          String templateId = resourceContent.get("_templateId").asText();
-//          Result result = controllers.TemplateServerController.findTemplate(templateId);
-//          byte[] body = JavaResultExtractor.getBody(result, 10000);
-//          String header = JavaResultExtractor.getHeaders(result).get("Content-Type");
-//          String charset = "utf-8";
-//          if(header != null && header.contains("; charset=")){
-//            charset = header.substring(header.indexOf("; charset=") + 10, header.length()).trim();
-//          }
-//          String bodyStr = null;
-//          try {
-//            bodyStr = new String(body, charset);
-//            JsonNode templateJson = new ObjectMapper().readTree(bodyStr);
-//            results = extractFieldNames(CedarNodeType.TEMPLATE, templateJson, results);
-//          } catch (UnsupportedEncodingException e) {
-//            e.printStackTrace();
-//          } catch (JsonProcessingException e) {
-//            e.printStackTrace();
-//          } catch (IOException e) {
-//            e.printStackTrace();
-//          }
-//        }
+        if (resourceContent.get("_templateId") != null) {
+          String templateId = resourceContent.get("_templateId").asText();
+          JsonNode templateJson = null;
+          try {
+            templateJson = findResourceContent(templateId, CedarNodeType.TEMPLATE, authRequest);
+            results = extractFieldNames(CedarNodeType.TEMPLATE, templateJson, results, authRequest);
+          } catch (IOException e) {
+            System.out.println("Error while accessing the reference template for the instance. It may have been removed");
+          }
+        }
     }
     return results;
   }

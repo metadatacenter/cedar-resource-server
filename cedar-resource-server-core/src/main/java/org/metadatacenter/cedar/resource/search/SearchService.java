@@ -39,12 +39,12 @@ public class SearchService implements ISearchService {
     this.indexUtils = new IndexUtils(folderBase, templateBase);
   }
 
-  public void indexResource(CedarRSNode resource, JsonNode resourceContent, String indexName, String documentType)
-      throws IOException {
+  public void indexResource(CedarRSNode resource, JsonNode resourceContent, String indexName, String documentType, IAuthRequest authRequest)
+      throws IOException, CedarAccessException, EncoderException {
     List<String> fieldNames = new ArrayList<>();
     List<String> fieldValues = new ArrayList<>();
     if (resourceContent != null) {
-      fieldNames = indexUtils.extractFieldNames(resource.getType(), resourceContent, new ArrayList<>());
+      fieldNames = indexUtils.extractFieldNames(resource.getType(), resourceContent, new ArrayList<>(), authRequest);
       fieldValues = indexUtils.extractFieldValues(resource.getType(), resourceContent, new ArrayList<>());
     }
     System.out.println("Indexing resource (id = " + resource.getId() + ")");
@@ -53,9 +53,10 @@ public class SearchService implements ISearchService {
     esService.addToIndex(jsonResource, indexName, documentType);
   }
 
-  public void indexResource(CedarRSNode resource, JsonNode resourceContent) throws IOException {
+  public void indexResource(CedarRSNode resource, JsonNode resourceContent, IAuthRequest authRequest) throws
+      IOException, CedarAccessException, EncoderException {
     // Use default index and type
-    indexResource(resource, resourceContent, esIndex, esType);
+    indexResource(resource, resourceContent, esIndex, esType, authRequest);
   }
 
   public void removeResourceFromIndex(String resourceId, String indexName, String documentType) throws IOException {
@@ -69,11 +70,11 @@ public class SearchService implements ISearchService {
   }
 
   public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, String indexName, String
-      documentType) throws IOException {
+      documentType, IAuthRequest authRequest) throws IOException, CedarAccessException, EncoderException {
     List<String> fieldNames = new ArrayList<>();
     List<String> fieldValues = new ArrayList<>();
     if (resourceContent != null) {
-      fieldNames = indexUtils.extractFieldNames(newResource.getType(), resourceContent, new ArrayList<>());
+      fieldNames = indexUtils.extractFieldNames(newResource.getType(), resourceContent, new ArrayList<>(), authRequest);
       fieldValues = indexUtils.extractFieldValues(newResource.getType(), resourceContent, new ArrayList<>());
     }
     System.out.println("Updating resource (id = " + newResource.getId());
@@ -81,9 +82,10 @@ public class SearchService implements ISearchService {
     addToIndex(new CedarIndexResource(newResource, fieldNames, fieldValues), indexName, documentType);
   }
 
-  public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent) throws IOException {
+  public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, IAuthRequest authRequest)
+      throws IOException, CedarAccessException, EncoderException {
     // Use default index and type
-    updateIndexedResource(newResource, resourceContent, esIndex, esType);
+    updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
   }
 
   public RSNodeListResponse search(String query, List<String> resourceTypes) throws IOException {
@@ -153,7 +155,7 @@ public class SearchService implements ISearchService {
           if (resourcesContent != null) {
             resourceContent = resourcesContent.get(resource.getId());
           }
-          indexResource(resource, resourceContent, newIndexName, esType);
+          indexResource(resource, resourceContent, newIndexName, esType, authRequest);
         }
       }
       // Point alias to new index

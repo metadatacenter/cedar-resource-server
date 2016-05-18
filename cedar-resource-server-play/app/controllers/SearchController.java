@@ -12,7 +12,6 @@ import org.metadatacenter.server.security.model.auth.CedarPermission;
 import play.libs.F;
 import play.mvc.Result;
 import utils.DataServices;
-import utils.HttpRequestUtil;
 import utils.ParametersValidator;
 
 import java.util.List;
@@ -69,17 +68,15 @@ public class SearchController extends AbstractResourceServerController {
   // Reindex all resources
   public static Result regenerateSearchIndex() {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.SEARCH_INDEX_REINDEX);
+      IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(authRequest, CedarPermission.SEARCH_INDEX_REINDEX);
       // Read input parameters from body
       JsonNode json = request().body().asJson();
       boolean force = false;
       if (json.get("force") != null) {
         force = Boolean.parseBoolean(json.get("force").toString());
       }
-      // Get apikey from request
-      //String apiKey = HttpRequestUtil.getApikeyFromRequest(request());
-      DataServices.getInstance().getSearchService().regenerateSearchIndex(force, frontendRequest);
+      DataServices.getInstance().getSearchService().regenerateSearchIndex(force, authRequest);
 
     } catch (Exception e) {
       return internalServerErrorWithError(e);

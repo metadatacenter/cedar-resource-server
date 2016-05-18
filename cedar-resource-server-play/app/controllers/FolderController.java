@@ -42,7 +42,7 @@ public class FolderController extends AbstractResourceServerController {
         if (HttpStatus.SC_CREATED == statusCode) {
           // index the folder that has been created
           DataServices.getInstance().getSearchService().indexResource(MAPPER.readValue(entity.getContent(),
-              CedarRSFolder.class), null);
+              CedarRSFolder.class), null, frontendRequest);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
         } else {
           return Results.status(statusCode, entity.getContent());
@@ -118,7 +118,7 @@ public class FolderController extends AbstractResourceServerController {
         if (HttpStatus.SC_OK == statusCode) {
           // update the folder on the index
           DataServices.getInstance().getSearchService().updateIndexedResource(MAPPER.readValue(entity.getContent(),
-              CedarRSFolder.class), null);
+              CedarRSFolder.class), null, frontendRequest);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
         } else {
           return Results.status(statusCode, entity.getContent());
