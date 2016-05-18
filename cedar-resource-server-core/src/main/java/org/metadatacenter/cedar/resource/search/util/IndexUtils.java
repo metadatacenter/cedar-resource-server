@@ -1,30 +1,28 @@
 package org.metadatacenter.cedar.resource.search.util;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.net.URLCodec;
-import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
-import org.apache.http.client.fluent.Request;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.constants.SearchConstants;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
-import org.metadatacenter.constant.ConfigConstants;
-import org.metadatacenter.constant.HttpConnectionConstants;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
-import javax.xml.ws.http.HTTPException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.metadatacenter.constant.ConfigConstants.SCHEMA_FIELD;
 
 public class IndexUtils {
 
@@ -132,8 +130,7 @@ public class IndexUtils {
         Map.Entry<String, JsonNode> field = fieldsIterator.next();
         if (field.getValue().isContainerNode()) {
           if (field.getValue().get("@type") != null
-              && field.getValue().get("@type").asText()
-              .compareTo("https://schema.metadatacenter.org/core/TemplateField") == 0
+              && field.getValue().get("@type").asText().compareTo(SCHEMA_FIELD) == 0
               && field.getValue().get("_ui") != null
               && field.getValue().get("_ui").get("title") != null) {
             String fieldName = field.getValue().get("_ui").get("title").asText();
@@ -161,15 +158,41 @@ public class IndexUtils {
 
   // Recursively extract all field values (only for instances)
   public List<String> extractFieldValues(CedarNodeType resourceType, JsonNode resourceContent, List<String>
-      results) {
+      results) throws JsonProcessingException {
     if (resourceType.compareTo(CedarNodeType.INSTANCE) == 0) {
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
       while (fieldsIterator.hasNext()) {
         Map.Entry<String, JsonNode> field = fieldsIterator.next();
         if (field.getValue().isContainerNode()) {
-          if (field.getKey().compareTo("@context") != 0 && field.getValue().get("_value") != null) {
-            String fieldValue = field.getValue().get("_value").asText();
-            results.add(fieldValue);
+          JsonNode valueNode = field.getValue().get("_value");
+          if (field.getKey().compareTo("@context") != 0 && valueNode != null) {
+            String fieldValue = "";
+            if (valueNode.isTextual()) {
+              fieldValue = valueNode.asText();
+            }
+            // Multiple choice field
+            else if (valueNode.isArray()) {
+              for (JsonNode n : valueNode) {
+                fieldValue += n.asText() + " ";
+              }
+            }
+            // Checkbox field
+            else if (valueNode.isContainerNode()) {
+              Iterator<Map.Entry<String, JsonNode>> it = valueNode.fields();
+              while (it.hasNext()) {
+                Map.Entry<String, JsonNode> f = it.next();
+                if (f.getValue().asBoolean() == true) {
+                  fieldValue += f.getKey() + " ";
+                }
+              }
+            }
+            // Numeric field
+            else if (valueNode.isNumber()) {
+              fieldValue = new ObjectMapper().writeValueAsString(valueNode);
+            }
+            if (fieldValue != null) {
+              results.add(fieldValue.trim());
+            }
           } else {
             extractFieldValues(resourceType, field.getValue(), results);
           }
@@ -180,3 +203,4 @@ public class IndexUtils {
   }
 
 }
+
