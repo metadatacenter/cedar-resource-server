@@ -10,11 +10,13 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.constants.SearchConstants;
+import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.constant.ConfigConstants;
 import org.metadatacenter.constant.HttpConnectionConstants;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.server.security.exception.CedarAccessException;
+import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
 import javax.xml.ws.http.HTTPException;
@@ -43,7 +45,7 @@ public class IndexUtils {
    * This method retrieves all the resources from the Folder Server that are expected to be in the search index. Those
    * resources that don't have to be in the index, such as the "/" folder and the "Lost+Found" folder are ignored.
    */
-  public List<CedarRSNode> findAllResources(String apiKey) throws IOException, InterruptedException {
+  public List<CedarRSNode> findAllResources(IAuthRequest authRequest) throws IOException, InterruptedException {
     play.Logger.info("Retrieving all resources:");
     List<CedarRSNode> resources = new ArrayList<>();
     boolean finished = false;
@@ -53,18 +55,11 @@ public class IndexUtils {
     while (!finished) {
       String url = baseUrl + "?offset=" + offset + "&limit=" + limit;
       play.Logger.info("Retrieving resources from Folder Server. Url: " + url);
-      // Build request
-      Request request = Request.Get(url)
-          .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
-          .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
-      String authHeaderValue = "apiKey " + apiKey;
-      request.addHeader(HttpHeaders.AUTHORIZATION, authHeaderValue);
-      // Execute request
-      HttpResponse response = null;
       int statusCode = -1;
       int attemp = 1;
+      HttpResponse response = null;
       while (true) {
-        response = request.execute().returnResponse();
+        response = ProxyUtil.proxyGet(url, authRequest);
         statusCode = response.getStatusLine().getStatusCode();
         if ((statusCode != HttpStatus.SC_BAD_GATEWAY) || (attemp > maxAttemps)) {
           break;
@@ -109,21 +104,14 @@ public class IndexUtils {
   /**
    * Returns the full content of a particular resource
    */
-  public JsonNode findResourceContent(String resourceId, CedarNodeType resourceType, String apiKey) throws
+  public JsonNode findResourceContent(String resourceId, CedarNodeType resourceType, IAuthRequest authRequest) throws
       CedarAccessException, IOException, EncoderException {
     CedarPermission permission = null;
     String resourceUrl = templateBase + resourceType.getPrefix();
     resourceUrl += "/" + new URLCodec().encode(resourceId);
     // Retrieve resource by id
     JsonNode resource = null;
-    // Build request
-    Request request = Request.Get(resourceUrl)
-        .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
-        .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
-    String authHeaderValue = "apiKey " + apiKey;
-    request.addHeader(HttpHeaders.AUTHORIZATION, authHeaderValue);
-    // Execute request
-    HttpResponse response = request.execute().returnResponse();
+    HttpResponse response = ProxyUtil.proxyGet(resourceUrl, authRequest);
     int statusCode = response.getStatusLine().getStatusCode();
     if (statusCode == HttpStatus.SC_OK) {
       String resourceString = EntityUtils.toString(response.getEntity());

@@ -5,6 +5,7 @@ import org.apache.commons.codec.EncoderException;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.exception.CedarAccessException;
+import org.metadatacenter.server.security.model.IAuthRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,6 +19,6 @@ public interface ISearchService {
   void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, String indexName, String documentType) throws IOException;
   void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent) throws IOException;
   RSNodeListResponse search(String query, List<String> resourceTypes) throws IOException;
-  void regenerateSearchIndex(boolean force, String apiKey) throws IOException, CedarAccessException, EncoderException, InterruptedException;
+  void regenerateSearchIndex(boolean force, IAuthRequest authRequest) throws IOException, CedarAccessException, EncoderException, InterruptedException;
 
 }

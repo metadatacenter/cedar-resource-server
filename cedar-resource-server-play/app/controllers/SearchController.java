@@ -35,7 +35,7 @@ public class SearchController extends AbstractResourceServerController {
       List<String> sortList = ParametersValidator.validateSort(sort);
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeList, sortList);
+          resourceTypeList/*, sortList*/);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
@@ -70,7 +70,7 @@ public class SearchController extends AbstractResourceServerController {
   public static Result regenerateSearchIndex() {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.SEARCH_INDEX_REINDEX);
       // Read input parameters from body
       JsonNode json = request().body().asJson();
       boolean force = false;
@@ -78,8 +78,8 @@ public class SearchController extends AbstractResourceServerController {
         force = Boolean.parseBoolean(json.get("force").toString());
       }
       // Get apikey from request
-      String apiKey = HttpRequestUtil.getApikeyFromRequest(request());
-      DataServices.getInstance().getSearchService().regenerateSearchIndex(force, apiKey);
+      //String apiKey = HttpRequestUtil.getApikeyFromRequest(request());
+      DataServices.getInstance().getSearchService().regenerateSearchIndex(force, frontendRequest);
 
     } catch (Exception e) {
       return internalServerErrorWithError(e);

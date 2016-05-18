@@ -123,7 +123,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
   private static CedarUserSummary getUserSummary(Http.Request request, String id) {
-    String url = userBase + "users" + "/" + id + "/" + "summary";
+    String url = userBase + id + "/" + "summary";
     HttpResponse proxyResponse = null;
     try {
       proxyResponse = ProxyUtil.proxyGet(url, request);

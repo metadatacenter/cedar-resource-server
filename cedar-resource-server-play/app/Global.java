@@ -70,15 +70,6 @@ public class Global extends GlobalSettings {
     Authorization.setUserService(DataServices.getInstance().getUserService());
     Authorization.setAuthorizationResolver(authResolver);
 
-    // Generate search index if necessary
-    // TODO: get apiKey from request
-    String apiKey = "";
-    try {
-      DataServices.getInstance().getSearchService().regenerateSearchIndex(false, apiKey);
-    } catch (Exception e) {
-      play.Logger.error("Error while initializing search index", e);
-    }
-
     // onStart
     super.onStart(application);
   }

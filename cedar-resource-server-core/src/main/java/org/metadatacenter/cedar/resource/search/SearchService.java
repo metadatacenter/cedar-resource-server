@@ -14,6 +14,7 @@ import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.exception.CedarAccessException;
+import org.metadatacenter.server.security.model.IAuthRequest;
 
 import java.io.IOException;
 import java.util.*;
@@ -100,11 +101,11 @@ public class SearchService implements ISearchService {
     return response;
   }
 
-  public void regenerateSearchIndex(boolean force, String apiKey) throws IOException, CedarAccessException,
+  public void regenerateSearchIndex(boolean force, IAuthRequest authRequest) throws IOException, CedarAccessException,
       EncoderException, InterruptedException {
     boolean regenerate = true;
     // Get all resources
-    List<CedarRSNode> resources = indexUtils.findAllResources(apiKey);
+    List<CedarRSNode> resources = indexUtils.findAllResources(authRequest);
     // Checks if is necessary to regenerate the index or not
     if (!force) {
       System.out.println("Checking if it is necessary to regenerate the search index from DB");
@@ -138,7 +139,7 @@ public class SearchService implements ISearchService {
       Map<String, JsonNode> resourcesContent = new HashMap<>();
       for (CedarRSNode resource : resources) {
         if (resource.getType() != CedarNodeType.FOLDER) {
-          JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), apiKey);
+          JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), authRequest);
           resourcesContent.put(resource.getId(), resourceContent);
         }
       }
