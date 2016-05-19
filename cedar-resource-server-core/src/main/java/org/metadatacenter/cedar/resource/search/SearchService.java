@@ -189,23 +189,46 @@ public class SearchService implements ISearchService {
   }
 
   private void createSearchIndex(String indexName, String documentType) throws IOException {
+    // TODO: maybe read settings and mapping definition from a config file
+    XContentBuilder settings = XContentFactory.jsonBuilder()
+        .startObject().startObject("index")
+          .startObject("analysis")
+            .startObject("analyzer")
+              // The following analyzer will be used to perform case-insensitive resource sorting
+              .startObject("sortable")
+                .field("tokenizer", "keyword")
+                .startArray("filter").value("lowercase").endArray()
+              .endObject()
+            .endObject()
+          .endObject()
+        .endObject().endObject();
     // Mapping definition for search index. The info.@id field is set as not analyzed
     XContentBuilder mapping = XContentFactory.jsonBuilder()
         .startObject()
-        .startObject(documentType)
-        .startObject("properties")
-        .startObject("info")
-        .startObject("properties")
-        .startObject("@id")
-        .field("type", "string")
-        .field("index", "not_analyzed")
-        .endObject()
-        .endObject()
-        .endObject()
-        .endObject()
-        .endObject()
+          .startObject(documentType)
+            .startObject("properties")
+              .startObject("info")
+                .startObject("properties")
+                  .startObject("@id")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                  .endObject()
+                  .startObject("name")
+                    .field("type", "string")
+                    .startObject("fields")
+                      // Apply the sortable analyzer to the raw field
+                      .startObject("raw")
+                        .field("type", "string")
+                        .field("analyzer", "sortable")
+                      .endObject()
+                    .endObject()
+                  .endObject()
+                .endObject()
+              .endObject()
+            .endObject()
+          .endObject()
         .endObject();
-    esService.createIndex(indexName, documentType, mapping);
+    esService.createIndex(indexName, documentType, settings, mapping);
   }
 
 }
