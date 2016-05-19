@@ -34,7 +34,7 @@ public class SearchController extends AbstractResourceServerController {
       List<String> sortList = ParametersValidator.validateSort(sort);
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeList/*, sortList*/);
+          resourceTypeList, sortList);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);

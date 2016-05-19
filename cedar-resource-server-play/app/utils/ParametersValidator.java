@@ -54,7 +54,7 @@ public class ParametersValidator {
   }
 
   public static List<String> validateSort(F.Option<String> sort) {
-    List<String> sortList = null;
+    List<String> sortList = new ArrayList<>();
     if (sort.isDefined() && !sort.get().isEmpty()) {
       sortList = Arrays.asList(sort.get().split("\\s*,\\s*"));
       for (String s : sortList) {

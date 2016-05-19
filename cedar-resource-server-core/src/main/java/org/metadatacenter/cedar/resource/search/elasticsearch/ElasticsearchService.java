@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -116,7 +117,7 @@ public class ElasticsearchService implements IElasticsearchService {
     }
   }
 
-  public SearchResponse search(String query, List<String> resourceTypes, String indexName, String documentType) throws UnknownHostException {
+  public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList, String indexName, String documentType) throws UnknownHostException {
     Client client = null;
     try {
       client = getClient();
@@ -129,14 +130,22 @@ public class ElasticsearchService implements IElasticsearchService {
       else {
         searchRequest.setQuery(QueryBuilders.matchAllQuery());
       }
+      // Filter by resource type
       if (resourceTypes != null && resourceTypes.size() > 0) {
-        // Filter by resource type
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
         for (String rt : resourceTypes) {
           boolQueryBuilder.should(QueryBuilders.termQuery("info.resourceType", rt));
         }
         searchRequest.setPostFilter(boolQueryBuilder);
       }
+      // Sort by field
+//      if (sortList != null && sortList.size() > 0) {
+//        System.out.println("********* Sort fields: *********");
+//        for (String s : sortList) {
+//          System.out.println(s);
+//          searchRequest.addSort(s, SortOrder.DESC);
+//        }
+//      }
       //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
       SearchResponse response = searchRequest.execute().actionGet();
       return response;

@@ -88,9 +88,9 @@ public class SearchService implements ISearchService {
     updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
   }
 
-  public RSNodeListResponse search(String query, List<String> resourceTypes) throws IOException {
+  public RSNodeListResponse search(String query, List<String> resourceTypes, List<String> sortList) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
-    SearchResponse esResults = esService.search(query, resourceTypes, esIndex, esType);
+    SearchResponse esResults = esService.search(query, resourceTypes, sortList, esIndex, esType);
     RSNodeListResponse response = new RSNodeListResponse();
     List<CedarRSNode> resources = new ArrayList<>();
     for (SearchHit hit : esResults.getHits()) {
