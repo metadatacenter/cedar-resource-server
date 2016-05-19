@@ -58,7 +58,8 @@ public class ParametersValidator {
     if (sort.isDefined() && !sort.get().isEmpty()) {
       sortList = Arrays.asList(sort.get().split("\\s*,\\s*"));
       for (String s : sortList) {
-        if (!knownSortKeys.contains(s) && !knownSortKeys.contains("-" + s)) {
+        String tmp = s.startsWith("-")? s.substring(1) : s;
+        if (!knownSortKeys.contains(tmp)) {
           throw new IllegalArgumentException("Illegal sort type: '" + s + "'. The allowed values are:" + knownSortKeys);
         }
       }
