@@ -4,11 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wordnik.swagger.annotations.Api;
 import com.wordnik.swagger.annotations.ApiOperation;
+import org.metadatacenter.constant.CedarConstants;
+import org.metadatacenter.constant.ConfigConstants;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import play.api.data.validation.ParameterValidator;
 import play.libs.F;
 import play.mvc.Result;
 import utils.DataServices;
@@ -23,7 +26,7 @@ public class SearchController extends AbstractResourceServerController {
       value = "Search for resources",
       httpMethod = "GET")
   public static Result search(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> sort, F
-      .Option<Integer> limit, F.Option<Integer> offset, F.Option<Boolean> foldersFirst) {
+      .Option<Integer> limitParam, F.Option<Integer> offsetParam) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
@@ -32,9 +35,13 @@ public class SearchController extends AbstractResourceServerController {
       String queryString = ParametersValidator.validateQuery(query);
       List<String> resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
       List<String> sortList = ParametersValidator.validateSort(sort);
+      int limit = ParametersValidator.validateLimit(limitParam,
+          config.getInt(CedarConstants.SEARCH_PARAM_DEFAULT_LIMIT),
+          config.getInt(CedarConstants.SEARCH_PARAM_MAX_ALLOWED_LIMIT));
+      int offset = ParametersValidator.validateOffset(offsetParam);
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeList, sortList);
+          resourceTypeList, sortList, limit, offset);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);

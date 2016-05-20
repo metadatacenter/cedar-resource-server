@@ -71,4 +71,31 @@ public class ParametersValidator {
     return sortList;
   }
 
+  public static int validateLimit(F.Option<Integer> limit, int defaultLimit, int maxAllowedLimit) {
+    if (limit.isDefined()) {
+      if (limit.get() <= 0) {
+        throw new IllegalArgumentException("You should specify a positive limit!");
+      } else if (limit.get() > maxAllowedLimit) {
+        throw new IllegalArgumentException("You should specify a limit smaller than " + maxAllowedLimit + "!");
+      }
+      return limit.get();
+    }
+    else {
+      return defaultLimit;
+    }
+  }
+
+  public static int validateOffset(F.Option<Integer> offset) {
+    int defaultOffset = 0;
+    if (offset.isDefined()) {
+      if (offset.get() < 0) {
+        throw new IllegalArgumentException("You should specify a positive or zero offset!");
+      }
+      return offset.get();
+    }
+    else {
+      return defaultOffset;
+    }
+  }
+
 }

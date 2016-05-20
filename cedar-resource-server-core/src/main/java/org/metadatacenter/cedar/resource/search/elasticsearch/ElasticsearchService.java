@@ -37,6 +37,7 @@ import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_NAM
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_DESCRIPTION_FIELD;
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_RESOURCETYPE_FIELD;
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_SORTABLE_NAME_FIELD;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_SORT_DESC_PREFIX;
 
 public class ElasticsearchService implements IElasticsearchService {
 
@@ -128,7 +129,8 @@ public class ElasticsearchService implements IElasticsearchService {
     }
   }
 
-  public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList, String indexName, String documentType) throws UnknownHostException {
+  public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList,
+                               String indexName, String documentType, int limit, int offset) throws UnknownHostException {
     Client client = null;
     try {
       client = getClient();
@@ -155,15 +157,21 @@ public class ElasticsearchService implements IElasticsearchService {
       if (sortList != null && sortList.size() > 0) {
         for (String s : sortList) {
           SortOrder sortOrder = SortOrder.ASC;
-          if (s.startsWith("-")) {
+          if (s.startsWith(ES_SORT_DESC_PREFIX)) {
             sortOrder = SortOrder.DESC;
             s = s.substring(1);
           }
-          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD)==0? ES_RESOURCE_SORTABLE_NAME_FIELD : s);
+          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD)==0 ? ES_RESOURCE_SORTABLE_NAME_FIELD : s);
           searchRequest.addSort(sortField, sortOrder);
         }
       }
+      // Set offset (from) and limit (size)
+      searchRequest.setFrom(offset);
+      searchRequest.setSize(limit);
+
       //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
+
+      // Execute request
       SearchResponse response = searchRequest.execute().actionGet();
       return response;
     } finally {
