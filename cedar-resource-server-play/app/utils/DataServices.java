@@ -45,17 +45,17 @@ public class DataServices {
     }
     if (adminUser == null) {
       play.Logger.error("Admin user not found for id:" + userId + ":");
+      play.Logger.error("Unable to regenerate search index!");
+    } else {
+      // Regenerate search index if necessary
+      String apiKey = adminUser.getFirstActiveApiKey();
+      IAuthRequest authRequest = new CedarApiKeyAuthRequest(apiKey);
+      try {
+        searchService.regenerateSearchIndex(false, authRequest);
+      } catch (Exception e) {
+        play.Logger.error("Error while regenerating the search index", e);
+      }
     }
-
-    // Regenerate search index if necessary
-    String apiKey = adminUser.getFirstActiveApiKey();
-    IAuthRequest authRequest = new CedarApiKeyAuthRequest(apiKey);
-    try {
-      searchService.regenerateSearchIndex(false, authRequest);
-    } catch (Exception e) {
-      play.Logger.error("Error while regenerating the search index");
-    }
-
   }
 
   public UserService getUserService() {
