@@ -7,13 +7,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_SORT_DESC_PREFIX;
+
 public class ParametersValidator {
 
   final static List<String> knownSortKeys;
   public static final String DEFAULT_SORT;
 
   static {
-    DEFAULT_SORT = "name";
+    DEFAULT_SORT = "";
     knownSortKeys = new ArrayList<>();
     knownSortKeys.add("name");
     knownSortKeys.add("createdOnTS");
@@ -58,7 +60,7 @@ public class ParametersValidator {
     if (sort.isDefined() && !sort.get().isEmpty()) {
       sortList = Arrays.asList(sort.get().split("\\s*,\\s*"));
       for (String s : sortList) {
-        String tmp = s.startsWith("-")? s.substring(1) : s;
+        String tmp = s.startsWith(ES_SORT_DESC_PREFIX)? s.substring(1) : s;
         if (!knownSortKeys.contains(tmp)) {
           throw new IllegalArgumentException("Illegal sort type: '" + s + "'. The allowed values are:" + knownSortKeys);
         }

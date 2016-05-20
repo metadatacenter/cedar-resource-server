@@ -31,6 +31,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_PREFIX;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_ID_FIELD;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_NAME_FIELD;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_DESCRIPTION_FIELD;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_RESOURCETYPE_FIELD;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_SORTABLE_NAME_FIELD;
+
 public class ElasticsearchService implements IElasticsearchService {
 
   private Settings settings;
@@ -51,11 +58,15 @@ public class ElasticsearchService implements IElasticsearchService {
         .put("cluster.name", esCluster).build();
   }
 
-  public void createIndex(String indexName, String documentType, XContentBuilder mapping) throws IOException {
+  public void createIndex(String indexName, String documentType, XContentBuilder settings, XContentBuilder mapping) throws IOException {
     Client client = null;
     try {
       client = getClient();
       CreateIndexRequestBuilder createIndexRequestBuilder = client.admin().indices().prepareCreate(indexName);
+      // Set settings
+      if (settings != null) {
+        createIndexRequestBuilder.setSettings(settings);
+      }
       // Put mapping
       if (mapping != null) {
         createIndexRequestBuilder.addMapping(documentType, mapping);
@@ -72,7 +83,7 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   public void createIndex(String indexName) throws IOException {
-    createIndex(indexName, null, null);
+    createIndex(indexName, null, null, null);
   }
 
   public void addToIndex(JsonNode json, String indexName, String documentType) throws IOException {
@@ -98,7 +109,7 @@ public class ElasticsearchService implements IElasticsearchService {
 
       // Get resources by resource id
       SearchResponse responseSearch = client.prepareSearch(indexName)
-          .setTypes(documentType).setQuery(QueryBuilders.matchQuery("info.@id", resourceId))
+          .setTypes(documentType).setQuery(QueryBuilders.matchQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_ID_FIELD, resourceId))
           .execute().actionGet();
 
       // Delete by Elasticsearch id
@@ -124,7 +135,9 @@ public class ElasticsearchService implements IElasticsearchService {
       SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType).setSize(esSize);
       if (query != null && query.length() > 0) {
         searchRequest.setQuery(
-            QueryBuilders.queryStringQuery(query).field("info.name").field("info.description"));
+            QueryBuilders.queryStringQuery(query)
+                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD)
+                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_DESCRIPTION_FIELD));
       }
       // Retrieve all
       else {
@@ -134,18 +147,22 @@ public class ElasticsearchService implements IElasticsearchService {
       if (resourceTypes != null && resourceTypes.size() > 0) {
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
         for (String rt : resourceTypes) {
-          boolQueryBuilder.should(QueryBuilders.termQuery("info.resourceType", rt));
+          boolQueryBuilder.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_RESOURCETYPE_FIELD, rt));
         }
         searchRequest.setPostFilter(boolQueryBuilder);
       }
       // Sort by field
-//      if (sortList != null && sortList.size() > 0) {
-//        System.out.println("********* Sort fields: *********");
-//        for (String s : sortList) {
-//          System.out.println(s);
-//          searchRequest.addSort(s, SortOrder.DESC);
-//        }
-//      }
+      if (sortList != null && sortList.size() > 0) {
+        for (String s : sortList) {
+          SortOrder sortOrder = SortOrder.ASC;
+          if (s.startsWith("-")) {
+            sortOrder = SortOrder.DESC;
+            s = s.substring(1);
+          }
+          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD)==0? ES_RESOURCE_SORTABLE_NAME_FIELD : s);
+          searchRequest.addSort(sortField, sortOrder);
+        }
+      }
       //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
       SearchResponse response = searchRequest.execute().actionGet();
       return response;

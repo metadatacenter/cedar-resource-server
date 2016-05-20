@@ -213,6 +213,7 @@ public class SearchService implements ISearchService {
                     .field("type", "string")
                     .field("index", "not_analyzed")
                   .endObject()
+                  // Name field
                   .startObject("name")
                     .field("type", "string")
                     .startObject("fields")
@@ -232,3 +233,4 @@ public class SearchService implements ISearchService {
   }
 
 }
+

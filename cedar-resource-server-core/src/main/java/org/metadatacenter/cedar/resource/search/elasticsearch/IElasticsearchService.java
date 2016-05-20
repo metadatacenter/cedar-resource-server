@@ -10,7 +10,7 @@ import java.util.List;
 
 public interface IElasticsearchService {
 
-  void createIndex(String indexName, String documentType, XContentBuilder mapping) throws IOException;
+  void createIndex(String indexName, String documentType, XContentBuilder settings, XContentBuilder mapping) throws IOException;
   void createIndex(String indexName) throws IOException;
   void addToIndex(JsonNode json, String indexName, String documentType) throws IOException;
   void removeFromIndex(String id, String indexName, String documentType) throws IOException;

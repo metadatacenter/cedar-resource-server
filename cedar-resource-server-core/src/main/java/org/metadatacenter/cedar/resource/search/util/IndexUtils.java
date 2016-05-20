@@ -8,7 +8,6 @@ import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
-import org.metadatacenter.cedar.resource.constants.SearchConstants;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
@@ -23,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.metadatacenter.constant.ConfigConstants.SCHEMA_FIELD;
+import static org.metadatacenter.constant.ElasticsearchConstants.RESOURCES_NOT_IN_INDEX;
 
 public class IndexUtils {
 
@@ -79,7 +79,7 @@ public class IndexUtils {
         int currentOffset = resultJson.get("currentOffset").asInt();
         for (JsonNode resource : resultJson.get("resources")) {
           // Check if the resource is meant to be indexed. Otherwise it will be ignored
-          if (!SearchConstants.RESOURCES_NOT_IN_INDEX.contains(resource.get("name").asText())) {
+          if (!RESOURCES_NOT_IN_INDEX.contains(resource.get("name").asText())) {
             resources.add(mapper.convertValue(resource, CedarRSNode.class));
           }
           else {
