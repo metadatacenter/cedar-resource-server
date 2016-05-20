@@ -1,23 +1,18 @@
 package utils;
 
-import org.apache.commons.codec.EncoderException;
 import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.server.security.CedarApiKeyAuthRequest;
-import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import play.Configuration;
 import play.Play;
 
-import java.io.IOException;
-
 import static org.metadatacenter.constant.ConfigConstants.*;
 import static org.metadatacenter.constant.ElasticsearchConstants.*;
+import static org.metadatacenter.constant.ResourceConstants.*;
 
 public class DataServices {
 
@@ -37,7 +32,8 @@ public class DataServices {
     searchService = new SearchService(new ElasticsearchService(config.getString(ES_CLUSTER),
         config.getString(ES_HOST), config.getInt(ES_TRANSPORT_PORT), config.getInt(ES_SIZE),
         config.getInt(ES_SCROLL_KEEP_ALIVE)), config.getString(ES_INDEX),
-        config.getString(ES_TYPE), config.getString(FOLDER_SERVER_BASE), config.getString(TEMPLATE_SERVER_BASE));
+        config.getString(ES_TYPE), config.getString(FOLDER_SERVER_BASE), config.getString(TEMPLATE_SERVER_BASE),
+        config.getInt(RETRIEVE_LIMIT), config.getInt(RETRIEVE_MAX_ATTEMPS), config.getInt(RETRIEVE_DELAY_ATTEMPS));
 
     CedarUser adminUser = null;
     String userId = null;

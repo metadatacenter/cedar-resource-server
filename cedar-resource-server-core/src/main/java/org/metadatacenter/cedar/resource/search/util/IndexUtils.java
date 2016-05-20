@@ -22,21 +22,22 @@ import java.util.List;
 import java.util.Map;
 
 import static org.metadatacenter.constant.ConfigConstants.SCHEMA_FIELD;
-import static org.metadatacenter.constant.ElasticsearchConstants.RESOURCES_NOT_IN_INDEX;
+import static org.metadatacenter.constant.ResourceConstants.FOLDER_ALL_NODES;
 
 public class IndexUtils {
 
-  private final String FOLDER_ALL_NODES = "nodes";
-  private final int limit = 50;
-  private final int maxAttemps = 3;
-  private final int delayAttemps = 10000;
-
   private String folderBase;
   private String templateBase;
+  private int limit;
+  private int maxAttemps;
+  private int delayAttemps;
 
-  public IndexUtils(String folderBase, String templateBase) {
+  public IndexUtils(String folderBase, String templateBase, int limit, int maxAttemps, int delayAttemps) {
     this.folderBase = folderBase;
     this.templateBase = templateBase;
+    this.limit = limit;
+    this.maxAttemps = maxAttemps;
+    this.delayAttemps = delayAttemps;
   }
 
   /**
@@ -78,8 +79,14 @@ public class IndexUtils {
         play.Logger.info("Retrieved " + countSoFar + "/" + totalCount + " resources");
         int currentOffset = resultJson.get("currentOffset").asInt();
         for (JsonNode resource : resultJson.get("resources")) {
-          // Check if the resource is meant to be indexed. Otherwise it will be ignored
-          if (!RESOURCES_NOT_IN_INDEX.contains(resource.get("name").asText())) {
+          boolean indexResource = true;
+          // Check if the resource has to be indexed. System and user home folders are ignored
+          if (resource.get("resourceType").asText().compareTo(CedarNodeType.FOLDER.getValue())==0) {
+            if (resource.get("isSystem").asBoolean() || resource.get("isUserHome").asBoolean()) {
+              indexResource = false;
+            }
+          }
+          if (indexResource) {
             resources.add(mapper.convertValue(resource, CedarRSNode.class));
           }
           else {

@@ -19,24 +19,25 @@ import org.metadatacenter.server.security.model.IAuthRequest;
 import java.io.IOException;
 import java.util.*;
 
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_PREFIX;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_ID_FIELD;
+
 public class SearchService implements ISearchService {
 
   private ElasticsearchService esService;
   private String esIndex;
   private String esType;
   private IndexUtils indexUtils;
-  // TODO: folderBase and templateBase should ideally come from a centralized configuration solution instead of
-  // passing them to the constructor. IndexUtils should be able to directly read those parameters and it would not be
-  // necessary to create an instance of it. Static methods could be used instead.
-  private String folderBase;
-  private String templateBase;
 
+  // TODO: folderBase, templateBase, limit, maxAttemps and delayAttemps should ideally come from a centralized
+  // configuration solution instead of passing them to the constructor. IndexUtils should be able to directly read
+  // those parameters and it would not be necessary to create an instance of it. Static methods could be used instead.
   public SearchService(ElasticsearchService esService, String esIndex, String esType, String folderBase, String
-      templateBase) {
+      templateBase, int limit, int maxAttemps, int delayAttemps) {
     this.esService = esService;
     this.esIndex = esIndex;
     this.esType = esType;
-    this.indexUtils = new IndexUtils(folderBase, templateBase);
+    this.indexUtils = new IndexUtils(folderBase, templateBase, limit, maxAttemps, delayAttemps);
   }
 
   public void indexResource(CedarRSNode resource, JsonNode resourceContent, String indexName, String documentType, IAuthRequest authRequest)
@@ -114,9 +115,9 @@ public class SearchService implements ISearchService {
       // Check if the index exists (using the alias). If it exists, check if it contains all resources
       if (esService.indexExists(esIndex)) {
         // Use the resource ids to check if the resources in the DBs and in the index are different
-        List<String> dbResourceIds = esService.findAllValuesForField("info.@id", esIndex, esType);
+        List<String> dbResourceIds = getResourceIds(resources);
         System.out.println("No. of resources in DB that are expected to be indexed: " + dbResourceIds.size());
-        List<String> indexResourceIds = getResourceIds(resources);
+        List<String> indexResourceIds = esService.findAllValuesForField(ES_RESOURCE_PREFIX + ES_RESOURCE_ID_FIELD, esIndex, esType);
         System.out.println("No. of resources in the index: " + indexResourceIds.size());
         if (dbResourceIds.size() == indexResourceIds.size()) {
           // Compare the two lists
