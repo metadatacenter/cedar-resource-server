@@ -222,7 +222,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           resourceRequestBody.put("parentId", targetFolder.getId());
           resourceRequestBody.put("id", id);
-          resourceRequestBody.put("resourceType", nodeType.getValue());
+          resourceRequestBody.put("nodeType", nodeType.getValue());
           resourceRequestBody.put("name", extractNameFromResponseObject(nodeType, jsonNode));
           resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
           String resourceRequestBodyAsString = MAPPER.writeValueAsString(resourceRequestBody);

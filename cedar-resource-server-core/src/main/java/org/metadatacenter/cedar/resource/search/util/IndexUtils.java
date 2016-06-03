@@ -81,15 +81,18 @@ public class IndexUtils {
         for (JsonNode resource : resultJson.get("resources")) {
           boolean indexResource = true;
           // Check if the resource has to be indexed. System and user home folders are ignored
-          if (resource.get("resourceType").asText().compareTo(CedarNodeType.FOLDER.getValue())==0) {
+          String nodeType = resource.get("nodeType").asText();
+          if (nodeType.equals(CedarNodeType.FOLDER.getValue())) {
             if (resource.get("isSystem").asBoolean() || resource.get("isUserHome").asBoolean()) {
               indexResource = false;
             }
           }
+          if (nodeType.equals(CedarNodeType.USER.getValue())) {
+            indexResource = false;
+          }
           if (indexResource) {
             resources.add(mapper.convertValue(resource, CedarRSNode.class));
-          }
-          else {
+          } else {
             play.Logger.info("The resource '" + resource.get("name").asText() + "' has been ignored");
           }
         }
@@ -109,10 +112,10 @@ public class IndexUtils {
   /**
    * Returns the full content of a particular resource
    */
-  public JsonNode findResourceContent(String resourceId, CedarNodeType resourceType, IAuthRequest authRequest) throws
+  public JsonNode findResourceContent(String resourceId, CedarNodeType nodeType, IAuthRequest authRequest) throws
       CedarAccessException, IOException, EncoderException {
     CedarPermission permission = null;
-    String resourceUrl = templateBase + resourceType.getPrefix();
+    String resourceUrl = templateBase + nodeType.getPrefix();
     resourceUrl += "/" + new URLCodec().encode(resourceId);
     // Retrieve resource by id
     JsonNode resource = null;
@@ -128,10 +131,10 @@ public class IndexUtils {
   }
 
   // Recursively extract all field names
-  public List<String> extractFieldNames(CedarNodeType resourceType, JsonNode resourceContent, List<String>
+  public List<String> extractFieldNames(CedarNodeType nodeType, JsonNode resourceContent, List<String>
       results, IAuthRequest authRequest) throws EncoderException, CedarAccessException {
-    if (resourceType.compareTo(CedarNodeType.TEMPLATE) == 0
-        || resourceType.compareTo(CedarNodeType.ELEMENT) == 0) {
+    if (nodeType.compareTo(CedarNodeType.TEMPLATE) == 0
+        || nodeType.compareTo(CedarNodeType.ELEMENT) == 0) {
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
       while (fieldsIterator.hasNext()) {
         Map.Entry<String, JsonNode> field = fieldsIterator.next();
@@ -143,30 +146,30 @@ public class IndexUtils {
             String fieldName = field.getValue().get("_ui").get("title").asText();
             results.add(fieldName);
           } else {
-            extractFieldNames(resourceType, field.getValue(), results, authRequest);
+            extractFieldNames(nodeType, field.getValue(), results, authRequest);
           }
         }
       }
       // If the resource is an instance, the field names must be extracted from the template
-    } else if (resourceType.compareTo(CedarNodeType.INSTANCE) == 0) {
-        if (resourceContent.get("_templateId") != null) {
-          String templateId = resourceContent.get("_templateId").asText();
-          JsonNode templateJson = null;
-          try {
-            templateJson = findResourceContent(templateId, CedarNodeType.TEMPLATE, authRequest);
-            results = extractFieldNames(CedarNodeType.TEMPLATE, templateJson, results, authRequest);
-          } catch (IOException e) {
-            System.out.println("Error while accessing the reference template for the instance. It may have been removed");
-          }
+    } else if (nodeType.compareTo(CedarNodeType.INSTANCE) == 0) {
+      if (resourceContent.get("_templateId") != null) {
+        String templateId = resourceContent.get("_templateId").asText();
+        JsonNode templateJson = null;
+        try {
+          templateJson = findResourceContent(templateId, CedarNodeType.TEMPLATE, authRequest);
+          results = extractFieldNames(CedarNodeType.TEMPLATE, templateJson, results, authRequest);
+        } catch (IOException e) {
+          System.out.println("Error while accessing the reference template for the instance. It may have been removed");
         }
+      }
     }
     return results;
   }
 
   // Recursively extract all field values (only for instances)
-  public List<String> extractFieldValues(CedarNodeType resourceType, JsonNode resourceContent, List<String>
+  public List<String> extractFieldValues(CedarNodeType nodeType, JsonNode resourceContent, List<String>
       results) throws JsonProcessingException {
-    if (resourceType.compareTo(CedarNodeType.INSTANCE) == 0) {
+    if (nodeType.compareTo(CedarNodeType.INSTANCE) == 0) {
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
       while (fieldsIterator.hasNext()) {
         Map.Entry<String, JsonNode> field = fieldsIterator.next();
@@ -201,7 +204,7 @@ public class IndexUtils {
               results.add(fieldValue.trim());
             }
           } else {
-            extractFieldValues(resourceType, field.getValue(), results);
+            extractFieldValues(nodeType, field.getValue(), results);
           }
         }
       }
