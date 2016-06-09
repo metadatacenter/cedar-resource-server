@@ -1,9 +1,5 @@
 import com.typesafe.config.ConfigFactory;
-import controllers.SearchController;
-import org.apache.commons.codec.EncoderException;
-import org.metadatacenter.server.play.AbstractCedarController;
 import org.metadatacenter.server.security.*;
-import org.metadatacenter.server.security.exception.CedarAccessException;
 import play.Application;
 import play.Configuration;
 import play.GlobalSettings;
@@ -15,9 +11,6 @@ import play.mvc.Result;
 import utils.DataServices;
 
 import java.io.File;
-import java.io.IOException;
-
-import static play.mvc.Results.internalServerError;
 
 public class Global extends GlobalSettings {
 

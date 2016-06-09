@@ -5,7 +5,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
-import org.metadatacenter.constant.ConfigConstants;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
@@ -23,7 +22,7 @@ public class FolderContentsController extends AbstractResourceServerController {
   private static final String ROOT_PATH_BY_ID = "folders/";
 
   static {
-    folderBase = config.getString(ConfigConstants.FOLDER_SERVER_BASE);
+    folderBase = cedarConfig.getServers().getFolder().getBase();
   }
 
   public static Result findFolderContentsByPath(F.Option<String> pathParam, F.Option<String> resourceTypes, F
@@ -83,6 +82,8 @@ public class FolderContentsController extends AbstractResourceServerController {
       RSNodeListResponse response = null;
       try {
         String responseString = EntityUtils.toString(proxyResponse.getEntity());
+        System.out.println("-------");
+        System.out.println(responseString);
         response = MAPPER.readValue(responseString, RSNodeListResponse.class);
       } catch (JsonProcessingException e) {
         e.printStackTrace();
@@ -92,10 +93,16 @@ public class FolderContentsController extends AbstractResourceServerController {
         return Results.status(statusCode, entity.getContent());
       } else {
         if (response.getResources() != null) {
-          response.getResources().forEach(rsNode -> addUserHomeFolderDisplayName(rsNode, request()));
+          response.getResources().forEach(rsNode -> {
+            setUserHomeFolderDisplayName(rsNode, request());
+            setDisplayPaths(rsNode, request());
+          });
         }
         if (response.getPathInfo() != null) {
-          response.getPathInfo().forEach(rsNode -> addUserHomeFolderDisplayName(rsNode, request()));
+          response.getPathInfo().forEach(rsNode -> {
+            setUserHomeFolderDisplayName(rsNode, request());
+            setDisplayPaths(rsNode, request());
+          });
         }
         return Results.status(statusCode, MAPPER.writeValueAsString(response));
       }

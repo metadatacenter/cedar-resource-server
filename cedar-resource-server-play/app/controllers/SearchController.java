@@ -36,8 +36,8 @@ public class SearchController extends AbstractResourceServerController {
       List<String> resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
       List<String> sortList = ParametersValidator.validateSort(sort);
       int limit = ParametersValidator.validateLimit(limitParam,
-          config.getInt(CedarConstants.SEARCH_PARAM_DEFAULT_LIMIT),
-          config.getInt(CedarConstants.SEARCH_PARAM_MAX_ALLOWED_LIMIT));
+          cedarConfig.getSearchSettings().getSearchDefaultSettings().getDefaultLimit(),
+          cedarConfig.getSearchSettings().getSearchDefaultSettings().getMaxAllowedLimit());
       int offset = ParametersValidator.validateOffset(offsetParam);
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,

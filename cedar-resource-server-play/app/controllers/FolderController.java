@@ -43,7 +43,7 @@ public class FolderController extends AbstractResourceServerController {
           // index the folder that has been created
           DataServices.getInstance().getSearchService().indexResource(MAPPER.readValue(entity.getContent(),
               CedarRSFolder.class), null, frontendRequest);
-          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
+          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
         }
@@ -77,7 +77,7 @@ public class FolderController extends AbstractResourceServerController {
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
-          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
+          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
         }
@@ -119,7 +119,7 @@ public class FolderController extends AbstractResourceServerController {
           // update the folder on the index
           DataServices.getInstance().getSearchService().updateIndexedResource(MAPPER.readValue(entity.getContent(),
               CedarRSFolder.class), null, frontendRequest);
-          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse, true, true));
+          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
         }
