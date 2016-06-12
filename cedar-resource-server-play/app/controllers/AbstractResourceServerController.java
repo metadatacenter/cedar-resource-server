@@ -35,7 +35,7 @@ import java.util.List;
 
 public abstract class AbstractResourceServerController extends AbstractCedarController {
 
-  private static final String PREFIX_RESOURCES = "resources";
+  protected static final String PREFIX_RESOURCES = "resources";
 
   protected static CedarConfig cedarConfig;
   protected final static String folderBase;
@@ -312,7 +312,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     }
   }
 
-  private static String extractNameFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
+  protected static String extractNameFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
     String title = "";
     if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
       JsonNode titleNode = jsonNode.at("/_ui/title");
@@ -328,7 +328,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return title;
   }
 
-  private static String extractDescriptionFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
+  protected static String extractDescriptionFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
     String description = "";
     if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
       JsonNode titleNode = jsonNode.at("/_ui/description");

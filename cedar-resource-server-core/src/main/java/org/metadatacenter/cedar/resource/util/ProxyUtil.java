@@ -48,6 +48,10 @@ public class ProxyUtil {
     return proxyPost(url, request, jsonBody.toString());
   }
 
+  public static HttpResponse post(String url, Http.Request request, String content) throws IOException {
+    return proxyPost(url, request, content);
+  }
+
   public static HttpResponse proxyPost(String url, Http.Request request, String content) throws IOException {
     Request proxyRequest = Request.Post(url)
         .bodyString(content, ContentType.APPLICATION_JSON)

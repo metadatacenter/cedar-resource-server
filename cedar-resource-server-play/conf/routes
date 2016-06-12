@@ -63,6 +63,9 @@ GET            /search                                controllers.SearchControll
 # Index operations
 POST           /regenerateSearchIndex                 controllers.SearchController.regenerateSearchIndex()
 
+# Commands
+POST           /command/copy-resource-to-folder       controllers.CommandController.copyResourceToFolder()
+
 # For CORS - preflight request
 OPTIONS        /*all                                  controllers.MainResourceServerController.preflight(all)
 
