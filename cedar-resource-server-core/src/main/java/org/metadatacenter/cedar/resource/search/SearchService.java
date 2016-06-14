@@ -89,9 +89,9 @@ public class SearchService implements ISearchService {
     updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
   }
 
-  public RSNodeListResponse search(String query, List<String> resourceTypes, List<String> sortList, int limit, int offset) throws IOException {
+  public RSNodeListResponse search(String query, List<String> resourceTypes, List<String> sortList, int limit, int offset, String userId) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
-    SearchResponse esResults = esService.search(query, resourceTypes, sortList, esIndex, esType, limit, offset);
+    SearchResponse esResults = esService.search(query, resourceTypes, sortList, esIndex, esType, limit, offset, userId);
     RSNodeListResponse response = new RSNodeListResponse();
     List<CedarRSNode> resources = new ArrayList<>();
     for (SearchHit hit : esResults.getHits()) {
@@ -211,6 +211,10 @@ public class SearchService implements ISearchService {
               .startObject("info")
                 .startObject("properties")
                   .startObject("@id")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                  .endObject()
+                  .startObject("ownedBy")
                     .field("type", "string")
                     .field("index", "not_analyzed")
                   .endObject()

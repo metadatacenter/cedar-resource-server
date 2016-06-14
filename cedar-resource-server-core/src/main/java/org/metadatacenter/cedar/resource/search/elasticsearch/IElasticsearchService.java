@@ -15,7 +15,7 @@ public interface IElasticsearchService {
   void addToIndex(JsonNode json, String indexName, String documentType) throws IOException;
   void removeFromIndex(String id, String indexName, String documentType) throws IOException;
   SearchResponse search(String query, List<String> resourceTypes, List<String> sortList,
-                        String indexName, String documentType, int limit, int offset) throws UnknownHostException;
+                        String indexName, String documentType, int limit, int offset, String userId) throws UnknownHostException;
   boolean indexExists(String indexName) throws UnknownHostException;
   void deleteIndex(String indexName) throws IOException;
   void addAlias(String indexName, String aliasName) throws IOException;

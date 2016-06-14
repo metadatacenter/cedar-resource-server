@@ -6,11 +6,13 @@ import com.wordnik.swagger.annotations.Api;
 import com.wordnik.swagger.annotations.ApiOperation;
 import org.metadatacenter.constant.CedarConstants;
 import org.metadatacenter.constant.ConfigConstants;
+import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.user.CedarUser;
 import play.api.data.validation.ParameterValidator;
 import play.libs.F;
 import play.mvc.Result;
@@ -40,8 +42,13 @@ public class SearchController extends AbstractResourceServerController {
           cedarConfig.getSearchSettings().getSearchDefaultSettings().getMaxAllowedLimit());
       int offset = ParametersValidator.validateOffset(offsetParam);
 
+      // Get userId from apiKey
+      CedarUser user = Authorization.getUser(frontendRequest);
+
+      String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getUserId();
+
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeList, sortList, limit, offset);
+          resourceTypeList, sortList, limit, offset, userId);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);

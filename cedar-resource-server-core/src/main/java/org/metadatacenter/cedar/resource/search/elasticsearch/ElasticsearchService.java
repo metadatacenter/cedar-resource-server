@@ -38,6 +38,9 @@ import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_DES
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_RESOURCETYPE_FIELD;
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_SORTABLE_NAME_FIELD;
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_SORT_DESC_PREFIX;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_OWNER_FIELD;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_ISPUBLICLYREADABLE_FIELD;
+
 
 public class ElasticsearchService implements IElasticsearchService {
 
@@ -130,7 +133,7 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList,
-                               String indexName, String documentType, int limit, int offset) throws UnknownHostException {
+                               String indexName, String documentType, int limit, int offset, String userId) throws UnknownHostException {
     Client client = null;
     try {
       client = getClient();
@@ -145,14 +148,26 @@ public class ElasticsearchService implements IElasticsearchService {
       else {
         searchRequest.setQuery(QueryBuilders.matchAllQuery());
       }
+
+      // Filter by access permissions
+      BoolQueryBuilder boolQueryBuilder1 = QueryBuilders.boolQuery();
+      boolQueryBuilder1.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_OWNER_FIELD, userId));
+      boolQueryBuilder1.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_ISPUBLICLYREADABLE_FIELD, true));
+
       // Filter by resource type
+      BoolQueryBuilder boolQueryBuilder2 = QueryBuilders.boolQuery();
       if (resourceTypes != null && resourceTypes.size() > 0) {
-        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
         for (String rt : resourceTypes) {
-          boolQueryBuilder.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_RESOURCETYPE_FIELD, rt));
+          boolQueryBuilder2.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_RESOURCETYPE_FIELD, rt));
         }
-        searchRequest.setPostFilter(boolQueryBuilder);
       }
+
+      // Combine previous two filters using a bool query builder
+      BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+      boolQueryBuilder.must(boolQueryBuilder1);
+      boolQueryBuilder.must(boolQueryBuilder2);
+      searchRequest.setPostFilter(boolQueryBuilder);
+
       // Sort by field
       if (sortList != null && sortList.size() > 0) {
         for (String s : sortList) {
