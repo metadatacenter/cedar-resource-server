@@ -49,6 +49,8 @@ public class SearchService implements ISearchService {
       fieldValues = indexUtils.extractFieldValues(resource.getType(), resourceContent, new ArrayList<>());
     }
     System.out.println("Indexing resource (id = " + resource.getId() + ")");
+    // Set resource details
+    resource = setResourceDetails(resource);
     CedarIndexResource ir = new CedarIndexResource(resource, fieldNames, fieldValues);
     JsonNode jsonResource = new ObjectMapper().convertValue(ir, JsonNode.class);
     esService.addToIndex(jsonResource, indexName, documentType);
@@ -80,6 +82,7 @@ public class SearchService implements ISearchService {
     }
     System.out.println("Updating resource (id = " + newResource.getId());
     removeResourceFromIndex(newResource.getId(), indexName, documentType);
+    newResource = setResourceDetails(newResource);
     addToIndex(new CedarIndexResource(newResource, fieldNames, fieldValues), indexName, documentType);
   }
 
@@ -235,6 +238,11 @@ public class SearchService implements ISearchService {
           .endObject()
         .endObject();
     esService.createIndex(indexName, documentType, settings, mapping);
+  }
+
+  private CedarRSNode setResourceDetails(CedarRSNode resource) {
+    resource.setDisplayName(resource.getName());
+    return resource;
   }
 
 }
