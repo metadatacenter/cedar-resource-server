@@ -82,8 +82,8 @@ public class FolderContentsController extends AbstractResourceServerController {
       RSNodeListResponse response = null;
       try {
         String responseString = EntityUtils.toString(proxyResponse.getEntity());
-        System.out.println("-------");
-        System.out.println(responseString);
+        //System.out.println("-------");
+        //System.out.println(responseString);
         response = MAPPER.readValue(responseString, RSNodeListResponse.class);
       } catch (JsonProcessingException e) {
         e.printStackTrace();

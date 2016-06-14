@@ -92,10 +92,10 @@ public class CommandController extends AbstractResourceServerController {
       return internalServerErrorWithError(e);
     }
 
-    if (originalDocument != null) {
+    /*if (originalDocument != null) {
       System.out.println("Original document:");
       System.out.println(originalDocument);
-    }
+    }*/
 
     // TODO : from this point, this block is repeated 90% in:
     // AbstractResourceServerController.executeResourcePostByProxy
