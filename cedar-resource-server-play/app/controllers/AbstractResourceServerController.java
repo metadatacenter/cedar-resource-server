@@ -314,13 +314,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   protected static String extractNameFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
     String title = "";
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
+    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE ||
+        nodeType == CedarNodeType.INSTANCE) {
       JsonNode titleNode = jsonNode.at("/_ui/title");
-      if (titleNode != null && !titleNode.isMissingNode()) {
-        title = titleNode.textValue();
-      }
-    } else if (nodeType == CedarNodeType.INSTANCE) {
-      JsonNode titleNode = jsonNode.at("/_ui/templateTitle");
       if (titleNode != null && !titleNode.isMissingNode()) {
         title = titleNode.textValue();
       }
@@ -330,7 +326,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   protected static String extractDescriptionFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
     String description = "";
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
+    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE ||
+        nodeType == CedarNodeType.INSTANCE) {
       JsonNode titleNode = jsonNode.at("/_ui/description");
       if (titleNode != null && !titleNode.isMissingNode()) {
         description = titleNode.textValue();

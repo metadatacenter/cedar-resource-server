@@ -3,8 +3,6 @@ package controllers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.wordnik.swagger.annotations.Api;
-import com.wordnik.swagger.annotations.ApiOperation;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.*;
 import org.apache.http.util.EntityUtils;
@@ -35,6 +33,7 @@ public class CommandController extends AbstractResourceServerController {
     String id = jsonBody.get("@id").asText();
     String nodeTypeString = jsonBody.get("nodeType").asText();
     String folderId = jsonBody.get("folderId").asText();
+    String titleTemplate = jsonBody.get("titleTemplate").asText();
 
     CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
     if (nodeType == null) {
@@ -84,7 +83,15 @@ public class CommandController extends AbstractResourceServerController {
       if (entity != null) {
         originalDocument = EntityUtils.toString(entity);
         JsonNode jsonNode = MAPPER.readTree(originalDocument);
-        ((ObjectNode)jsonNode).remove("@id");
+        ((ObjectNode) jsonNode).remove("@id");
+        JsonNode titleNode = ((ObjectNode) jsonNode).at("/_ui/title");
+        if (!titleNode.isMissingNode()) {
+          String newTitle = titleTemplate.replace("{{title}}", titleNode.asText());
+          JsonNode ui = jsonNode.get("_ui");
+          if (ui != null) {
+            ((ObjectNode) ui).put("title", newTitle);
+          }
+        }
         originalDocument = jsonNode.toString();
       }
     } catch (Exception e) {
