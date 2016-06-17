@@ -13,6 +13,7 @@ import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.mvc.Result;
@@ -31,8 +32,12 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
-      String url = folderBase + CedarNodeType.Prefix.FOLDERS;
+      String folderId = getFolderIdFromBody();
+      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
+        return unauthorized("You do not have write access to the folder");
+      }
 
+      String url = folderBase + CedarNodeType.Prefix.FOLDERS;
       HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
 
@@ -41,7 +46,7 @@ public class FolderController extends AbstractResourceServerController {
       if (entity != null) {
         if (HttpStatus.SC_CREATED == statusCode) {
           // index the folder that has been created
-          DataServices.getInstance().getSearchService().indexResource(MAPPER.readValue(entity.getContent(),
+          DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue(entity.getContent(),
               CedarRSFolder.class), null, frontendRequest);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
@@ -107,6 +112,10 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
+      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
+        return unauthorized("You do not have write access to the folder");
+      }
+
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
@@ -117,8 +126,8 @@ public class FolderController extends AbstractResourceServerController {
       if (entity != null) {
         if (HttpStatus.SC_OK == statusCode) {
           // update the folder on the index
-          DataServices.getInstance().getSearchService().updateIndexedResource(MAPPER.readValue(entity.getContent(),
-              CedarRSFolder.class), null, frontendRequest);
+          DataServices.getInstance().getSearchService().updateIndexedResource(JsonMapper.MAPPER.readValue(entity
+              .getContent(), CedarRSFolder.class), null, frontendRequest);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
@@ -141,6 +150,10 @@ public class FolderController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+
+      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
+        return unauthorized("You do not have write access to the folder");
+      }
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
 

@@ -10,6 +10,7 @@ import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.json.JsonMapper;
 import play.libs.F;
 import play.mvc.Result;
 import play.mvc.Results;
@@ -84,7 +85,7 @@ public class FolderContentsController extends AbstractResourceServerController {
         String responseString = EntityUtils.toString(proxyResponse.getEntity());
         //System.out.println("-------");
         //System.out.println(responseString);
-        response = MAPPER.readValue(responseString, RSNodeListResponse.class);
+        response = JsonMapper.MAPPER.readValue(responseString, RSNodeListResponse.class);
       } catch (JsonProcessingException e) {
         e.printStackTrace();
       }
@@ -104,7 +105,7 @@ public class FolderContentsController extends AbstractResourceServerController {
             setDisplayPaths(rsNode, request());
           });
         }
-        return Results.status(statusCode, MAPPER.writeValueAsString(response));
+        return Results.status(statusCode, JsonMapper.MAPPER.writeValueAsString(response));
       }
     } else {
       return Results.status(statusCode);

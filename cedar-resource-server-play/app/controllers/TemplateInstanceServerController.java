@@ -3,6 +3,10 @@ package controllers;
 import com.wordnik.swagger.annotations.Api;
 import com.wordnik.swagger.annotations.ApiOperation;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.server.security.Authorization;
+import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
+import org.metadatacenter.server.security.exception.CedarAccessException;
+import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,14 +41,42 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
       value = "Update template instance",
       httpMethod = "PUT")
   public static Result updateTemplateInstance(String instanceId) {
-    return executeResourcePutByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_UPDATE, instanceId);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      if (userHasWriteAccessToResource(frontendRequest, folderBase, instanceId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      e.printStackTrace();
+    }
+    if (canProceed) {
+      return executeResourcePutByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_UPDATE, instanceId);
+    } else {
+      return unauthorized("You do not have write access for this instance");
+    }
   }
 
   @ApiOperation(
       value = "Delete template instance",
       httpMethod = "DELETE")
   public static Result deleteTemplateInstance(String instanceId) {
-    return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_DELETE, instanceId);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      if (userHasWriteAccessToResource(frontendRequest, folderBase, instanceId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      e.printStackTrace();
+    }
+    if (canProceed) {
+      return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_DELETE, instanceId);
+    } else {
+      return unauthorized("You do not have write access for this instance");
+    }
   }
 
 }

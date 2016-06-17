@@ -16,6 +16,7 @@ import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.mvc.Result;
@@ -82,7 +83,7 @@ public class CommandController extends AbstractResourceServerController {
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
         originalDocument = EntityUtils.toString(entity);
-        JsonNode jsonNode = MAPPER.readTree(originalDocument);
+        JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
         ((ObjectNode) jsonNode).remove("@id");
         JsonNode titleNode = ((ObjectNode) jsonNode).at("/_ui/title");
         if (!titleNode.isMissingNode()) {
@@ -131,7 +132,7 @@ public class CommandController extends AbstractResourceServerController {
         if (entity != null) {
           Header locationHeader = proxyResponse.getFirstHeader(HttpHeaders.LOCATION);
           String entityContent = EntityUtils.toString(entity);
-          JsonNode jsonNode = MAPPER.readTree(entityContent);
+          JsonNode jsonNode = JsonMapper.MAPPER.readTree(entityContent);
           String createdId = jsonNode.get("@id").asText();
 
           String resourceUrl = folderBase + PREFIX_RESOURCES;
@@ -142,7 +143,7 @@ public class CommandController extends AbstractResourceServerController {
           resourceRequestBody.put("nodeType", nodeType.getValue());
           resourceRequestBody.put("name", extractNameFromResponseObject(nodeType, jsonNode));
           resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
-          String resourceRequestBodyAsString = MAPPER.writeValueAsString(resourceRequestBody);
+          String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
           HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, request(),
               resourceRequestBodyAsString);
@@ -155,7 +156,7 @@ public class CommandController extends AbstractResourceServerController {
               }
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                DataServices.getInstance().getSearchService().indexResource(MAPPER.readValue(resourceCreateResponse
+                DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse
                         .getEntity().getContent(),
                     CedarRSResource.class), jsonNode, authRequest);
                 return created(proxyResponse.getEntity().getContent());
