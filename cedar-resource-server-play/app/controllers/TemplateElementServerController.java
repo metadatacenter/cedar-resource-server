@@ -49,7 +49,8 @@ public class TemplateElementServerController extends AbstractResourceServerContr
         canProceed = true;
       }
     } catch (CedarAccessException e) {
-      e.printStackTrace();
+      play.Logger.error("Access Error while updating the element", e);
+      return forbiddenWithError(e);
     }
     if (canProceed) {
       return executeResourcePutByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_UPDATE, elementId);
@@ -70,7 +71,8 @@ public class TemplateElementServerController extends AbstractResourceServerContr
         canProceed = true;
       }
     } catch (CedarAccessException e) {
-      e.printStackTrace();
+      play.Logger.error("Access Error while deleting the element", e);
+      return forbiddenWithError(e);
     }
     if (canProceed) {
       return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_DELETE, elementId);

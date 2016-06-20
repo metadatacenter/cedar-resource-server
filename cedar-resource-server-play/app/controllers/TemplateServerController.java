@@ -49,7 +49,8 @@ public class TemplateServerController extends AbstractResourceServerController {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
-      e.printStackTrace();
+      play.Logger.error("Access Error while updating the template", e);
+      return forbiddenWithError(e);
     }
     if (canProceed) {
       return executeResourcePutByProxy(CedarNodeType.TEMPLATE, CedarPermission.TEMPLATE_UPDATE, templateId);
@@ -70,7 +71,8 @@ public class TemplateServerController extends AbstractResourceServerController {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
-      e.printStackTrace();
+      play.Logger.error("Access Error while deleting the template", e);
+      return forbiddenWithError(e);
     }
     if (canProceed) {
       return executeResourceDeleteByProxy(CedarNodeType.TEMPLATE, CedarPermission.TEMPLATE_DELETE, templateId);

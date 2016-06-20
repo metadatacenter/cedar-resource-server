@@ -49,7 +49,8 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
         canProceed = true;
       }
     } catch (CedarAccessException e) {
-      e.printStackTrace();
+      play.Logger.error("Access Error while updating the instance", e);
+      return forbiddenWithError(e);
     }
     if (canProceed) {
       return executeResourcePutByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_UPDATE, instanceId);
@@ -70,7 +71,8 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
         canProceed = true;
       }
     } catch (CedarAccessException e) {
-      e.printStackTrace();
+      play.Logger.error("Access Error while deleting the instance", e);
+      return forbiddenWithError(e);
     }
     if (canProceed) {
       return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_DELETE, instanceId);

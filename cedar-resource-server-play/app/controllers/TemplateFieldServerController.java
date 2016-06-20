@@ -49,7 +49,8 @@ public class TemplateFieldServerController extends AbstractResourceServerControl
         canProceed = true;
       }
     } catch (CedarAccessException e) {
-      e.printStackTrace();
+      play.Logger.error("Access Error while updating the field", e);
+      return forbiddenWithError(e);
     }
     if (canProceed) {
       return executeResourcePutByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_UPDATE, fieldId);
@@ -70,7 +71,8 @@ public class TemplateFieldServerController extends AbstractResourceServerControl
         canProceed = true;
       }
     } catch (CedarAccessException e) {
-      e.printStackTrace();
+      play.Logger.error("Access Error while deleting the field", e);
+      return forbiddenWithError(e);
     }
     if (canProceed) {
       return executeResourceDeleteByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_DELETE, fieldId);
