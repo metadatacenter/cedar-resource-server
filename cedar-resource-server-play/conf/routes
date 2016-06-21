@@ -60,10 +60,8 @@ DELETE         /template-instances/:id                 controllers.TemplateInsta
 GET            /search                                 controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
 #POST           /search                          controllers.SearchController.searchByPost()
 
-# Index operations
-POST           /command/regenerate-search-index        controllers.SearchController.regenerateSearchIndex()
-
 # Commands
+POST           /command/regenerate-search-index        controllers.SearchController.regenerateSearchIndex()
 POST           /command/copy-resource-to-folder        controllers.CommandController.copyResourceToFolder()
 
 # For CORS - preflight request
