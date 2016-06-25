@@ -10,6 +10,7 @@ import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import play.libs.F;
 import play.mvc.Result;
 
 @Api(value = "/template-instances", description = "Template instance operations")
@@ -19,8 +20,8 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
   @ApiOperation(
       value = "Create template instance",
       httpMethod = "POST")
-  public static Result createTemplateInstance() {
-    return executeResourcePostByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_CREATE);
+  public static Result createTemplateInstance(F.Option<Boolean> importMode) {
+    return executeResourcePostByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_CREATE, importMode);
   }
 
   @ApiOperation(

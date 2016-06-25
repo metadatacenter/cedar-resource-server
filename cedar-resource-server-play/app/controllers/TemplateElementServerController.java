@@ -10,6 +10,7 @@ import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import play.libs.F;
 import play.mvc.Result;
 
 @Api(value = "/template-elements", description = "Template element operations")
@@ -19,8 +20,8 @@ public class TemplateElementServerController extends AbstractResourceServerContr
   @ApiOperation(
       value = "Create template element",
       httpMethod = "POST")
-  public static Result createTemplateElement() {
-    return executeResourcePostByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_CREATE);
+  public static Result createTemplateElement(F.Option<Boolean> importMode) {
+    return executeResourcePostByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_CREATE, importMode);
   }
 
   @ApiOperation(

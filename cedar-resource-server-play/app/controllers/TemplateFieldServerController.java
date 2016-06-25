@@ -10,6 +10,7 @@ import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import play.libs.F;
 import play.mvc.Result;
 
 @Api(value = "/template-fields", description = "Template field operations")
@@ -19,8 +20,8 @@ public class TemplateFieldServerController extends AbstractResourceServerControl
   @ApiOperation(
       value = "Create template field",
       httpMethod = "POST")
-  public static Result createTemplateField() {
-    return executeResourcePostByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_CREATE);
+  public static Result createTemplateField(F.Option<Boolean> importMode) {
+    return executeResourcePostByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_CREATE, importMode);
   }
 
   @ApiOperation(

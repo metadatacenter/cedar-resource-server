@@ -30,6 +30,7 @@ import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.parameter.ParameterUtil;
+import play.libs.F;
 import play.mvc.Http;
 import play.mvc.Result;
 import play.mvc.Results;
@@ -204,7 +205,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
   // Proxy methods for resource types
-  protected static Result executeResourcePostByProxy(CedarNodeType nodeType, CedarPermission permission) {
+  protected static Result executeResourcePostByProxy(CedarNodeType nodeType, CedarPermission permission, F.Option
+      <Boolean> importMode) {
     IAuthRequest authRequest = null;
     try {
       authRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -236,7 +238,11 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       }
 
       String url = templateBase + nodeType.getPrefix();
-      //System.out.println(url);
+      if (importMode != null && importMode.isDefined() && importMode.get()) {
+        url += "?importMode=true";
+      }
+      System.out.println("***RESOURCE PROXY:" + url);
+      play.Logger.debug("***RESOURCE PROXY:" + url);
 
       HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
