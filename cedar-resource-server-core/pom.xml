@@ -39,11 +39,6 @@
     </dependency>
 
     <dependency>
-      <groupId>org.metadatacenter</groupId>
-      <artifactId>cedar-server-utils-core</artifactId>
-    </dependency>
-
-    <dependency>
       <groupId>org.apache.httpcomponents</groupId>
       <artifactId>fluent-hc</artifactId>
     </dependency>
