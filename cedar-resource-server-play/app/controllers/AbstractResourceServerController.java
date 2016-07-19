@@ -13,9 +13,7 @@ import org.metadatacenter.cedar.resource.util.FolderServerProxy;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.PathComponent;
 import org.metadatacenter.model.folderserver.CedarFSFolder;
-import org.metadatacenter.model.folderserver.CedarFSNode;
 import org.metadatacenter.model.folderserver.CedarFSResource;
 import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
@@ -38,7 +36,6 @@ import utils.DataServices;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
-import java.util.List;
 
 public abstract class AbstractResourceServerController extends AbstractCedarController {
 
@@ -120,35 +117,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return resource;
   }
 
-  protected static void setDisplayPaths(CedarRSNode resource, Http.Request request) {
-    StringBuilder sb = new StringBuilder();
-    List<PathComponent> pathComponents = resource.getPathComponents();
-    if (pathComponents != null) {
-      for (int i = 0; i < pathComponents.size(); i++) {
-        PathComponent pc = pathComponents.get(i);
-        if (i > 1) {
-          sb.append("/");
-        }
-        if (pc.isUserHome()) {
-          CedarUserSummary user = getUserSummary(request, pc.getName());
-          if (user != null) {
-            sb.append(user.getScreenName());
-          } else {
-            sb.append(pc.getName());
-          }
-        } else {
-          sb.append(pc.getName());
-        }
-        if (i == pathComponents.size() - 2) {
-          resource.setDisplayParentPath(sb.toString());
-        } else if (i == pathComponents.size() - 1) {
-          resource.setDisplayPath(sb.toString());
-        }
-      }
-    }
-  }
-
-
   protected static String extractUserUUID(String userURL) {
     String id = userURL;
     try {
@@ -195,7 +163,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     resource.setDisplayName(resource.getName());
     addProvenanceDisplayName(resource, request);
     setUserHomeFolderDisplayName(resource, request);
-    setDisplayPaths(resource, request);
     return JsonMapper.MAPPER.valueToTree(resource);
   }
 
@@ -534,7 +501,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       throw new IllegalArgumentException("Parent folder not found for id:" + folderId);
     }
     CedarUser currentUser = Authorization.getUser(frontendRequest);
-    if (fsFolder.isPubliclyWritable() || extractUserUUID(fsFolder.getOwnedBy()).equals(currentUser.getUserId())) {
+    if (extractUserUUID(fsFolder.getOwnedBy()).equals(currentUser.getUserId())) {
       return true;
     }
     return false;
@@ -548,7 +515,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       throw new IllegalArgumentException("Resource not found:" + nodeId);
     }
     CedarUser currentUser = Authorization.getUser(frontendRequest);
-    if (fsResource.isPubliclyWritable() || extractUserUUID(fsResource.getOwnedBy()).equals(currentUser.getUserId())) {
+    if (extractUserUUID(fsResource.getOwnedBy()).equals(currentUser.getUserId())) {
       return true;
     }
     return false;
