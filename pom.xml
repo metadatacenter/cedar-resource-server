@@ -6,12 +6,12 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-parent</artifactId>
-    <version>0.1.0</version>
+    <version>0.5.5</version>
   </parent>
 
   <groupId>org.metadatacenter</groupId>
   <artifactId>cedar-resource-server</artifactId>
-  <version>0.1.0</version>
+  <version>0.5.5-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>CEDAR Resource Server</name>
@@ -21,6 +21,13 @@
     <!-- Do Not Remove This! We need it in Pom.scala -->
     <scala.version>2.11.5</scala.version>
   </properties>
+
+  <scm>
+    <connection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</connection>
+    <developerConnection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</developerConnection>
+    <url>https://github.com/metadatacenter/cedar-resource-server</url>
+    <tag>HEAD</tag>
+  </scm>
 
   <modules>
     <module>cedar-resource-server-core</module>

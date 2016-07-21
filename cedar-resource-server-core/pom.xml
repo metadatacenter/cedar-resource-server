@@ -6,21 +6,24 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-resource-server</artifactId>
-    <version>0.1.0</version>
+    <version>0.5.5-SNAPSHOT</version>
   </parent>
 
   <groupId>org.metadatacenter</groupId>
   <artifactId>cedar-resource-server-core</artifactId>
-  <version>0.1.0</version>
   <packaging>jar</packaging>
-
   <name>CEDAR Resource Server Core</name>
+
+  <properties>
+    <cedar.version>0.5.5</cedar.version>
+  </properties>
 
   <dependencies>
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-server-utils-core</artifactId>
+      <version>${cedar.version}</version>
     </dependency>
 
     <dependency>
