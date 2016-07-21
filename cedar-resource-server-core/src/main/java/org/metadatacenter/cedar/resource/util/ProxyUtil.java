@@ -8,6 +8,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.metadatacenter.constant.HttpConnectionConstants;
+import org.metadatacenter.server.security.model.IAuthRequest;
 import play.mvc.Http;
 
 import java.io.IOException;
@@ -21,8 +22,14 @@ public class ProxyUtil {
         .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
         .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
     proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request.getHeader(HttpHeaders.AUTHORIZATION));
-    proxyRequest.addHeader(HttpHeaders.CONTENT_LENGTH, ZERO_LENGTH);
-    proxyRequest.addHeader(HttpHeaders.CONTENT_TYPE, request.getHeader(ContentType.APPLICATION_JSON.toString()));
+    return proxyRequest.execute().returnResponse();
+  }
+
+  public static HttpResponse proxyGet(String url, IAuthRequest authRequest) throws IOException {
+    Request proxyRequest = Request.Get(url)
+        .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
+        .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
+    proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, authRequest.getAuthHeader());
     return proxyRequest.execute().returnResponse();
   }
 
@@ -32,15 +39,22 @@ public class ProxyUtil {
         .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
     proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request.getHeader(HttpHeaders.AUTHORIZATION));
     proxyRequest.addHeader(HttpHeaders.CONTENT_LENGTH, ZERO_LENGTH);
-    proxyRequest.addHeader(HttpHeaders.CONTENT_TYPE, request.getHeader(ContentType.APPLICATION_JSON.toString()));
+    proxyRequest.addHeader(HttpHeaders.CONTENT_TYPE, ContentType.TEXT_PLAIN.toString());
     return proxyRequest.execute().returnResponse();
   }
 
   public static HttpResponse proxyPost(String url, Http.Request request) throws IOException {
     JsonNode jsonBody = request.body().asJson();
-    String jsonString = jsonBody.toString();
+    return proxyPost(url, request, jsonBody.toString());
+  }
+
+  public static HttpResponse post(String url, Http.Request request, String content) throws IOException {
+    return proxyPost(url, request, content);
+  }
+
+  public static HttpResponse proxyPost(String url, Http.Request request, String content) throws IOException {
     Request proxyRequest = Request.Post(url)
-        .bodyString(jsonString, ContentType.APPLICATION_JSON)
+        .bodyString(content, ContentType.APPLICATION_JSON)
         .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
         .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
     proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request.getHeader(HttpHeaders.AUTHORIZATION));
@@ -49,9 +63,12 @@ public class ProxyUtil {
 
   public static HttpResponse proxyPut(String url, Http.Request request) throws IOException {
     JsonNode jsonBody = request.body().asJson();
-    String jsonString = jsonBody.toString();
+    return proxyPut(url, request, jsonBody.toString());
+  }
+
+  public static HttpResponse proxyPut(String url, Http.Request request, String content) throws IOException {
     Request proxyRequest = Request.Put(url)
-        .bodyString(jsonString, ContentType.APPLICATION_JSON)
+        .bodyString(content, ContentType.APPLICATION_JSON)
         .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
         .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);
     proxyRequest.addHeader(HttpHeaders.AUTHORIZATION, request.getHeader(HttpHeaders.AUTHORIZATION));

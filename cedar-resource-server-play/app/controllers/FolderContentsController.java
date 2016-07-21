@@ -1,37 +1,29 @@
 package controllers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
-import org.metadatacenter.constant.ConfigConstants;
+import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.metadatacenter.util.json.JsonMapper;
 import play.libs.F;
 import play.mvc.Result;
 import play.mvc.Results;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
 
 public class FolderContentsController extends AbstractResourceServerController {
-  private static Logger log = LoggerFactory.getLogger(FolderContentsController.class);
-
-  final static List<String> knownSortKeys;
-
   public static final String folderBase;
   private static final String ROOT_PATH_BY_PATH = "folders/contents";
   private static final String ROOT_PATH_BY_ID = "folders/";
 
   static {
-    knownSortKeys = new ArrayList<>();
-    knownSortKeys.add("name");
-    knownSortKeys.add("createdOn");
-    knownSortKeys.add("lastUpdatedOn");
-    folderBase = config.getString(ConfigConstants.FOLDER_SERVER_BASE);
+    folderBase = cedarConfig.getServers().getFolder().getBase();
   }
 
   public static Result findFolderContentsByPath(F.Option<String> pathParam, F.Option<String> resourceTypes, F
@@ -39,7 +31,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String absoluteUrl = routes.FolderContentsController.findFolderContentsByPath(pathParam, resourceTypes, sort,
           limitParam, offsetParam).absoluteURL(request());
@@ -51,16 +43,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
-      } else {
-        return Results.status(statusCode);
-      }
-
+      return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {
@@ -73,7 +56,7 @@ public class FolderContentsController extends AbstractResourceServerController {
 
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String absoluteUrl = routes.FolderContentsController.findFolderContentsById(id, resourceTypes, sort,
           limitParam, offsetParam).absoluteURL(request());
@@ -85,20 +68,47 @@ public class FolderContentsController extends AbstractResourceServerController {
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
-      } else {
-        return Results.status(statusCode);
-      }
-
+      return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
     } catch (IllegalArgumentException e) {
       return badRequestWithError(e);
     } catch (Exception e) {
       return internalServerErrorWithError(e);
+    }
+  }
+
+  private static Result deserializeAndConvertFolderNamesIfNecessary(HttpResponse proxyResponse) throws IOException {
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    HttpEntity entity = proxyResponse.getEntity();
+    if (entity != null) {
+      RSNodeListResponse response = null;
+      try {
+        String responseString = EntityUtils.toString(proxyResponse.getEntity());
+        //System.out.println("-------");
+        //System.out.println(responseString);
+        response = JsonMapper.MAPPER.readValue(responseString, RSNodeListResponse.class);
+      } catch (JsonProcessingException e) {
+        e.printStackTrace();
+      }
+      // it can not be deserialized as RSNodeListResponse
+      if (response == null) {
+        return Results.status(statusCode, entity.getContent());
+      } else {
+        if (response.getResources() != null) {
+          response.getResources().forEach(rsNode -> {
+            setUserHomeFolderDisplayName(rsNode, request());
+            setDisplayPaths(rsNode, request());
+          });
+        }
+        if (response.getPathInfo() != null) {
+          response.getPathInfo().forEach(rsNode -> {
+            setUserHomeFolderDisplayName(rsNode, request());
+            setDisplayPaths(rsNode, request());
+          });
+        }
+        return Results.status(statusCode, JsonMapper.MAPPER.writeValueAsString(response));
+      }
+    } else {
+      return Results.status(statusCode);
     }
   }
 

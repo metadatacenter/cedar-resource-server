@@ -1,55 +1,70 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-resource-server</artifactId>
-    <version>0.1.0</version>
+    <version>0.5.5</version>
   </parent>
 
   <groupId>org.metadatacenter</groupId>
   <artifactId>cedar-resource-server-play</artifactId>
-  <version>0.1.0</version>
   <packaging>play2</packaging>
-
   <name>CEDAR Resource Server Play</name>
 
+  <properties>
+     <cedar.version>0.5.5</cedar.version>
+  </properties>
+
   <dependencies>
+
+    <dependency>
+      <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-resource-server-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-server-globals</artifactId>
+      <version>${cedar.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-server-utils-core</artifactId>
+      <version>${cedar.version}</version>
     </dependency>
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-server-utils-play</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>org.metadatacenter</groupId>
-      <artifactId>cedar-auth-operations</artifactId>
+      <version>${cedar.version}</version>
     </dependency>
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-auth-operations-noauth</artifactId>
+      <version>${cedar.version}</version>
     </dependency>
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-auth-operations-keycloak</artifactId>
+      <version>${cedar.version}</version>
     </dependency>
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-user-operations</artifactId>
+      <version>${cedar.version}</version>
     </dependency>
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
-      <artifactId>cedar-resource-server-core</artifactId>
+      <artifactId>cedar-project-config</artifactId>
+      <version>${cedar.version}</version>
     </dependency>
 
     <dependency>
@@ -97,6 +112,12 @@
       <artifactId>jboss-logging</artifactId>
     </dependency>
 
+    <!-- Swagger-Play2 -->
+    <dependency>
+      <groupId>com.wordnik</groupId>
+      <artifactId>swagger-play2_${play2.scala.version}</artifactId>
+    </dependency>
+
   </dependencies>
 
   <build>
@@ -106,6 +127,10 @@
     <resources>
       <resource>
         <directory>${basedir}/conf</directory>
+      </resource>
+      <resource>
+        <directory>${basedir}/profiles/${cedar.profile.dir}/conf</directory>
+        <filtering>true</filtering>
       </resource>
       <resource>
         <directory>${basedir}</directory>

@@ -1,31 +1,76 @@
 package utils;
 
+import org.metadatacenter.cedar.resource.search.SearchService;
+import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
+import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.config.ElasticsearchConfig;
+import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.server.security.CedarApiKeyAuthRequest;
+import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
-import play.Configuration;
-import play.Play;
-
-import static org.metadatacenter.constant.ConfigConstants.MONGODB_DATABASE_NAME;
-import static org.metadatacenter.constant.ConfigConstants.USERS_COLLECTION_NAME;
 
 public class DataServices {
 
   private static DataServices instance = new DataServices();
   private static UserService userService;
+  private static SearchService searchService;
+  private static CedarConfig cedarConfig;
 
   public static DataServices getInstance() {
     return instance;
   }
 
   private DataServices() {
-    Configuration config = Play.application().configuration();
-    userService = new UserServiceMongoDB(
-        config.getString(MONGODB_DATABASE_NAME),
-        config.getString(USERS_COLLECTION_NAME));
+    cedarConfig = CedarConfig.getInstance();
+    userService = new UserServiceMongoDB(cedarConfig.getMongoConfig().getDatabaseName(),
+        cedarConfig.getMongoCollectionName(CedarNodeType.USER));
 
+    ElasticsearchConfig esc = cedarConfig.getElasticsearchConfig();
+
+    searchService = new SearchService(new ElasticsearchService(
+        esc.getCluster(),
+        esc.getHost(),
+        esc.getTransportPort(),
+        esc.getSize(),
+        esc.getScrollKeepAlive()),
+        esc.getIndex(),
+        esc.getType(),
+        cedarConfig.getServers().getFolder().getBase(),
+        cedarConfig.getServers().getTemplate().getBase(),
+        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getLimit(),
+        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getMaxAttempts(),
+        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getDelayAttempts()
+    );
+
+    String adminUserUUID = cedarConfig.getKeycloakConfig().getAdminUser().getUuid();
+    CedarUser adminUser = null;
+    try {
+      adminUser = userService.findUser(adminUserUUID);
+    } catch (Exception ex) {
+      play.Logger.error("Error while loading admin user for id:" + adminUserUUID + ":");
+    }
+    if (adminUser == null) {
+      play.Logger.error("Admin user not found for id:" + adminUserUUID + ".");
+      play.Logger.error("The requested task was not completed!");
+    } else {
+      // Regenerate search index if necessary
+      String apiKey = adminUser.getFirstActiveApiKey();
+      IAuthRequest authRequest = new CedarApiKeyAuthRequest(apiKey);
+      try {
+        searchService.regenerateSearchIndex(false, authRequest);
+      } catch (Exception e) {
+        play.Logger.error("Error while regenerating the search index", e);
+      }
+    }
   }
 
   public UserService getUserService() {
     return userService;
+  }
+
+  public SearchService getSearchService() {
+    return searchService;
   }
 }
