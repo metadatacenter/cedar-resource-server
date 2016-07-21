@@ -12,8 +12,11 @@
   <groupId>org.metadatacenter</groupId>
   <artifactId>cedar-resource-server-play</artifactId>
   <packaging>play2</packaging>
-
   <name>CEDAR Resource Server Play</name>
+
+  <properties>
+     <cedar.version>0.5.5</cedar.version>
+  </properties>
 
   <dependencies>
 
