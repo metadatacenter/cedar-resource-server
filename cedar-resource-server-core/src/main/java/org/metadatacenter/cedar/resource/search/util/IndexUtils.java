@@ -59,6 +59,8 @@ public class IndexUtils {
     int offset = 0;
     int countSoFar = 0;
     while (!finished) {
+      // TODO: read this limit from config file
+      limit = 10000;
       String url = baseUrl + "?offset=" + offset + "&limit=" + limit;
       play.Logger.info("Retrieving resources from Folder Server. Url: " + url);
       int statusCode = -1;
