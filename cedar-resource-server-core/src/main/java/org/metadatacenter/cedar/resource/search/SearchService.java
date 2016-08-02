@@ -124,9 +124,11 @@ public class SearchService implements ISearchService {
         System.out.println("No. of resources in the index: " + indexResourceIds.size());
         if (dbResourceIds.size() == indexResourceIds.size()) {
           // Compare the two lists
-          List<String> tmp = new ArrayList(dbResourceIds);
-          tmp.removeAll(indexResourceIds);
-          if (tmp.size() == 0) {
+          List<String> tmp1 = new ArrayList(dbResourceIds);
+          List<String> tmp2 = new ArrayList(indexResourceIds);
+          Collections.sort(tmp1);
+          Collections.sort(tmp2);
+          if (tmp1.equals(tmp2)) {
             regenerate = false;
             System.out.println("DB and search index match. It is not necessary to regenerate the index");
           } else {
