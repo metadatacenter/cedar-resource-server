@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.search;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.EncoderException;
+import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -11,6 +12,7 @@ import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchServi
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.index.CedarIndexResource;
+import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.exception.CedarAccessException;
@@ -108,6 +110,20 @@ public class SearchService implements ISearchService {
     response.setCurrentOffset(offset);
     response.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, total, limit, offset));
     response.setResources(resources);
+
+    List<CedarNodeType> nodeTypeList = new ArrayList<>();
+    if (resourceTypes != null) {
+      for (String rt : resourceTypes) {
+        nodeTypeList.add(CedarNodeType.forValue(rt));
+      }
+    }
+    NodeListRequest req = new NodeListRequest();
+    req.setNodeTypes(nodeTypeList);
+    req.setLimit(limit);
+    req.setOffset(offset);
+    req.setSort(sortList);
+    response.setRequest(req);
+
     return response;
   }
 
