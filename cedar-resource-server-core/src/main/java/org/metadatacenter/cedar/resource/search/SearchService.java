@@ -15,6 +15,7 @@ import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.util.http.LinkHeaderUtil;
 
 import java.io.IOException;
 import java.util.*;
@@ -92,7 +93,7 @@ public class SearchService implements ISearchService {
     updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
   }
 
-  public RSNodeListResponse search(String query, List<String> resourceTypes, List<String> sortList, int limit, int offset, String userId) throws IOException {
+  public RSNodeListResponse search(String query, List<String> resourceTypes, List<String> sortList, int limit, int offset, String userId, String absoluteUrl) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
     SearchResponse esResults = esService.search(query, resourceTypes, sortList, esIndex, esType, limit, offset, userId);
     RSNodeListResponse response = new RSNodeListResponse();
@@ -102,7 +103,10 @@ public class SearchService implements ISearchService {
       CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
       resources.add(resource.getInfo());
     }
-    response.setTotalCount(esResults.getHits().getTotalHits());
+    long total = esResults.getHits().getTotalHits();
+    response.setTotalCount(total);
+    response.setCurrentOffset(offset);
+    response.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, total, limit, offset));
     response.setResources(resources);
     return response;
   }

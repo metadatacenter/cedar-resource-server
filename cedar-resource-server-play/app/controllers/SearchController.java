@@ -44,8 +44,12 @@ public class SearchController extends AbstractResourceServerController {
 
       String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getUserId();
 
+      F.Option<Integer> none = new F.None<>();
+      String absoluteUrl = routes.SearchController.search(query, resourceTypes, sort,
+          none, none).absoluteURL(request());
+
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeList, sortList, limit, offset, userId);
+          resourceTypeList, sortList, limit, offset, userId, absoluteUrl);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
