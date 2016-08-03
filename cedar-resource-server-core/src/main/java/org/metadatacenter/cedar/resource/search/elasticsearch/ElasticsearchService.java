@@ -138,7 +138,7 @@ public class ElasticsearchService implements IElasticsearchService {
     Client client = null;
     try {
       client = getClient();
-      SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType).setSize(esSize);
+      SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType);
       if (query != null && query.length() > 0) {
         searchRequest.setQuery(
             QueryBuilders.queryStringQuery(query)
@@ -204,7 +204,7 @@ public class ElasticsearchService implements IElasticsearchService {
     Client client = null;
     try {
       client = getClient();
-      SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType).setSize(esSize);
+      SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType);
       if (query != null && query.length() > 0) {
         searchRequest.setQuery(
             QueryBuilders.queryStringQuery(query)
@@ -248,9 +248,8 @@ public class ElasticsearchService implements IElasticsearchService {
         }
       }
 
-      // Set scroll, offset and limit
+      // Set scroll
       searchRequest.setScroll(TimeValue.timeValueMinutes(2));
-      searchRequest.setSize(limit);
 
       //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
 
@@ -259,7 +258,7 @@ public class ElasticsearchService implements IElasticsearchService {
 
       List<SearchHit> allHits = new ArrayList<>();
 
-      while(response.getHits().hits().length != 0){
+      while(response.getHits().hits().length != 0 || response.getHits().hits().length >= limit){
         allHits.addAll(Arrays.asList(response.getHits().hits()));
         //next scroll
         response = client.prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();

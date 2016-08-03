@@ -130,6 +130,12 @@ public class SearchService implements ISearchService {
   public RSNodeListResponse searchDeep(String query, List<String> resourceTypes, List<String> sortList, int limit, String userId) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
     List<SearchHit> esHits = esService.searchDeep(query, resourceTypes, sortList, esIndex, esType, limit, userId);
+
+    // Apply limit
+    if (esHits.size() >= limit) {
+      esHits = esHits.subList(0, limit);
+    }
+
     RSNodeListResponse response = new RSNodeListResponse();
     List<CedarRSNode> resources = new ArrayList<>();
     for (SearchHit hit : esHits) {
@@ -137,8 +143,8 @@ public class SearchService implements ISearchService {
       CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
       resources.add(resource.getInfo());
     }
-    long total = esHits.size();
-    response.setTotalCount(total);
+
+    response.setTotalCount(resources.size());
     response.setResources(resources);
 
     List<CedarNodeType> nodeTypeList = new ArrayList<>();
