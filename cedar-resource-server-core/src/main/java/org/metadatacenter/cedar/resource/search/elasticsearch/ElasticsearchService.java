@@ -248,8 +248,9 @@ public class ElasticsearchService implements IElasticsearchService {
         }
       }
 
-      // Set scroll
+      // Set scroll and scroll size
       searchRequest.setScroll(TimeValue.timeValueMinutes(2));
+      searchRequest.setSize(10000);
 
       //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
 
