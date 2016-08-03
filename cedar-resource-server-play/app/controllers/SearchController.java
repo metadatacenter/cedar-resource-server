@@ -61,6 +61,40 @@ public class SearchController extends AbstractResourceServerController {
     }
   }
 
+  @ApiOperation(
+      value = "Search for resources. This call is not paged and is not intended for real time user requests, but rather" +
+          " for processing large amounts of data.", httpMethod = "GET")
+  public static Result searchDeep(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> sort, F
+      .Option<Integer> limitParam) {
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+
+      // Parameters validation
+      String queryString = ParametersValidator.validateQuery(query);
+      List<String> resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
+      List<String> sortList = ParametersValidator.validateSort(sort);
+      // The searchDeep method can be used to retrieve all elements in one call, so we set the highest possible maxAllowedLimit
+      int limit = ParametersValidator.validateLimit(limitParam,
+          cedarConfig.getSearchSettings().getSearchDefaultSettings().getDefaultLimit(), Integer.MAX_VALUE);
+
+      // Get userId from apiKey
+      CedarUser user = Authorization.getUser(frontendRequest);
+      String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getUserId();
+
+      RSNodeListResponse results = DataServices.getInstance().getSearchService().searchDeep(queryString,
+          resourceTypeList, sortList, limit, userId);
+
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode resultsNode = mapper.valueToTree(results);
+      return ok(resultsNode);
+    } catch (IllegalArgumentException e) {
+      return badRequestWithError(e);
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+  }
+
   // TODO: Search by POST
 //  public static Result searchByPost() {
 //    try {

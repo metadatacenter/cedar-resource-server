@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -189,6 +190,83 @@ public class ElasticsearchService implements IElasticsearchService {
       // Execute request
       SearchResponse response = searchRequest.execute().actionGet();
       return response;
+    } finally {
+      // Close client
+      client.close();
+    }
+  }
+
+  // It uses the scroll API. It retrieves all results. No pagination and therefore no offset. Scrolling is not
+  // intended for real time user requests, but rather for processing large amounts of data.
+  // More info: https://www.elastic.co/guide/en/elasticsearch/reference/2.3/search-request-scroll.html
+  public List<SearchHit> searchDeep(String query, List<String> resourceTypes, List<String> sortList,
+                                   String indexName, String documentType, int limit, String userId) throws UnknownHostException {
+    Client client = null;
+    try {
+      client = getClient();
+      SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType).setSize(esSize);
+      if (query != null && query.length() > 0) {
+        searchRequest.setQuery(
+            QueryBuilders.queryStringQuery(query)
+                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD)
+                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_DESCRIPTION_FIELD));
+      }
+      // Retrieve all
+      else {
+        searchRequest.setQuery(QueryBuilders.matchAllQuery());
+      }
+
+      // Filter by access permissions
+      BoolQueryBuilder boolQueryBuilder1 = QueryBuilders.boolQuery();
+      boolQueryBuilder1.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_OWNER_FIELD, userId));
+      boolQueryBuilder1.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_ISPUBLICLYREADABLE_FIELD, true));
+
+      // Filter by resource type
+      BoolQueryBuilder boolQueryBuilder2 = QueryBuilders.boolQuery();
+      if (resourceTypes != null && resourceTypes.size() > 0) {
+        for (String rt : resourceTypes) {
+          boolQueryBuilder2.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_RESOURCETYPE_FIELD, rt));
+        }
+      }
+
+      // Combine previous two filters using a bool query builder
+      BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+      boolQueryBuilder.must(boolQueryBuilder1);
+      boolQueryBuilder.must(boolQueryBuilder2);
+      searchRequest.setPostFilter(boolQueryBuilder);
+
+      // Sort by field
+      if (sortList != null && sortList.size() > 0) {
+        for (String s : sortList) {
+          SortOrder sortOrder = SortOrder.ASC;
+          if (s.startsWith(ES_SORT_DESC_PREFIX)) {
+            sortOrder = SortOrder.DESC;
+            s = s.substring(1);
+          }
+          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD)==0 ? ES_RESOURCE_SORTABLE_NAME_FIELD : s);
+          searchRequest.addSort(sortField, sortOrder);
+        }
+      }
+
+      // Set scroll, offset and limit
+      searchRequest.setScroll(TimeValue.timeValueMinutes(2));
+      searchRequest.setSize(limit);
+
+      //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
+
+      // Execute request
+      SearchResponse response = searchRequest.execute().actionGet();
+
+      List<SearchHit> allHits = new ArrayList<>();
+
+      while(response.getHits().hits().length != 0){
+        allHits.addAll(Arrays.asList(response.getHits().hits()));
+        //next scroll
+        response = client.prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+      }
+
+      return allHits;
+
     } finally {
       // Close client
       client.close();

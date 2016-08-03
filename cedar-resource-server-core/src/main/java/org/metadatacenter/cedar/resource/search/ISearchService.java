@@ -19,6 +19,7 @@ public interface ISearchService {
   void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, String indexName, String documentType, IAuthRequest authRequest) throws IOException, CedarAccessException, EncoderException;
   void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, IAuthRequest authRequest) throws IOException, CedarAccessException, EncoderException;
   RSNodeListResponse search(String query, List<String> resourceTypes, List<String> sortList, int limit, int offset, String userId, String absoluteUrl) throws IOException;
+  RSNodeListResponse searchDeep(String query, List<String> resourceTypes, List<String> sortList, int limit, String userId) throws IOException;
   void regenerateSearchIndex(boolean force, IAuthRequest authRequest) throws IOException, CedarAccessException, EncoderException, InterruptedException;
 
 }
