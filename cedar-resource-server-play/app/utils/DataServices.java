@@ -39,9 +39,9 @@ public class DataServices {
         esc.getType(),
         cedarConfig.getServers().getFolder().getBase(),
         cedarConfig.getServers().getTemplate().getBase(),
-        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getLimit(),
+        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getLimitIndexRegeneration(),
         cedarConfig.getSearchSettings().getSearchRetrieveSettings().getMaxAttempts(),
-        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getDelayAttempts()
+        cedarConfig.getSearchSettings().getSearchRetrieveSettings() .getDelayAttempts()
     );
 
     String adminUserUUID = cedarConfig.getKeycloakConfig().getAdminUser().getUuid();

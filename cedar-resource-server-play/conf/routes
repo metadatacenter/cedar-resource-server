@@ -58,6 +58,7 @@ DELETE         /template-instances/:id                 controllers.TemplateInsta
 
 # Search
 GET            /search                                 controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
+GET            /search-deep                             controllers.SearchController.searchDeep(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer])
 #POST           /search                          controllers.SearchController.searchByPost()
 
 # Commands

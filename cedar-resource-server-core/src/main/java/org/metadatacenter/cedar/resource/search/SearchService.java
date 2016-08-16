@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.search;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.EncoderException;
+import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -11,10 +12,12 @@ import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchServi
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.index.CedarIndexResource;
+import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.util.http.LinkHeaderUtil;
 
 import java.io.IOException;
 import java.util.*;
@@ -92,7 +95,7 @@ public class SearchService implements ISearchService {
     updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
   }
 
-  public RSNodeListResponse search(String query, List<String> resourceTypes, List<String> sortList, int limit, int offset, String userId) throws IOException {
+  public RSNodeListResponse search(String query, List<String> resourceTypes, List<String> sortList, int limit, int offset, String userId, String absoluteUrl) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
     SearchResponse esResults = esService.search(query, resourceTypes, sortList, esIndex, esType, limit, offset, userId);
     RSNodeListResponse response = new RSNodeListResponse();
@@ -102,8 +105,60 @@ public class SearchService implements ISearchService {
       CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
       resources.add(resource.getInfo());
     }
-    response.setTotalCount(esResults.getHits().getTotalHits());
+    long total = esResults.getHits().getTotalHits();
+    response.setTotalCount(total);
+    response.setCurrentOffset(offset);
+    response.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, total, limit, offset));
     response.setResources(resources);
+
+    List<CedarNodeType> nodeTypeList = new ArrayList<>();
+    if (resourceTypes != null) {
+      for (String rt : resourceTypes) {
+        nodeTypeList.add(CedarNodeType.forValue(rt));
+      }
+    }
+    NodeListRequest req = new NodeListRequest();
+    req.setNodeTypes(nodeTypeList);
+    req.setLimit(limit);
+    req.setOffset(offset);
+    req.setSort(sortList);
+    response.setRequest(req);
+
+    return response;
+  }
+
+  public RSNodeListResponse searchDeep(String query, List<String> resourceTypes, List<String> sortList, int limit, String userId) throws IOException {
+    ObjectMapper mapper = new ObjectMapper();
+    List<SearchHit> esHits = esService.searchDeep(query, resourceTypes, sortList, esIndex, esType, limit, userId);
+
+    // Apply limit
+    if (esHits.size() >= limit) {
+      esHits = esHits.subList(0, limit);
+    }
+
+    RSNodeListResponse response = new RSNodeListResponse();
+    List<CedarRSNode> resources = new ArrayList<>();
+    for (SearchHit hit : esHits) {
+      String hitJson = hit.sourceAsString();
+      CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
+      resources.add(resource.getInfo());
+    }
+
+    response.setTotalCount(resources.size());
+    response.setResources(resources);
+
+    List<CedarNodeType> nodeTypeList = new ArrayList<>();
+    if (resourceTypes != null) {
+      for (String rt : resourceTypes) {
+        nodeTypeList.add(CedarNodeType.forValue(rt));
+      }
+    }
+    NodeListRequest req = new NodeListRequest();
+    req.setNodeTypes(nodeTypeList);
+    req.setLimit(limit);
+    req.setSort(sortList);
+    response.setRequest(req);
+
     return response;
   }
 
@@ -124,9 +179,11 @@ public class SearchService implements ISearchService {
         System.out.println("No. of resources in the index: " + indexResourceIds.size());
         if (dbResourceIds.size() == indexResourceIds.size()) {
           // Compare the two lists
-          List<String> tmp = new ArrayList(dbResourceIds);
-          tmp.removeAll(indexResourceIds);
-          if (tmp.size() == 0) {
+          List<String> tmp1 = new ArrayList(dbResourceIds);
+          List<String> tmp2 = new ArrayList(indexResourceIds);
+          Collections.sort(tmp1);
+          Collections.sort(tmp2);
+          if (tmp1.equals(tmp2)) {
             regenerate = false;
             System.out.println("DB and search index match. It is not necessary to regenerate the index");
           } else {
