@@ -14,7 +14,7 @@
   <name>CEDAR Resource Server Core</name>
 
   <properties>
-    <cedar.version>0.5.6-SNAPSHOT</cedar.version>
+    <cedar.version>0.5.6</cedar.version>
   </properties>
 
   <dependencies>
