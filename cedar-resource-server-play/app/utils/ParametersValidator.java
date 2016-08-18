@@ -15,7 +15,7 @@ public class ParametersValidator {
   public static final String DEFAULT_SORT;
 
   static {
-    DEFAULT_SORT = "";
+    DEFAULT_SORT = "name";
     knownSortKeys = new ArrayList<>();
     knownSortKeys.add("name");
     knownSortKeys.add("createdOnTS");
