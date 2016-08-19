@@ -174,7 +174,7 @@ public class IndexUtils {
       while (fieldsIterator.hasNext()) {
         Map.Entry<String, JsonNode> field = fieldsIterator.next();
         if (field.getValue().isContainerNode()) {
-          JsonNode valueNode = field.getValue().get("_value");
+          JsonNode valueNode = field.getValue().get("@value");
           if (field.getKey().compareTo("@context") != 0 && valueNode != null) {
             String fieldValue = "";
             if (valueNode.isTextual()) {
