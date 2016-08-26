@@ -495,13 +495,14 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   protected static boolean userHasWriteAccessToFolder(IAuthRequest frontendRequest, String folderBase, String
       folderId) throws CedarAccessException {
+    //TODO: rewrite this method
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
     CedarFSFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request());
     if (fsFolder == null) {
       throw new IllegalArgumentException("Parent folder not found for id:" + folderId);
     }
     CedarUser currentUser = Authorization.getUser(frontendRequest);
-    if (extractUserUUID(fsFolder.getOwnedBy()).equals(currentUser.getUserId())) {
+    if (extractUserUUID(fsFolder.getOwnedBy()).equals(currentUser.getId())) {
       return true;
     }
     return false;
@@ -509,13 +510,14 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   protected static boolean userHasWriteAccessToResource(IAuthRequest frontendRequest, String folderBase, String
       nodeId) throws CedarAccessException {
+    //TODO: rewrite this method
     String url = folderBase + PREFIX_RESOURCES;
     CedarFSResource fsResource = FolderServerProxy.getResource(url, nodeId, request());
     if (fsResource == null) {
       throw new IllegalArgumentException("Resource not found:" + nodeId);
     }
     CedarUser currentUser = Authorization.getUser(frontendRequest);
-    if (extractUserUUID(fsResource.getOwnedBy()).equals(currentUser.getUserId())) {
+    if (extractUserUUID(fsResource.getOwnedBy()).equals(currentUser.getId())) {
       return true;
     }
     return false;
