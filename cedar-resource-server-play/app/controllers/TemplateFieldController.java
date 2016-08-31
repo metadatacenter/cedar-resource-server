@@ -14,8 +14,8 @@ import play.libs.F;
 import play.mvc.Result;
 
 @Api(value = "/template-fields", description = "Template field operations")
-public class TemplateFieldServerController extends AbstractResourceServerController {
-  private static Logger log = LoggerFactory.getLogger(TemplateFieldServerController.class);
+public class TemplateFieldController extends AbstractResourceServerController {
+  private static Logger log = LoggerFactory.getLogger(TemplateFieldController.class);
 
   @ApiOperation(
       value = "Create template field",

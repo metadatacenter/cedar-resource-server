@@ -15,7 +15,7 @@ import play.mvc.Result;
 import play.mvc.Results;
 
 @Api(value = "/users", description = "User operations")
-public class UserServerController extends AbstractResourceServerController {
+public class UserController extends AbstractResourceServerController {
 
   @ApiOperation(
       value = "List all users",
@@ -29,7 +29,7 @@ public class UserServerController extends AbstractResourceServerController {
       return forbiddenWithError(e);
     }
 
-    String url = usersBase;
+    String url = usersURL;
     try {
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());

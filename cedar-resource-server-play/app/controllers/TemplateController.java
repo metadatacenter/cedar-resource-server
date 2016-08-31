@@ -14,8 +14,8 @@ import play.libs.F;
 import play.mvc.Result;
 
 @Api(value = "/templates", description = "Template operations")
-public class TemplateServerController extends AbstractResourceServerController {
-  private static Logger log = LoggerFactory.getLogger(TemplateServerController.class);
+public class TemplateController extends AbstractResourceServerController {
+  private static Logger log = LoggerFactory.getLogger(TemplateController.class);
 
   @ApiOperation(
       value = "Create template",

@@ -15,7 +15,7 @@ import play.mvc.Result;
 import play.mvc.Results;
 
 @Api(value = "/groups", description = "Group operations")
-public class GroupServerController extends AbstractResourceServerController {
+public class GroupController extends AbstractResourceServerController {
 
   @ApiOperation(
       value = "List all groups",
@@ -29,7 +29,7 @@ public class GroupServerController extends AbstractResourceServerController {
       return forbiddenWithError(e);
     }
 
-    String url = groupsBase;
+    String url = groupsURL;
     try {
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
       ProxyUtil.proxyResponseHeaders(proxyResponse, response());

@@ -177,7 +177,7 @@ public class FolderController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_READ);
-      if (userHasReadAccessToResource(frontendRequest, folderBase, folderId)) {
+      if (userHasReadAccessToFolder(frontendRequest, folderBase, folderId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
@@ -199,7 +199,7 @@ public class FolderController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_UPDATE);
-      if (userHasWriteAccessToResource(frontendRequest, folderBase, folderId)) {
+      if (userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {

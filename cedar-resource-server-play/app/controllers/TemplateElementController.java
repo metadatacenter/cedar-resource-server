@@ -14,8 +14,8 @@ import play.libs.F;
 import play.mvc.Result;
 
 @Api(value = "/template-elements", description = "Template element operations")
-public class TemplateElementServerController extends AbstractResourceServerController {
-  private static Logger log = LoggerFactory.getLogger(TemplateElementServerController.class);
+public class TemplateElementController extends AbstractResourceServerController {
+  private static Logger log = LoggerFactory.getLogger(TemplateElementController.class);
 
   @ApiOperation(
       value = "Create template element",

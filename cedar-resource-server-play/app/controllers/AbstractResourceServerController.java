@@ -47,14 +47,16 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   protected final static String folderBase;
   protected final static String templateBase;
   protected final static String usersBase;
-  protected final static String groupsBase;
+  protected final static String groupsURL;
+  protected final static String usersURL;
 
   static {
     cedarConfig = CedarConfig.getInstance();
     folderBase = cedarConfig.getServers().getFolder().getBase();
     templateBase = cedarConfig.getServers().getTemplate().getBase();
     usersBase = cedarConfig.getServers().getUser().getUsersBase();
-    groupsBase = cedarConfig.getServers().getUser().getGroupsBase();
+    groupsURL = cedarConfig.getServers().getFolder().getGroups();
+    usersURL = cedarConfig.getServers().getFolder().getUsers();
   }
 
   protected static CedarRSFolder getCedarFolderById(String id) throws IOException, EncoderException {
