@@ -21,21 +21,71 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
       value = "Create template instance",
       httpMethod = "POST")
   public static Result createTemplateInstance(F.Option<Boolean> importMode) {
-    return executeResourcePostByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_CREATE, importMode);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_CREATE);
+
+      String folderId = request().getQueryString("folderId");
+      if (folderId != null) {
+        folderId = folderId.trim();
+      }
+      if (userHasWriteAccessToResource(frontendRequest, folderBase, folderId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while creating the instance", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourcePostByProxy(CedarNodeType.INSTANCE, importMode);
+    } else {
+      return unauthorized("You do not have write access for this folder");
+    }
   }
 
   @ApiOperation(
       value = "Find template instance by id",
       httpMethod = "GET")
   public static Result findTemplateInstance(String instanceId) {
-    return executeResourceGetByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_READ, instanceId);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_READ);
+      if (userHasReadAccessToResource(frontendRequest, folderBase, instanceId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the element", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourceGetByProxy(CedarNodeType.INSTANCE, instanceId);
+    } else {
+      return unauthorized("You do not have read access for this instance");
+    }
   }
 
   @ApiOperation(
       value = "Find template instance details by id",
       httpMethod = "GET")
   public static Result findTemplateInstanceDetails(String instanceId) {
-    return executeResourceGetDetailsByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_READ, instanceId);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_READ);
+      if (userHasReadAccessToResource(frontendRequest, folderBase, instanceId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the instance", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourceGetDetailsByProxy(CedarNodeType.INSTANCE, instanceId);
+    } else {
+      return unauthorized("You do not have read access for this instance");
+    }
   }
 
   @ApiOperation(
@@ -45,7 +95,7 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
     boolean canProceed = false;
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_UPDATE);
       if (userHasWriteAccessToResource(frontendRequest, folderBase, instanceId)) {
         canProceed = true;
       }
@@ -54,7 +104,7 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
       return forbiddenWithError(e);
     }
     if (canProceed) {
-      return executeResourcePutByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_UPDATE, instanceId);
+      return executeResourcePutByProxy(CedarNodeType.INSTANCE, instanceId);
     } else {
       return unauthorized("You do not have write access for this instance");
     }
@@ -67,7 +117,7 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
     boolean canProceed = false;
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_DELETE);
       if (userHasWriteAccessToResource(frontendRequest, folderBase, instanceId)) {
         canProceed = true;
       }
@@ -76,7 +126,51 @@ public class TemplateInstanceServerController extends AbstractResourceServerCont
       return forbiddenWithError(e);
     }
     if (canProceed) {
-      return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, CedarPermission.TEMPLATE_INSTANCE_DELETE, instanceId);
+      return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, instanceId);
+    } else {
+      return unauthorized("You do not have write access for this instance");
+    }
+  }
+
+  @ApiOperation(
+      value = "Get permissions of a template instance",
+      httpMethod = "GET")
+  public static Result getTemplateInstancePermissions(String instanceId) {
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_READ);
+      if (userHasReadAccessToResource(frontendRequest, folderBase, instanceId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the instance permissions", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourcePermissionGetByProxy(instanceId);
+    } else {
+      return unauthorized("You do not have read access for this instance");
+    }
+  }
+
+  @ApiOperation(
+      value = "Update template instance permissions",
+      httpMethod = "PUT")
+  public static Result updateTemplateInstancePermissions(String instanceId) {
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_UPDATE);
+      if (userHasWriteAccessToResource(frontendRequest, folderBase, instanceId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while updating the instance permissions", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourcePermissionPutByProxy(instanceId);
     } else {
       return unauthorized("You do not have write access for this instance");
     }

@@ -21,21 +21,71 @@ public class TemplateFieldServerController extends AbstractResourceServerControl
       value = "Create template field",
       httpMethod = "POST")
   public static Result createTemplateField(F.Option<Boolean> importMode) {
-    return executeResourcePostByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_CREATE, importMode);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_CREATE);
+
+      String folderId = request().getQueryString("folderId");
+      if (folderId != null) {
+        folderId = folderId.trim();
+      }
+      if (userHasWriteAccessToResource(frontendRequest, folderBase, folderId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while creating the field", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourcePostByProxy(CedarNodeType.FIELD, importMode);
+    } else {
+      return unauthorized("You do not have write access for this folder");
+    }
   }
 
   @ApiOperation(
       value = "Find template field by id",
       httpMethod = "GET")
   public static Result findTemplateField(String fieldId) {
-    return executeResourceGetByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_READ, fieldId);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_READ);
+      if (userHasReadAccessToResource(frontendRequest, folderBase, fieldId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the field", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourceGetByProxy(CedarNodeType.FIELD, fieldId);
+    } else {
+      return unauthorized("You do not have read access for this field");
+    }
   }
 
   @ApiOperation(
       value = "Find template field details by id",
       httpMethod = "GET")
   public static Result findTemplateFieldDetails(String fieldId) {
-    return executeResourceGetDetailsByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_READ, fieldId);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_READ);
+      if (userHasReadAccessToResource(frontendRequest, folderBase, fieldId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the field", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourceGetDetailsByProxy(CedarNodeType.FIELD, fieldId);
+    } else {
+      return unauthorized("You do not have read access for this field");
+    }
   }
 
   @ApiOperation(
@@ -45,7 +95,7 @@ public class TemplateFieldServerController extends AbstractResourceServerControl
     boolean canProceed = false;
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_UPDATE);
       if (userHasWriteAccessToResource(frontendRequest, folderBase, fieldId)) {
         canProceed = true;
       }
@@ -54,7 +104,7 @@ public class TemplateFieldServerController extends AbstractResourceServerControl
       return forbiddenWithError(e);
     }
     if (canProceed) {
-      return executeResourcePutByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_UPDATE, fieldId);
+      return executeResourcePutByProxy(CedarNodeType.FIELD, fieldId);
     } else {
       return unauthorized("You do not have write access for this field");
     }
@@ -67,7 +117,7 @@ public class TemplateFieldServerController extends AbstractResourceServerControl
     boolean canProceed = false;
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_DELETE);
       if (userHasWriteAccessToResource(frontendRequest, folderBase, fieldId)) {
         canProceed = true;
       }
@@ -76,11 +126,55 @@ public class TemplateFieldServerController extends AbstractResourceServerControl
       return forbiddenWithError(e);
     }
     if (canProceed) {
-      return executeResourceDeleteByProxy(CedarNodeType.FIELD, CedarPermission.TEMPLATE_FIELD_DELETE, fieldId);
+      return executeResourceDeleteByProxy(CedarNodeType.FIELD, fieldId);
     } else {
       return unauthorized("You do not have write access for this field");
     }
   }
 
+
+  @ApiOperation(
+      value = "Get permissions of a template field",
+      httpMethod = "GET")
+  public static Result getTemplateFieldPermissions(String fieldId) {
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_READ);
+      if (userHasReadAccessToResource(frontendRequest, folderBase, fieldId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the field permissions", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourcePermissionGetByProxy(fieldId);
+    } else {
+      return unauthorized("You do not have read access for this field");
+    }
+  }
+
+  @ApiOperation(
+      value = "Update template field permissions",
+      httpMethod = "PUT")
+  public static Result updateTemplateFieldPermissions(String fieldId) {
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_UPDATE);
+      if (userHasWriteAccessToResource(frontendRequest, folderBase, fieldId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while updating the field permissions", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourcePermissionPutByProxy(fieldId);
+    } else {
+      return unauthorized("You do not have write access for this field");
+    }
+  }
 
 }

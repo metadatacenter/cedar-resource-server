@@ -24,6 +24,7 @@ public class FolderServerProxy {
     if (folderId != null) {
       try {
         String url = folderBaseFolders + "/" + new URLCodec().encode(folderId);
+        System.out.println("FolderServerProxy.getFolder:" + url);
         HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
         int statusCode = proxyResponse.getStatusLine().getStatusCode();
         HttpEntity entity = proxyResponse.getEntity();

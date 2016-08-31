@@ -27,6 +27,8 @@ GET            /folders/:id                            controllers.FolderControl
 GET            /folders/:id/details                    controllers.FolderController.findFolderDetails(id: String)
 PUT            /folders/:id                            controllers.FolderController.updateFolder(id: String)
 DELETE         /folders/:id                            controllers.FolderController.deleteFolder(id: String)
+GET            /folders/:id/permissions                controllers.FolderController.getFolderPermissions(id: String)
+PUT            /folders/:id/permissions                controllers.FolderController.updateFolderPermissions(id: String)
 
 # Templates
 POST           /templates                              controllers.TemplateServerController.createTemplate(importMode: play.libs.F.Option[java.lang.Boolean])
@@ -34,6 +36,8 @@ GET            /templates/:id                          controllers.TemplateServe
 GET            /templates/:id/details                  controllers.TemplateServerController.findTemplateDetails(id: String)
 PUT            /templates/:id                          controllers.TemplateServerController.updateTemplate(id: String)
 DELETE         /templates/:id                          controllers.TemplateServerController.deleteTemplate(id: String)
+GET            /templates/:id/permissions              controllers.TemplateServerController.getTemplatePermissions(id: String)
+PUT            /templates/:id/permissions              controllers.TemplateServerController.updateTemplatePermissions(id: String)
 
 # Template Elements
 POST           /template-elements                      controllers.TemplateElementServerController.createTemplateElement(importMode: play.libs.F.Option[java.lang.Boolean])
@@ -41,6 +45,8 @@ GET            /template-elements/:id                  controllers.TemplateEleme
 GET            /template-elements/:id/details          controllers.TemplateElementServerController.findTemplateElementDetails(id: String)
 PUT            /template-elements/:id                  controllers.TemplateElementServerController.updateTemplateElement(id: String)
 DELETE         /template-elements/:id                  controllers.TemplateElementServerController.deleteTemplateElement(id: String)
+GET            /template-elements/:id/permissions      controllers.TemplateElementServerController.getTemplateElementPermissions(id: String)
+PUT            /template-elements/:id/permissions      controllers.TemplateElementServerController.updateTemplateElementPermissions(id: String)
 
 # Template Fields
 POST           /template-fields                        controllers.TemplateFieldServerController.createTemplateField(importMode: play.libs.F.Option[java.lang.Boolean])
@@ -48,6 +54,8 @@ GET            /template-fields/:id                    controllers.TemplateField
 GET            /template-fields/:id/details            controllers.TemplateFieldServerController.findTemplateFieldDetails(id: String)
 PUT            /template-fields/:id                    controllers.TemplateFieldServerController.updateTemplateField(id: String)
 DELETE         /template-fields/:id                    controllers.TemplateFieldServerController.deleteTemplateField(id: String)
+GET            /template-fields/:id/permissions        controllers.TemplateFieldServerController.getTemplateFieldPermissions(id: String)
+PUT            /template-fields/:id/permissions        controllers.TemplateFieldServerController.updateTemplateFieldPermissions(id: String)
 
 # Template Instances
 POST           /template-instances                     controllers.TemplateInstanceServerController.createTemplateInstance(importMode: play.libs.F.Option[java.lang.Boolean])
@@ -55,10 +63,15 @@ GET            /template-instances/:id                 controllers.TemplateInsta
 GET            /template-instances/:id/details         controllers.TemplateInstanceServerController.findTemplateInstanceDetails(id: String)
 PUT            /template-instances/:id                 controllers.TemplateInstanceServerController.updateTemplateInstance(id: String)
 DELETE         /template-instances/:id                 controllers.TemplateInstanceServerController.deleteTemplateInstance(id: String)
+GET            /template-instances/:id/permissions     controllers.TemplateInstanceServerController.getTemplateInstancePermissions(id: String)
+PUT            /template-instances/:id/permissions     controllers.TemplateInstanceServerController.updateTemplateInstancePermissions(id: String)
+
+GET            /users                                  controllers.UserServerController.findUsers()
+GET            /groups                                 controllers.GroupServerController.findGroups()
 
 # Search
 GET            /search                                 controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
-GET            /search-deep                             controllers.SearchController.searchDeep(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer])
+GET            /search-deep                            controllers.SearchController.searchDeep(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer])
 #POST           /search                          controllers.SearchController.searchByPost()
 
 # Commands

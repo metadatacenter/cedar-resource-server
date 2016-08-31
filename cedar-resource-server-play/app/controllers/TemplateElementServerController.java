@@ -21,21 +21,71 @@ public class TemplateElementServerController extends AbstractResourceServerContr
       value = "Create template element",
       httpMethod = "POST")
   public static Result createTemplateElement(F.Option<Boolean> importMode) {
-    return executeResourcePostByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_CREATE, importMode);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_ELEMENT_CREATE);
+
+      String folderId = request().getQueryString("folderId");
+      if (folderId != null) {
+        folderId = folderId.trim();
+      }
+      if (userHasWriteAccessToResource(frontendRequest, folderBase, folderId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while creating the element", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourcePostByProxy(CedarNodeType.ELEMENT, importMode);
+    } else {
+      return unauthorized("You do not have write access for this folder");
+    }
   }
 
   @ApiOperation(
       value = "Find template element by id",
       httpMethod = "GET")
   public static Result findTemplateElement(String elementId) {
-    return executeResourceGetByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_READ, elementId);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_ELEMENT_READ);
+      if (userHasReadAccessToResource(frontendRequest, folderBase, elementId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the element", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourceGetByProxy(CedarNodeType.ELEMENT, elementId);
+    } else {
+      return unauthorized("You do not have read access for this element");
+    }
   }
 
   @ApiOperation(
       value = "Find template element details by id",
       httpMethod = "GET")
   public static Result findTemplateElementDetails(String elementId) {
-    return executeResourceGetDetailsByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_READ, elementId);
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_ELEMENT_READ);
+      if (userHasReadAccessToResource(frontendRequest, folderBase, elementId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the element", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourceGetDetailsByProxy(CedarNodeType.ELEMENT, elementId);
+    } else {
+      return unauthorized("You do not have read access for this element");
+    }
   }
 
   @ApiOperation(
@@ -45,7 +95,7 @@ public class TemplateElementServerController extends AbstractResourceServerContr
     boolean canProceed = false;
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_ELEMENT_UPDATE);
       if (userHasWriteAccessToResource(frontendRequest, folderBase, elementId)) {
         canProceed = true;
       }
@@ -54,7 +104,7 @@ public class TemplateElementServerController extends AbstractResourceServerContr
       return forbiddenWithError(e);
     }
     if (canProceed) {
-      return executeResourcePutByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_UPDATE, elementId);
+      return executeResourcePutByProxy(CedarNodeType.ELEMENT, elementId);
     } else {
       return unauthorized("You do not have write access for this element");
     }
@@ -67,7 +117,7 @@ public class TemplateElementServerController extends AbstractResourceServerContr
     boolean canProceed = false;
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_ELEMENT_DELETE);
       if (userHasWriteAccessToResource(frontendRequest, folderBase, elementId)) {
         canProceed = true;
       }
@@ -76,7 +126,51 @@ public class TemplateElementServerController extends AbstractResourceServerContr
       return forbiddenWithError(e);
     }
     if (canProceed) {
-      return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, CedarPermission.TEMPLATE_ELEMENT_DELETE, elementId);
+      return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, elementId);
+    } else {
+      return unauthorized("You do not have write access for this element");
+    }
+  }
+
+  @ApiOperation(
+      value = "Get permissions of a template element",
+      httpMethod = "GET")
+  public static Result getTemplateElementPermissions(String elementId) {
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_ELEMENT_READ);
+      if (userHasReadAccessToResource(frontendRequest, folderBase, elementId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the element permissions", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourcePermissionGetByProxy(elementId);
+    } else {
+      return unauthorized("You do not have read access for this element");
+    }
+  }
+
+  @ApiOperation(
+      value = "Update template element permissions",
+      httpMethod = "PUT")
+  public static Result updateTemplateElementPermissions(String elementId) {
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_ELEMENT_UPDATE);
+      if (userHasWriteAccessToResource(frontendRequest, folderBase, elementId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while updating the element permissions", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeResourcePermissionPutByProxy(elementId);
     } else {
       return unauthorized("You do not have write access for this element");
     }

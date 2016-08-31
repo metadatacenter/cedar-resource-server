@@ -93,7 +93,7 @@ public class FolderContentsController extends AbstractResourceServerController {
       if (response == null) {
         return Results.status(statusCode, entity.getContent());
       } else {
-        if (response.getResources() != null) {
+        /*if (response.getResources() != null) {
           response.getResources().forEach(rsNode -> {
             setUserHomeFolderDisplayName(rsNode, request());
           });
@@ -102,7 +102,7 @@ public class FolderContentsController extends AbstractResourceServerController {
           response.getPathInfo().forEach(rsNode -> {
             setUserHomeFolderDisplayName(rsNode, request());
           });
-        }
+        }*/
         return Results.status(statusCode, JsonMapper.MAPPER.writeValueAsString(response));
       }
     } else {

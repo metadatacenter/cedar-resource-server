@@ -23,7 +23,9 @@ import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.auth.CedarNodePermission;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.json.JsonMapper;
@@ -45,12 +47,14 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   protected final static String folderBase;
   protected final static String templateBase;
   protected final static String usersBase;
+  protected final static String groupsBase;
 
   static {
     cedarConfig = CedarConfig.getInstance();
     folderBase = cedarConfig.getServers().getFolder().getBase();
     templateBase = cedarConfig.getServers().getTemplate().getBase();
     usersBase = cedarConfig.getServers().getUser().getUsersBase();
+    groupsBase = cedarConfig.getServers().getUser().getGroupsBase();
   }
 
   protected static CedarRSFolder getCedarFolderById(String id) throws IOException, EncoderException {
@@ -99,7 +103,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return resource;
   }
 
-  protected static CedarRSNode setUserHomeFolderDisplayName(CedarRSNode resource, Http.Request request) {
+  /*protected static CedarRSNode setUserHomeFolderDisplayName(CedarRSNode resource, Http.Request request) {
     if (resource != null) {
       if (resource instanceof CedarRSFolder) {
         CedarRSFolder f = (CedarRSFolder) resource;
@@ -115,7 +119,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
       }
     }
     return resource;
-  }
+  }*/
 
   protected static String extractUserUUID(String userURL) {
     String id = userURL;
@@ -160,9 +164,9 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   protected static JsonNode resourceWithExpandedProvenanceInfo(Http.Request request, HttpResponse proxyResponse)
       throws IOException {
     CedarRSNode resource = deserializeResource(proxyResponse);
-    resource.setDisplayName(resource.getName());
+    //resource.setDisplayName(resource.getName());
     addProvenanceDisplayName(resource, request);
-    setUserHomeFolderDisplayName(resource, request);
+    //setUserHomeFolderDisplayName(resource, request);
     return JsonMapper.MAPPER.valueToTree(resource);
   }
 
@@ -172,17 +176,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
   // Proxy methods for resource types
-  protected static Result executeResourcePostByProxy(CedarNodeType nodeType, CedarPermission permission, F.Option
-      <Boolean> importMode) {
-    IAuthRequest authRequest = null;
-    try {
-      authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(authRequest, permission);
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access error while creating " + nodeType.getValue(), e);
-      return forbiddenWithError(e);
-    }
-
+  protected static Result executeResourcePostByProxy(CedarNodeType nodeType, F.Option<Boolean> importMode) {
+    IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
     try {
       String folderId = request().getQueryString("folderId");
       if (folderId != null) {
@@ -313,15 +308,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return description;
   }
 
-  protected static Result executeResourceGetByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
-    try {
-      IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(authRequest, permission);
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access error while reading " + nodeType.getValue(), e);
-      return forbiddenWithError(e);
-    }
-
+  protected static Result executeResourceGetByProxy(CedarNodeType nodeType, String id) {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
       //System.out.println(url);
@@ -340,16 +327,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     }
   }
 
-  protected static Result executeResourceGetDetailsByProxy(CedarNodeType nodeType, CedarPermission permission, String
-      id) {
-    try {
-      IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(authRequest, permission);
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access error while reading details of " + nodeType.getValue(), e);
-      return forbiddenWithError(e);
-    }
-
+  protected static Result executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id) {
     try {
       String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + new URLCodec().encode(id);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, request());
@@ -367,16 +345,8 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     }
   }
 
-  protected static Result executeResourcePutByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
-    IAuthRequest authRequest = null;
-    try {
-      authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(authRequest, permission);
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access error while updating " + nodeType.getValue(), e);
-      return forbiddenWithError(e);
-    }
-
+  protected static Result executeResourcePutByProxy(CedarNodeType nodeType, String id) {
+    IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
       //System.out.println(url);
@@ -441,15 +411,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
 
-  protected static Result executeResourceDeleteByProxy(CedarNodeType nodeType, CedarPermission permission, String id) {
-    try {
-      IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(authRequest, permission);
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access error while deleting " + nodeType.getValue(), e);
-      return forbiddenWithError(e);
-    }
-
+  protected static Result executeResourceDeleteByProxy(CedarNodeType nodeType, String id) {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
       //System.out.println(url);
@@ -493,34 +455,94 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return ParameterUtil.getString(requestBody, "folderId", null);
   }
 
-  protected static boolean userHasWriteAccessToFolder(IAuthRequest frontendRequest, String folderBase, String
+  protected static boolean userHasReadAccessToFolder(IAuthRequest frontendRequest, String folderBase, String
       folderId) throws CedarAccessException {
-    //TODO: rewrite this method
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
     CedarFSFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request());
     if (fsFolder == null) {
-      throw new IllegalArgumentException("Parent folder not found for id:" + folderId);
+      throw new IllegalArgumentException("Folder not found for id:" + folderId);
     }
-    CedarUser currentUser = Authorization.getUser(frontendRequest);
-    if (extractUserUUID(fsFolder.getOwnedBy()).equals(currentUser.getId())) {
-      return true;
-    }
-    return false;
+    return fsFolder.currentUserCan(NodePermission.READ);
   }
 
-  protected static boolean userHasWriteAccessToResource(IAuthRequest frontendRequest, String folderBase, String
+  protected static boolean userHasWriteAccessToFolder(IAuthRequest frontendRequest, String folderBase, String
+      folderId) throws CedarAccessException {
+    String url = folderBase + CedarNodeType.Prefix.FOLDERS;
+    CedarFSFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request());
+    if (fsFolder == null) {
+      throw new IllegalArgumentException("Folder not found for id:" + folderId);
+    }
+    return fsFolder.currentUserCan(NodePermission.WRITE);
+  }
+
+  protected static boolean userHasReadAccessToResource(IAuthRequest frontendRequest, String folderBase, String
       nodeId) throws CedarAccessException {
-    //TODO: rewrite this method
     String url = folderBase + PREFIX_RESOURCES;
     CedarFSResource fsResource = FolderServerProxy.getResource(url, nodeId, request());
     if (fsResource == null) {
       throw new IllegalArgumentException("Resource not found:" + nodeId);
     }
-    CedarUser currentUser = Authorization.getUser(frontendRequest);
-    if (extractUserUUID(fsResource.getOwnedBy()).equals(currentUser.getId())) {
-      return true;
+    return fsResource.currentUserCan(NodePermission.READ);
+  }
+
+  protected static boolean userHasWriteAccessToResource(IAuthRequest frontendRequest, String folderBase, String
+      nodeId) throws CedarAccessException {
+    String url = folderBase + PREFIX_RESOURCES;
+    CedarFSResource fsResource = FolderServerProxy.getResource(url, nodeId, request());
+    if (fsResource == null) {
+      throw new IllegalArgumentException("Resource not found:" + nodeId);
     }
-    return false;
+    return fsResource.currentUserCan(NodePermission.WRITE);
+  }
+
+  protected static Result executeResourcePermissionGetByProxy(String resourceId) {
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+
+      if (!userHasReadAccessToResource(frontendRequest, folderBase, resourceId)) {
+        return unauthorized("You do not have read access to the resource");
+      }
+
+      String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
+
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      HttpEntity entity = proxyResponse.getEntity();
+      if (entity != null) {
+        return Results.status(statusCode, entity.getContent());
+      } else {
+        return Results.status(statusCode);
+      }
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+  }
+
+  protected static Result executeResourcePermissionPutByProxy(String resourceId) {
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+
+      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, resourceId)) {
+        return unauthorized("You do not have write access to the resource");
+      }
+
+      String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
+
+      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      HttpEntity entity = proxyResponse.getEntity();
+      if (entity != null) {
+        return Results.status(statusCode, entity.getContent());
+      } else {
+        return Results.status(statusCode);
+      }
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
   }
 
 }
