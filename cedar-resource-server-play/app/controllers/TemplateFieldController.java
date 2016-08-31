@@ -30,7 +30,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
       if (folderId != null) {
         folderId = folderId.trim();
       }
-      if (userHasWriteAccessToResource(frontendRequest, folderBase, folderId)) {
+      if (userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
