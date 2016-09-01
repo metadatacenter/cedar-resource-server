@@ -290,7 +290,13 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     String title = "";
     if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE ||
         nodeType == CedarNodeType.INSTANCE) {
-      JsonNode titleNode = jsonNode.at("/_ui/title");
+      JsonNode titleNode = null;
+      if (nodeType != CedarNodeType.INSTANCE) {
+        titleNode = jsonNode.at("/_ui/title");
+      }
+      else {
+        titleNode = jsonNode.at("/schema:name");
+      }
       if (titleNode != null && !titleNode.isMissingNode()) {
         title = titleNode.textValue();
       }
@@ -302,9 +308,15 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     String description = "";
     if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE ||
         nodeType == CedarNodeType.INSTANCE) {
-      JsonNode titleNode = jsonNode.at("/_ui/description");
-      if (titleNode != null && !titleNode.isMissingNode()) {
-        description = titleNode.textValue();
+      JsonNode descriptionNode = null;
+      if (nodeType != CedarNodeType.INSTANCE) {
+        descriptionNode = jsonNode.at("/_ui/description");
+      }
+      else {
+        descriptionNode = jsonNode.at("/schema:description");
+      }
+      if (descriptionNode != null && !descriptionNode.isMissingNode()) {
+        description = descriptionNode.textValue();
       }
     }
     return description;
