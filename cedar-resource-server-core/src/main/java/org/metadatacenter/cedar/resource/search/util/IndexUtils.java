@@ -9,6 +9,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
+import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.server.security.exception.CedarAccessException;
@@ -21,7 +22,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.metadatacenter.constant.ConfigConstants.SCHEMA_FIELD;
 import static org.metadatacenter.constant.ResourceConstants.FOLDER_ALL_NODES;
 
 public class IndexUtils {
@@ -31,6 +31,13 @@ public class IndexUtils {
   private int limit;
   private int maxAttemps;
   private int delayAttemps;
+  private static CedarConfig cedarConfig;
+  private static String SCHEMA_FIELD;
+
+  static {
+    cedarConfig = CedarConfig.getInstance();
+    SCHEMA_FIELD = cedarConfig.getLinkedDataAtType(CedarNodeType.FIELD);
+  }
 
   public IndexUtils(String folderBase, String templateBase, int limit, int maxAttemps, int delayAttemps) {
     this.folderBase = folderBase;

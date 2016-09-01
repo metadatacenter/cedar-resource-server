@@ -42,7 +42,7 @@ public class SearchController extends AbstractResourceServerController {
       // Get userId from apiKey
       CedarUser user = Authorization.getUser(frontendRequest);
 
-      String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getUserId();
+      String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
 
       F.Option<Integer> none = new F.None<>();
       String absoluteUrl = routes.SearchController.search(query, resourceTypes, sort,
@@ -80,7 +80,7 @@ public class SearchController extends AbstractResourceServerController {
 
       // Get userId from apiKey
       CedarUser user = Authorization.getUser(frontendRequest);
-      String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getUserId();
+      String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().searchDeep(queryString,
           resourceTypeList, sortList, limit, userId);
