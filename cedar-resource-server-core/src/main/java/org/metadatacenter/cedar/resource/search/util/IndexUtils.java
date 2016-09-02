@@ -152,8 +152,8 @@ public class IndexUtils {
       }
       // If the resource is an instance, the field names must be extracted from the template
     } else if (nodeType.compareTo(CedarNodeType.INSTANCE) == 0) {
-      if (resourceContent.get("_templateId") != null) {
-        String templateId = resourceContent.get("_templateId").asText();
+      if (resourceContent.get("schema:isBasedOn") != null) {
+        String templateId = resourceContent.get("schema:isBasedOn").asText();
         JsonNode templateJson = null;
         try {
           templateJson = findResourceContent(templateId, CedarNodeType.TEMPLATE, authRequest);
