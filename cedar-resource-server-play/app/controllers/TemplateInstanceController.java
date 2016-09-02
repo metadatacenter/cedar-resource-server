@@ -30,7 +30,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
       if (folderId != null) {
         folderId = folderId.trim();
       }
-      if (userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
+      if (userHasWriteAccessToFolder(folderBase, folderId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
@@ -52,7 +52,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_READ);
-      if (userHasReadAccessToResource(frontendRequest, folderBase, instanceId)) {
+      if (userHasReadAccessToResource(folderBase, instanceId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
@@ -74,7 +74,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_READ);
-      if (userHasReadAccessToResource(frontendRequest, folderBase, instanceId)) {
+      if (userHasReadAccessToResource(folderBase, instanceId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
@@ -96,7 +96,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_UPDATE);
-      if (userHasWriteAccessToResource(frontendRequest, folderBase, instanceId)) {
+      if (userHasWriteAccessToResource(folderBase, instanceId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
@@ -118,7 +118,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_DELETE);
-      if (userHasWriteAccessToResource(frontendRequest, folderBase, instanceId)) {
+      if (userHasWriteAccessToResource(folderBase, instanceId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
@@ -140,7 +140,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_READ);
-      if (userHasReadAccessToResource(frontendRequest, folderBase, instanceId)) {
+      if (userHasReadAccessToResource(folderBase, instanceId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
@@ -162,7 +162,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_INSTANCE_UPDATE);
-      if (userHasWriteAccessToResource(frontendRequest, folderBase, instanceId)) {
+      if (userHasWriteAccessToResource(folderBase, instanceId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {

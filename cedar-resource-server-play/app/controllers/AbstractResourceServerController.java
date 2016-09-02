@@ -469,7 +469,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return ParameterUtil.getString(requestBody, "folderId", null);
   }
 
-  protected static boolean userHasReadAccessToFolder(IAuthRequest frontendRequest, String folderBase, String
+  protected static boolean userHasReadAccessToFolder(String folderBase, String
       folderId) throws CedarAccessException {
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
     CedarFSFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request());
@@ -479,7 +479,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return fsFolder.currentUserCan(NodePermission.READ);
   }
 
-  protected static boolean userHasWriteAccessToFolder(IAuthRequest frontendRequest, String folderBase, String
+  protected static boolean userHasWriteAccessToFolder(String folderBase, String
       folderId) throws CedarAccessException {
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
     CedarFSFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request());
@@ -489,7 +489,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return fsFolder.currentUserCan(NodePermission.WRITE);
   }
 
-  protected static boolean userHasReadAccessToResource(IAuthRequest frontendRequest, String folderBase, String
+  protected static boolean userHasReadAccessToResource(String folderBase, String
       nodeId) throws CedarAccessException {
     String url = folderBase + PREFIX_RESOURCES;
     CedarFSResource fsResource = FolderServerProxy.getResource(url, nodeId, request());
@@ -499,7 +499,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return fsResource.currentUserCan(NodePermission.READ);
   }
 
-  protected static boolean userHasWriteAccessToResource(IAuthRequest frontendRequest, String folderBase, String
+  protected static boolean userHasWriteAccessToResource(String folderBase, String
       nodeId) throws CedarAccessException {
     String url = folderBase + PREFIX_RESOURCES;
     CedarFSResource fsResource = FolderServerProxy.getResource(url, nodeId, request());
@@ -513,7 +513,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
 
-      if (!userHasReadAccessToResource(frontendRequest, folderBase, resourceId)) {
+      if (!userHasReadAccessToResource(folderBase, resourceId)) {
         return unauthorized("You do not have read access to the resource");
       }
 
@@ -538,7 +538,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
 
-      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, resourceId)) {
+      if (!userHasWriteAccessToResource(folderBase, resourceId)) {
         return unauthorized("You do not have write access to the resource");
       }
 

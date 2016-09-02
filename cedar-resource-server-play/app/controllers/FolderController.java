@@ -34,7 +34,7 @@ public class FolderController extends AbstractResourceServerController {
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String folderId = getFolderIdFromBody();
-      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
+      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
         return unauthorized("You do not have write access to the folder");
       }
 
@@ -70,7 +70,7 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
-      if (!userHasReadAccessToFolder(frontendRequest, folderBase, folderId)) {
+      if (!userHasReadAccessToFolder(folderBase, folderId)) {
         return unauthorized("You do not have read access to the folder");
       }
 
@@ -110,7 +110,7 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
-      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
+      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
         return unauthorized("You do not have write access to the folder");
       }
 
@@ -146,7 +146,7 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
-      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
+      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
         return unauthorized("You do not have write access to the folder");
       }
 
@@ -177,7 +177,7 @@ public class FolderController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_READ);
-      if (userHasReadAccessToFolder(frontendRequest, folderBase, folderId)) {
+      if (userHasReadAccessToFolder(folderBase, folderId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
@@ -199,7 +199,7 @@ public class FolderController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_UPDATE);
-      if (userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
+      if (userHasWriteAccessToFolder(folderBase, folderId)) {
         canProceed = true;
       }
     } catch (CedarAccessException e) {
@@ -217,7 +217,7 @@ public class FolderController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
 
-      if (!userHasReadAccessToFolder(frontendRequest, folderBase, folderId)) {
+      if (!userHasReadAccessToFolder(folderBase, folderId)) {
         return unauthorized("You do not have read access to the folder");
       }
 
@@ -242,7 +242,7 @@ public class FolderController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
 
-      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
+      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
         return unauthorized("You do not have write access to the folder");
       }
 
