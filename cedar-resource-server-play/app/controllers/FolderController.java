@@ -215,12 +215,6 @@ public class FolderController extends AbstractResourceServerController {
 
   private static Result executeFolderPermissionGetByProxy(String folderId) {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-
-      if (!userHasReadAccessToFolder(folderBase, folderId)) {
-        return unauthorized("You do not have read access to the folder");
-      }
-
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId) + "/permissions";
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
@@ -240,12 +234,6 @@ public class FolderController extends AbstractResourceServerController {
 
   private static Result executeFolderPermissionPutByProxy(String folderId) {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-
-      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
-        return unauthorized("You do not have write access to the folder");
-      }
-
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId) + "/permissions";
 
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
