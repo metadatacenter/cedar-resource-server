@@ -511,12 +511,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   protected static Result executeResourcePermissionGetByProxy(String resourceId) {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-
-      if (!userHasReadAccessToResource(folderBase, resourceId)) {
-        return unauthorized("You do not have read access to the resource");
-      }
-
       String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
@@ -536,12 +530,6 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   protected static Result executeResourcePermissionPutByProxy(String resourceId) {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-
-      if (!userHasWriteAccessToResource(folderBase, resourceId)) {
-        return unauthorized("You do not have write access to the resource");
-      }
-
       String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
 
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
