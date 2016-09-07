@@ -19,14 +19,10 @@ import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.model.resourceserver.CedarRSResource;
 import org.metadatacenter.server.play.AbstractCedarController;
-import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
-import org.metadatacenter.server.security.model.auth.CedarNodePermission;
-import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.NodePermission;
-import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.parameter.ParameterUtil;
@@ -288,36 +284,28 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   protected static String extractNameFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
     String title = "";
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE ||
-        nodeType == CedarNodeType.INSTANCE) {
-      JsonNode titleNode = null;
-      if (nodeType != CedarNodeType.INSTANCE) {
-        titleNode = jsonNode.at("/_ui/title");
-      }
-      else {
-        titleNode = jsonNode.at("/schema:name");
-      }
-      if (titleNode != null && !titleNode.isMissingNode()) {
-        title = titleNode.textValue();
-      }
+    JsonNode titleNode = null;
+    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
+      titleNode = jsonNode.at("/_ui/title");
+    } else if (nodeType == CedarNodeType.INSTANCE) {
+      titleNode = jsonNode.at("/schema:name");
+    }
+    if (titleNode != null && !titleNode.isMissingNode()) {
+      title = titleNode.textValue();
     }
     return title;
   }
 
   protected static String extractDescriptionFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
     String description = "";
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE ||
-        nodeType == CedarNodeType.INSTANCE) {
-      JsonNode descriptionNode = null;
-      if (nodeType != CedarNodeType.INSTANCE) {
-        descriptionNode = jsonNode.at("/_ui/description");
-      }
-      else {
-        descriptionNode = jsonNode.at("/schema:description");
-      }
-      if (descriptionNode != null && !descriptionNode.isMissingNode()) {
-        description = descriptionNode.textValue();
-      }
+    JsonNode descriptionNode = null;
+    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
+      descriptionNode = jsonNode.at("/_ui/description");
+    } else if (nodeType == CedarNodeType.INSTANCE) {
+      descriptionNode = jsonNode.at("/schema:description");
+    }
+    if (descriptionNode != null && !descriptionNode.isMissingNode()) {
+      description = descriptionNode.textValue();
     }
     return description;
   }

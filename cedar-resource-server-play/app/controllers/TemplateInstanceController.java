@@ -40,7 +40,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     if (canProceed) {
       return executeResourcePostByProxy(CedarNodeType.INSTANCE, importMode);
     } else {
-      return unauthorized("You do not have write access for this folder");
+      return forbidden("You do not have write access for this folder");
     }
   }
 
@@ -62,7 +62,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     if (canProceed) {
       return executeResourceGetByProxy(CedarNodeType.INSTANCE, instanceId);
     } else {
-      return unauthorized("You do not have read access for this instance");
+      return forbidden("You do not have read access for this instance");
     }
   }
 
@@ -84,7 +84,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     if (canProceed) {
       return executeResourceGetDetailsByProxy(CedarNodeType.INSTANCE, instanceId);
     } else {
-      return unauthorized("You do not have read access for this instance");
+      return forbidden("You do not have read access for this instance");
     }
   }
 
@@ -106,7 +106,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     if (canProceed) {
       return executeResourcePutByProxy(CedarNodeType.INSTANCE, instanceId);
     } else {
-      return unauthorized("You do not have write access for this instance");
+      return forbidden("You do not have write access for this instance");
     }
   }
 
@@ -128,7 +128,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     if (canProceed) {
       return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, instanceId);
     } else {
-      return unauthorized("You do not have write access for this instance");
+      return forbidden("You do not have write access for this instance");
     }
   }
 
@@ -150,7 +150,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     if (canProceed) {
       return executeResourcePermissionGetByProxy(instanceId);
     } else {
-      return unauthorized("You do not have read access for this instance");
+      return forbidden("You do not have read access for this instance");
     }
   }
 
@@ -172,7 +172,7 @@ public class TemplateInstanceController extends AbstractResourceServerController
     if (canProceed) {
       return executeResourcePermissionPutByProxy(instanceId);
     } else {
-      return unauthorized("You do not have write access for this instance");
+      return forbidden("You do not have write access for this instance");
     }
   }
 

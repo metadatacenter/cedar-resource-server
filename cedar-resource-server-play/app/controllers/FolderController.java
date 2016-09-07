@@ -35,7 +35,7 @@ public class FolderController extends AbstractResourceServerController {
 
       String folderId = getFolderIdFromBody();
       if (!userHasWriteAccessToFolder(folderBase, folderId)) {
-        return unauthorized("You do not have write access to the folder");
+        return forbidden("You do not have write access to the folder");
       }
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS;
@@ -57,7 +57,6 @@ public class FolderController extends AbstractResourceServerController {
         return Results.status(statusCode);
       }
     } catch (Exception e) {
-      System.out.println(e.getMessage());
       return internalServerErrorWithError(e);
     }
   }
@@ -71,7 +70,7 @@ public class FolderController extends AbstractResourceServerController {
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       if (!userHasReadAccessToFolder(folderBase, folderId)) {
-        return unauthorized("You do not have read access to the folder");
+        return forbidden("You do not have read access to the folder");
       }
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
@@ -111,7 +110,7 @@ public class FolderController extends AbstractResourceServerController {
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       if (!userHasWriteAccessToFolder(folderBase, folderId)) {
-        return unauthorized("You do not have write access to the folder");
+        return forbidden("You do not have write access to the folder");
       }
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
@@ -147,7 +146,7 @@ public class FolderController extends AbstractResourceServerController {
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       if (!userHasWriteAccessToFolder(folderBase, folderId)) {
-        return unauthorized("You do not have write access to the folder");
+        return forbidden("You do not have write access to the folder");
       }
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
@@ -187,7 +186,7 @@ public class FolderController extends AbstractResourceServerController {
     if (canProceed) {
       return executeFolderPermissionGetByProxy(folderId);
     } else {
-      return unauthorized("You do not have read access for this folder");
+      return forbidden("You do not have read access for this folder");
     }
   }
 
@@ -209,7 +208,7 @@ public class FolderController extends AbstractResourceServerController {
     if (canProceed) {
       return executeFolderPermissionPutByProxy(folderId);
     } else {
-      return unauthorized("You do not have write access for this folder");
+      return forbidden("You do not have write access for this folder");
     }
   }
 

@@ -40,7 +40,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
     if (canProceed) {
       return executeResourcePostByProxy(CedarNodeType.FIELD, importMode);
     } else {
-      return unauthorized("You do not have write access for this folder");
+      return forbidden("You do not have write access for this folder");
     }
   }
 
@@ -62,7 +62,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
     if (canProceed) {
       return executeResourceGetByProxy(CedarNodeType.FIELD, fieldId);
     } else {
-      return unauthorized("You do not have read access for this field");
+      return forbidden("You do not have read access for this field");
     }
   }
 
@@ -84,7 +84,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
     if (canProceed) {
       return executeResourceGetDetailsByProxy(CedarNodeType.FIELD, fieldId);
     } else {
-      return unauthorized("You do not have read access for this field");
+      return forbidden("You do not have read access for this field");
     }
   }
 
@@ -106,7 +106,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
     if (canProceed) {
       return executeResourcePutByProxy(CedarNodeType.FIELD, fieldId);
     } else {
-      return unauthorized("You do not have write access for this field");
+      return forbidden("You do not have write access for this field");
     }
   }
 
@@ -128,7 +128,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
     if (canProceed) {
       return executeResourceDeleteByProxy(CedarNodeType.FIELD, fieldId);
     } else {
-      return unauthorized("You do not have write access for this field");
+      return forbidden("You do not have write access for this field");
     }
   }
 
@@ -151,7 +151,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
     if (canProceed) {
       return executeResourcePermissionGetByProxy(fieldId);
     } else {
-      return unauthorized("You do not have read access for this field");
+      return forbidden("You do not have read access for this field");
     }
   }
 
@@ -173,7 +173,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
     if (canProceed) {
       return executeResourcePermissionPutByProxy(fieldId);
     } else {
-      return unauthorized("You do not have write access for this field");
+      return forbidden("You do not have write access for this field");
     }
   }
 

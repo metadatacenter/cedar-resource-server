@@ -40,7 +40,7 @@ public class TemplateElementController extends AbstractResourceServerController 
     if (canProceed) {
       return executeResourcePostByProxy(CedarNodeType.ELEMENT, importMode);
     } else {
-      return unauthorized("You do not have write access for this folder");
+      return forbidden("You do not have write access for this folder");
     }
   }
 
@@ -62,7 +62,7 @@ public class TemplateElementController extends AbstractResourceServerController 
     if (canProceed) {
       return executeResourceGetByProxy(CedarNodeType.ELEMENT, elementId);
     } else {
-      return unauthorized("You do not have read access for this element");
+      return forbidden("You do not have read access for this element");
     }
   }
 
@@ -84,7 +84,7 @@ public class TemplateElementController extends AbstractResourceServerController 
     if (canProceed) {
       return executeResourceGetDetailsByProxy(CedarNodeType.ELEMENT, elementId);
     } else {
-      return unauthorized("You do not have read access for this element");
+      return forbidden("You do not have read access for this element");
     }
   }
 
@@ -106,7 +106,7 @@ public class TemplateElementController extends AbstractResourceServerController 
     if (canProceed) {
       return executeResourcePutByProxy(CedarNodeType.ELEMENT, elementId);
     } else {
-      return unauthorized("You do not have write access for this element");
+      return forbidden("You do not have write access for this element");
     }
   }
 
@@ -128,7 +128,7 @@ public class TemplateElementController extends AbstractResourceServerController 
     if (canProceed) {
       return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, elementId);
     } else {
-      return unauthorized("You do not have write access for this element");
+      return forbidden("You do not have write access for this element");
     }
   }
 
@@ -150,7 +150,7 @@ public class TemplateElementController extends AbstractResourceServerController 
     if (canProceed) {
       return executeResourcePermissionGetByProxy(elementId);
     } else {
-      return unauthorized("You do not have read access for this element");
+      return forbidden("You do not have read access for this element");
     }
   }
 
@@ -172,7 +172,7 @@ public class TemplateElementController extends AbstractResourceServerController 
     if (canProceed) {
       return executeResourcePermissionPutByProxy(elementId);
     } else {
-      return unauthorized("You do not have write access for this element");
+      return forbidden("You do not have write access for this element");
     }
   }
 

@@ -83,8 +83,6 @@ public class FolderContentsController extends AbstractResourceServerController {
       RSNodeListResponse response = null;
       try {
         String responseString = EntityUtils.toString(proxyResponse.getEntity());
-        //System.out.println("-------");
-        //System.out.println(responseString);
         response = JsonMapper.MAPPER.readValue(responseString, RSNodeListResponse.class);
       } catch (JsonProcessingException e) {
         e.printStackTrace();
@@ -93,16 +91,6 @@ public class FolderContentsController extends AbstractResourceServerController {
       if (response == null) {
         return Results.status(statusCode, entity.getContent());
       } else {
-        /*if (response.getResources() != null) {
-          response.getResources().forEach(rsNode -> {
-            setUserHomeFolderDisplayName(rsNode, request());
-          });
-        }
-        if (response.getPathInfo() != null) {
-          response.getPathInfo().forEach(rsNode -> {
-            setUserHomeFolderDisplayName(rsNode, request());
-          });
-        }*/
         return Results.status(statusCode, JsonMapper.MAPPER.writeValueAsString(response));
       }
     } else {
