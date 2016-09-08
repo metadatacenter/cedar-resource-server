@@ -55,36 +55,86 @@ public class CommandController extends AbstractResourceServerController {
       return badRequest();
     }
 
-    CedarPermission permission = null;
+    CedarPermission permission1 = null;
+    CedarPermission permission2 = null;
     switch (nodeType) {
       case FIELD:
-        permission = CedarPermission.TEMPLATE_FIELD_CREATE;
+        permission1 = CedarPermission.TEMPLATE_FIELD_READ;
+        permission2 = CedarPermission.TEMPLATE_FIELD_CREATE;
         break;
       case ELEMENT:
-        permission = CedarPermission.TEMPLATE_ELEMENT_CREATE;
+        permission1 = CedarPermission.TEMPLATE_ELEMENT_READ;
+        permission2 = CedarPermission.TEMPLATE_ELEMENT_CREATE;
         break;
       case TEMPLATE:
-        permission = CedarPermission.TEMPLATE_CREATE;
+        permission1 = CedarPermission.TEMPLATE_READ;
+        permission2 = CedarPermission.TEMPLATE_CREATE;
         break;
       case INSTANCE:
-        permission = CedarPermission.TEMPLATE_INSTANCE_CREATE;
+        permission1 = CedarPermission.TEMPLATE_INSTANCE_READ;
+        permission2 = CedarPermission.TEMPLATE_INSTANCE_CREATE;
         break;
     }
 
-    if (permission == null) {
-      play.Logger.error("Unknown nodeType:" + nodeTypeString + ":");
-      return badRequest();
+    if (permission1 == null || permission2 == null) {
+      BackendCallResult backendCallResult = new BackendCallResult();
+      backendCallResult.addError(BackendCallErrorType.INVALID_ARGUMENT)
+          .subType("unknownNodeType")
+          .message("Unknown node type:" + nodeTypeString)
+          .param("nodeType", nodeTypeString);
+      return backendCallError(backendCallResult);
     }
 
+    // Check read permission
     IAuthRequest authRequest = null;
     try {
       authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(authRequest, permission);
+      Authorization.getUserAndEnsurePermission(authRequest, permission1);
     } catch (CedarAccessException e) {
-      play.Logger.error("Access error while copying " + nodeType.getValue(), e);
-      return forbiddenWithError(e);
+      BackendCallResult backendCallResult = new BackendCallResult();
+      backendCallResult.addError(BackendCallErrorType.AUTHORIZATION)
+          .subType("missingPermission")
+          .message("Missing permission:" + permission1)
+          .param("permission", permission1);
+      return backendCallError(backendCallResult);
     }
 
+    // Check create permission
+    try {
+      authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(authRequest, permission2);
+    } catch (CedarAccessException e) {
+      BackendCallResult backendCallResult = new BackendCallResult();
+      backendCallResult.addError(BackendCallErrorType.AUTHORIZATION)
+          .subType("missingPermission")
+          .message("Missing permission:" + permission2)
+          .param("permission", permission2);
+      return backendCallError(backendCallResult);
+    }
+
+    try {
+      if (!userHasReadAccessToResource(folderBase, id)) {
+        BackendCallResult backendCallResult = new BackendCallResult();
+        backendCallResult.addError(BackendCallErrorType.AUTHORIZATION)
+            .subType("missingPermission")
+            .message("The user has no read access to the source resource:" + id)
+            .param("sourceId", id);
+        return backendCallError(backendCallResult);
+      }
+
+      // Check if the user has write permission to the target folder
+      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+        BackendCallResult backendCallResult = new BackendCallResult();
+        backendCallResult.addError(BackendCallErrorType.AUTHORIZATION)
+            .subType("missingPermission")
+            .message("The user has no write access to the target folder:" + folderId)
+            .param("folderId", folderId);
+        return backendCallError(backendCallResult);
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while copying the resource", e);
+      return forbiddenWithError(e);
+    }
 
     String originalDocument = null;
     try {
@@ -342,6 +392,7 @@ public class CommandController extends AbstractResourceServerController {
           return backendCallError(backendCallResult);
         }
       }
+
       // Check if the user has write permission to the target folder
       if (!userHasWriteAccessToFolder(folderBase, folderId)) {
         BackendCallResult backendCallResult = new BackendCallResult();
@@ -352,7 +403,7 @@ public class CommandController extends AbstractResourceServerController {
         return backendCallError(backendCallResult);
       }
     } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while deleting the template", e);
+      play.Logger.error("Access Error while moving the node", e);
       return forbiddenWithError(e);
     }
 
