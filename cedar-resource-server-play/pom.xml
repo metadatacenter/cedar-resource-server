@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-resource-server</artifactId>
-    <version>0.6.1</version>
+    <version>0.7.0</version>
   </parent>
 
   <groupId>org.metadatacenter</groupId>
@@ -14,7 +14,7 @@
   <name>CEDAR Resource Server Play</name>
 
   <properties>
-     <cedar.version>0.6.1</cedar.version>
+     <cedar.version>0.7.0</cedar.version>
   </properties>
 
   <dependencies>
