@@ -142,10 +142,12 @@ public class ElasticsearchService implements IElasticsearchService {
       if (query != null && query.length() > 0) {
         searchRequest.setQuery(
             QueryBuilders.queryStringQuery(query)
-                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD)
-                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_DESCRIPTION_FIELD));
+                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD));
+        //.field(ES_RESOURCE_PREFIX + ES_RESOURCE_DESCRIPTION_FIELD));
+        // Example of match query
+        //searchRequest.setQuery(QueryBuilders.matchQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD, query));
       }
-      // Retrieve all
+      // If there is no query, retrieve all
       else {
         searchRequest.setQuery(QueryBuilders.matchAllQuery());
       }

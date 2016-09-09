@@ -254,14 +254,29 @@ public class SearchService implements ISearchService {
     XContentBuilder settings = XContentFactory.jsonBuilder()
         .startObject().startObject("index")
           .startObject("analysis")
+            // Analyzer for case-insensitive partial search
             .startObject("analyzer")
-              // The following analyzer will be used to perform case-insensitive resource sorting
+              .startObject("ngram_analyzer")
+                .field("tokenizer", "ngram_tokenizer")
+                .startArray("filter").value("lowercase").endArray()
+              .endObject()
+            .endObject()
+            // n-gram tokenizer
+            .startObject("tokenizer")
+              .startObject("ngram_tokenizer")
+                .field("type").value("nGram")
+                .field("min_gram").value("1")
+                .field("max_gram").value("20")
+              .endObject()
+            .endObject()
+            // Analyzer for case-insensitive resource sorting
+            .startObject("analyzer")
               .startObject("sortable")
                 .field("tokenizer", "keyword")
                 .startArray("filter").value("lowercase").endArray()
               .endObject()
             .endObject()
-          .endObject()
+        .endObject()
         .endObject().endObject();
     // Mapping definition for search index. The info.@id field is set as not analyzed
     XContentBuilder mapping = XContentFactory.jsonBuilder()
@@ -274,26 +289,27 @@ public class SearchService implements ISearchService {
                     .field("type", "string")
                     .field("index", "not_analyzed")
                   .endObject()
-                  .startObject("ownedBy")
-                    .field("type", "string")
-                    .field("index", "not_analyzed")
-                  .endObject()
-                  // Name field
-                  .startObject("name")
-                    .field("type", "string")
-                    .startObject("fields")
+                .startObject("ownedBy")
+                  .field("type", "string")
+                  .field("index", "not_analyzed")
+                .endObject()
+                // Name field
+                .startObject("name")
+                  .field("type", "string")
+                  .field("analyzer", "ngram_analyzer")
+                  .field("search_analyzer", "standard")
+                  .startObject("fields")
                       // Apply the sortable analyzer to the raw field
-                      .startObject("raw")
-                        .field("type", "string")
-                        .field("analyzer", "sortable")
-                      .endObject()
+                    .startObject("raw")
+                      .field("type", "string")
+                      .field("analyzer", "sortable")
                     .endObject()
                   .endObject()
                 .endObject()
               .endObject()
             .endObject()
           .endObject()
-        .endObject();
+        .endObject().endObject();
     esService.createIndex(indexName, documentType, settings, mapping);
   }
 
