@@ -39,9 +39,6 @@ import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_DES
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_RESOURCETYPE_FIELD;
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_SORTABLE_NAME_FIELD;
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_SORT_DESC_PREFIX;
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_OWNER_FIELD;
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_ISPUBLICLYREADABLE_FIELD;
-
 
 public class ElasticsearchService implements IElasticsearchService {
 
@@ -63,7 +60,8 @@ public class ElasticsearchService implements IElasticsearchService {
         .put("cluster.name", esCluster).build();
   }
 
-  public void createIndex(String indexName, String documentType, XContentBuilder settings, XContentBuilder mapping) throws IOException {
+  public void createIndex(String indexName, String documentType, XContentBuilder settings, XContentBuilder mapping)
+      throws IOException {
     Client client = null;
     try {
       client = getClient();
@@ -114,7 +112,8 @@ public class ElasticsearchService implements IElasticsearchService {
 
       // Get resources by resource id
       SearchResponse responseSearch = client.prepareSearch(indexName)
-          .setTypes(documentType).setQuery(QueryBuilders.matchQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_ID_FIELD, resourceId))
+          .setTypes(documentType).setQuery(QueryBuilders.matchQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_ID_FIELD,
+              resourceId))
           .execute().actionGet();
 
       // Delete by Elasticsearch id
@@ -134,7 +133,8 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList,
-                               String indexName, String documentType, int limit, int offset, String userId) throws UnknownHostException {
+                               String indexName, String documentType, int limit, int offset, String userId) throws
+      UnknownHostException {
     Client client = null;
     try {
       client = getClient();
@@ -142,18 +142,15 @@ public class ElasticsearchService implements IElasticsearchService {
       if (query != null && query.length() > 0) {
         searchRequest.setQuery(
             QueryBuilders.queryStringQuery(query)
-                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD)
-                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_DESCRIPTION_FIELD));
+                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD));
+        //.field(ES_RESOURCE_PREFIX + ES_RESOURCE_DESCRIPTION_FIELD));
+        // Example of match query
+        //searchRequest.setQuery(QueryBuilders.matchQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD, query));
       }
-      // Retrieve all
+      // If there is no query, retrieve all
       else {
         searchRequest.setQuery(QueryBuilders.matchAllQuery());
       }
-
-      // Filter by access permissions
-      BoolQueryBuilder boolQueryBuilder1 = QueryBuilders.boolQuery();
-      boolQueryBuilder1.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_OWNER_FIELD, userId));
-      boolQueryBuilder1.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_ISPUBLICLYREADABLE_FIELD, true));
 
       // Filter by resource type
       BoolQueryBuilder boolQueryBuilder2 = QueryBuilders.boolQuery();
@@ -165,7 +162,6 @@ public class ElasticsearchService implements IElasticsearchService {
 
       // Combine previous two filters using a bool query builder
       BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-      boolQueryBuilder.must(boolQueryBuilder1);
       boolQueryBuilder.must(boolQueryBuilder2);
       searchRequest.setPostFilter(boolQueryBuilder);
 
@@ -177,7 +173,8 @@ public class ElasticsearchService implements IElasticsearchService {
             sortOrder = SortOrder.DESC;
             s = s.substring(1);
           }
-          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD)==0 ? ES_RESOURCE_SORTABLE_NAME_FIELD : s);
+          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD) == 0 ?
+              ES_RESOURCE_SORTABLE_NAME_FIELD : s);
           searchRequest.addSort(sortField, sortOrder);
         }
       }
@@ -200,7 +197,8 @@ public class ElasticsearchService implements IElasticsearchService {
   // intended for real time user requests, but rather for processing large amounts of data.
   // More info: https://www.elastic.co/guide/en/elasticsearch/reference/2.3/search-request-scroll.html
   public List<SearchHit> searchDeep(String query, List<String> resourceTypes, List<String> sortList,
-                                   String indexName, String documentType, int limit, String userId) throws UnknownHostException {
+                                    String indexName, String documentType, int limit, String userId) throws
+      UnknownHostException {
     Client client = null;
     try {
       client = getClient();
@@ -216,11 +214,6 @@ public class ElasticsearchService implements IElasticsearchService {
         searchRequest.setQuery(QueryBuilders.matchAllQuery());
       }
 
-      // Filter by access permissions
-      BoolQueryBuilder boolQueryBuilder1 = QueryBuilders.boolQuery();
-      boolQueryBuilder1.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_OWNER_FIELD, userId));
-      boolQueryBuilder1.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_ISPUBLICLYREADABLE_FIELD, true));
-
       // Filter by resource type
       BoolQueryBuilder boolQueryBuilder2 = QueryBuilders.boolQuery();
       if (resourceTypes != null && resourceTypes.size() > 0) {
@@ -231,7 +224,6 @@ public class ElasticsearchService implements IElasticsearchService {
 
       // Combine previous two filters using a bool query builder
       BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-      boolQueryBuilder.must(boolQueryBuilder1);
       boolQueryBuilder.must(boolQueryBuilder2);
       searchRequest.setPostFilter(boolQueryBuilder);
 
@@ -243,7 +235,8 @@ public class ElasticsearchService implements IElasticsearchService {
             sortOrder = SortOrder.DESC;
             s = s.substring(1);
           }
-          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD)==0 ? ES_RESOURCE_SORTABLE_NAME_FIELD : s);
+          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD) == 0 ?
+              ES_RESOURCE_SORTABLE_NAME_FIELD : s);
           searchRequest.addSort(sortField, sortOrder);
         }
       }
@@ -259,10 +252,11 @@ public class ElasticsearchService implements IElasticsearchService {
 
       List<SearchHit> allHits = new ArrayList<>();
 
-      while(response.getHits().hits().length != 0 || response.getHits().hits().length >= limit){
+      while (response.getHits().hits().length != 0 || response.getHits().hits().length >= limit) {
         allHits.addAll(Arrays.asList(response.getHits().hits()));
         //next scroll
-        response = client.prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+        response = client.prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueMinutes(2))
+            .execute().actionGet();
       }
 
       return allHits;
@@ -352,7 +346,8 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   // Retrieve all values for a fieldName. Dot notation is allowed (e.g. info.@id)
-  public List<String> findAllValuesForField(String fieldName, String indexName, String documentType) throws UnknownHostException {
+  public List<String> findAllValuesForField(String fieldName, String indexName, String documentType) throws
+      UnknownHostException {
     Client client = null;
     List<String> fieldValues = new ArrayList<>();
     try {
@@ -368,13 +363,14 @@ public class ElasticsearchService implements IElasticsearchService {
         for (SearchHit hit : response.getHits().getHits()) {
           Map<String, Object> f = hit.getSource();
           String[] pathFragments = fieldName.split("\\.");
-          for (int i = 0; i < pathFragments.length-1; i++) {
-            f = (Map<String, Object>)f.get(pathFragments[0]);
+          for (int i = 0; i < pathFragments.length - 1; i++) {
+            f = (Map<String, Object>) f.get(pathFragments[0]);
           }
-          String fieldValue = (String)f.get(pathFragments[pathFragments.length-1]);
+          String fieldValue = (String) f.get(pathFragments[pathFragments.length - 1]);
           fieldValues.add(fieldValue);
         }
-        response = client.prepareSearchScroll(response.getScrollId()).setScroll(new TimeValue(scrollKeepAlive)).execute().actionGet();
+        response = client.prepareSearchScroll(response.getScrollId()).setScroll(new TimeValue(scrollKeepAlive))
+            .execute().actionGet();
         // Break condition: No hits are returned
         if (response.getHits().getHits().length == 0) {
           break;
@@ -387,7 +383,9 @@ public class ElasticsearchService implements IElasticsearchService {
     }
   }
 
-  /*** Private methods ***/
+  /***
+   * Private methods
+   ***/
 
   private Client getClient() throws UnknownHostException {
     return TransportClient.builder().settings(settings).build().addTransportAddress(new

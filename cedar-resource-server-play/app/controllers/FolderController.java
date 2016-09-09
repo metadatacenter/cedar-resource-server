@@ -11,6 +11,7 @@ import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
+import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.json.JsonMapper;
@@ -33,8 +34,8 @@ public class FolderController extends AbstractResourceServerController {
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String folderId = getFolderIdFromBody();
-      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
-        return unauthorized("You do not have write access to the folder");
+      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+        return forbidden("You do not have write access to the folder");
       }
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS;
@@ -55,12 +56,7 @@ public class FolderController extends AbstractResourceServerController {
       } else {
         return Results.status(statusCode);
       }
-
-    } catch (IllegalArgumentException e) {
-      System.out.println(e.getMessage());
-      return badRequestWithError(e);
     } catch (Exception e) {
-      System.out.println(e.getMessage());
       return internalServerErrorWithError(e);
     }
   }
@@ -72,6 +68,10 @@ public class FolderController extends AbstractResourceServerController {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+
+      if (!userHasReadAccessToFolder(folderBase, folderId)) {
+        return forbidden("You do not have read access to the folder");
+      }
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
 
@@ -89,9 +89,6 @@ public class FolderController extends AbstractResourceServerController {
       } else {
         return Results.status(statusCode);
       }
-
-    } catch (IllegalArgumentException e) {
-      return badRequestWithError(e);
     } catch (Exception e) {
       return internalServerErrorWithError(e);
     }
@@ -112,8 +109,8 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
-      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
-        return unauthorized("You do not have write access to the folder");
+      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+        return forbidden("You do not have write access to the folder");
       }
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
@@ -135,9 +132,6 @@ public class FolderController extends AbstractResourceServerController {
       } else {
         return Results.status(statusCode);
       }
-
-    } catch (IllegalArgumentException e) {
-      return badRequestWithError(e);
     } catch (Exception e) {
       return internalServerErrorWithError(e);
     }
@@ -151,8 +145,8 @@ public class FolderController extends AbstractResourceServerController {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
-      if (!userHasWriteAccessToFolder(frontendRequest, folderBase, folderId)) {
-        return unauthorized("You do not have write access to the folder");
+      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+        return forbidden("You do not have write access to the folder");
       }
 
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
@@ -168,11 +162,91 @@ public class FolderController extends AbstractResourceServerController {
       } else {
         return generateStatusResponse(proxyResponse);
       }
-    } catch (IllegalArgumentException e) {
-      return badRequestWithError(e);
     } catch (Exception e) {
       return internalServerErrorWithError(e);
     }
   }
 
+
+  @ApiOperation(
+      value = "Get permissions of a folder",
+      httpMethod = "GET")
+  public static Result getFolderPermissions(String folderId) {
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_READ);
+      if (userHasReadAccessToFolder(folderBase, folderId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while reading the folder permissions", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeFolderPermissionGetByProxy(folderId);
+    } else {
+      return forbidden("You do not have read access for this folder");
+    }
+  }
+
+  @ApiOperation(
+      value = "Update folder permissions",
+      httpMethod = "PUT")
+  public static Result updateFolderPermissions(String folderId) {
+    boolean canProceed = false;
+    try {
+      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_UPDATE);
+      if (userHasWriteAccessToFolder(folderBase, folderId)) {
+        canProceed = true;
+      }
+    } catch (CedarAccessException e) {
+      play.Logger.error("Access Error while updating the folder permissions", e);
+      return forbiddenWithError(e);
+    }
+    if (canProceed) {
+      return executeFolderPermissionPutByProxy(folderId);
+    } else {
+      return forbidden("You do not have write access for this folder");
+    }
+  }
+
+  private static Result executeFolderPermissionGetByProxy(String folderId) {
+    try {
+      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId) + "/permissions";
+
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      HttpEntity entity = proxyResponse.getEntity();
+      if (entity != null) {
+        return Results.status(statusCode, entity.getContent());
+      } else {
+        return Results.status(statusCode);
+      }
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+  }
+
+  private static Result executeFolderPermissionPutByProxy(String folderId) {
+    try {
+      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId) + "/permissions";
+
+      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      HttpEntity entity = proxyResponse.getEntity();
+      if (entity != null) {
+        return Results.status(statusCode, entity.getContent());
+      } else {
+        return Results.status(statusCode);
+      }
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+  }
 }

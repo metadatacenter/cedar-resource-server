@@ -13,6 +13,8 @@ GET            /api-docs/template-elements             controllers.ApiHelpContro
 GET            /api-docs/template-fields               controllers.ApiHelpController.getResource(path = "/template-fields")
 GET            /api-docs/template-instances            controllers.ApiHelpController.getResource(path = "/template-instances")
 GET            /api-docs/search                        controllers.ApiHelpController.getResource(path = "/search")
+GET            /api-docs/users                         controllers.ApiHelpController.getResource(path = "/users")
+GET            /api-docs/groups                        controllers.ApiHelpController.getResource(path = "/groups")
 
 # Home page
 #GET            /                                      controllers.MainResourceServerController.index()
@@ -27,43 +29,60 @@ GET            /folders/:id                            controllers.FolderControl
 GET            /folders/:id/details                    controllers.FolderController.findFolderDetails(id: String)
 PUT            /folders/:id                            controllers.FolderController.updateFolder(id: String)
 DELETE         /folders/:id                            controllers.FolderController.deleteFolder(id: String)
+GET            /folders/:id/permissions                controllers.FolderController.getFolderPermissions(id: String)
+PUT            /folders/:id/permissions                controllers.FolderController.updateFolderPermissions(id: String)
 
 # Templates
-POST           /templates                              controllers.TemplateServerController.createTemplate(importMode: play.libs.F.Option[java.lang.Boolean])
-GET            /templates/:id                          controllers.TemplateServerController.findTemplate(id: String)
-GET            /templates/:id/details                  controllers.TemplateServerController.findTemplateDetails(id: String)
-PUT            /templates/:id                          controllers.TemplateServerController.updateTemplate(id: String)
-DELETE         /templates/:id                          controllers.TemplateServerController.deleteTemplate(id: String)
+POST           /templates                              controllers.TemplateController.createTemplate(importMode: play.libs.F.Option[java.lang.Boolean])
+GET            /templates/:id                          controllers.TemplateController.findTemplate(id: String)
+GET            /templates/:id/details                  controllers.TemplateController.findTemplateDetails(id: String)
+PUT            /templates/:id                          controllers.TemplateController.updateTemplate(id: String)
+DELETE         /templates/:id                          controllers.TemplateController.deleteTemplate(id: String)
+GET            /templates/:id/permissions              controllers.TemplateController.getTemplatePermissions(id: String)
+PUT            /templates/:id/permissions              controllers.TemplateController.updateTemplatePermissions(id: String)
 
 # Template Elements
-POST           /template-elements                      controllers.TemplateElementServerController.createTemplateElement(importMode: play.libs.F.Option[java.lang.Boolean])
-GET            /template-elements/:id                  controllers.TemplateElementServerController.findTemplateElement(id: String)
-GET            /template-elements/:id/details          controllers.TemplateElementServerController.findTemplateElementDetails(id: String)
-PUT            /template-elements/:id                  controllers.TemplateElementServerController.updateTemplateElement(id: String)
-DELETE         /template-elements/:id                  controllers.TemplateElementServerController.deleteTemplateElement(id: String)
+POST           /template-elements                      controllers.TemplateElementController.createTemplateElement(importMode: play.libs.F.Option[java.lang.Boolean])
+GET            /template-elements/:id                  controllers.TemplateElementController.findTemplateElement(id: String)
+GET            /template-elements/:id/details          controllers.TemplateElementController.findTemplateElementDetails(id: String)
+PUT            /template-elements/:id                  controllers.TemplateElementController.updateTemplateElement(id: String)
+DELETE         /template-elements/:id                  controllers.TemplateElementController.deleteTemplateElement(id: String)
+GET            /template-elements/:id/permissions      controllers.TemplateElementController.getTemplateElementPermissions(id: String)
+PUT            /template-elements/:id/permissions      controllers.TemplateElementController.updateTemplateElementPermissions(id: String)
 
 # Template Fields
-POST           /template-fields                        controllers.TemplateFieldServerController.createTemplateField(importMode: play.libs.F.Option[java.lang.Boolean])
-GET            /template-fields/:id                    controllers.TemplateFieldServerController.findTemplateField(id: String)
-GET            /template-fields/:id/details            controllers.TemplateFieldServerController.findTemplateFieldDetails(id: String)
-PUT            /template-fields/:id                    controllers.TemplateFieldServerController.updateTemplateField(id: String)
-DELETE         /template-fields/:id                    controllers.TemplateFieldServerController.deleteTemplateField(id: String)
+POST           /template-fields                        controllers.TemplateFieldController.createTemplateField(importMode: play.libs.F.Option[java.lang.Boolean])
+GET            /template-fields/:id                    controllers.TemplateFieldController.findTemplateField(id: String)
+GET            /template-fields/:id/details            controllers.TemplateFieldController.findTemplateFieldDetails(id: String)
+PUT            /template-fields/:id                    controllers.TemplateFieldController.updateTemplateField(id: String)
+DELETE         /template-fields/:id                    controllers.TemplateFieldController.deleteTemplateField(id: String)
+GET            /template-fields/:id/permissions        controllers.TemplateFieldController.getTemplateFieldPermissions(id: String)
+PUT            /template-fields/:id/permissions        controllers.TemplateFieldController.updateTemplateFieldPermissions(id: String)
 
 # Template Instances
-POST           /template-instances                     controllers.TemplateInstanceServerController.createTemplateInstance(importMode: play.libs.F.Option[java.lang.Boolean])
-GET            /template-instances/:id                 controllers.TemplateInstanceServerController.findTemplateInstance(id: String)
-GET            /template-instances/:id/details         controllers.TemplateInstanceServerController.findTemplateInstanceDetails(id: String)
-PUT            /template-instances/:id                 controllers.TemplateInstanceServerController.updateTemplateInstance(id: String)
-DELETE         /template-instances/:id                 controllers.TemplateInstanceServerController.deleteTemplateInstance(id: String)
+POST           /template-instances                     controllers.TemplateInstanceController.createTemplateInstance(importMode: play.libs.F.Option[java.lang.Boolean])
+GET            /template-instances/:id                 controllers.TemplateInstanceController.findTemplateInstance(id: String)
+GET            /template-instances/:id/details         controllers.TemplateInstanceController.findTemplateInstanceDetails(id: String)
+PUT            /template-instances/:id                 controllers.TemplateInstanceController.updateTemplateInstance(id: String)
+DELETE         /template-instances/:id                 controllers.TemplateInstanceController.deleteTemplateInstance(id: String)
+GET            /template-instances/:id/permissions     controllers.TemplateInstanceController.getTemplateInstancePermissions(id: String)
+PUT            /template-instances/:id/permissions     controllers.TemplateInstanceController.updateTemplateInstancePermissions(id: String)
+
+# Users
+GET            /users                                  controllers.UserController.findUsers()
+
+#Groups
+GET            /groups                                 controllers.GroupController.findGroups()
 
 # Search
 GET            /search                                 controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
-GET            /search-deep                             controllers.SearchController.searchDeep(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer])
+GET            /search-deep                            controllers.SearchController.searchDeep(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer])
 #POST           /search                          controllers.SearchController.searchByPost()
 
 # Commands
 POST           /command/regenerate-search-index        controllers.SearchController.regenerateSearchIndex()
 POST           /command/copy-resource-to-folder        controllers.CommandController.copyResourceToFolder()
+POST           /command/move-node-to-folder            controllers.CommandController.moveNodeToFolder()
 
 # For CORS - preflight request
 OPTIONS        /*all                                   controllers.MainResourceServerController.preflight(all)
