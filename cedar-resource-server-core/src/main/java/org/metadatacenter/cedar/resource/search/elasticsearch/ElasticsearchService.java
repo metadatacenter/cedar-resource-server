@@ -18,9 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -39,6 +37,7 @@ import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_DES
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_RESOURCETYPE_FIELD;
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_SORTABLE_NAME_FIELD;
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_SORT_DESC_PREFIX;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_TEMPLATEID_FIELD;
 
 public class ElasticsearchService implements IElasticsearchService {
 
@@ -132,38 +131,41 @@ public class ElasticsearchService implements IElasticsearchService {
     }
   }
 
-  public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList,
+  public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList, String templateId,
                                String indexName, String documentType, int limit, int offset, String userId) throws
       UnknownHostException {
     Client client = null;
     try {
       client = getClient();
       SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType);
+
+      // See: https://www.elastic.co/blog/better-query-execution-coming-elasticsearch-2-0
+      BoolQueryBuilder mainQuery = QueryBuilders.boolQuery();
+
+      // Search query
       if (query != null && query.length() > 0) {
-        searchRequest.setQuery(
-            QueryBuilders.queryStringQuery(query)
-                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD));
-        //.field(ES_RESOURCE_PREFIX + ES_RESOURCE_DESCRIPTION_FIELD));
-        // Example of match query
-        //searchRequest.setQuery(QueryBuilders.matchQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD, query));
+        mainQuery.must(QueryBuilders.queryStringQuery(query).field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD));
       }
-      // If there is no query, retrieve all
       else {
-        searchRequest.setQuery(QueryBuilders.matchAllQuery());
+        mainQuery.must(QueryBuilders.matchAllQuery());
       }
 
       // Filter by resource type
-      BoolQueryBuilder boolQueryBuilder2 = QueryBuilders.boolQuery();
+      BoolQueryBuilder resourceTypesQuery = QueryBuilders.boolQuery();
       if (resourceTypes != null && resourceTypes.size() > 0) {
         for (String rt : resourceTypes) {
-          boolQueryBuilder2.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_RESOURCETYPE_FIELD, rt));
+          resourceTypesQuery.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_RESOURCETYPE_FIELD, rt));
         }
       }
+      mainQuery.must(resourceTypesQuery);
 
-      // Combine previous two filters using a bool query builder
-      BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-      boolQueryBuilder.must(boolQueryBuilder2);
-      searchRequest.setPostFilter(boolQueryBuilder);
+      // Filter by template id
+      if (templateId != null) {
+        mainQuery.must(QueryBuilders.matchQuery(ES_TEMPLATEID_FIELD, templateId));
+      }
+
+      // Set main query
+      searchRequest.setQuery(mainQuery);
 
       // Sort by field
       if (sortList != null && sortList.size() > 0) {

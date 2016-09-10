@@ -16,6 +16,7 @@ import play.mvc.Result;
 import utils.DataServices;
 import utils.ParametersValidator;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Api(value = "/search", description = "Search for resources")
@@ -24,7 +25,7 @@ public class SearchController extends AbstractResourceServerController {
   @ApiOperation(
       value = "Search for resources",
       httpMethod = "GET")
-  public static Result search(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> sort, F
+  public static Result search(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> templateId, F.Option<String> sort,  F
       .Option<Integer> limitParam, F.Option<Integer> offsetParam) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -32,7 +33,15 @@ public class SearchController extends AbstractResourceServerController {
 
       // Parameters validation
       String queryString = ParametersValidator.validateQuery(query);
-      List<String> resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
+      String tempId = ParametersValidator.validateTemplateId(templateId);
+      // If templateId is specified, the resource types is limited to instances
+      List<String> resourceTypeList = null;
+      if (tempId != null) {
+        resourceTypeList = new ArrayList<>();
+        resourceTypeList.add(CedarNodeType.Types.INSTANCE);
+      } else {
+        resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
+      }
       List<String> sortList = ParametersValidator.validateSort(sort);
       int limit = ParametersValidator.validateLimit(limitParam,
           cedarConfig.getSearchSettings().getSearchDefaultSettings().getDefaultLimit(),
@@ -45,11 +54,11 @@ public class SearchController extends AbstractResourceServerController {
       String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
 
       F.Option<Integer> none = new F.None<>();
-      String absoluteUrl = routes.SearchController.search(query, resourceTypes, sort,
+      String absoluteUrl = routes.SearchController.search(query, resourceTypes, templateId, sort,
           none, none).absoluteURL(request());
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeList, sortList, limit, offset, userId, absoluteUrl);
+          resourceTypeList, tempId, sortList, limit, offset, userId, absoluteUrl);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
