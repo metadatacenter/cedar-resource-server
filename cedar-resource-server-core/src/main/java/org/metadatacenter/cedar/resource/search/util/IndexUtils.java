@@ -32,11 +32,9 @@ public class IndexUtils {
   private int maxAttemps;
   private int delayAttemps;
   private static CedarConfig cedarConfig;
-  private static String SCHEMA_FIELD;
 
   static {
     cedarConfig = CedarConfig.getInstance();
-    SCHEMA_FIELD = cedarConfig.getLinkedDataAtType(CedarNodeType.FIELD);
   }
 
   public IndexUtils(String folderBase, String templateBase, int limit, int maxAttemps, int delayAttemps) {
@@ -147,7 +145,7 @@ public class IndexUtils {
         Map.Entry<String, JsonNode> field = fieldsIterator.next();
         if (field.getValue().isContainerNode()) {
           if (field.getValue().get("@type") != null
-              && field.getValue().get("@type").asText().compareTo(SCHEMA_FIELD) == 0
+              && field.getValue().get("@type").asText().compareTo(CedarNodeType.FIELD.getAtType()) == 0
               && field.getValue().get("_ui") != null
               && field.getValue().get("_ui").get("title") != null) {
             String fieldName = field.getValue().get("_ui").get("title").asText();

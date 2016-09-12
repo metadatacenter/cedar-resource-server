@@ -49,16 +49,15 @@ public class SearchController extends AbstractResourceServerController {
       int offset = ParametersValidator.validateOffset(offsetParam);
 
       // Get userId from apiKey
-      CedarUser user = Authorization.getUser(frontendRequest);
-
-      String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
+      //CedarUser user = Authorization.getUser(frontendRequest);
+      //String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
 
       F.Option<Integer> none = new F.None<>();
       String absoluteUrl = routes.SearchController.search(query, resourceTypes, templateId, sort,
           none, none).absoluteURL(request());
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeList, tempId, sortList, limit, offset, userId, absoluteUrl);
+          resourceTypeList, tempId, sortList, limit, offset, absoluteUrl);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
@@ -73,7 +72,7 @@ public class SearchController extends AbstractResourceServerController {
   @ApiOperation(
       value = "Search for resources. This call is not paged and is not intended for real time user requests, but rather" +
           " for processing large amounts of data.", httpMethod = "GET")
-  public static Result searchDeep(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> sort, F
+  public static Result searchDeep(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> templateId, F.Option<String> sort, F
       .Option<Integer> limitParam) {
     try {
       IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -81,18 +80,26 @@ public class SearchController extends AbstractResourceServerController {
 
       // Parameters validation
       String queryString = ParametersValidator.validateQuery(query);
-      List<String> resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
+      String tempId = ParametersValidator.validateTemplateId(templateId);
+      // If templateId is specified, the resource types is limited to instances
+      List<String> resourceTypeList = null;
+      if (tempId != null) {
+        resourceTypeList = new ArrayList<>();
+        resourceTypeList.add(CedarNodeType.Types.INSTANCE);
+      } else {
+        resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
+      }
       List<String> sortList = ParametersValidator.validateSort(sort);
       // The searchDeep method can be used to retrieve all elements in one call, so we set the highest possible maxAllowedLimit
       int limit = ParametersValidator.validateLimit(limitParam,
           cedarConfig.getSearchSettings().getSearchDefaultSettings().getDefaultLimit(), Integer.MAX_VALUE);
 
       // Get userId from apiKey
-      CedarUser user = Authorization.getUser(frontendRequest);
-      String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
+      //CedarUser user = Authorization.getUser(frontendRequest);
+      //String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().searchDeep(queryString,
-          resourceTypeList, sortList, limit, userId);
+          resourceTypeList, tempId, sortList, limit);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);

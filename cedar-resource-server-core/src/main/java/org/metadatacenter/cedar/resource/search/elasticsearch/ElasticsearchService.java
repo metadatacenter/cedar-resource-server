@@ -132,54 +132,12 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList, String templateId,
-                               String indexName, String documentType, int limit, int offset, String userId) throws
-      UnknownHostException {
+                               String indexName, String documentType, int limit, int offset) throws UnknownHostException {
     Client client = null;
     try {
       client = getClient();
-      SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType);
+      SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList, templateId, indexName, documentType);
 
-      // See: https://www.elastic.co/blog/better-query-execution-coming-elasticsearch-2-0
-      BoolQueryBuilder mainQuery = QueryBuilders.boolQuery();
-
-      // Search query
-      if (query != null && query.length() > 0) {
-        mainQuery.must(QueryBuilders.queryStringQuery(query).field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD));
-      }
-      else {
-        mainQuery.must(QueryBuilders.matchAllQuery());
-      }
-
-      // Filter by resource type
-      BoolQueryBuilder resourceTypesQuery = QueryBuilders.boolQuery();
-      if (resourceTypes != null && resourceTypes.size() > 0) {
-        for (String rt : resourceTypes) {
-          resourceTypesQuery.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_RESOURCETYPE_FIELD, rt));
-        }
-      }
-      mainQuery.must(resourceTypesQuery);
-
-      // Filter by template id
-      if (templateId != null) {
-        mainQuery.must(QueryBuilders.matchQuery(ES_TEMPLATEID_FIELD, templateId));
-      }
-
-      // Set main query
-      searchRequest.setQuery(mainQuery);
-
-      // Sort by field
-      if (sortList != null && sortList.size() > 0) {
-        for (String s : sortList) {
-          SortOrder sortOrder = SortOrder.ASC;
-          if (s.startsWith(ES_SORT_DESC_PREFIX)) {
-            sortOrder = SortOrder.DESC;
-            s = s.substring(1);
-          }
-          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD) == 0 ?
-              ES_RESOURCE_SORTABLE_NAME_FIELD : s);
-          searchRequest.addSort(sortField, sortOrder);
-        }
-      }
       // Set offset (from) and limit (size)
       searchRequest.setFrom(offset);
       searchRequest.setSize(limit);
@@ -198,50 +156,13 @@ public class ElasticsearchService implements IElasticsearchService {
   // It uses the scroll API. It retrieves all results. No pagination and therefore no offset. Scrolling is not
   // intended for real time user requests, but rather for processing large amounts of data.
   // More info: https://www.elastic.co/guide/en/elasticsearch/reference/2.3/search-request-scroll.html
-  public List<SearchHit> searchDeep(String query, List<String> resourceTypes, List<String> sortList,
-                                    String indexName, String documentType, int limit, String userId) throws
-      UnknownHostException {
+  public List<SearchHit> searchDeep(String query, List<String> resourceTypes, List<String> sortList, String templateId,
+                                    String indexName, String documentType, int limit) throws UnknownHostException {
     Client client = null;
     try {
       client = getClient();
-      SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType);
-      if (query != null && query.length() > 0) {
-        searchRequest.setQuery(
-            QueryBuilders.queryStringQuery(query)
-                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD)
-                .field(ES_RESOURCE_PREFIX + ES_RESOURCE_DESCRIPTION_FIELD));
-      }
-      // Retrieve all
-      else {
-        searchRequest.setQuery(QueryBuilders.matchAllQuery());
-      }
-
-      // Filter by resource type
-      BoolQueryBuilder boolQueryBuilder2 = QueryBuilders.boolQuery();
-      if (resourceTypes != null && resourceTypes.size() > 0) {
-        for (String rt : resourceTypes) {
-          boolQueryBuilder2.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_RESOURCETYPE_FIELD, rt));
-        }
-      }
-
-      // Combine previous two filters using a bool query builder
-      BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-      boolQueryBuilder.must(boolQueryBuilder2);
-      searchRequest.setPostFilter(boolQueryBuilder);
-
-      // Sort by field
-      if (sortList != null && sortList.size() > 0) {
-        for (String s : sortList) {
-          SortOrder sortOrder = SortOrder.ASC;
-          if (s.startsWith(ES_SORT_DESC_PREFIX)) {
-            sortOrder = SortOrder.DESC;
-            s = s.substring(1);
-          }
-          String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD) == 0 ?
-              ES_RESOURCE_SORTABLE_NAME_FIELD : s);
-          searchRequest.addSort(sortField, sortOrder);
-        }
-      }
+      SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList,
+          templateId, indexName, documentType);
 
       // Set scroll and scroll size
       searchRequest.setScroll(TimeValue.timeValueMinutes(2));
@@ -260,13 +181,62 @@ public class ElasticsearchService implements IElasticsearchService {
         response = client.prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueMinutes(2))
             .execute().actionGet();
       }
-
       return allHits;
 
     } finally {
       // Close client
       client.close();
     }
+  }
+
+  private SearchRequestBuilder getSearchRequestBuilder(Client client, String query, List<String> resourceTypes,
+                                                       List<String> sortList, String templateId, String indexName,
+                                                       String documentType) {
+
+    SearchRequestBuilder searchRequestBuilder = client.prepareSearch(indexName).setTypes(documentType);
+
+    // See: https://www.elastic.co/blog/better-query-execution-coming-elasticsearch-2-0
+    BoolQueryBuilder mainQuery = QueryBuilders.boolQuery();
+
+    // Search query
+    if (query != null && query.length() > 0) {
+      mainQuery.must(QueryBuilders.queryStringQuery(query).field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD));
+    }
+    else {
+      mainQuery.must(QueryBuilders.matchAllQuery());
+    }
+
+    // Filter by resource type
+    BoolQueryBuilder resourceTypesQuery = QueryBuilders.boolQuery();
+    if (resourceTypes != null && resourceTypes.size() > 0) {
+      for (String rt : resourceTypes) {
+        resourceTypesQuery.should(QueryBuilders.termQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_RESOURCETYPE_FIELD, rt));
+      }
+    }
+    mainQuery.must(resourceTypesQuery);
+
+    // Filter by template id
+    if (templateId != null) {
+      mainQuery.must(QueryBuilders.matchQuery(ES_TEMPLATEID_FIELD, templateId));
+    }
+
+    // Set main query
+    searchRequestBuilder.setQuery(mainQuery);
+
+    // Sort by field
+    if (sortList != null && sortList.size() > 0) {
+      for (String s : sortList) {
+        SortOrder sortOrder = SortOrder.ASC;
+        if (s.startsWith(ES_SORT_DESC_PREFIX)) {
+          sortOrder = SortOrder.DESC;
+          s = s.substring(1);
+        }
+        String sortField = ES_RESOURCE_PREFIX + (s.compareTo(ES_RESOURCE_NAME_FIELD) == 0 ?
+            ES_RESOURCE_SORTABLE_NAME_FIELD : s);
+        searchRequestBuilder.addSort(sortField, sortOrder);
+      }
+    }
+    return searchRequestBuilder;
   }
 
   public boolean indexExists(String indexName) throws UnknownHostException {

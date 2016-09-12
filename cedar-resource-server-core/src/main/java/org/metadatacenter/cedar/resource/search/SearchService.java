@@ -103,9 +103,9 @@ public class SearchService implements ISearchService {
     updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
   }
 
-  public RSNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String> sortList, int limit, int offset, String userId, String absoluteUrl) throws IOException {
+  public RSNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String> sortList, int limit, int offset, String absoluteUrl) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
-    SearchResponse esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit, offset, userId);
+    SearchResponse esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit, offset);
     RSNodeListResponse response = new RSNodeListResponse();
     List<CedarRSNode> resources = new ArrayList<>();
     for (SearchHit hit : esResults.getHits()) {
@@ -135,9 +135,9 @@ public class SearchService implements ISearchService {
     return response;
   }
 
-  public RSNodeListResponse searchDeep(String query, List<String> resourceTypes, List<String> sortList, int limit, String userId) throws IOException {
+  public RSNodeListResponse searchDeep(String query, List<String> resourceTypes, String templateId, List<String> sortList, int limit) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
-    List<SearchHit> esHits = esService.searchDeep(query, resourceTypes, sortList, esIndex, esType, limit, userId);
+    List<SearchHit> esHits = esService.searchDeep(query, resourceTypes, sortList, templateId, esIndex, esType, limit);
 
     // Apply limit
     if (esHits.size() >= limit) {
