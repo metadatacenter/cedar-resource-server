@@ -15,10 +15,10 @@ public interface IElasticsearchService {
   void createIndex(String indexName) throws IOException;
   void addToIndex(JsonNode json, String indexName, String documentType) throws IOException;
   void removeFromIndex(String id, String indexName, String documentType) throws IOException;
-  SearchResponse search(String query, List<String> resourceTypes, List<String> sortList,
-                        String indexName, String documentType, int limit, int offset, String userId) throws UnknownHostException;
-  List<SearchHit> searchDeep(String query, List<String> resourceTypes, List<String> sortList,
-                        String indexName, String documentType, int limit, String userId) throws UnknownHostException;
+  SearchResponse search(String query, List<String> resourceTypes, List<String> sortList, String templateId,
+                        String indexName, String documentType, int limit, int offset) throws UnknownHostException;
+  List<SearchHit> searchDeep(String query, List<String> resourceTypes, List<String> sortList, String templateId,
+                        String indexName, String documentType, int limit) throws UnknownHostException;
   boolean indexExists(String indexName) throws UnknownHostException;
   void deleteIndex(String indexName) throws IOException;
   void addAlias(String indexName, String aliasName) throws IOException;
