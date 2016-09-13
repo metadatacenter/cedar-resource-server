@@ -14,7 +14,7 @@
   <name>CEDAR Resource Server Play</name>
 
   <properties>
-     <cedar.version>0.7.1-SNAPSHOT</cedar.version>
+     <cedar.version>0.7.1</cedar.version>
   </properties>
 
   <dependencies>
