@@ -3,6 +3,8 @@ package utils;
 import org.metadatacenter.model.CedarNodeType;
 import play.libs.F;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -55,6 +57,18 @@ public class ParametersValidator {
     return resourceTypeStringList;
   }
 
+  public static String validateTemplateId(F.Option<String> templateId) {
+    String id = null;
+    if (templateId.isDefined()) {
+      if (templateId.get() != null && !templateId.get().isEmpty() && isValidURL(templateId.get())) {
+        id = templateId.get();
+      } else {
+        throw new IllegalArgumentException("You must pass in 'template_id' as a valid template identifier");
+      }
+    }
+    return id;
+  }
+
   public static List<String> validateSort(F.Option<String> sort) {
     List<String> sortList = new ArrayList<>();
     if (sort.isDefined() && !sort.get().isEmpty()) {
@@ -95,6 +109,16 @@ public class ParametersValidator {
     }
     else {
       return defaultOffset;
+    }
+  }
+
+  private static boolean isValidURL(String urlStr) {
+    try {
+      URL url = new URL(urlStr);
+      return true;
+    }
+    catch (MalformedURLException e) {
+      return false;
     }
   }
 
