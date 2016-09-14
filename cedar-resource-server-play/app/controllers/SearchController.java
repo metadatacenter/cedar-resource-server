@@ -57,7 +57,7 @@ public class SearchController extends AbstractResourceServerController {
           none, none).absoluteURL(request());
 
       RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeList, tempId, sortList, limit, offset, absoluteUrl);
+          resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, frontendRequest);
 
       ObjectMapper mapper = new ObjectMapper();
       JsonNode resultsNode = mapper.valueToTree(results);
