@@ -10,6 +10,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
+import org.metadatacenter.cedar.resource.util.FolderServerUtil;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
@@ -103,17 +104,65 @@ public class SearchService implements ISearchService {
     updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
   }
 
-  public RSNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String> sortList, int limit, int offset, String absoluteUrl) throws IOException {
+  public RSNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String>
+      sortList, int limit, int offset, String absoluteUrl, IAuthRequest authRequest) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
-    SearchResponse esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit, offset);
+
+    // Accessible node ids
+    HashMap<String, String> accessibleNodeIds = new HashMap(FolderServerUtil.getAccessibleNodeIds(authRequest));
+
+    // The offset for the resources accessible by the user needs to be translated to the offset at the index level
+    int offsetIndex = 0;
+    int count = 0;
+    while (count < offset) {
+      SearchResponse esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit, offsetIndex);
+      if (esResults.getHits().getHits().length == 0) {
+        break;
+      }
+      for (SearchHit hit : esResults.getHits()) {
+        String hitJson = hit.sourceAsString();
+        CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
+        // The resource is taken into account only if the user has access to it
+        if (accessibleNodeIds.containsKey(resource.getInfo().getId())) {
+          count++;
+        }
+        offsetIndex++;
+        if (count == offset) {
+          break;
+        }
+      }
+    }
+
+    // Retrieve resources
     RSNodeListResponse response = new RSNodeListResponse();
     List<CedarRSNode> resources = new ArrayList<>();
-    for (SearchHit hit : esResults.getHits()) {
-      String hitJson = hit.sourceAsString();
-      CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
-      resources.add(resource.getInfo());
+    SearchResponse esResults = null;
+    while (resources.size() < limit) {
+      esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit, offsetIndex);
+      if (esResults.getHits().getHits().length == 0) {
+        break;
+      }
+      for (SearchHit hit : esResults.getHits()) {
+        String hitJson = hit.sourceAsString();
+        CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
+        // The resource is added to the results only if the user has access to it
+        if (accessibleNodeIds.containsKey(resource.getInfo().getId())) {
+          resources.add(resource.getInfo());
+          if (resources.size() == limit) {
+            break;
+          }
+        }
+        offsetIndex ++;
+      }
     }
-    long total = esResults.getHits().getTotalHits();
+    
+    // The total number of resources accessible by the user is sometimes too expensive to compute with our current (temporal)
+    // approach, so we set the total to -1 unless offsetIndex = totalHits, which means that there are no more resources
+    // in the index that match the query and that we can be sure about the number of resources that the user has access to.
+    long total = -1;
+    if (offsetIndex == esResults.getHits().getTotalHits()) {
+      total = resources.size();
+    }
     response.setTotalCount(total);
     response.setCurrentOffset(offset);
     response.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, total, limit, offset));
@@ -125,6 +174,7 @@ public class SearchService implements ISearchService {
         nodeTypeList.add(CedarNodeType.forValue(rt));
       }
     }
+
     NodeListRequest req = new NodeListRequest();
     req.setNodeTypes(nodeTypeList);
     req.setLimit(limit);
@@ -135,6 +185,7 @@ public class SearchService implements ISearchService {
     return response;
   }
 
+  // TODO: Update to take into account the user's access permissions to resources
   public RSNodeListResponse searchDeep(String query, List<String> resourceTypes, String templateId, List<String> sortList, int limit) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
     List<SearchHit> esHits = esService.searchDeep(query, resourceTypes, sortList, templateId, esIndex, esType, limit);
