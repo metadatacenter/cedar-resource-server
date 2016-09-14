@@ -2,20 +2,19 @@ package controllers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wordnik.swagger.annotations.Api;
-import com.wordnik.swagger.annotations.ApiOperation;
+import com.wordnik.swagger.annotations.*;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.IAuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.server.security.model.user.CedarUser;
 import play.libs.F;
 import play.mvc.Result;
 import utils.DataServices;
 import utils.ParametersValidator;
 
+import javax.ws.rs.HeaderParam;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,7 +23,22 @@ public class SearchController extends AbstractResourceServerController {
 
   @ApiOperation(
       value = "Search for resources",
+      // notes = ...
       httpMethod = "GET")
+  @ApiResponses(value = {
+      @ApiResponse(code = 200, message = "Success!"),
+      @ApiResponse(code = 400, message = "Bad Request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 500, message = "Internal Server Error")})
+
+  @ApiImplicitParams(value = {
+      @ApiImplicitParam(name = "Authorization", value = "Authorization header. Format: 'apiKey {your_apiKey}'. Example: 'apiKey eb110fac-4970-492a-87b7-ccbfac4f31cc'", required = true, dataType = "string", paramType = "header"),
+      @ApiImplicitParam(name = "q", value = "Search query. Example: 'q=investigation'", required = true, dataType = "string", paramType = "query"),
+      @ApiImplicitParam(name = "resource_types", value="Comma-separated list of resource types. Allowed values: {template, element, field, instance, folder}. Example: 'resource_types=template,element'. If template_id is provided, resource_types is automatically set to 'instance'", required = false, dataType = "string", paramType = "query"),
+      @ApiImplicitParam(name = "template_id", value="Template identifier. Example: 'template_id=https://repo.metadatacenter.net/templates/432db060-8ac1-4f26-9e5b-082e563d8e34'. If this parameter is provided, all instances for the given template will be returned", required = false, dataType = "string", paramType = "query"),
+      @ApiImplicitParam(name = "sort", value="Sort by. Example: 'sort=createdOnTS'. The '-' prefix may be used to apply inverse sorting", allowableValues = "name,createdOnTS,lastUpdatedOnTS,-name,-createdOnTS,-lastUpdatedOnTS", defaultValue = "name", required = false, dataType = "string", paramType = "query"),
+      @ApiImplicitParam(name = "limit", value="Maximum number of resources to be retrieved", defaultValue = "50", required = false, dataType = "int", paramType = "query"),
+      @ApiImplicitParam(name = "offset", value="Offset", defaultValue = "0", required = false, dataType = "int", paramType = "query")})
   public static Result search(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> templateId, F.Option<String> sort,  F
       .Option<Integer> limitParam, F.Option<Integer> offsetParam) {
     try {
