@@ -3,7 +3,6 @@ package org.metadatacenter.cedar.resource.search;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.EncoderException;
-import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -12,6 +11,7 @@ import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchServi
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.cedar.resource.util.FolderServerUtil;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.index.CedarIndexField;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
@@ -23,8 +23,8 @@ import org.metadatacenter.util.http.LinkHeaderUtil;
 import java.io.IOException;
 import java.util.*;
 
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_PREFIX;
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_ID_FIELD;
+import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_PREFIX;
 
 public class SearchService implements ISearchService {
 
@@ -46,11 +46,9 @@ public class SearchService implements ISearchService {
 
   public void indexResource(CedarRSNode resource, JsonNode resourceContent, String indexName, String documentType, IAuthRequest authRequest)
       throws IOException, CedarAccessException, EncoderException {
-    List<String> fieldNames = new ArrayList<>();
-    List<String> fieldValues = new ArrayList<>();
+    List<CedarIndexField> fields = null;
     if (resourceContent != null) {
-      fieldNames = indexUtils.extractFieldNames(resource.getType(), resourceContent, new ArrayList<>(), authRequest);
-      fieldValues = indexUtils.extractFieldValues(resource.getType(), resourceContent, new ArrayList<>());
+      fields = indexUtils.extractFields(resource.getType(), resourceContent, authRequest);
     }
     System.out.println("Indexing resource (id = " + resource.getId() + ")");
     // Set resource details
@@ -59,7 +57,7 @@ public class SearchService implements ISearchService {
       templateId = resourceContent.get("schema:isBasedOn").asText();
     }
     resource = setResourceDetails(resource);
-    CedarIndexResource ir = new CedarIndexResource(resource, fieldNames, fieldValues, templateId);
+    CedarIndexResource ir = new CedarIndexResource(resource, fields, templateId);
     JsonNode jsonResource = new ObjectMapper().convertValue(ir, JsonNode.class);
     esService.addToIndex(jsonResource, indexName, documentType);
   }
@@ -82,11 +80,9 @@ public class SearchService implements ISearchService {
 
   public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, String indexName, String
       documentType, IAuthRequest authRequest) throws IOException, CedarAccessException, EncoderException {
-    List<String> fieldNames = new ArrayList<>();
-    List<String> fieldValues = new ArrayList<>();
+    List<CedarIndexField> fields = null;
     if (resourceContent != null) {
-      fieldNames = indexUtils.extractFieldNames(newResource.getType(), resourceContent, new ArrayList<>(), authRequest);
-      fieldValues = indexUtils.extractFieldValues(newResource.getType(), resourceContent, new ArrayList<>());
+      fields = indexUtils.extractFields(newResource.getType(), resourceContent, authRequest);
     }
     System.out.println("Updating resource (id = " + newResource.getId());
     removeResourceFromIndex(newResource.getId(), indexName, documentType);
@@ -95,7 +91,7 @@ public class SearchService implements ISearchService {
       templateId = resourceContent.get("schema:isBasedOn").asText();
     }
     newResource = setResourceDetails(newResource);
-    addToIndex(new CedarIndexResource(newResource, fieldNames, fieldValues, templateId), indexName, documentType);
+    addToIndex(new CedarIndexResource(newResource, fields, templateId), indexName, documentType);
   }
 
   public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, IAuthRequest authRequest)
