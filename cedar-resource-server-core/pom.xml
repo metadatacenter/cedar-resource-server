@@ -14,7 +14,7 @@
   <name>CEDAR Resource Server Core</name>
 
   <properties>
-    <cedar.version>0.8.2</cedar.version>
+    <cedar.version>0.8.3-SNAPSHOT</cedar.version>
   </properties>
 
   <dependencies>
