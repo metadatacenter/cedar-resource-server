@@ -132,48 +132,4 @@ public class TemplateController extends AbstractResourceServerController {
     }
   }
 
-  @ApiOperation(
-      value = "Get permissions of a template",
-      httpMethod = "GET")
-  public static Result getTemplatePermissions(String templateId) {
-    boolean canProceed = false;
-    try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_READ);
-      if (userHasReadAccessToResource(folderBase, templateId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while reading the template permissions", e);
-      return forbiddenWithError(e);
-    }
-    if (canProceed) {
-      return executeResourcePermissionGetByProxy(templateId);
-    } else {
-      return forbidden("You do not have read access for this template");
-    }
-  }
-
-  @ApiOperation(
-      value = "Update template permissions",
-      httpMethod = "PUT")
-  public static Result updateTemplatePermissions(String templateId) {
-    boolean canProceed = false;
-    try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_UPDATE);
-      if (userHasWriteAccessToResource(folderBase, templateId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while updating the template permissions", e);
-      return forbiddenWithError(e);
-    }
-    if (canProceed) {
-      return executeResourcePermissionPutByProxy(templateId);
-    } else {
-      return forbidden("You do not have write access for this template");
-    }
-  }
-
 }
