@@ -1,6 +1,7 @@
 package org.metadatacenter.cedar.resource.search.elasticsearch;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -17,61 +18,55 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_PREFIX;
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_ID_FIELD;
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_NAME_FIELD;
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_DESCRIPTION_FIELD;
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_RESOURCETYPE_FIELD;
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_SORTABLE_NAME_FIELD;
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_SORT_DESC_PREFIX;
-import static org.metadatacenter.constant.ElasticsearchConstants.ES_TEMPLATEID_FIELD;
+import static org.metadatacenter.constant.ElasticsearchConstants.*;
 
 public class ElasticsearchService implements IElasticsearchService {
 
   private Settings settings;
-  private String esCluster;
   private String esHost;
   private int esTransportPort;
   private int esSize;
   private int scrollKeepAlive;
+  private HashMap indexSettings;
+  private HashMap indexMappings;
 
-  public ElasticsearchService(String esCluster, String esHost, int esTransportPort, int esSize, int scrollKeepAlive) {
-    this.esCluster = esCluster;
+  public ElasticsearchService(String esCluster, String esHost, int esTransportPort, int esSize, int scrollKeepAlive,
+                              HashMap indexSettings, HashMap indexMappings) {
     this.esHost = esHost;
     this.esTransportPort = esTransportPort;
     this.esSize = esSize;
     this.scrollKeepAlive = scrollKeepAlive;
+    this.indexSettings = indexSettings;
+    this.indexMappings = indexMappings;
 
     settings = Settings.settingsBuilder()
         .put("cluster.name", esCluster).build();
   }
 
-  public void createIndex(String indexName, String documentType, XContentBuilder settings, XContentBuilder mapping)
+  public void createIndex(String indexName, String documentType)
       throws IOException {
     Client client = null;
     try {
       client = getClient();
       CreateIndexRequestBuilder createIndexRequestBuilder = client.admin().indices().prepareCreate(indexName);
       // Set settings
-      if (settings != null) {
-        createIndexRequestBuilder.setSettings(settings);
+      if (indexSettings != null) {
+        createIndexRequestBuilder.setSettings(indexSettings);
       }
       // Put mapping
-      if (mapping != null) {
-        createIndexRequestBuilder.addMapping(documentType, mapping);
+      if (indexMappings != null) {
+        createIndexRequestBuilder.addMapping(documentType, indexMappings);
       }
       // Create index
       CreateIndexResponse response = createIndexRequestBuilder.execute().actionGet();
@@ -85,7 +80,7 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   public void createIndex(String indexName) throws IOException {
-    createIndex(indexName, null, null, null);
+    createIndex(indexName, null);
   }
 
   public void addToIndex(JsonNode json, String indexName, String documentType) throws IOException {

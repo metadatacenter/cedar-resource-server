@@ -263,7 +263,7 @@ public class SearchService implements ISearchService {
       }
       // Create new index and set it up
       String newIndexName = esIndex + "-" + Long.toString(Calendar.getInstance().getTimeInMillis());
-      createSearchIndex(newIndexName, esType);
+      esService.createIndex(newIndexName, esType);
       // Index all resources
       if (resources != null) {
         for (CedarRSNode resource : resources) {
@@ -302,74 +302,6 @@ public class SearchService implements ISearchService {
   private void addToIndex(CedarIndexResource resource, String indexName, String documentType) throws IOException {
     JsonNode resourceJson = new ObjectMapper().valueToTree(resource);
     esService.addToIndex(resourceJson, indexName, documentType);
-  }
-
-  private void createSearchIndex(String indexName, String documentType) throws IOException {
-    // TODO: maybe read settings and mapping definition from a config file
-    XContentBuilder settings = XContentFactory.jsonBuilder()
-        .startObject().startObject("index")
-          .startObject("analysis")
-            // Analyzer for case-insensitive partial search
-            .startObject("analyzer")
-              .startObject("ngram_analyzer")
-                .field("tokenizer", "ngram_tokenizer")
-                .startArray("filter").value("lowercase").endArray()
-              .endObject()
-            .endObject()
-            // n-gram tokenizer
-            .startObject("tokenizer")
-              .startObject("ngram_tokenizer")
-                .field("type").value("nGram")
-                .field("min_gram").value("1")
-                .field("max_gram").value("20")
-              .endObject()
-            .endObject()
-            // Analyzer for case-insensitive resource sorting
-            .startObject("analyzer")
-              .startObject("sortable")
-                .field("tokenizer", "keyword")
-                .startArray("filter").value("lowercase").endArray()
-              .endObject()
-            .endObject()
-        .endObject()
-        .endObject().endObject();
-    // Mapping definition for search index. The info.@id field is set as not analyzed
-    XContentBuilder mapping = XContentFactory.jsonBuilder()
-        .startObject()
-          .startObject(documentType)
-            .startObject("properties")
-              .startObject("templateId")
-                .field("type", "string")
-                .field("index", "not_analyzed")
-              .endObject()
-              .startObject("info")
-                .startObject("properties")
-                  .startObject("@id")
-                    .field("type", "string")
-                    .field("index", "not_analyzed")
-                  .endObject()
-                .startObject("ownedBy")
-                  .field("type", "string")
-                  .field("index", "not_analyzed")
-                .endObject()
-                // Name field
-                .startObject("name")
-                  .field("type", "string")
-                  .field("analyzer", "ngram_analyzer")
-                  .field("search_analyzer", "standard")
-                  .startObject("fields")
-                      // Apply the sortable analyzer to the raw field
-                    .startObject("raw")
-                      .field("type", "string")
-                      .field("analyzer", "sortable")
-                    .endObject()
-                  .endObject()
-                .endObject()
-              .endObject()
-            .endObject()
-          .endObject()
-        .endObject().endObject();
-    esService.createIndex(indexName, documentType, settings, mapping);
   }
 
   private CedarRSNode setResourceDetails(CedarRSNode resource) {
