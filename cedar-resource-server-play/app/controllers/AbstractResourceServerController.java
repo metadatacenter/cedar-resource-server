@@ -497,4 +497,42 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
     return fsResource.currentUserCan(NodePermission.WRITE);
   }
 
+  protected static Result executeResourcePermissionGetByProxy(String resourceId) {
+    try {
+      String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
+
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      HttpEntity entity = proxyResponse.getEntity();
+      if (entity != null) {
+        return Results.status(statusCode, entity.getContent());
+      } else {
+        return Results.status(statusCode);
+}
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+  }
+
+  protected static Result executeResourcePermissionPutByProxy(String resourceId) {
+    try {
+      String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
+
+      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      HttpEntity entity = proxyResponse.getEntity();
+      if (entity != null) {
+        return Results.status(statusCode, entity.getContent());
+      } else {
+        return Results.status(statusCode);
+      }
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+  }
+
 }
