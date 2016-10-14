@@ -77,8 +77,10 @@ public class SearchController extends AbstractResourceServerController {
       JsonNode resultsNode = mapper.valueToTree(results);
       return ok(resultsNode);
     } catch (IllegalArgumentException e) {
+      play.Logger.error("Search error", e);
       return badRequestWithError(e);
     } catch (Exception e) {
+      play.Logger.error("Search error", e);
       return internalServerErrorWithError(e);
     }
   }
@@ -119,8 +121,10 @@ public class SearchController extends AbstractResourceServerController {
       JsonNode resultsNode = mapper.valueToTree(results);
       return ok(resultsNode);
     } catch (IllegalArgumentException e) {
+      play.Logger.error("Search error", e);
       return badRequestWithError(e);
     } catch (Exception e) {
+      play.Logger.error("Search error", e);
       return internalServerErrorWithError(e);
     }
   }
@@ -158,6 +162,7 @@ public class SearchController extends AbstractResourceServerController {
       DataServices.getInstance().getSearchService().regenerateSearchIndex(force, authRequest);
 
     } catch (Exception e) {
+      play.Logger.error("Error regenerating search index", e);
       return internalServerErrorWithError(e);
     }
     return ok();

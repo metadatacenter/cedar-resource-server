@@ -66,7 +66,7 @@ public class DataServices {
       try {
         searchService.regenerateSearchIndex(false, authRequest);
       } catch (Exception e) {
-        play.Logger.error("Error while regenerating the search index", e);
+        play.Logger.error("Error while regenerating the search index: ", e);
       }
     }
   }
