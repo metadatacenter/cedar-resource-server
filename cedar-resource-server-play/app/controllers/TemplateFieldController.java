@@ -132,7 +132,6 @@ public class TemplateFieldController extends AbstractResourceServerController {
     }
   }
 
-
   @ApiOperation(
       value = "Get permissions of a template field",
       httpMethod = "GET")

@@ -510,7 +510,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
         return Results.status(statusCode, entity.getContent());
       } else {
         return Results.status(statusCode);
-      }
+}
     } catch (Exception e) {
       return internalServerErrorWithError(e);
     }
