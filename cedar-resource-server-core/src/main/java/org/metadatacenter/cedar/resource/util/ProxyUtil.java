@@ -8,7 +8,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.metadatacenter.constant.HttpConnectionConstants;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import play.mvc.Http;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ public class ProxyUtil {
     return proxyRequest.execute().returnResponse();
   }
 
-  public static HttpResponse proxyGet(String url, IAuthRequest authRequest) throws IOException {
+  public static HttpResponse proxyGet(String url, AuthRequest authRequest) throws IOException {
     Request proxyRequest = Request.Get(url)
         .connectTimeout(HttpConnectionConstants.CONNECTION_TIMEOUT)
         .socketTimeout(HttpConnectionConstants.SOCKET_TIMEOUT);

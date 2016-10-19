@@ -20,7 +20,7 @@ import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.json.JsonMapper;
 import play.mvc.Result;
@@ -86,7 +86,7 @@ public class CommandController extends AbstractResourceServerController {
     }
 
     // Check read permission
-    IAuthRequest authRequest = null;
+    AuthRequest authRequest = null;
     try {
       authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(authRequest, permission1);
@@ -252,7 +252,7 @@ public class CommandController extends AbstractResourceServerController {
   public static Result moveNodeToFolder() {
 
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
     } catch (Exception e) {
       return internalServerErrorWithError(e);
@@ -308,7 +308,7 @@ public class CommandController extends AbstractResourceServerController {
     }
 
     // Check create permission
-    IAuthRequest authRequest = null;
+    AuthRequest authRequest = null;
     try {
       authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(authRequest, permission1);

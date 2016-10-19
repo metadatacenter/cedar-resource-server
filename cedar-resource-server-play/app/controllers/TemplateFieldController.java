@@ -6,7 +6,7 @@ import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +23,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
   public static Result createTemplateField(F.Option<Boolean> importMode) {
     boolean canProceed = false;
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_CREATE);
 
       String folderId = request().getQueryString("folderId");
@@ -50,7 +50,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
   public static Result findTemplateField(String fieldId) {
     boolean canProceed = false;
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_READ);
       if (userHasReadAccessToResource(folderBase, fieldId)) {
         canProceed = true;
@@ -72,7 +72,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
   public static Result findTemplateFieldDetails(String fieldId) {
     boolean canProceed = false;
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_READ);
       if (userHasReadAccessToResource(folderBase, fieldId)) {
         canProceed = true;
@@ -94,7 +94,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
   public static Result updateTemplateField(String fieldId) {
     boolean canProceed = false;
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_UPDATE);
       if (userHasWriteAccessToResource(folderBase, fieldId)) {
         canProceed = true;
@@ -116,7 +116,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
   public static Result deleteTemplateField(String fieldId) {
     boolean canProceed = false;
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_DELETE);
       if (userHasWriteAccessToResource(folderBase, fieldId)) {
         canProceed = true;
@@ -138,7 +138,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
   public static Result getTemplateFieldPermissions(String fieldId) {
     boolean canProceed = false;
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_READ);
       if (userHasReadAccessToResource(folderBase, fieldId)) {
         canProceed = true;
@@ -160,7 +160,7 @@ public class TemplateFieldController extends AbstractResourceServerController {
   public static Result updateTemplateFieldPermissions(String fieldId) {
     boolean canProceed = false;
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_FIELD_UPDATE);
       if (userHasWriteAccessToResource(folderBase, fieldId)) {
         canProceed = true;

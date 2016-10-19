@@ -21,7 +21,7 @@ import org.metadatacenter.model.resourceserver.CedarRSResource;
 import org.metadatacenter.server.play.AbstractCedarController;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.json.JsonMapper;
@@ -175,7 +175,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
 
   // Proxy methods for resource types
   protected static Result executeResourcePostByProxy(CedarNodeType nodeType, F.Option<Boolean> importMode) {
-    IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+    AuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
     try {
       String folderId = request().getQueryString("folderId");
       if (folderId != null) {
@@ -348,7 +348,7 @@ public abstract class AbstractResourceServerController extends AbstractCedarCont
   }
 
   protected static Result executeResourcePutByProxy(CedarNodeType nodeType, String id) {
-    IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+    AuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
       //System.out.println(url);

@@ -17,7 +17,7 @@ import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.model.response.RSNodeListResponse;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ public class SearchService implements ISearchService {
     this.indexUtils = new IndexUtils(folderBase, templateBase, limit, maxAttemps, delayAttemps);
   }
 
-  public void indexResource(CedarRSNode resource, JsonNode resourceContent, String indexName, String documentType, IAuthRequest authRequest)
+  public void indexResource(CedarRSNode resource, JsonNode resourceContent, String indexName, String documentType, AuthRequest authRequest)
       throws IOException, CedarAccessException, EncoderException {
     List<String> fieldNames = new ArrayList<>();
     List<String> fieldValues = new ArrayList<>();
@@ -64,7 +64,7 @@ public class SearchService implements ISearchService {
     esService.addToIndex(jsonResource, indexName, documentType);
   }
 
-  public void indexResource(CedarRSNode resource, JsonNode resourceContent, IAuthRequest authRequest) throws
+  public void indexResource(CedarRSNode resource, JsonNode resourceContent, AuthRequest authRequest) throws
       IOException, CedarAccessException, EncoderException {
     // Use default index and type
     indexResource(resource, resourceContent, esIndex, esType, authRequest);
@@ -81,7 +81,7 @@ public class SearchService implements ISearchService {
   }
 
   public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, String indexName, String
-      documentType, IAuthRequest authRequest) throws IOException, CedarAccessException, EncoderException {
+      documentType, AuthRequest authRequest) throws IOException, CedarAccessException, EncoderException {
     List<String> fieldNames = new ArrayList<>();
     List<String> fieldValues = new ArrayList<>();
     if (resourceContent != null) {
@@ -98,14 +98,14 @@ public class SearchService implements ISearchService {
     addToIndex(new CedarIndexResource(newResource, fieldNames, fieldValues, templateId), indexName, documentType);
   }
 
-  public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, IAuthRequest authRequest)
+  public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, AuthRequest authRequest)
       throws IOException, CedarAccessException, EncoderException {
     // Use default index and type
     updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
   }
 
   public RSNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String>
-      sortList, int limit, int offset, String absoluteUrl, IAuthRequest authRequest) throws IOException {
+      sortList, int limit, int offset, String absoluteUrl, AuthRequest authRequest) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
 
     // Accessible node ids
@@ -221,7 +221,7 @@ public class SearchService implements ISearchService {
     return response;
   }
 
-  public void regenerateSearchIndex(boolean force, IAuthRequest authRequest) throws IOException, CedarAccessException,
+  public void regenerateSearchIndex(boolean force, AuthRequest authRequest) throws IOException, CedarAccessException,
       EncoderException, InterruptedException {
     boolean regenerate = true;
     // Get all resources

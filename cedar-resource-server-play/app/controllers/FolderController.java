@@ -12,7 +12,7 @@ import org.metadatacenter.model.resourceserver.CedarRSFolder;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
@@ -30,7 +30,7 @@ public class FolderController extends AbstractResourceServerController {
       httpMethod = "POST")
   public static Result createFolder() {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String folderId = getFolderIdFromBody();
@@ -66,7 +66,7 @@ public class FolderController extends AbstractResourceServerController {
       httpMethod = "GET")
   public static Result findFolder(String folderId) {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       if (!userHasReadAccessToFolder(folderBase, folderId)) {
@@ -106,7 +106,7 @@ public class FolderController extends AbstractResourceServerController {
       httpMethod = "PUT")
   public static Result updateFolder(String folderId) {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       if (!userHasWriteAccessToFolder(folderBase, folderId)) {
@@ -142,7 +142,7 @@ public class FolderController extends AbstractResourceServerController {
       httpMethod = "DELETE")
   public static Result deleteFolder(String folderId) {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       if (!userHasWriteAccessToFolder(folderBase, folderId)) {
@@ -174,7 +174,7 @@ public class FolderController extends AbstractResourceServerController {
   public static Result getFolderPermissions(String folderId) {
     boolean canProceed = false;
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_READ);
       if (userHasReadAccessToFolder(folderBase, folderId)) {
         canProceed = true;
@@ -196,7 +196,7 @@ public class FolderController extends AbstractResourceServerController {
   public static Result updateFolderPermissions(String folderId) {
     boolean canProceed = false;
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_UPDATE);
       if (userHasWriteAccessToFolder(folderBase, folderId)) {
         canProceed = true;

@@ -13,7 +13,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ public class IndexUtils {
    * This method retrieves all the resources from the Folder Server that are expected to be in the search index. Those
    * resources that don't have to be in the index, such as the "/" folder and the "Lost+Found" folder are ignored.
    */
-  public List<CedarRSNode> findAllResources(IAuthRequest authRequest) throws IOException, InterruptedException {
+  public List<CedarRSNode> findAllResources(AuthRequest authRequest) throws IOException, InterruptedException {
     play.Logger.info("Retrieving all resources:");
     List<CedarRSNode> resources = new ArrayList<>();
     boolean finished = false;
@@ -117,7 +117,7 @@ public class IndexUtils {
   /**
    * Returns the full content of a particular resource
    */
-  public JsonNode findResourceContent(String resourceId, CedarNodeType nodeType, IAuthRequest authRequest) throws
+  public JsonNode findResourceContent(String resourceId, CedarNodeType nodeType, AuthRequest authRequest) throws
       CedarAccessException, IOException, EncoderException {
     CedarPermission permission = null;
     String resourceUrl = templateBase + nodeType.getPrefix();
@@ -137,7 +137,7 @@ public class IndexUtils {
 
   // Recursively extract all field names
   public List<String> extractFieldNames(CedarNodeType nodeType, JsonNode resourceContent, List<String>
-      results, IAuthRequest authRequest) throws EncoderException, CedarAccessException {
+      results, AuthRequest authRequest) throws EncoderException, CedarAccessException {
     if (nodeType.compareTo(CedarNodeType.TEMPLATE) == 0
         || nodeType.compareTo(CedarNodeType.ELEMENT) == 0) {
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
