@@ -11,7 +11,7 @@ import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.resourceserver.CedarRSNode;
+import org.metadatacenter.model.resourceserver.ResourceServerNode;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -49,9 +49,9 @@ public class IndexUtils {
    * This method retrieves all the resources from the Folder Server that are expected to be in the search index. Those
    * resources that don't have to be in the index, such as the "/" folder and the "Lost+Found" folder are ignored.
    */
-  public List<CedarRSNode> findAllResources(AuthRequest authRequest) throws IOException, InterruptedException {
+  public List<ResourceServerNode> findAllResources(AuthRequest authRequest) throws IOException, InterruptedException {
     play.Logger.info("Retrieving all resources:");
-    List<CedarRSNode> resources = new ArrayList<>();
+    List<ResourceServerNode> resources = new ArrayList<>();
     boolean finished = false;
     String baseUrl = folderBase + FOLDER_ALL_NODES;
     int offset = 0;
@@ -96,7 +96,7 @@ public class IndexUtils {
             indexResource = false;
           }
           if (indexResource) {
-            resources.add(mapper.convertValue(resource, CedarRSNode.class));
+            resources.add(mapper.convertValue(resource, ResourceServerNode.class));
           } else {
             play.Logger.info("The resource '" + resource.get("name").asText() + "' has been ignored");
           }

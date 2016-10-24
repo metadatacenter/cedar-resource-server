@@ -5,7 +5,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
-import org.metadatacenter.model.response.RSNodeListResponse;
+import org.metadatacenter.model.response.ResourceServerNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.AuthRequest;
@@ -80,10 +80,10 @@ public class FolderContentsController extends AbstractResourceServerController {
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
-      RSNodeListResponse response = null;
+      ResourceServerNodeListResponse response = null;
       try {
         String responseString = EntityUtils.toString(proxyResponse.getEntity());
-        response = JsonMapper.MAPPER.readValue(responseString, RSNodeListResponse.class);
+        response = JsonMapper.MAPPER.readValue(responseString, ResourceServerNodeListResponse.class);
       } catch (JsonProcessingException e) {
         e.printStackTrace();
       }

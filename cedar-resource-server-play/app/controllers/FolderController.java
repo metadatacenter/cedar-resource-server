@@ -8,7 +8,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.resourceserver.CedarRSFolder;
+import org.metadatacenter.model.resourceserver.ResourceServerFolder;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
@@ -48,7 +48,7 @@ public class FolderController extends AbstractResourceServerController {
         if (HttpStatus.SC_CREATED == statusCode) {
           // index the folder that has been created
           DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue(entity.getContent(),
-              CedarRSFolder.class), null, frontendRequest);
+              ResourceServerFolder.class), null, frontendRequest);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());
@@ -124,7 +124,7 @@ public class FolderController extends AbstractResourceServerController {
         if (HttpStatus.SC_OK == statusCode) {
           // update the folder on the index
           DataServices.getInstance().getSearchService().updateIndexedResource(JsonMapper.MAPPER.readValue(entity
-              .getContent(), CedarRSFolder.class), null, frontendRequest);
+              .getContent(), ResourceServerFolder.class), null, frontendRequest);
           return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
         } else {
           return Results.status(statusCode, entity.getContent());

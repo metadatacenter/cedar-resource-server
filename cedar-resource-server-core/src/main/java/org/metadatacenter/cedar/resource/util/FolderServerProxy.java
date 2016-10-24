@@ -6,10 +6,8 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
-import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.CedarFSFolder;
-import org.metadatacenter.model.folderserver.CedarFSNode;
-import org.metadatacenter.model.folderserver.CedarFSResource;
+import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.util.json.JsonMapper;
 import play.mvc.Http;
 
@@ -20,7 +18,7 @@ public class FolderServerProxy {
   private FolderServerProxy() {
   }
 
-  public static CedarFSFolder getFolder(String folderBaseFolders, String folderId, Http.Request request) {
+  public static FolderServerFolder getFolder(String folderBaseFolders, String folderId, Http.Request request) {
     if (folderId != null) {
       try {
         String url = folderBaseFolders + "/" + new URLCodec().encode(folderId);
@@ -30,9 +28,9 @@ public class FolderServerProxy {
         HttpEntity entity = proxyResponse.getEntity();
         if (entity != null) {
           if (HttpStatus.SC_OK == statusCode) {
-            CedarFSFolder folder = null;
+            FolderServerFolder folder = null;
             String responseString = EntityUtils.toString(proxyResponse.getEntity());
-            folder = JsonMapper.MAPPER.readValue(responseString, CedarFSFolder.class);
+            folder = JsonMapper.MAPPER.readValue(responseString, FolderServerFolder.class);
             return folder;
           }
         }
@@ -45,7 +43,7 @@ public class FolderServerProxy {
     return null;
   }
 
-  public static CedarFSResource getResource(String folderBaseResource, String resourceId, Http.Request request) {
+  public static FolderServerResource getResource(String folderBaseResource, String resourceId, Http.Request request) {
     if (resourceId != null) {
       try {
         String url = folderBaseResource + "/" + new URLCodec().encode(resourceId);
@@ -57,9 +55,9 @@ public class FolderServerProxy {
         System.out.println(entity);
         if (entity != null) {
           if (HttpStatus.SC_OK == statusCode) {
-            CedarFSResource node = null;
+            FolderServerResource node = null;
             String responseString = EntityUtils.toString(proxyResponse.getEntity());
-            node = JsonMapper.MAPPER.readValue(responseString, CedarFSResource.class);
+            node = JsonMapper.MAPPER.readValue(responseString, FolderServerResource.class);
             return node;
           }
         }
