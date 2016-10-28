@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wordnik.swagger.annotations.*;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.response.ResourceServerNodeListResponse;
+import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.model.AuthRequest;
@@ -69,7 +69,7 @@ public class SearchController extends AbstractResourceServerController {
       String absoluteUrl = routes.SearchController.search(query, resourceTypes, templateId, sort,
           none, none).absoluteURL(request());
 
-      ResourceServerNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
+      FolderServerNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
           resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, frontendRequest);
 
       ObjectMapper mapper = new ObjectMapper();
@@ -111,7 +111,7 @@ public class SearchController extends AbstractResourceServerController {
       //CedarUser user = Authorization.getUser(frontendRequest);
       //String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
 
-      ResourceServerNodeListResponse results = DataServices.getInstance().getSearchService().searchDeep(queryString,
+      FolderServerNodeListResponse results = DataServices.getInstance().getSearchService().searchDeep(queryString,
           resourceTypeList, tempId, sortList, limit);
 
       ObjectMapper mapper = new ObjectMapper();

@@ -13,8 +13,6 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerResource;
-import org.metadatacenter.model.resourceserver.ResourceServerFolder;
-import org.metadatacenter.model.resourceserver.ResourceServerResource;
 import org.metadatacenter.server.result.BackendCallErrorType;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.Authorization;
@@ -172,7 +170,7 @@ public class CommandController extends AbstractResourceServerController {
     // AbstractResourceServerController.executeResourcePostByProxy
     // refactor, if possible
     try {
-      ResourceServerFolder targetFolder = getCedarFolderById(folderId);
+      FolderServerFolder targetFolder = getCedarFolderById(folderId);
       if (targetFolder == null) {
         ObjectNode errorParams = JsonNodeFactory.instance.objectNode();
         errorParams.put("folderId", folderId);
@@ -220,7 +218,8 @@ public class CommandController extends AbstractResourceServerController {
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
                 DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue
-                    (resourceCreateResponse.getEntity().getContent(), ResourceServerResource.class), jsonNode, authRequest);
+                    (resourceCreateResponse.getEntity().getContent(), FolderServerResource.class), jsonNode,
+                    authRequest);
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();

@@ -11,10 +11,10 @@ import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchServi
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.cedar.resource.util.FolderServerUtil;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
-import org.metadatacenter.model.resourceserver.ResourceServerNode;
-import org.metadatacenter.model.response.ResourceServerNodeListResponse;
+import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.util.http.LinkHeaderUtil;
@@ -43,7 +43,7 @@ public class SearchService implements ISearchService {
     this.indexUtils = new IndexUtils(folderBase, templateBase, limit, maxAttemps, delayAttemps);
   }
 
-  public void indexResource(ResourceServerNode resource, JsonNode resourceContent, String indexName, String documentType, AuthRequest authRequest)
+  public void indexResource(FolderServerNode resource, JsonNode resourceContent, String indexName, String documentType, AuthRequest authRequest)
       throws IOException, CedarAccessException, EncoderException {
     List<String> fieldNames = new ArrayList<>();
     List<String> fieldValues = new ArrayList<>();
@@ -63,7 +63,7 @@ public class SearchService implements ISearchService {
     esService.addToIndex(jsonResource, indexName, documentType);
   }
 
-  public void indexResource(ResourceServerNode resource, JsonNode resourceContent, AuthRequest authRequest) throws
+  public void indexResource(FolderServerNode resource, JsonNode resourceContent, AuthRequest authRequest) throws
       IOException, CedarAccessException, EncoderException {
     // Use default index and type
     indexResource(resource, resourceContent, esIndex, esType, authRequest);
@@ -79,7 +79,7 @@ public class SearchService implements ISearchService {
     removeResourceFromIndex(resourceId, esIndex, esType);
   }
 
-  public void updateIndexedResource(ResourceServerNode newResource, JsonNode resourceContent, String indexName, String
+  public void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, String indexName, String
       documentType, AuthRequest authRequest) throws IOException, CedarAccessException, EncoderException {
     List<String> fieldNames = new ArrayList<>();
     List<String> fieldValues = new ArrayList<>();
@@ -97,13 +97,13 @@ public class SearchService implements ISearchService {
     addToIndex(new CedarIndexResource(newResource, fieldNames, fieldValues, templateId), indexName, documentType);
   }
 
-  public void updateIndexedResource(ResourceServerNode newResource, JsonNode resourceContent, AuthRequest authRequest)
+  public void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, AuthRequest authRequest)
       throws IOException, CedarAccessException, EncoderException {
     // Use default index and type
     updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
   }
 
-  public ResourceServerNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String>
+  public FolderServerNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String>
       sortList, int limit, int offset, String absoluteUrl, AuthRequest authRequest) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
 
@@ -133,8 +133,8 @@ public class SearchService implements ISearchService {
     }
 
     // Retrieve resources
-    ResourceServerNodeListResponse response = new ResourceServerNodeListResponse();
-    List<ResourceServerNode> resources = new ArrayList<>();
+    FolderServerNodeListResponse response = new FolderServerNodeListResponse();
+    List<FolderServerNode> resources = new ArrayList<>();
     SearchResponse esResults = null;
     while (resources.size() < limit) {
       esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit, offsetIndex);
@@ -185,7 +185,7 @@ public class SearchService implements ISearchService {
   }
 
   // TODO: Update to take into account the user's access permissions to resources
-  public ResourceServerNodeListResponse searchDeep(String query, List<String> resourceTypes, String templateId, List<String> sortList, int limit) throws IOException {
+  public FolderServerNodeListResponse searchDeep(String query, List<String> resourceTypes, String templateId, List<String> sortList, int limit) throws IOException {
     ObjectMapper mapper = new ObjectMapper();
     List<SearchHit> esHits = esService.searchDeep(query, resourceTypes, sortList, templateId, esIndex, esType, limit);
 
@@ -194,8 +194,8 @@ public class SearchService implements ISearchService {
       esHits = esHits.subList(0, limit);
     }
 
-    ResourceServerNodeListResponse response = new ResourceServerNodeListResponse();
-    List<ResourceServerNode> resources = new ArrayList<>();
+    FolderServerNodeListResponse response = new FolderServerNodeListResponse();
+    List<FolderServerNode> resources = new ArrayList<>();
     for (SearchHit hit : esHits) {
       String hitJson = hit.sourceAsString();
       CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
@@ -224,7 +224,7 @@ public class SearchService implements ISearchService {
       EncoderException, InterruptedException {
     boolean regenerate = true;
     // Get all resources
-    List<ResourceServerNode> resources = indexUtils.findAllResources(authRequest);
+    List<FolderServerNode> resources = indexUtils.findAllResources(authRequest);
     // Checks if is necessary to regenerate the index or not
     if (!force) {
       System.out.println("Checking if it is necessary to regenerate the search index from DB");
@@ -258,7 +258,7 @@ public class SearchService implements ISearchService {
       System.out.println("Regenerating index");
       // Get resources content
       Map<String, JsonNode> resourcesContent = new HashMap<>();
-      for (ResourceServerNode resource : resources) {
+      for (FolderServerNode resource : resources) {
         if (resource.getType() != CedarNodeType.FOLDER) {
           JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), authRequest);
           resourcesContent.put(resource.getId(), resourceContent);
@@ -269,7 +269,7 @@ public class SearchService implements ISearchService {
       createSearchIndex(newIndexName, esType);
       // Index all resources
       if (resources != null) {
-        for (ResourceServerNode resource : resources) {
+        for (FolderServerNode resource : resources) {
           JsonNode resourceContent = null;
           if (resourcesContent != null) {
             resourceContent = resourcesContent.get(resource.getId());
@@ -294,9 +294,9 @@ public class SearchService implements ISearchService {
    * PRIVATE METHODS
    */
 
-  private List<String> getResourceIds(List<ResourceServerNode> resources) {
+  private List<String> getResourceIds(List<FolderServerNode> resources) {
     List<String> ids = new ArrayList<>();
-    for (ResourceServerNode resource : resources) {
+    for (FolderServerNode resource : resources) {
       ids.add(resource.getId());
     }
     return ids;
@@ -375,7 +375,7 @@ public class SearchService implements ISearchService {
     esService.createIndex(indexName, documentType, settings, mapping);
   }
 
-  private ResourceServerNode setResourceDetails(ResourceServerNode resource) {
+  private FolderServerNode setResourceDetails(FolderServerNode resource) {
     resource.setDisplayName(resource.getName());
     return resource;
   }
