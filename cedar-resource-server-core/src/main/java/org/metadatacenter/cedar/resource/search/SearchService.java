@@ -11,7 +11,6 @@ import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchServi
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.cedar.resource.util.FolderServerUtil;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.index.CedarIndexField;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.resourceserver.CedarRSNode;
@@ -46,9 +45,9 @@ public class SearchService implements ISearchService {
 
   public void indexResource(CedarRSNode resource, JsonNode resourceContent, String indexName, String documentType, IAuthRequest authRequest)
       throws IOException, CedarAccessException, EncoderException {
-    List<CedarIndexField> fields = null;
+    JsonNode summarizedContent = null;
     if (resourceContent != null) {
-      fields = indexUtils.extractFields(resource.getType(), resourceContent, authRequest);
+      summarizedContent = indexUtils.extractSummarizedContent(resource.getType(), resourceContent, authRequest);
     }
     System.out.println("Indexing resource (id = " + resource.getId() + ")");
     // Set resource details
@@ -57,7 +56,7 @@ public class SearchService implements ISearchService {
       templateId = resourceContent.get("schema:isBasedOn").asText();
     }
     resource = setResourceDetails(resource);
-    CedarIndexResource ir = new CedarIndexResource(resource, fields, templateId);
+    CedarIndexResource ir = new CedarIndexResource(resource, summarizedContent, templateId);
     JsonNode jsonResource = new ObjectMapper().convertValue(ir, JsonNode.class);
     esService.addToIndex(jsonResource, indexName, documentType);
   }
@@ -80,9 +79,9 @@ public class SearchService implements ISearchService {
 
   public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, String indexName, String
       documentType, IAuthRequest authRequest) throws IOException, CedarAccessException, EncoderException {
-    List<CedarIndexField> fields = null;
+    JsonNode summarizedContent = null;
     if (resourceContent != null) {
-      fields = indexUtils.extractFields(newResource.getType(), resourceContent, authRequest);
+      summarizedContent = indexUtils.extractSummarizedContent(newResource.getType(), resourceContent, authRequest);
     }
     System.out.println("Updating resource (id = " + newResource.getId());
     removeResourceFromIndex(newResource.getId(), indexName, documentType);
@@ -91,7 +90,7 @@ public class SearchService implements ISearchService {
       templateId = resourceContent.get("schema:isBasedOn").asText();
     }
     newResource = setResourceDetails(newResource);
-    addToIndex(new CedarIndexResource(newResource, fields, templateId), indexName, documentType);
+    addToIndex(new CedarIndexResource(newResource, summarizedContent, templateId), indexName, documentType);
   }
 
   public void updateIndexedResource(CedarRSNode newResource, JsonNode resourceContent, IAuthRequest authRequest)
