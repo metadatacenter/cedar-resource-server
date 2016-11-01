@@ -353,9 +353,6 @@ public class IndexUtils {
     if (nodeType.equals(CedarNodeType.TEMPLATE) || (nodeType.equals(CedarNodeType.ELEMENT))) {
       JsonNode schemaSummary = extractSchemaSummary(nodeType, resourceContent, JsonNodeFactory.instance.objectNode
           (), null);
-//      System.out.println("*************** FIELDS INFO ***************");
-//      System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(schemaSummary));
-//      System.out.println("----");
       return schemaSummary;
     }
     // Instances
@@ -365,9 +362,6 @@ public class IndexUtils {
 
       JsonNode valuesSummary = extractValuesSummary(nodeType, schemaSummary, resourceContent, JsonNodeFactory
           .instance.objectNode());
-//      System.out.println("*************** VALUES INFO ***************");
-//      System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(valuesSummary));
-//      System.out.println("----");
 
       return valuesSummary;
 
@@ -460,12 +454,6 @@ public class IndexUtils {
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
       while (fieldsIterator.hasNext()) {
         Map.Entry<String, JsonNode> field = fieldsIterator.next();
-
-        System.out.println("%%%%%%% FIELD %%%%%%%%");
-        System.out.println("key: " + field.getKey());
-        System.out.println("value: " + field.getValue());
-        System.out.println(field.getValue().isValueNode());
-        System.out.println("&&&&&&&&&&&&&&&&&&&&&&&&");
 
         if (field.getValue().isContainerNode()) {
           if (!field.getKey().equals("@context")) {
