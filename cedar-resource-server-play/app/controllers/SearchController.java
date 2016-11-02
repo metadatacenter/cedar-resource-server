@@ -4,17 +4,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wordnik.swagger.annotations.*;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.response.RSNodeListResponse;
+import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import play.libs.F;
 import play.mvc.Result;
 import utils.DataServices;
 import utils.ParametersValidator;
 
-import javax.ws.rs.HeaderParam;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,7 +41,7 @@ public class SearchController extends AbstractResourceServerController {
   public static Result search(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> templateId, F.Option<String> sort,  F
       .Option<Integer> limitParam, F.Option<Integer> offsetParam) {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       // Parameters validation
@@ -70,7 +69,7 @@ public class SearchController extends AbstractResourceServerController {
       String absoluteUrl = routes.SearchController.search(query, resourceTypes, templateId, sort,
           none, none).absoluteURL(request());
 
-      RSNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
+      FolderServerNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
           resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, frontendRequest);
 
       ObjectMapper mapper = new ObjectMapper();
@@ -91,7 +90,7 @@ public class SearchController extends AbstractResourceServerController {
   public static Result searchDeep(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> templateId, F.Option<String> sort, F
       .Option<Integer> limitParam) {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       // Parameters validation
@@ -114,7 +113,7 @@ public class SearchController extends AbstractResourceServerController {
       //CedarUser user = Authorization.getUser(frontendRequest);
       //String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
 
-      RSNodeListResponse results = DataServices.getInstance().getSearchService().searchDeep(queryString,
+      FolderServerNodeListResponse results = DataServices.getInstance().getSearchService().searchDeep(queryString,
           resourceTypeList, tempId, sortList, limit);
 
       ObjectMapper mapper = new ObjectMapper();
@@ -132,7 +131,7 @@ public class SearchController extends AbstractResourceServerController {
   // TODO: Search by POST
 //  public static Result searchByPost() {
 //    try {
-//      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+//      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
 //      Authorization.mustHavePermission(frontendRequest, CedarPermission.JUST_AUTHORIZED);
 //
 //      //RSNodeListResponse results = DataServices.getInstance().getSearchService().search("");
@@ -151,7 +150,7 @@ public class SearchController extends AbstractResourceServerController {
   // Reindex all resources
   public static Result regenerateSearchIndex() {
     try {
-      IAuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(authRequest, CedarPermission.SEARCH_INDEX_REINDEX);
       // Read input parameters from body
       JsonNode json = request().body().asJson();

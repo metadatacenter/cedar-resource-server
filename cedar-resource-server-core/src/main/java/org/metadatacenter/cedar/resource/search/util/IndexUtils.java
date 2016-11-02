@@ -17,9 +17,9 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.index.CedarIndexFieldValue;
 import org.metadatacenter.model.index.CedarIndexFieldSchema;
-import org.metadatacenter.model.resourceserver.CedarRSNode;
+import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
 import java.io.IOException;
@@ -66,9 +66,9 @@ public class IndexUtils {
    * This method retrieves all the resources from the Folder Server that are expected to be in the search index. Those
    * resources that don't have to be in the index, such as the "/" folder and the "Lost+Found" folder are ignored.
    */
-  public List<CedarRSNode> findAllResources(IAuthRequest authRequest) throws IOException, InterruptedException {
+  public List<FolderServerNode> findAllResources(AuthRequest authRequest) throws IOException, InterruptedException {
     play.Logger.info("Retrieving all resources:");
-    List<CedarRSNode> resources = new ArrayList<>();
+    List<FolderServerNode> resources = new ArrayList<>();
     boolean finished = false;
     String baseUrl = folderBase + FOLDER_ALL_NODES;
     int offset = 0;
@@ -113,7 +113,7 @@ public class IndexUtils {
             indexResource = false;
           }
           if (indexResource) {
-            resources.add(mapper.convertValue(resource, CedarRSNode.class));
+            resources.add(mapper.convertValue(resource, FolderServerNode.class));
           } else {
             play.Logger.info("The resource '" + resource.get("name").asText() + "' has been ignored");
           }
@@ -134,7 +134,7 @@ public class IndexUtils {
   /**
    * Returns the full content of a particular resource
    */
-  public JsonNode findResourceContent(String resourceId, CedarNodeType nodeType, IAuthRequest authRequest) throws
+  public JsonNode findResourceContent(String resourceId, CedarNodeType nodeType, AuthRequest authRequest) throws
       CedarAccessException, IOException, EncoderException {
     CedarPermission permission = null;
     String resourceUrl = templateBase + nodeType.getPrefix();
@@ -347,7 +347,7 @@ public class IndexUtils {
 
   // Returns summary of resourceContent. There is no need to index the full JSON for each resource. Only the
   // information necessary to satisfy search and value recommendation use cases is kept.
-  public JsonNode extractSummarizedContent(CedarNodeType nodeType, JsonNode resourceContent, IAuthRequest authRequest)
+  public JsonNode extractSummarizedContent(CedarNodeType nodeType, JsonNode resourceContent, AuthRequest authRequest)
       throws JsonProcessingException, CedarAccessException, EncoderException {
     // Templates and Elements
     if (nodeType.equals(CedarNodeType.TEMPLATE) || (nodeType.equals(CedarNodeType.ELEMENT))) {
@@ -371,8 +371,9 @@ public class IndexUtils {
   }
 
   private JsonNode extractSchemaSummary(CedarNodeType nodeType, JsonNode resourceContent, JsonNode results,
-                                        IAuthRequest authRequest) throws EncoderException, CedarAccessException {
+                                        AuthRequest authRequest) throws EncoderException, CedarAccessException {
     if (nodeType.compareTo(CedarNodeType.TEMPLATE) == 0 || nodeType.compareTo(CedarNodeType.ELEMENT) == 0) {
+
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
       while (fieldsIterator.hasNext()) {
         Map.Entry<String, JsonNode> field = fieldsIterator.next();

@@ -11,16 +11,14 @@ import org.metadatacenter.cedar.resource.util.FolderServerProxy;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.CedarFSFolder;
-import org.metadatacenter.model.folderserver.CedarFSResource;
-import org.metadatacenter.model.resourceserver.CedarRSFolder;
-import org.metadatacenter.model.resourceserver.CedarRSResource;
+import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.server.result.BackendCallErrorType;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.json.JsonMapper;
 import play.mvc.Result;
@@ -86,7 +84,7 @@ public class CommandController extends AbstractResourceServerController {
     }
 
     // Check read permission
-    IAuthRequest authRequest = null;
+    AuthRequest authRequest = null;
     try {
       authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(authRequest, permission1);
@@ -172,7 +170,7 @@ public class CommandController extends AbstractResourceServerController {
     // AbstractResourceServerController.executeResourcePostByProxy
     // refactor, if possible
     try {
-      CedarRSFolder targetFolder = getCedarFolderById(folderId);
+      FolderServerFolder targetFolder = getCedarFolderById(folderId);
       if (targetFolder == null) {
         ObjectNode errorParams = JsonNodeFactory.instance.objectNode();
         errorParams.put("folderId", folderId);
@@ -220,7 +218,8 @@ public class CommandController extends AbstractResourceServerController {
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
                 DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue
-                    (resourceCreateResponse.getEntity().getContent(), CedarRSResource.class), jsonNode, authRequest);
+                    (resourceCreateResponse.getEntity().getContent(), FolderServerResource.class), jsonNode,
+                    authRequest);
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -252,7 +251,7 @@ public class CommandController extends AbstractResourceServerController {
   public static Result moveNodeToFolder() {
 
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
     } catch (Exception e) {
       return internalServerErrorWithError(e);
@@ -308,7 +307,7 @@ public class CommandController extends AbstractResourceServerController {
     }
 
     // Check create permission
-    IAuthRequest authRequest = null;
+    AuthRequest authRequest = null;
     try {
       authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(authRequest, permission1);
@@ -339,7 +338,7 @@ public class CommandController extends AbstractResourceServerController {
 
       // Check if the source node exists
       if (nodeType == CedarNodeType.FOLDER) {
-        CedarFSFolder sourceFolder = FolderServerProxy.getFolder(folderURL, sourceId, request());
+        FolderServerFolder sourceFolder = FolderServerProxy.getFolder(folderURL, sourceId, request());
         if (sourceFolder == null) {
           BackendCallResult backendCallResult = new BackendCallResult();
           backendCallResult.addError(BackendCallErrorType.NOT_FOUND)
@@ -350,7 +349,7 @@ public class CommandController extends AbstractResourceServerController {
         }
       } else {
         String resourceURL = folderBase + "/" + PREFIX_RESOURCES;
-        CedarFSResource sourceResource = FolderServerProxy.getResource(resourceURL, sourceId, request());
+        FolderServerResource sourceResource = FolderServerProxy.getResource(resourceURL, sourceId, request());
         if (sourceResource == null) {
           BackendCallResult backendCallResult = new BackendCallResult();
           backendCallResult.addError(BackendCallErrorType.NOT_FOUND)
@@ -362,7 +361,7 @@ public class CommandController extends AbstractResourceServerController {
       }
 
       // Check if the target folder exists
-      CedarFSFolder targetFolder = FolderServerProxy.getFolder(folderURL, folderId, request());
+      FolderServerFolder targetFolder = FolderServerProxy.getFolder(folderURL, folderId, request());
       if (targetFolder == null) {
         BackendCallResult backendCallResult = new BackendCallResult();
         backendCallResult.addError(BackendCallErrorType.NOT_FOUND)

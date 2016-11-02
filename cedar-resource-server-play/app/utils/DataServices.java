@@ -9,7 +9,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ElasticsearchConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.server.security.CedarApiKeyAuthRequest;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
@@ -62,7 +62,7 @@ public class DataServices {
     } else {
       // Regenerate search index if necessary
       String apiKey = adminUser.getFirstActiveApiKey();
-      IAuthRequest authRequest = new CedarApiKeyAuthRequest(apiKey);
+      AuthRequest authRequest = new CedarApiKeyAuthRequest(apiKey);
       try {
         searchService.regenerateSearchIndex(false, authRequest);
       } catch (Exception e) {
