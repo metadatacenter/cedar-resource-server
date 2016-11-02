@@ -479,6 +479,7 @@ public class IndexUtils {
                   fv.setFieldValueSemanticType(valueNode.asText());
                   // Controlled term preferred name
                   fv.setFieldValue_string(valueLabelNode.asText());
+                  fv.generateFieldValueAndSemanticType();
                 }
                 String outputFieldKey = field.getKey() + FIELD_SUFFIX;
                 ((ObjectNode) results).set(outputFieldKey, mapper.valueToTree(fv));
