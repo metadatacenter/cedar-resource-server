@@ -23,6 +23,8 @@ import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.*;
 
 import static org.metadatacenter.constant.ResourceConstants.FOLDER_ALL_NODES;
@@ -404,7 +406,6 @@ public class IndexUtils {
             f.setFieldName(fieldName);
             f.setFieldSemanticType(fieldSemanticType);
             f.setFieldValueType(fieldType);
-            f.setUseForValueRecommendation(true);
             String outputFieldKey = fieldKey + FIELD_SUFFIX;
             // Add object to the results
             ((ObjectNode) results).set(outputFieldKey, mapper.valueToTree(f));
@@ -460,11 +461,25 @@ public class IndexUtils {
           if (!field.getKey().equals("@context")) {
             // Single value
             if (field.getValue().isObject()) {
-              // Field
+              // Field (regular)
               if (field.getValue().has("@value")) {
                 JsonNode valueNode = field.getValue().get("@value");
                 JsonNode fieldSchema = schemaSummary.get(field.getKey() + FIELD_SUFFIX);
-                CedarIndexFieldValue fv = valueToIndexValue(valueNode, fieldSchema);
+                CedarIndexFieldValue fv = null;
+                // Free text value
+                if (!field.getValue().has("_valueLabel")) {
+                  fv = valueToIndexValue(valueNode, fieldSchema);
+                }
+                // Controlled term
+                else {
+                  JsonNode valueLabelNode = field.getValue().get("_valueLabel");
+                  CedarIndexFieldSchema fs = mapper.treeToValue(fieldSchema, CedarIndexFieldSchema.class);
+                  fv = fs.toFieldValue();
+                  // Controlled term URI
+                  fv.setFieldValueSemanticType(valueNode.asText());
+                  // Controlled term preferred name
+                  fv.setFieldValue_string(valueLabelNode.asText());
+                }
                 String outputFieldKey = field.getKey() + FIELD_SUFFIX;
                 ((ObjectNode) results).set(outputFieldKey, mapper.valueToTree(fv));
                 // Element
@@ -483,9 +498,8 @@ public class IndexUtils {
                 if (arrayItem.has("@value") && (arrayItem.get("@value").isValueNode())) {
                   JsonNode fieldSchema = schemaSummary.get(field.getKey() + FIELD_SUFFIX);
                   CedarIndexFieldValue fv = valueToIndexValue(arrayItem.get("@value"), fieldSchema);
-                  ((ArrayNode) results.get(field.getKey())).add((ObjectNode)mapper.valueToTree(fv));
-                }
-                else {
+                  ((ArrayNode) results.get(field.getKey())).add((ObjectNode) mapper.valueToTree(fv));
+                } else {
                   ((ArrayNode) results.get(field.getKey())).add(JsonNodeFactory.instance.objectNode());
                   extractValuesSummary(nodeType, schemaSummary.get(field.getKey()), arrayItem, results.get(field.getKey()).get(i));
                 }
@@ -525,5 +539,5 @@ public class IndexUtils {
     return fv;
   }
 
-}
 
+}
