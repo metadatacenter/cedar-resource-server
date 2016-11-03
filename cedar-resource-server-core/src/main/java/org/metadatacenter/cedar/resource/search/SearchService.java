@@ -260,6 +260,7 @@ public class SearchService implements ISearchService {
       String newIndexName = esIndex + "-" + Long.toString(Calendar.getInstance().getTimeInMillis());
       esService.createIndex(newIndexName, esType);
       // Get resources content and index it
+      int count = 1;
       for (FolderServerNode resource : resources) {
         if (resource.getType() != CedarNodeType.FOLDER) {
           JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), authRequest);
@@ -270,6 +271,8 @@ public class SearchService implements ISearchService {
         else {
           indexResource(resource, null, newIndexName, esType, authRequest);
         }
+        float progress = (100 * count++) / resources.size();
+        System.out.println(String.format("Progress: %.0f%%",progress));
       }
       // Point alias to new index
       esService.addAlias(newIndexName, esIndex);
