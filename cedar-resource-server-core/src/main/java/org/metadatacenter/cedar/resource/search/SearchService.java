@@ -11,6 +11,7 @@ import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchServi
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.cedar.resource.util.FolderServerUtil;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
@@ -18,6 +19,7 @@ import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.util.http.LinkHeaderUtil;
+import org.metadatacenter.util.json.JsonMapper;
 
 import java.io.IOException;
 import java.util.*;
@@ -254,30 +256,23 @@ public class SearchService implements ISearchService {
     }
     if (regenerate) {
       System.out.println("Regenerating index");
-      // Get resources content
-      Map<String, JsonNode> resourcesContent = new HashMap<>();
-      for (FolderServerNode resource : resources) {
-        if (resource.getType() != CedarNodeType.FOLDER) {
-          JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), authRequest);
-          resourcesContent.put(resource.getId(), resourceContent);
-        }
-      }
       // Create new index and set it up
       String newIndexName = esIndex + "-" + Long.toString(Calendar.getInstance().getTimeInMillis());
       esService.createIndex(newIndexName, esType);
-      // Index all resources
-      if (resources != null) {
-        for (FolderServerNode resource : resources) {
-          JsonNode resourceContent = null;
-          if (resourcesContent != null) {
-            resourceContent = resourcesContent.get(resource.getId());
+      // Get resources content and index it
+      for (FolderServerNode resource : resources) {
+        if (resource.getType() != CedarNodeType.FOLDER) {
+          JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), authRequest);
+          if (resourceContent != null) {
+            indexResource(resource, resourceContent, newIndexName, esType, authRequest);
           }
-          indexResource(resource, resourceContent, newIndexName, esType, authRequest);
+        }
+        else {
+          indexResource(resource, null, newIndexName, esType, authRequest);
         }
       }
       // Point alias to new index
       esService.addAlias(newIndexName, esIndex);
-
       // Delete any other index previously associated to the alias
       List<String> indexNames = esService.getIndexesByAlias(esIndex);
       for (String indexName : indexNames) {
