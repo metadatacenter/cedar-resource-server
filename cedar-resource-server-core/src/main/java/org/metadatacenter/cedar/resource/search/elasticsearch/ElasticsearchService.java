@@ -41,6 +41,7 @@ public class ElasticsearchService implements IElasticsearchService {
   private int scrollKeepAlive;
   private HashMap indexSettings;
   private HashMap indexMappings;
+  private Client client = null;
 
   public ElasticsearchService(String esCluster, String esHost, int esTransportPort, int esSize, int scrollKeepAlive,
                               HashMap indexSettings, HashMap indexMappings) {
@@ -57,7 +58,7 @@ public class ElasticsearchService implements IElasticsearchService {
 
   public void createIndex(String indexName, String documentType)
       throws IOException {
-    Client client = null;
+    //Client client = null;
     try {
       client = getClient();
       CreateIndexRequestBuilder createIndexRequestBuilder = client.admin().indices().prepareCreate(indexName);
@@ -76,7 +77,7 @@ public class ElasticsearchService implements IElasticsearchService {
       }
       System.out.println("The index " + indexName + " has been created");
     } finally {
-      client.close();
+      //client.close();
     }
   }
 
@@ -85,7 +86,7 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   public void addToIndex(JsonNode json, String indexName, String documentType) throws IOException {
-    Client client = null;
+    //Client client = null;
     boolean again = true;
     int maxAttemps = 20;
     int count = 0;
@@ -106,13 +107,13 @@ public class ElasticsearchService implements IElasticsearchService {
       }
       finally {
         // Close client
-        client.close();
+        //client.close();
       }
     }
   }
 
   public void removeFromIndex(String resourceId, String indexName, String documentType) throws IOException {
-    Client client = null;
+    //Client client = null;
     System.out.println("Removing resource @id=" + resourceId + "from the index");
     try {
       client = getClient();
@@ -135,13 +136,13 @@ public class ElasticsearchService implements IElasticsearchService {
       }
     } finally {
       // Close client
-      client.close();
+      //client.close();
     }
   }
 
   public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList, String templateId,
                                String indexName, String documentType, int limit, int offset) throws UnknownHostException {
-    Client client = null;
+    //Client client = null;
     try {
       client = getClient();
       SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList, templateId, indexName, documentType);
@@ -157,7 +158,7 @@ public class ElasticsearchService implements IElasticsearchService {
       return response;
     } finally {
       // Close client
-      client.close();
+      //client.close();
     }
   }
 
@@ -166,7 +167,7 @@ public class ElasticsearchService implements IElasticsearchService {
   // More info: https://www.elastic.co/guide/en/elasticsearch/reference/2.3/search-request-scroll.html
   public List<SearchHit> searchDeep(String query, List<String> resourceTypes, List<String> sortList, String templateId,
                                     String indexName, String documentType, int limit) throws UnknownHostException {
-    Client client = null;
+    //Client client = null;
     try {
       client = getClient();
       SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList,
@@ -193,7 +194,7 @@ public class ElasticsearchService implements IElasticsearchService {
 
     } finally {
       // Close client
-      client.close();
+      //client.close();
     }
   }
 
@@ -248,7 +249,7 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   public boolean indexExists(String indexName) throws UnknownHostException {
-    Client client = null;
+    //Client client = null;
     try {
       client = getClient();
       boolean exists = client.admin().indices().prepareExists(indexName)
@@ -256,12 +257,12 @@ public class ElasticsearchService implements IElasticsearchService {
       return exists;
     } finally {
       // Close client
-      client.close();
+      //client.close();
     }
   }
 
   public void deleteIndex(String indexName) throws IOException {
-    Client client = null;
+    //Client client = null;
     try {
       client = getClient();
       DeleteIndexResponse deleteIndexResponse =
@@ -272,12 +273,12 @@ public class ElasticsearchService implements IElasticsearchService {
       System.out.println("The index '" + indexName + "' has been deleted");
     } finally {
       // Close client
-      client.close();
+      //client.close();
     }
   }
 
   public void addAlias(String indexName, String aliasName) throws IOException {
-    Client client = null;
+    //Client client = null;
     try {
       client = getClient();
       IndicesAliasesResponse response = client.admin().indices().prepareAliases()
@@ -288,12 +289,12 @@ public class ElasticsearchService implements IElasticsearchService {
       }
       System.out.println("The alias '" + aliasName + "' has been added to index '" + indexName + "'");
     } finally {
-      client.close();
+      //client.close();
     }
   }
 
   public void deleteAlias(String indexName, String aliasName) throws IOException {
-    Client client = null;
+    //Client client = null;
     try {
       IndicesAliasesResponse response = getClient().admin().indices().prepareAliases()
           .removeAlias(indexName, aliasName)
@@ -303,12 +304,12 @@ public class ElasticsearchService implements IElasticsearchService {
       }
       System.out.println("The alias '" + aliasName + "' has been removed from the index '" + indexName + "'");
     } finally {
-      client.close();
+      //client.close();
     }
   }
 
   public List<String> getIndexesByAlias(String aliasName) throws UnknownHostException {
-    Client client = null;
+    //Client client = null;
     List<String> indexNames = new ArrayList<>();
     try {
       client = getClient();
@@ -320,7 +321,7 @@ public class ElasticsearchService implements IElasticsearchService {
         indexNames.add(indexInfo.getIndex());
       }
     } finally {
-      client.close();
+      //client.close();
     }
     return indexNames;
   }
@@ -328,7 +329,7 @@ public class ElasticsearchService implements IElasticsearchService {
   // Retrieve all values for a fieldName. Dot notation is allowed (e.g. info.@id)
   public List<String> findAllValuesForField(String fieldName, String indexName, String documentType) throws
       UnknownHostException {
-    Client client = null;
+    //Client client = null;
     List<String> fieldValues = new ArrayList<>();
     try {
       client = getClient();
@@ -359,7 +360,7 @@ public class ElasticsearchService implements IElasticsearchService {
       return fieldValues;
     } finally {
       // Close client
-      client.close();
+      //client.close();
     }
   }
 
@@ -368,8 +369,11 @@ public class ElasticsearchService implements IElasticsearchService {
    ***/
 
   private Client getClient() throws UnknownHostException {
-    return TransportClient.builder().settings(settings).build().addTransportAddress(new
-        InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
+    if (client == null) {
+      client = TransportClient.builder().settings(settings).build().addTransportAddress(new
+          InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
+    }
+    return client;
   }
 
 }
