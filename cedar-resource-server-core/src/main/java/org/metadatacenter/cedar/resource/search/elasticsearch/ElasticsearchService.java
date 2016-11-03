@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -85,16 +86,28 @@ public class ElasticsearchService implements IElasticsearchService {
 
   public void addToIndex(JsonNode json, String indexName, String documentType) throws IOException {
     Client client = null;
-    try {
-      client = getClient();
-      IndexResponse response = client.prepareIndex(indexName, documentType).setSource(json.toString()).get();
-      if (!response.isCreated()) {
-        throw new IOException("Failed to index resource");
+    boolean again = true;
+    int maxAttemps = 20;
+    int count = 0;
+    while (again) {
+      try {
+        client = getClient();
+        IndexResponse response = client.prepareIndex(indexName, documentType).setSource(json.toString()).get();
+        if (response.isCreated()) {
+          System.out.println("The resource has been indexed");
+          again = false;
+        } else {
+          throw new IOException("Failed to index resource");
+        }
+      } catch (NoNodeAvailableException e) {
+        if (count++ > maxAttemps) {
+          throw e;
+        }
       }
-      System.out.println("The resource has been indexed");
-    } finally {
-      // Close client
-      client.close();
+      finally {
+        // Close client
+        client.close();
+      }
     }
   }
 
