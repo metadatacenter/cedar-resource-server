@@ -80,6 +80,7 @@ GET            /search-deep                            controllers.SearchControl
 POST           /command/regenerate-search-index        controllers.SearchController.regenerateSearchIndex()
 POST           /command/copy-resource-to-folder        controllers.CommandController.copyResourceToFolder()
 POST           /command/move-node-to-folder            controllers.CommandController.moveNodeToFolder()
+POST           /command/auth-user-created              controllers.CommandController.authUserCreated()
 
 # For CORS - preflight request
 OPTIONS        /*all                                   controllers.MainResourceServerController.preflight(all)
