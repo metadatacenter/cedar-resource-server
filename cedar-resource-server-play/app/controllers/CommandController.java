@@ -3,16 +3,42 @@ package controllers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.fge.jsonschema.core.exceptions.ProcessingException;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.*;
 import org.apache.http.util.EntityUtils;
+import org.codehaus.jackson.JsonProcessingException;
+import org.codehaus.jackson.jaxrs.JacksonJaxbJsonProvider;
+import org.codehaus.jackson.jaxrs.JacksonJsonProvider;
+import org.codehaus.jackson.map.DeserializationContext;
+import org.codehaus.jackson.map.DeserializationProblemHandler;
+import org.codehaus.jackson.map.JsonDeserializer;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.elasticsearch.ElasticsearchException;
+import org.jboss.resteasy.client.jaxrs.ResteasyClient;
+import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
+import org.keycloak.adapters.KeycloakDeployment;
+import org.keycloak.adapters.KeycloakDeploymentBuilder;
+import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.KeycloakBuilder;
+import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.events.Event;
+import org.keycloak.events.admin.AdminEvent;
+import org.keycloak.representations.AccessTokenResponse;
+import org.keycloak.representations.idm.UserRepresentation;
+import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.util.FolderServerProxy;
+import org.metadatacenter.cedar.resource.util.KeycloakReader;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.constant.KeycloakConstants;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerResource;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.UserServiceSession;
 import org.metadatacenter.server.result.BackendCallErrorType;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.Authorization;
@@ -20,12 +46,22 @@ import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.user.CedarUser;
+import org.metadatacenter.server.security.model.user.CedarUserExtract;
+import org.metadatacenter.server.security.model.user.CedarUserRole;
+import org.metadatacenter.server.security.util.CedarUserUtil;
+import org.metadatacenter.server.service.UserService;
+import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
 import org.metadatacenter.util.json.JsonMapper;
 import play.mvc.Result;
 import play.mvc.Results;
 import utils.DataServices;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Map;
 
 public class CommandController extends AbstractResourceServerController {
 
@@ -218,7 +254,7 @@ public class CommandController extends AbstractResourceServerController {
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
                 DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue
-                    (resourceCreateResponse.getEntity().getContent(), FolderServerResource.class), jsonNode,
+                        (resourceCreateResponse.getEntity().getContent(), FolderServerResource.class), jsonNode,
                     authRequest);
                 return created(proxyResponse.getEntity().getContent());
               } else {
@@ -442,4 +478,124 @@ public class CommandController extends AbstractResourceServerController {
     }
   }
 
+  public static Result authUserCreated() {
+
+    try {
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+    // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
+
+    JsonNode jsonBody = request().body().asJson();
+    System.out.println("   Resource Server Command");
+    System.out.println(jsonBody);
+    if (jsonBody != null) {
+      JsonNode eventTypeNode = jsonBody.get("eventType");
+      String eventType = eventTypeNode.asText();
+      if ("user".equals(eventType)) {
+        try {
+          Event event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), Event.class);
+          String userId = event.getUserId();
+          String clientId = event.getClientId();
+          if (!"admin-cli".equals(clientId)) {
+            UserService userService = getUserService();
+            CedarUser user = createUserRelatedObjects(userService, userId);
+            CedarRequestContext cedarRequestContext = CedarRequestContextFactory.fromUser(user);
+            createHomeFolderAndUser(cedarRequestContext);
+            updateHomeFolderPath(cedarRequestContext, userService, user);
+          }
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+          play.Logger.error("Error while deserializing Keycloak event", e);
+          return internalServerErrorWithError(e);
+        }
+      } else if ("admin".equals(eventType)) {
+        try {
+          AdminEvent adminEvent = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), AdminEvent.class);
+          System.out.println("          ------------------ USER id to create @admin:");
+          String representation = adminEvent.getRepresentation();
+          System.out.println("Representation: " + representation);
+          if (representation != null) {
+            Map<String, Object> rep = JsonMapper.MAPPER.readValue(representation, Map.class);
+            System.out.println(rep);
+            System.out.println(rep.get("id"));
+          }
+        } catch (IOException e) {
+          play.Logger.error("Error while deserializing Keycloak event", e);
+          return internalServerErrorWithError(e);
+        }
+      }
+    }
+
+    return created();
+  }
+
+  protected static UserService getUserService() {
+    return new UserServiceMongoDB(
+        cedarConfig.getMongoConfig().getDatabaseName(),
+        cedarConfig.getMongoConfig().getCollections().get(CedarNodeType.USER.getValue()));
+  }
+
+  private static CedarUser createUserRelatedObjects(UserService userService, String userId) {
+    CedarUser existingUser = null;
+    try {
+      existingUser = userService.findUser(userId);
+    } catch (IOException e) {
+      e.printStackTrace();
+    } catch (ProcessingException e) {
+      e.printStackTrace();
+    }
+
+    if (existingUser != null) {
+      return existingUser;
+    }
+
+    KeycloakReader kr = new KeycloakReader(cedarConfig);
+    kr.initKeycloak();
+    UserRepresentation ur = kr.getUserFromKeycloak(userId);
+
+    System.out.println("User From Keycloak");
+    System.out.println(ur.getFirstName());
+    System.out.println(ur.getLastName());
+    System.out.println(ur.getEmail());
+
+    List<CedarUserRole> roles = null;
+    CedarUserExtract cue = new CedarUserExtract(ur.getId(), ur.getFirstName(), ur.getLastName(), ur.getEmail());
+    CedarUser user = CedarUserUtil.createUserFromBlueprint(cue, roles);
+
+    try {
+      CedarUser u = userService.createUser(user);
+      System.out.println("User created.");
+      return u;
+    } catch (Exception e) {
+      System.out.println("Error while creating user: " + ur.getEmail());
+      e.printStackTrace();
+    }
+    return null;
+  }
+
+  private static void updateHomeFolderPath(CedarRequestContext cedarRequestContext, UserService userService, CedarUser user) {
+    FolderServiceSession neoSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
+
+    String homeFolderPath = neoSession.getHomeFolderPath();
+    FolderServerFolder userHomeFolder = neoSession.findFolderByPath(homeFolderPath);
+
+    if (userHomeFolder != null) {
+      user.setHomeFolderId(userHomeFolder.getId());
+      try {
+        userService.updateUser(user.getId(), JsonMapper.MAPPER.valueToTree(user));
+      } catch (Exception e) {
+        e.printStackTrace();
+        System.out.println("Error while updating user: " + user.getEmail());
+      }
+    }
+  }
+
+  private static void createHomeFolderAndUser(CedarRequestContext cedarRequestContext) {
+    UserServiceSession userSession = CedarDataServices.getUserServiceSession(cedarRequestContext);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
+    userSession.ensureUserExists();
+    folderSession.ensureUserHomeExists();
+  }
 }
