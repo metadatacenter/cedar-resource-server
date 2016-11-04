@@ -1,5 +1,8 @@
 package utils;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.config.CedarConfig;
@@ -34,7 +37,9 @@ public class DataServices {
         esc.getHost(),
         esc.getTransportPort(),
         esc.getSize(),
-        esc.getScrollKeepAlive()),
+        esc.getScrollKeepAlive(),
+        esc.getSettings(),
+        esc.getMappings()),
         esc.getIndex(),
         esc.getType(),
         cedarConfig.getServers().getFolder().getBase(),
@@ -61,7 +66,7 @@ public class DataServices {
       try {
         searchService.regenerateSearchIndex(false, authRequest);
       } catch (Exception e) {
-        play.Logger.error("Error while regenerating the search index", e);
+        play.Logger.error("Error while regenerating the search index: ", e);
       }
     }
   }
