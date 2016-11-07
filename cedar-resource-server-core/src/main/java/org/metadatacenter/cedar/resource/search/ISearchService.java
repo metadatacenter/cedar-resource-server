@@ -37,4 +37,6 @@ public interface ISearchService {
   void regenerateSearchIndex(boolean force, AuthRequest authRequest) throws IOException, CedarAccessException,
       EncoderException, InterruptedException;
 
+  void shutdown();
+
 }

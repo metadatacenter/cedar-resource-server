@@ -58,27 +58,22 @@ public class ElasticsearchService implements IElasticsearchService {
 
   public void createIndex(String indexName, String documentType)
       throws IOException {
-    //Client client = null;
-    try {
-      client = getClient();
-      CreateIndexRequestBuilder createIndexRequestBuilder = client.admin().indices().prepareCreate(indexName);
-      // Set settings
-      if (indexSettings != null) {
-        createIndexRequestBuilder.setSettings(indexSettings);
-      }
-      // Put mapping
-      if (indexMappings != null) {
-        createIndexRequestBuilder.addMapping(documentType, indexMappings);
-      }
-      // Create index
-      CreateIndexResponse response = createIndexRequestBuilder.execute().actionGet();
-      if (!response.isAcknowledged()) {
-        throw new IOException("Failed to create the index " + indexName);
-      }
-      System.out.println("The index " + indexName + " has been created");
-    } finally {
-      //client.close();
+    client = getClient();
+    CreateIndexRequestBuilder createIndexRequestBuilder = client.admin().indices().prepareCreate(indexName);
+    // Set settings
+    if (indexSettings != null) {
+      createIndexRequestBuilder.setSettings(indexSettings);
     }
+    // Put mapping
+    if (indexMappings != null) {
+      createIndexRequestBuilder.addMapping(documentType, indexMappings);
+    }
+    // Create index
+    CreateIndexResponse response = createIndexRequestBuilder.execute().actionGet();
+    if (!response.isAcknowledged()) {
+      throw new IOException("Failed to create the index " + indexName);
+    }
+    System.out.println("The index " + indexName + " has been created");
   }
 
   public void createIndex(String indexName) throws IOException {
@@ -86,7 +81,6 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   public void addToIndex(JsonNode json, String indexName, String documentType) throws IOException {
-    //Client client = null;
     boolean again = true;
     int maxAttemps = 20;
     int count = 0;
@@ -105,61 +99,46 @@ public class ElasticsearchService implements IElasticsearchService {
           throw e;
         }
       }
-      finally {
-        // Close client
-        //client.close();
-      }
     }
   }
 
   public void removeFromIndex(String resourceId, String indexName, String documentType) throws IOException {
-    //Client client = null;
     System.out.println("Removing resource @id=" + resourceId + "from the index");
-    try {
-      client = getClient();
+    client = getClient();
+    // Get resources by resource id
+    SearchResponse responseSearch = client.prepareSearch(indexName)
+        .setTypes(documentType).setQuery(QueryBuilders.matchQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_ID_FIELD,
+            resourceId))
+        .execute().actionGet();
 
-      // Get resources by resource id
-      SearchResponse responseSearch = client.prepareSearch(indexName)
-          .setTypes(documentType).setQuery(QueryBuilders.matchQuery(ES_RESOURCE_PREFIX + ES_RESOURCE_ID_FIELD,
-              resourceId))
-          .execute().actionGet();
-
-      // Delete by Elasticsearch id
-      for (SearchHit hit : responseSearch.getHits()) {
-        DeleteResponse responseDelete = client.prepareDelete(indexName, documentType, hit.id())
-            .execute()
-            .actionGet();
-        if (!responseDelete.isFound()) {
-          throw new IOException("Failed to remove resource " + resourceId + " from the index");
-        }
-        System.out.println("The resource " + resourceId + " has been removed from the index");
+    // Delete by Elasticsearch id
+    for (SearchHit hit : responseSearch.getHits()) {
+      DeleteResponse responseDelete = client.prepareDelete(indexName, documentType, hit.id())
+          .execute()
+          .actionGet();
+      if (!responseDelete.isFound()) {
+        throw new IOException("Failed to remove resource " + resourceId + " from the index");
       }
-    } finally {
-      // Close client
-      //client.close();
+      System.out.println("The resource " + resourceId + " has been removed from the index");
     }
   }
 
   public SearchResponse search(String query, List<String> resourceTypes, List<String> sortList, String templateId,
-                               String indexName, String documentType, int limit, int offset) throws UnknownHostException {
-    //Client client = null;
-    try {
-      client = getClient();
-      SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList, templateId, indexName, documentType);
+                               String indexName, String documentType, int limit, int offset) throws
+      UnknownHostException {
 
-      // Set offset (from) and limit (size)
-      searchRequest.setFrom(offset);
-      searchRequest.setSize(limit);
+    client = getClient();
+    SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList, templateId,
+        indexName, documentType);
 
-      //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
+    // Set offset (from) and limit (size)
+    searchRequest.setFrom(offset);
+    searchRequest.setSize(limit);
+    //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
 
-      // Execute request
-      SearchResponse response = searchRequest.execute().actionGet();
-      return response;
-    } finally {
-      // Close client
-      //client.close();
-    }
+    // Execute request
+    SearchResponse response = searchRequest.execute().actionGet();
+    return response;
   }
 
   // It uses the scroll API. It retrieves all results. No pagination and therefore no offset. Scrolling is not
@@ -167,35 +146,29 @@ public class ElasticsearchService implements IElasticsearchService {
   // More info: https://www.elastic.co/guide/en/elasticsearch/reference/2.3/search-request-scroll.html
   public List<SearchHit> searchDeep(String query, List<String> resourceTypes, List<String> sortList, String templateId,
                                     String indexName, String documentType, int limit) throws UnknownHostException {
-    //Client client = null;
-    try {
-      client = getClient();
-      SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList,
-          templateId, indexName, documentType);
 
-      // Set scroll and scroll size
-      searchRequest.setScroll(TimeValue.timeValueMinutes(2));
-      searchRequest.setSize(50000);
+    client = getClient();
+    SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList,
+        templateId, indexName, documentType);
 
-      //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
+    // Set scroll and scroll size
+    searchRequest.setScroll(TimeValue.timeValueMinutes(2));
+    searchRequest.setSize(50000);
 
-      // Execute request
-      SearchResponse response = searchRequest.execute().actionGet();
+    //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
 
-      List<SearchHit> allHits = new ArrayList<>();
+    // Execute request
+    SearchResponse response = searchRequest.execute().actionGet();
 
-      while (response.getHits().hits().length != 0 || response.getHits().hits().length >= limit) {
-        allHits.addAll(Arrays.asList(response.getHits().hits()));
-        //next scroll
-        response = client.prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueMinutes(2))
-            .execute().actionGet();
-      }
-      return allHits;
+    List<SearchHit> allHits = new ArrayList<>();
 
-    } finally {
-      // Close client
-      //client.close();
+    while (response.getHits().hits().length != 0 || response.getHits().hits().length >= limit) {
+      allHits.addAll(Arrays.asList(response.getHits().hits()));
+      //next scroll
+      response = client.prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueMinutes(2))
+          .execute().actionGet();
     }
+    return allHits;
   }
 
   private SearchRequestBuilder getSearchRequestBuilder(Client client, String query, List<String> resourceTypes,
@@ -210,8 +183,7 @@ public class ElasticsearchService implements IElasticsearchService {
     // Search query
     if (query != null && query.length() > 0) {
       mainQuery.must(QueryBuilders.queryStringQuery(query).field(ES_RESOURCE_PREFIX + ES_RESOURCE_NAME_FIELD));
-    }
-    else {
+    } else {
       mainQuery.must(QueryBuilders.matchAllQuery());
     }
 
@@ -249,79 +221,52 @@ public class ElasticsearchService implements IElasticsearchService {
   }
 
   public boolean indexExists(String indexName) throws UnknownHostException {
-    //Client client = null;
-    try {
-      client = getClient();
-      boolean exists = client.admin().indices().prepareExists(indexName)
-          .execute().actionGet().isExists();
-      return exists;
-    } finally {
-      // Close client
-      //client.close();
-    }
+    client = getClient();
+    boolean exists = client.admin().indices().prepareExists(indexName)
+        .execute().actionGet().isExists();
+    return exists;
   }
 
   public void deleteIndex(String indexName) throws IOException {
-    //Client client = null;
-    try {
-      client = getClient();
-      DeleteIndexResponse deleteIndexResponse =
-          client.admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet();
-      if (!deleteIndexResponse.isAcknowledged()) {
-        throw new IOException("Failed to delete index '" + indexName + "'");
-      }
-      System.out.println("The index '" + indexName + "' has been deleted");
-    } finally {
-      // Close client
-      //client.close();
+    client = getClient();
+    DeleteIndexResponse deleteIndexResponse =
+        client.admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet();
+    if (!deleteIndexResponse.isAcknowledged()) {
+      throw new IOException("Failed to delete index '" + indexName + "'");
     }
+    System.out.println("The index '" + indexName + "' has been deleted");
   }
 
   public void addAlias(String indexName, String aliasName) throws IOException {
-    //Client client = null;
-    try {
-      client = getClient();
-      IndicesAliasesResponse response = client.admin().indices().prepareAliases()
-          .addAlias(indexName, aliasName)
-          .execute().actionGet();
-      if (!response.isAcknowledged()) {
-        throw new IOException("Failed to add alias '" + aliasName + "' to index '" + indexName + "'");
-      }
-      System.out.println("The alias '" + aliasName + "' has been added to index '" + indexName + "'");
-    } finally {
-      //client.close();
+    client = getClient();
+    IndicesAliasesResponse response = client.admin().indices().prepareAliases()
+        .addAlias(indexName, aliasName)
+        .execute().actionGet();
+    if (!response.isAcknowledged()) {
+      throw new IOException("Failed to add alias '" + aliasName + "' to index '" + indexName + "'");
     }
+    System.out.println("The alias '" + aliasName + "' has been added to index '" + indexName + "'");
   }
 
   public void deleteAlias(String indexName, String aliasName) throws IOException {
-    //Client client = null;
-    try {
-      IndicesAliasesResponse response = getClient().admin().indices().prepareAliases()
-          .removeAlias(indexName, aliasName)
-          .execute().actionGet();
-      if (!response.isAcknowledged()) {
-        throw new IOException("Failed to remove alias '" + aliasName + "' from index '" + indexName + "'");
-      }
-      System.out.println("The alias '" + aliasName + "' has been removed from the index '" + indexName + "'");
-    } finally {
-      //client.close();
+    IndicesAliasesResponse response = getClient().admin().indices().prepareAliases()
+        .removeAlias(indexName, aliasName)
+        .execute().actionGet();
+    if (!response.isAcknowledged()) {
+      throw new IOException("Failed to remove alias '" + aliasName + "' from index '" + indexName + "'");
     }
+    System.out.println("The alias '" + aliasName + "' has been removed from the index '" + indexName + "'");
   }
 
   public List<String> getIndexesByAlias(String aliasName) throws UnknownHostException {
-    //Client client = null;
     List<String> indexNames = new ArrayList<>();
-    try {
-      client = getClient();
-      AliasOrIndex alias = client.admin().cluster()
-          .prepareState().execute()
-          .actionGet().getState()
-          .getMetaData().getAliasAndIndexLookup().get(aliasName);
-      for (IndexMetaData indexInfo : alias.getIndices()) {
-        indexNames.add(indexInfo.getIndex());
-      }
-    } finally {
-      //client.close();
+    client = getClient();
+    AliasOrIndex alias = client.admin().cluster()
+        .prepareState().execute()
+        .actionGet().getState()
+        .getMetaData().getAliasAndIndexLookup().get(aliasName);
+    for (IndexMetaData indexInfo : alias.getIndices()) {
+      indexNames.add(indexInfo.getIndex());
     }
     return indexNames;
   }
@@ -329,44 +274,34 @@ public class ElasticsearchService implements IElasticsearchService {
   // Retrieve all values for a fieldName. Dot notation is allowed (e.g. info.@id)
   public List<String> findAllValuesForField(String fieldName, String indexName, String documentType) throws
       UnknownHostException {
-    //Client client = null;
     List<String> fieldValues = new ArrayList<>();
-    try {
-      client = getClient();
-      QueryBuilder qb = QueryBuilders.matchAllQuery();
-      SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType)
-          .setFetchSource(new String[]{fieldName}, null)
-          .setScroll(new TimeValue(scrollKeepAlive)).setQuery(qb).setSize(esSize);
-      //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
-      SearchResponse response = searchRequest.execute().actionGet();
-      // Scroll until no hits are returned
-      while (true) {
-        for (SearchHit hit : response.getHits().getHits()) {
-          Map<String, Object> f = hit.getSource();
-          String[] pathFragments = fieldName.split("\\.");
-          for (int i = 0; i < pathFragments.length - 1; i++) {
-            f = (Map<String, Object>) f.get(pathFragments[0]);
-          }
-          String fieldValue = (String) f.get(pathFragments[pathFragments.length - 1]);
-          fieldValues.add(fieldValue);
+    client = getClient();
+    QueryBuilder qb = QueryBuilders.matchAllQuery();
+    SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setTypes(documentType)
+        .setFetchSource(new String[]{fieldName}, null)
+        .setScroll(new TimeValue(scrollKeepAlive)).setQuery(qb).setSize(esSize);
+    //System.out.println("Search query in Query DSL: " + searchRequest.internalBuilder());
+    SearchResponse response = searchRequest.execute().actionGet();
+    // Scroll until no hits are returned
+    while (true) {
+      for (SearchHit hit : response.getHits().getHits()) {
+        Map<String, Object> f = hit.getSource();
+        String[] pathFragments = fieldName.split("\\.");
+        for (int i = 0; i < pathFragments.length - 1; i++) {
+          f = (Map<String, Object>) f.get(pathFragments[0]);
         }
-        response = client.prepareSearchScroll(response.getScrollId()).setScroll(new TimeValue(scrollKeepAlive))
-            .execute().actionGet();
-        // Break condition: No hits are returned
-        if (response.getHits().getHits().length == 0) {
-          break;
-        }
+        String fieldValue = (String) f.get(pathFragments[pathFragments.length - 1]);
+        fieldValues.add(fieldValue);
       }
-      return fieldValues;
-    } finally {
-      // Close client
-      //client.close();
+      response = client.prepareSearchScroll(response.getScrollId()).setScroll(new TimeValue(scrollKeepAlive))
+          .execute().actionGet();
+      // Break condition: No hits are returned
+      if (response.getHits().getHits().length == 0) {
+        break;
+      }
     }
+    return fieldValues;
   }
-
-  /***
-   * Private methods
-   ***/
 
   private Client getClient() throws UnknownHostException {
     if (client == null) {
@@ -374,6 +309,10 @@ public class ElasticsearchService implements IElasticsearchService {
           InetSocketTransportAddress(InetAddress.getByName(esHost), esTransportPort));
     }
     return client;
+  }
+
+  public void closeClient() {
+    client.close();
   }
 
 }

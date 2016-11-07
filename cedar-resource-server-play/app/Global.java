@@ -70,5 +70,7 @@ public class Global extends GlobalSettings {
   @Override
   public void onStop(Application application) {
     super.onStop(application);
+    // Free resources
+    DataServices.getInstance().getSearchService().shutdown();
   }
 }

@@ -309,5 +309,9 @@ public class SearchService implements ISearchService {
     return resource;
   }
 
+  public void shutdown() {
+    esService.closeClient();
+  }
+
 }
 
