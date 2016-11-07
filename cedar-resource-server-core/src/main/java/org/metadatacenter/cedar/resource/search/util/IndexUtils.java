@@ -1,6 +1,5 @@
 package org.metadatacenter.cedar.resource.search.util;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,17 +14,18 @@ import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.index.CedarIndexFieldValue;
-import org.metadatacenter.model.index.CedarIndexFieldSchema;
 import org.metadatacenter.model.folderserver.FolderServerNode;
+import org.metadatacenter.model.index.CedarIndexFieldSchema;
+import org.metadatacenter.model.index.CedarIndexFieldValue;
 import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.metadatacenter.constant.ResourceConstants.FOLDER_ALL_NODES;
 
@@ -154,199 +154,6 @@ public class IndexUtils {
     return resource;
   }
 
-  /***
-   * Fields Extraction
-   ***/
-
-  // Recursively extract all field names and values
-//  public List<CedarIndexField> extractFields(CedarNodeType nodeType, JsonNode resourceContent, IAuthRequest
-// authRequest)
-//      throws JsonProcessingException, CedarAccessException, EncoderException {
-//    List<CedarIndexField> fields = null;
-//    // Templates and Elements
-//    if (nodeType.equals(CedarNodeType.TEMPLATE) || (nodeType.equals(CedarNodeType.ELEMENT))) {
-//      HashMap<String, CedarIndexField> fieldsInfo = extractFieldsInfo(nodeType, null, resourceContent, new HashMap(),
-//          null);
-//      fields = new ArrayList<>(fieldsInfo.values());
-//    }
-//    // Instances
-//    else if (nodeType.equals(CedarNodeType.INSTANCE)) {
-//      HashMap<String, CedarIndexField> fieldsInfo = extractFieldsInfo(nodeType, null, resourceContent, new HashMap(),
-//          authRequest);
-//
-////      System.out.println("*************** FIELDS INFO ***************");
-////      for (String k : fieldsInfo.keySet()) {
-////        System.out.println(k);
-////        System.out.println(fieldsInfo.get(k));
-////        System.out.println("----");
-////      }
-//
-//      HashMap<String, CedarIndexField> valuesInfo = extractFieldValuesInfo(nodeType, null, resourceContent, new
-//          HashMap());
-//
-//
-////      System.out.println("*************** VALUES INFO ***************");
-////      for (String k : valuesInfo.keySet()) {
-////        System.out.println(k);
-////        System.out.println(valuesInfo.get(k));
-////        System.out.println("----");
-////      }
-//
-//      fields = new ArrayList<>();
-//      // Combine fields information with values information
-//      for (CedarIndexField v : new ArrayList<>(valuesInfo.values())) {
-//        CedarIndexField f = fieldsInfo.get(v.getFieldPath());
-//        if (f == null) {
-//          throw new RuntimeException("Field path not found: " + v.getValuePath());
-//        }
-//        fields.add(new CedarIndexField(v.getFieldPath(), f.getFieldName(), f.getFieldType(), v.getValuePath(), v
-// .getValueLabel(), v
-//            .getValueType(), f.getUseForValueRecommendation()));
-//      }
-//    }
-//    return fields;
-//  }
-
-  // Recursively extract all field names.
-  // - currentPath: field path using Json Pointer syntax
-//  private HashMap<String, CedarIndexField> extractFieldsInfo(CedarNodeType nodeType, String currentPath, JsonNode
-//      resourceContent, HashMap<String, CedarIndexField> results, IAuthRequest authRequest) throws EncoderException,
-//      CedarAccessException {
-//    currentPath = currentPath == null ? "/" : currentPath;
-//    if (nodeType.compareTo(CedarNodeType.TEMPLATE) == 0 || nodeType.compareTo(CedarNodeType.ELEMENT) == 0) {
-//      Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
-//      while (fieldsIterator.hasNext()) {
-//        Map.Entry<String, JsonNode> field = fieldsIterator.next();
-//        if (field.getValue().isContainerNode()) {
-//          String fieldKey = field.getKey();
-//          JsonNode fieldNode = null;
-//          // Single-instance fields
-//          if (field.getValue().get("items") == null) {
-//            fieldNode = field.getValue();
-//          }
-//          // Multi-instance fields
-//          else {
-//            fieldNode = field.getValue().get("items");
-//          }
-//          // Field
-//          if (fieldNode.get("@type") != null
-//              && fieldNode.get("@type").asText().equals(CedarNodeType.FIELD.getAtType())
-//              && fieldNode.get("_ui") != null
-//              && fieldNode.get("_ui").get("title") != null) {
-//            String fieldName = fieldNode.get("_ui").get("title").asText();
-//            // Update current path
-//            String fieldPath = currentPath.equals("/") ? currentPath + fieldKey : currentPath + "/" + fieldKey;
-//            // Get field type (if it has been defined)
-//            String fieldType = null;
-//            if (fieldNode.get("properties").get("@type").get("oneOf").get(0).get("enum") != null) {
-//              fieldType = fieldNode.get("properties").get("@type").get("oneOf").get(0).get("enum").get(0).asText();
-//            }
-//            CedarIndexField f = new CedarIndexField(fieldPath, fieldName, fieldType, null, null, null, true);
-//            results.put(fieldPath, f);
-//
-//          } else {
-//            // Element
-//            if (fieldNode.get("@type") != null && fieldNode.get("@type").asText().equals(CedarNodeType.ELEMENT
-// .getAtType())) {
-//              // Update current path
-//              String elementPath = currentPath.equals("/") ? currentPath + fieldKey : currentPath + "/" + fieldKey;
-//              extractFieldsInfo(nodeType, elementPath, fieldNode, results, authRequest);
-//            }
-//            // Other nodes
-//            else {
-//              extractFieldsInfo(nodeType, currentPath, fieldNode, results, authRequest);
-//            }
-//          }
-//        }
-//      }
-//    // If the resource is an instance, the field names must be extracted from the template
-//    } else if (nodeType.compareTo(CedarNodeType.INSTANCE) == 0) {
-//      if (resourceContent.get("schema:isBasedOn") != null) {
-//        String templateId = resourceContent.get("schema:isBasedOn").asText();
-//        JsonNode templateJson = null;
-//        try {
-//          templateJson = findResourceContent(templateId, CedarNodeType.TEMPLATE, authRequest);
-//          results = extractFieldsInfo(CedarNodeType.TEMPLATE, currentPath, templateJson, results, authRequest);
-//        } catch (IOException e) {
-//          System.out.println("Error while accessing the reference template for the instance. It may have been " +
-//              "removed");
-//        }
-//      }
-//    }
-//    return results;
-//  }
-
-  // Recursively extract all field values (used only for instances). currentPath is the field path using Json
-  // Pointer syntax
-//  private JsonNode extractFieldValuesInfo0(CedarNodeType nodeType, String
-//      currentPath, JsonNode resourceContent, HashMap<String, CedarIndexField> results) throws
-// JsonProcessingException {
-//    currentPath = currentPath == null ? "/" : currentPath;
-//    if (nodeType.compareTo(CedarNodeType.INSTANCE) == 0) {
-//      Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
-//      while (fieldsIterator.hasNext()) {
-//        Map.Entry<String, JsonNode> field = fieldsIterator.next();
-//        if (field.getValue().isContainerNode() && !field.getKey().equals("@context")) {
-//          // Single value
-//          if (!field.getValue().isArray()) {
-//            JsonNode valueNode = field.getValue().get("@value");
-//            if (valueNode != null) {
-//              String fieldValue = "";
-//              if (valueNode.isTextual()) {
-//                fieldValue = valueNode.asText();
-//              }
-//              // Numeric field
-//              else if (valueNode.isNumber()) {
-//                fieldValue = new ObjectMapper().writeValueAsString(valueNode);
-//              }
-//              if (fieldValue != null) {
-//                fieldValue = fieldValue.trim();
-//                String valueLabel = null;
-//                String valueType = null;
-//                // Set value label and value type
-//                if (field.getValue().get("_valueLabel") != null) {
-//                  valueLabel = field.getValue().get("_valueLabel").asText();
-//                  valueType = fieldValue;
-//                } else {
-//                  valueLabel = fieldValue;
-//                }
-//                // Update current path
-//                String valuePath = currentPath.equals("/") ? currentPath + field.getKey() : currentPath + "/" +
-//                    field.getKey();
-//                String fieldPath = valuePath.replaceAll("/[0-9]+/", "/");
-//                CedarIndexField f = new CedarIndexField(fieldPath, null, null, valuePath, valueLabel, valueType,
-// true);
-//                results.put(valuePath, f);
-//              }
-//            } else {
-//              // Update current path
-//              String fieldPath = currentPath.equals("/") ? currentPath + field.getKey() : currentPath + "/" + field
-//                  .getKey();
-//              extractFieldValuesInfo(nodeType, fieldPath, field.getValue(), results);
-//            }
-//          }
-//          // Multi-instance value
-//          else {
-//            int count = 1;
-//            for (JsonNode instance : field.getValue()) {
-//              // Update current path
-//              String fieldPath = currentPath.equals("/") ? currentPath + field.getKey() : currentPath + "/" + field
-//                  .getKey();
-//              fieldPath = fieldPath + "/" + count;
-//              extractFieldValuesInfo(nodeType, fieldPath, instance, results);
-//              count++;
-//            }
-//          }
-//        }
-//      }
-//    }
-//    return results;
-//    return null;
-//  }
-
-
-  /******************/
-
   // Returns summary of resourceContent. There is no need to index the full JSON for each resource. Only the
   // information necessary to satisfy search and value recommendation use cases is kept.
   public JsonNode extractSummarizedContent(CedarNodeType nodeType, JsonNode resourceContent, AuthRequest authRequest)
@@ -359,6 +166,7 @@ public class IndexUtils {
     }
     // Instances
     else if (nodeType.equals(CedarNodeType.INSTANCE)) {
+      // TODO: avoid calling this method multiple times when posting multiple instances for the same template
       JsonNode schemaSummary = extractSchemaSummary(nodeType, resourceContent, JsonNodeFactory.instance.objectNode(),
           authRequest);
 
@@ -400,7 +208,8 @@ public class IndexUtils {
             // Get field semantic type (if it has been defined)
             String fieldSemanticType = null;
             if (fieldNode.get("properties").get("@type").get("oneOf").get(0).get("enum") != null) {
-              fieldSemanticType = fieldNode.get("properties").get("@type").get("oneOf").get(0).get("enum").get(0).asText();
+              fieldSemanticType = fieldNode.get("properties").get("@type").get("oneOf").get(0).get("enum").get(0)
+                  .asText();
             }
             CedarIndexFieldSchema f = new CedarIndexFieldSchema();
             f.setFieldName(fieldName);
@@ -502,37 +311,36 @@ public class IndexUtils {
                   ((ArrayNode) results.get(field.getKey())).add((ObjectNode) mapper.valueToTree(fv));
                 } else {
                   ((ArrayNode) results.get(field.getKey())).add(JsonNodeFactory.instance.objectNode());
-                  extractValuesSummary(nodeType, schemaSummary.get(field.getKey()), arrayItem, results.get(field.getKey()).get(i));
+                  extractValuesSummary(nodeType, schemaSummary.get(field.getKey()), arrayItem, results.get(field
+                      .getKey()).get(i));
                 }
               }
             }
           }
         }
-//        else if (field.getValue().isValueNode()) {
-//          // @value field
-//          if (field.getKey().equals("@value")) {
-//            JsonNode fieldSchema = schemaSummary.get(field.getKey() + FIELD_SUFFIX);
-//            CedarIndexFieldValue fv = valueToIndexValue(field.getValue(), fieldSchema);
-//            String outputFieldKey = field.getKey() + FIELD_SUFFIX;
-//            ((ObjectNode) results).set(outputFieldKey, mapper.valueToTree(fv));
-//          }
-//        }
       }
     }
     return results;
   }
 
-  private CedarIndexFieldValue valueToIndexValue(JsonNode valueNode, JsonNode fieldSchema) throws JsonProcessingException {
+  private CedarIndexFieldValue valueToIndexValue(JsonNode valueNode, JsonNode fieldSchema) throws
+      JsonProcessingException {
     CedarIndexFieldSchema fs = mapper.treeToValue(fieldSchema, CedarIndexFieldSchema.class);
     CedarIndexFieldValue fv = fs.toFieldValue();
     if (!valueNode.isNull()) {
       // Set appropriate value field according to the value type
       if (fs.getFieldValueType().equals(ESType.STRING)) {
-        fv.setFieldValue_string(valueNode.asText());
+        // Avoid indexing the empty string
+        if (valueNode.asText().trim().length() > 0) {
+          fv.setFieldValue_string(valueNode.asText());
+        }
       }
       // TODO: add all remaining field types
       else {
-        fv.setFieldValue_string(valueNode.asText());
+        // Avoid indexing the empty string
+        if (valueNode.asText().trim().length() > 0) {
+          fv.setFieldValue_string(valueNode.asText());
+        }
       }
     } else {
       // Do nothing. Null values will not be indexed
