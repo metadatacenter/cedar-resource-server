@@ -478,7 +478,7 @@ public class CommandController extends AbstractResourceServerController {
     }
   }
 
-  public static Result authUserCreated() {
+  public static Result authUserCallback() {
 
     try {
       AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
@@ -489,42 +489,24 @@ public class CommandController extends AbstractResourceServerController {
     // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
 
     JsonNode jsonBody = request().body().asJson();
-    System.out.println("   Resource Server Command");
-    System.out.println(jsonBody);
+    //System.out.println("  *** Resource Server Command - User");
+    //System.out.println(jsonBody);
     if (jsonBody != null) {
-      JsonNode eventTypeNode = jsonBody.get("eventType");
-      String eventType = eventTypeNode.asText();
-      if ("user".equals(eventType)) {
-        try {
-          Event event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), Event.class);
-          String userId = event.getUserId();
-          String clientId = event.getClientId();
-          if (!"admin-cli".equals(clientId)) {
-            UserService userService = getUserService();
-            CedarUser user = createUserRelatedObjects(userService, userId);
-            CedarRequestContext cedarRequestContext = CedarRequestContextFactory.fromUser(user);
-            createHomeFolderAndUser(cedarRequestContext);
-            updateHomeFolderPath(cedarRequestContext, userService, user);
-          }
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-          play.Logger.error("Error while deserializing Keycloak event", e);
-          return internalServerErrorWithError(e);
+      try {
+        Event event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), Event.class);
+        CedarUserExtract eventUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
+
+        String clientId = event.getClientId();
+        if (!"admin-cli".equals(clientId)) {
+          UserService userService = getUserService();
+          CedarUser user = createUserRelatedObjects(userService, eventUser);
+          CedarRequestContext cedarRequestContext = CedarRequestContextFactory.fromUser(user);
+          createHomeFolderAndUser(cedarRequestContext);
+          updateHomeFolderPath(cedarRequestContext, userService, user);
         }
-      } else if ("admin".equals(eventType)) {
-        try {
-          AdminEvent adminEvent = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), AdminEvent.class);
-          System.out.println("          ------------------ USER id to create @admin:");
-          String representation = adminEvent.getRepresentation();
-          System.out.println("Representation: " + representation);
-          if (representation != null) {
-            Map<String, Object> rep = JsonMapper.MAPPER.readValue(representation, Map.class);
-            System.out.println(rep);
-            System.out.println(rep.get("id"));
-          }
-        } catch (IOException e) {
-          play.Logger.error("Error while deserializing Keycloak event", e);
-          return internalServerErrorWithError(e);
-        }
+      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        play.Logger.error("Error while deserializing Keycloak event", e);
+        return internalServerErrorWithError(e);
       }
     }
 
@@ -537,10 +519,10 @@ public class CommandController extends AbstractResourceServerController {
         cedarConfig.getMongoConfig().getCollections().get(CedarNodeType.USER.getValue()));
   }
 
-  private static CedarUser createUserRelatedObjects(UserService userService, String userId) {
+  private static CedarUser createUserRelatedObjects(UserService userService, CedarUserExtract eventUser) {
     CedarUser existingUser = null;
     try {
-      existingUser = userService.findUser(userId);
+      existingUser = userService.findUser(eventUser.getId());
     } catch (IOException e) {
       e.printStackTrace();
     } catch (ProcessingException e) {
@@ -551,31 +533,21 @@ public class CommandController extends AbstractResourceServerController {
       return existingUser;
     }
 
-    KeycloakReader kr = new KeycloakReader(cedarConfig);
-    kr.initKeycloak();
-    UserRepresentation ur = kr.getUserFromKeycloak(userId);
-
-    System.out.println("User From Keycloak");
-    System.out.println(ur.getFirstName());
-    System.out.println(ur.getLastName());
-    System.out.println(ur.getEmail());
-
     List<CedarUserRole> roles = null;
-    CedarUserExtract cue = new CedarUserExtract(ur.getId(), ur.getFirstName(), ur.getLastName(), ur.getEmail());
-    CedarUser user = CedarUserUtil.createUserFromBlueprint(cue, roles);
+    CedarUser user = CedarUserUtil.createUserFromBlueprint(eventUser, roles);
 
     try {
       CedarUser u = userService.createUser(user);
-      System.out.println("User created.");
       return u;
-    } catch (Exception e) {
-      System.out.println("Error while creating user: " + ur.getEmail());
+    } catch (IOException e) {
+      System.out.println("Error while creating user: " + eventUser.getEmail());
       e.printStackTrace();
     }
     return null;
   }
 
-  private static void updateHomeFolderPath(CedarRequestContext cedarRequestContext, UserService userService, CedarUser user) {
+  private static void updateHomeFolderPath(CedarRequestContext cedarRequestContext, UserService userService,
+                                           CedarUser user) {
     FolderServiceSession neoSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
 
     String homeFolderPath = neoSession.getHomeFolderPath();
@@ -597,5 +569,32 @@ public class CommandController extends AbstractResourceServerController {
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
     userSession.ensureUserExists();
     folderSession.ensureUserHomeExists();
+  }
+
+  public static Result authAdminCallback() {
+    try {
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+    // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
+
+    JsonNode jsonBody = request().body().asJson();
+    //System.out.println("  *** Resource Server Command - Admin");
+    //System.out.println(jsonBody);
+    if (jsonBody != null) {
+      try {
+        AdminEvent event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), AdminEvent.class);
+        CedarUserExtract eventUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
+        //System.out.println("Update user: enabled status");
+        //TODO: read KK user, update enabled status in CEDAR - mongo and NEO
+      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        play.Logger.error("Error while deserializing Keycloak event", e);
+        return internalServerErrorWithError(e);
+      }
+    }
+
+    return Results.TODO;
   }
 }
