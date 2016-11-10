@@ -14,10 +14,6 @@
   <packaging>play2</packaging>
   <name>CEDAR Resource Server Play</name>
 
-  <properties>
-    <cedar.version>0.8.3-SNAPSHOT</cedar.version>
-  </properties>
-
   <dependencies>
 
     <dependency>
