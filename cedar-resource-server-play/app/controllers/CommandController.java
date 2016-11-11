@@ -3,31 +3,65 @@ package controllers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.fge.jsonschema.core.exceptions.ProcessingException;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.*;
 import org.apache.http.util.EntityUtils;
+import org.codehaus.jackson.JsonProcessingException;
+import org.codehaus.jackson.jaxrs.JacksonJaxbJsonProvider;
+import org.codehaus.jackson.jaxrs.JacksonJsonProvider;
+import org.codehaus.jackson.map.DeserializationContext;
+import org.codehaus.jackson.map.DeserializationProblemHandler;
+import org.codehaus.jackson.map.JsonDeserializer;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.elasticsearch.ElasticsearchException;
+import org.jboss.resteasy.client.jaxrs.ResteasyClient;
+import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
+import org.keycloak.adapters.KeycloakDeployment;
+import org.keycloak.adapters.KeycloakDeploymentBuilder;
+import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.KeycloakBuilder;
+import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.events.Event;
+import org.keycloak.events.admin.AdminEvent;
+import org.keycloak.representations.AccessTokenResponse;
+import org.keycloak.representations.idm.UserRepresentation;
+import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.util.FolderServerProxy;
+import org.metadatacenter.cedar.resource.util.KeycloakReader;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.constant.KeycloakConstants;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.CedarFSFolder;
-import org.metadatacenter.model.folderserver.CedarFSResource;
-import org.metadatacenter.model.resourceserver.CedarRSFolder;
-import org.metadatacenter.model.resourceserver.CedarRSResource;
+import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.FolderServerResource;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.UserServiceSession;
 import org.metadatacenter.server.result.BackendCallErrorType;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.user.CedarUser;
+import org.metadatacenter.server.security.model.user.CedarUserExtract;
+import org.metadatacenter.server.security.model.user.CedarUserRole;
+import org.metadatacenter.server.security.util.CedarUserUtil;
+import org.metadatacenter.server.service.UserService;
+import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
 import org.metadatacenter.util.json.JsonMapper;
 import play.mvc.Result;
 import play.mvc.Results;
 import utils.DataServices;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Map;
 
 public class CommandController extends AbstractResourceServerController {
 
@@ -86,7 +120,7 @@ public class CommandController extends AbstractResourceServerController {
     }
 
     // Check read permission
-    IAuthRequest authRequest = null;
+    AuthRequest authRequest = null;
     try {
       authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(authRequest, permission1);
@@ -172,7 +206,7 @@ public class CommandController extends AbstractResourceServerController {
     // AbstractResourceServerController.executeResourcePostByProxy
     // refactor, if possible
     try {
-      CedarRSFolder targetFolder = getCedarFolderById(folderId);
+      FolderServerFolder targetFolder = getCedarFolderById(folderId);
       if (targetFolder == null) {
         ObjectNode errorParams = JsonNodeFactory.instance.objectNode();
         errorParams.put("folderId", folderId);
@@ -220,7 +254,8 @@ public class CommandController extends AbstractResourceServerController {
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
                 DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue
-                    (resourceCreateResponse.getEntity().getContent(), CedarRSResource.class), jsonNode, authRequest);
+                        (resourceCreateResponse.getEntity().getContent(), FolderServerResource.class), jsonNode,
+                    authRequest);
                 return created(proxyResponse.getEntity().getContent());
               } else {
                 return ok();
@@ -252,7 +287,7 @@ public class CommandController extends AbstractResourceServerController {
   public static Result moveNodeToFolder() {
 
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
     } catch (Exception e) {
       return internalServerErrorWithError(e);
@@ -308,7 +343,7 @@ public class CommandController extends AbstractResourceServerController {
     }
 
     // Check create permission
-    IAuthRequest authRequest = null;
+    AuthRequest authRequest = null;
     try {
       authRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(authRequest, permission1);
@@ -339,7 +374,7 @@ public class CommandController extends AbstractResourceServerController {
 
       // Check if the source node exists
       if (nodeType == CedarNodeType.FOLDER) {
-        CedarFSFolder sourceFolder = FolderServerProxy.getFolder(folderURL, sourceId, request());
+        FolderServerFolder sourceFolder = FolderServerProxy.getFolder(folderURL, sourceId, request());
         if (sourceFolder == null) {
           BackendCallResult backendCallResult = new BackendCallResult();
           backendCallResult.addError(BackendCallErrorType.NOT_FOUND)
@@ -350,7 +385,7 @@ public class CommandController extends AbstractResourceServerController {
         }
       } else {
         String resourceURL = folderBase + "/" + PREFIX_RESOURCES;
-        CedarFSResource sourceResource = FolderServerProxy.getResource(resourceURL, sourceId, request());
+        FolderServerResource sourceResource = FolderServerProxy.getResource(resourceURL, sourceId, request());
         if (sourceResource == null) {
           BackendCallResult backendCallResult = new BackendCallResult();
           backendCallResult.addError(BackendCallErrorType.NOT_FOUND)
@@ -362,7 +397,7 @@ public class CommandController extends AbstractResourceServerController {
       }
 
       // Check if the target folder exists
-      CedarFSFolder targetFolder = FolderServerProxy.getFolder(folderURL, folderId, request());
+      FolderServerFolder targetFolder = FolderServerProxy.getFolder(folderURL, folderId, request());
       if (targetFolder == null) {
         BackendCallResult backendCallResult = new BackendCallResult();
         backendCallResult.addError(BackendCallErrorType.NOT_FOUND)
@@ -443,4 +478,123 @@ public class CommandController extends AbstractResourceServerController {
     }
   }
 
+  public static Result authUserCallback() {
+
+    try {
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+    // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
+
+    JsonNode jsonBody = request().body().asJson();
+    //System.out.println("  *** Resource Server Command - User");
+    //System.out.println(jsonBody);
+    if (jsonBody != null) {
+      try {
+        Event event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), Event.class);
+        CedarUserExtract eventUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
+
+        String clientId = event.getClientId();
+        if (!"admin-cli".equals(clientId)) {
+          UserService userService = getUserService();
+          CedarUser user = createUserRelatedObjects(userService, eventUser);
+          CedarRequestContext cedarRequestContext = CedarRequestContextFactory.fromUser(user);
+          createHomeFolderAndUser(cedarRequestContext);
+          updateHomeFolderPath(cedarRequestContext, userService, user);
+        }
+      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        play.Logger.error("Error while deserializing Keycloak event", e);
+        return internalServerErrorWithError(e);
+      }
+    }
+
+    return created();
+  }
+
+  protected static UserService getUserService() {
+    return new UserServiceMongoDB(
+        cedarConfig.getMongoConfig().getDatabaseName(),
+        cedarConfig.getMongoConfig().getCollections().get(CedarNodeType.USER.getValue()));
+  }
+
+  private static CedarUser createUserRelatedObjects(UserService userService, CedarUserExtract eventUser) {
+    CedarUser existingUser = null;
+    try {
+      existingUser = userService.findUser(eventUser.getId());
+    } catch (IOException e) {
+      e.printStackTrace();
+    } catch (ProcessingException e) {
+      e.printStackTrace();
+    }
+
+    if (existingUser != null) {
+      return existingUser;
+    }
+
+    List<CedarUserRole> roles = null;
+    CedarUser user = CedarUserUtil.createUserFromBlueprint(eventUser, roles);
+
+    try {
+      CedarUser u = userService.createUser(user);
+      return u;
+    } catch (IOException e) {
+      System.out.println("Error while creating user: " + eventUser.getEmail());
+      e.printStackTrace();
+    }
+    return null;
+  }
+
+  private static void updateHomeFolderPath(CedarRequestContext cedarRequestContext, UserService userService,
+                                           CedarUser user) {
+    FolderServiceSession neoSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
+
+    String homeFolderPath = neoSession.getHomeFolderPath();
+    FolderServerFolder userHomeFolder = neoSession.findFolderByPath(homeFolderPath);
+
+    if (userHomeFolder != null) {
+      user.setHomeFolderId(userHomeFolder.getId());
+      try {
+        userService.updateUser(user.getId(), JsonMapper.MAPPER.valueToTree(user));
+      } catch (Exception e) {
+        e.printStackTrace();
+        System.out.println("Error while updating user: " + user.getEmail());
+      }
+    }
+  }
+
+  private static void createHomeFolderAndUser(CedarRequestContext cedarRequestContext) {
+    UserServiceSession userSession = CedarDataServices.getUserServiceSession(cedarRequestContext);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
+    userSession.ensureUserExists();
+    folderSession.ensureUserHomeExists();
+  }
+
+  public static Result authAdminCallback() {
+    try {
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+    } catch (Exception e) {
+      return internalServerErrorWithError(e);
+    }
+    // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
+
+    JsonNode jsonBody = request().body().asJson();
+    //System.out.println("  *** Resource Server Command - Admin");
+    //System.out.println(jsonBody);
+    if (jsonBody != null) {
+      try {
+        AdminEvent event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), AdminEvent.class);
+        CedarUserExtract eventUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
+        //System.out.println("Update user: enabled status");
+        //TODO: read KK user, update enabled status in CEDAR - mongo and NEO
+      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        play.Logger.error("Error while deserializing Keycloak event", e);
+        return internalServerErrorWithError(e);
+      }
+    }
+
+    return Results.TODO;
+  }
 }

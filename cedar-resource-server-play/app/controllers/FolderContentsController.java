@@ -5,10 +5,10 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.cedar.resource.util.ProxyUtil;
-import org.metadatacenter.model.response.RSNodeListResponse;
+import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.json.JsonMapper;
 import play.libs.F;
@@ -30,7 +30,7 @@ public class FolderContentsController extends AbstractResourceServerController {
       .Option<String> sort, F.Option<Integer> limitParam, F.Option<Integer> offsetParam) {
 
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String absoluteUrl = routes.FolderContentsController.findFolderContentsByPath(pathParam, resourceTypes, sort,
@@ -55,7 +55,7 @@ public class FolderContentsController extends AbstractResourceServerController {
       .Option<String> sort, F.Option<Integer> limitParam, F.Option<Integer> offsetParam) {
 
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
 
       String absoluteUrl = routes.FolderContentsController.findFolderContentsById(id, resourceTypes, sort,
@@ -80,10 +80,10 @@ public class FolderContentsController extends AbstractResourceServerController {
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
-      RSNodeListResponse response = null;
+      FolderServerNodeListResponse response = null;
       try {
         String responseString = EntityUtils.toString(proxyResponse.getEntity());
-        response = JsonMapper.MAPPER.readValue(responseString, RSNodeListResponse.class);
+        response = JsonMapper.MAPPER.readValue(responseString, FolderServerNodeListResponse.class);
       } catch (JsonProcessingException e) {
         e.printStackTrace();
       }

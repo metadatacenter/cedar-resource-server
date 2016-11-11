@@ -71,9 +71,6 @@ PUT            /template-instances/:id/permissions     controllers.TemplateInsta
 # Users
 GET            /users                                  controllers.UserController.findUsers()
 
-#Groups
-GET            /groups                                 controllers.GroupController.findGroups()
-
 # Search
 GET            /search                                 controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], template_id:play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
 GET            /search-deep                            controllers.SearchController.searchDeep(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], template_id:play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer])
@@ -83,6 +80,8 @@ GET            /search-deep                            controllers.SearchControl
 POST           /command/regenerate-search-index        controllers.SearchController.regenerateSearchIndex()
 POST           /command/copy-resource-to-folder        controllers.CommandController.copyResourceToFolder()
 POST           /command/move-node-to-folder            controllers.CommandController.moveNodeToFolder()
+POST           /command/auth-user-callback             controllers.CommandController.authUserCallback()
+POST           /command/auth-admin-callback            controllers.CommandController.authAdminCallback()
 
 # For CORS - preflight request
 OPTIONS        /*all                                   controllers.MainResourceServerController.preflight(all)

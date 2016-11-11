@@ -1,12 +1,15 @@
 package utils;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ElasticsearchConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.server.security.CedarApiKeyAuthRequest;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
@@ -34,7 +37,9 @@ public class DataServices {
         esc.getHost(),
         esc.getTransportPort(),
         esc.getSize(),
-        esc.getScrollKeepAlive()),
+        esc.getScrollKeepAlive(),
+        esc.getSettings(),
+        esc.getMappings()),
         esc.getIndex(),
         esc.getType(),
         cedarConfig.getServers().getFolder().getBase(),
@@ -57,11 +62,11 @@ public class DataServices {
     } else {
       // Regenerate search index if necessary
       String apiKey = adminUser.getFirstActiveApiKey();
-      IAuthRequest authRequest = new CedarApiKeyAuthRequest(apiKey);
+      AuthRequest authRequest = new CedarApiKeyAuthRequest(apiKey);
       try {
         searchService.regenerateSearchIndex(false, authRequest);
       } catch (Exception e) {
-        play.Logger.error("Error while regenerating the search index", e);
+        play.Logger.error("Error while regenerating the search index: ", e);
       }
     }
   }

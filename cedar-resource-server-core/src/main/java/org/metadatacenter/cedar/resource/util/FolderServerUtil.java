@@ -6,7 +6,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.util.json.JsonMapper;
 
 import java.io.IOException;
@@ -15,7 +15,7 @@ import java.util.Map;
 
 public class FolderServerUtil {
 
-  public static Map<String, String> getAccessibleNodeIds(IAuthRequest authRequest) {
+  public static Map<String, String> getAccessibleNodeIds(AuthRequest authRequest) {
     String folderBase = CedarConfig.getInstance().getServers().getFolder().getBase();
     String url = folderBase + "/" + "accessible-node-ids";
     Map<String, String> accessibleNodeIds = null;

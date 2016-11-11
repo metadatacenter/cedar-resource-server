@@ -9,7 +9,7 @@ import org.metadatacenter.cedar.resource.util.ProxyUtil;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
 import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.IAuthRequest;
+import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import play.mvc.Result;
 import play.mvc.Results;
@@ -22,7 +22,7 @@ public class UserController extends AbstractResourceServerController {
       httpMethod = "GET")
   public static Result findUsers() {
     try {
-      IAuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
+      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
       Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
     } catch (CedarAccessException e) {
       play.Logger.error("Access Error while reading the users", e);
