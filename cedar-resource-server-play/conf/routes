@@ -1,24 +1,3 @@
-# Routes
-# This file defines all application routes (Higher priority routes first)
-# ~~~~
-
-# Swagger - UI
-GET            /                                       controllers.Assets.at(path="/public/swagger-ui", file="index.html")
-
-# Swagger - API documentation
-GET            /api-docs                               controllers.ApiHelpController.getResources
-GET            /api-docs/folders                       controllers.ApiHelpController.getResource(path = "/folders")
-GET            /api-docs/templates                     controllers.ApiHelpController.getResource(path = "/templates")
-GET            /api-docs/template-elements             controllers.ApiHelpController.getResource(path = "/template-elements")
-GET            /api-docs/template-fields               controllers.ApiHelpController.getResource(path = "/template-fields")
-GET            /api-docs/template-instances            controllers.ApiHelpController.getResource(path = "/template-instances")
-GET            /api-docs/search                        controllers.ApiHelpController.getResource(path = "/search")
-GET            /api-docs/users                         controllers.ApiHelpController.getResource(path = "/users")
-GET            /api-docs/groups                        controllers.ApiHelpController.getResource(path = "/groups")
-
-# Home page
-#GET            /                                      controllers.MainResourceServerController.index()
-
 # Folder contents
 GET            /folders/contents                       controllers.FolderContentsController.findFolderContentsByPath(path: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
 GET            /folders/:id/contents                   controllers.FolderContentsController.findFolderContentsById(id: String, resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
@@ -82,16 +61,3 @@ POST           /command/copy-resource-to-folder        controllers.CommandContro
 POST           /command/move-node-to-folder            controllers.CommandController.moveNodeToFolder()
 POST           /command/auth-user-callback             controllers.CommandController.authUserCallback()
 POST           /command/auth-admin-callback            controllers.CommandController.authAdminCallback()
-
-# For CORS - preflight request
-OPTIONS        /*all                                   controllers.MainResourceServerController.preflight(all)
-
-# Map static resources from the /public folder to the /assets URL path
-GET            /assets/*file                           controllers.Assets.at(path="/public", file)
-
-## Map relevant static resources from the /public/swagger-ui folder to /assets corresponding path - Swagger - UI
-#GET            /css/*file                 controllers.Assets.at(path="/public/swagger-ui/css", file)
-#GET            /images/*file              controllers.Assets.at(path="/public/swagger-ui/images", file)
-#GET            /lib/*file                 controllers.Assets.at(path="/public/swagger-ui/lib", file)
-#GET            /*file                     controllers.Assets.at(path="/public/swagger-ui", file)
-GET            /*file                                  controllers.Assets.at(path="/public/swagger-ui", file)
