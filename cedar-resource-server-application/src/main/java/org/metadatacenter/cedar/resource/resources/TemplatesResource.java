@@ -1,26 +1,30 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.codahale.metrics.annotation.Timed;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.rest.assertion.noun.CedarParameter;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.rest.exception.CedarAssertionException;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.http.CedarResponse;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.Context;
+import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.UriInfo;
+import javax.ws.rs.core.Response;
+import java.util.Optional;
+
+import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/templates")
 @Produces(MediaType.APPLICATION_JSON)
 @Api(value = "/templates", description = "Template operations")
 public class TemplatesResource extends AbstractResourceServerResource {
-
-  private
-  @Context
-  UriInfo uriInfo;
-
-  private
-  @Context
-  HttpServletRequest request;
 
   public TemplatesResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -28,161 +32,148 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
 
   @ApiOperation(
-      value = "Create template",
-      httpMethod = "POST")
-  public static Result createTemplate(F.Option<Boolean> importMode) {
-    boolean canProceed = false;
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_CREATE);
+      value = "Create template")
+  @POST
+  @Timed
+  public Response createTemplate(Optional<Boolean> importMode) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_CREATE);
 
-      String folderId = request().getQueryString("folderId");
-      if (folderId != null) {
-        folderId = folderId.trim();
-      }
-      if (userHasWriteAccessToFolder(folderBase, folderId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while creating the template", e);
-      return forbiddenWithError(e);
+    CedarParameter folderIdP = c.request().getRequestBody().get("folderId");
+    c.must(folderIdP).be(NonEmpty);
+
+    String folderId = folderIdP.stringValue();
+
+    if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
+          .errorMessage("You do not have write access to the folder")
+          .parameter("folderId", folderId)
+          .build();
     }
-    if (canProceed) {
-      return executeResourcePostByProxy(CedarNodeType.TEMPLATE, importMode);
-    } else {
-      return forbidden("You do not have write access for this folder");
-    }
+    return executeResourcePostByProxy(CedarNodeType.TEMPLATE, importMode);
   }
 
   @ApiOperation(
-      value = "Find template by id",
-      httpMethod = "GET")
-  public static Result findTemplate(String templateId) {
-    boolean canProceed = false;
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_READ);
-      if (userHasReadAccessToResource(folderBase, templateId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while reading the template", e);
-      return forbiddenWithError(e);
+      value = "Find template by id")
+  @GET
+  @Timed
+  @Path("/{id}")
+  public Response findTemplate(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
+
+    if (!userHasReadAccessToResource(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE)
+          .errorMessage("You do not have read access to the template")
+          .parameter("id", id)
+          .build();
     }
-    if (canProceed) {
-      return executeResourceGetByProxy(CedarNodeType.TEMPLATE, templateId);
-    } else {
-      return forbidden("You do not have read access for this template");
-    }
+    return executeResourceGetByProxy(CedarNodeType.TEMPLATE, id);
   }
 
   @ApiOperation(
-      value = "Find template details by id",
-      httpMethod = "GET")
-  public static Result findTemplateDetails(String templateId) {
-    boolean canProceed = false;
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_READ);
-      if (userHasReadAccessToResource(folderBase, templateId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while reading the template", e);
-      return forbiddenWithError(e);
+      value = "Find template details by id")
+  @GET
+  @Timed
+  @Path("/{id}/details")
+  public Response findTemplateDetails(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
+
+    if (!userHasReadAccessToResource(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE)
+          .errorMessage("You do not have read access to the template")
+          .parameter("id", id)
+          .build();
     }
-    if (canProceed) {
-      return executeResourceGetDetailsByProxy(CedarNodeType.TEMPLATE, templateId);
-    } else {
-      return forbidden("You do not have read access for this template");
-    }
+    return executeResourceGetDetailsByProxy(CedarNodeType.TEMPLATE, id);
   }
 
   @ApiOperation(
-      value = "Update template",
-      httpMethod = "PUT")
-  public static Result updateTemplate(String templateId) {
-    boolean canProceed = false;
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_UPDATE);
-      if (userHasWriteAccessToResource(folderBase, templateId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while updating the template", e);
-      return forbiddenWithError(e);
+      value = "Update template")
+  @PUT
+  @Timed
+  @Path("/{id}")
+  public Response updateTemplate(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
+
+    if (!userHasWriteAccessToResource(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE)
+          .errorMessage("You do not have write access to the template")
+          .parameter("id", id)
+          .build();
     }
-    if (canProceed) {
-      return executeResourcePutByProxy(CedarNodeType.TEMPLATE, templateId);
-    } else {
-      return forbidden("You do not have write access for this template");
-    }
+    return executeResourcePutByProxy(CedarNodeType.TEMPLATE, id);
   }
 
   @ApiOperation(
-      value = "Delete template",
-      httpMethod = "DELETE")
-  public static Result deleteTemplate(String templateId) {
-    boolean canProceed = false;
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_DELETE);
-      if (userHasWriteAccessToResource(folderBase, templateId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while deleting the template", e);
-      return forbiddenWithError(e);
+      value = "Delete template")
+  @DELETE
+  @Timed
+  @Path("/{id}")
+  public Response deleteTemplate(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_DELETE);
+
+    if (!userHasWriteAccessToResource(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE)
+          .errorMessage("You do not have write access to the template")
+          .parameter("id", id)
+          .build();
     }
-    if (canProceed) {
-      return executeResourceDeleteByProxy(CedarNodeType.TEMPLATE, templateId);
-    } else {
-      return forbidden("You do not have write access for this folder");
-    }
+    return executeResourceDeleteByProxy(CedarNodeType.TEMPLATE, id);
   }
 
   @ApiOperation(
-      value = "Get permissions of a template",
-      httpMethod = "GET")
-  public static Result getTemplatePermissions(String templateId) {
-    boolean canProceed = false;
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_READ);
-      if (userHasReadAccessToResource(folderBase, templateId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while reading the template permissions", e);
-      return forbiddenWithError(e);
+      value = "Get permissions of a template")
+  @GET
+  @Timed
+  @Path("/{id}/permissions")
+  public Response getTemplatePermissions(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
+
+    if (!userHasReadAccessToResource(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE)
+          .errorMessage("You do not have read access to the template")
+          .parameter("id", id)
+          .build();
     }
-    if (canProceed) {
-      return executeResourcePermissionGetByProxy(templateId);
-    } else {
-      return forbidden("You do not have read access for this template");
-    }
+
+    return executeResourcePermissionGetByProxy(id);
   }
 
   @ApiOperation(
-      value = "Update template permissions",
-      httpMethod = "PUT")
-  public static Result updateTemplatePermissions(String templateId) {
-    boolean canProceed = false;
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.TEMPLATE_UPDATE);
-      if (userHasWriteAccessToResource(folderBase, templateId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while updating the template permissions", e);
-      return forbiddenWithError(e);
+      value = "Update template permissions")
+  @PUT
+  @Timed
+  @Path("/{id}")
+  public Response updateTemplatePermissions(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
+
+    if (!userHasWriteAccessToResource(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE)
+          .errorMessage("You do not have write access to the template")
+          .parameter("id", id)
+          .build();
     }
-    if (canProceed) {
-      return executeResourcePermissionPutByProxy(templateId);
-    } else {
-      return forbidden("You do not have write access for this template");
-    }
+
+    return executeResourcePermissionPutByProxy(id);
   }
 }

@@ -1,57 +1,48 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.rest.exception.CedarAssertionException;
+import org.metadatacenter.util.http.CedarEntityUtil;
+import org.metadatacenter.util.http.ProxyUtil;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
-import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.UriInfo;
+import javax.ws.rs.core.Response;
+
+import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/users")
 @Produces(MediaType.APPLICATION_JSON)
 @Api(value = "/users", description = "User operations")
 public class UsersResource extends AbstractResourceServerResource {
 
-  private
-  @Context
-  UriInfo uriInfo;
-
-  private
-  @Context
-  HttpServletRequest request;
-
   public UsersResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
 
-
   @ApiOperation(
       value = "List all users",
       httpMethod = "GET")
-  public static Result findUsers() {
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while reading the users", e);
-      return forbiddenWithError(e);
-    }
+  public Response findUsers() throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
 
     String url = usersURL;
-    try {
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-      HttpEntity entity = proxyResponse.getEntity();
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      if (entity != null) {
-        return Results.status(statusCode, EntityUtils.toString(entity));
-      } else {
-        return Results.status(statusCode);
-      }
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+    HttpEntity entity = proxyResponse.getEntity();
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    if (entity != null) {
+      return Response.status(statusCode).entity(CedarEntityUtil.toString(entity)).build();
+    } else {
+      return Response.status(statusCode).build();
     }
   }
 }

@@ -1,11 +1,30 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.model.CedarNodeType;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.Optional;
 
 public class AbstractResourceServerResource {
+
+  protected
+  @Context
+  UriInfo uriInfo;
+
+  protected
+  @Context
+  HttpServletRequest request;
+
+  protected
+  @Context
+  HttpServletResponse response;
 
   protected static final String PREFIX_RESOURCES = "resources";
 
@@ -127,7 +146,7 @@ public class AbstractResourceServerResource {
   }
 
   // Proxy methods for resource types
-  protected static Result executeResourcePostByProxy(CedarNodeType nodeType, F.Option<Boolean> importMode) {
+  protected static Response executeResourcePostByProxy(CedarNodeType nodeType, Optional<Boolean> importMode) {
     AuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
     try {
       String folderId = request().getQueryString("folderId");
@@ -264,7 +283,7 @@ public class AbstractResourceServerResource {
     return description;
   }
 
-  protected static Result executeResourceGetByProxy(CedarNodeType nodeType, String id) {
+  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id) {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
       //System.out.println(url);
@@ -283,7 +302,7 @@ public class AbstractResourceServerResource {
     }
   }
 
-  protected static Result executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id) {
+  protected Response executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id) {
     try {
       String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + new URLCodec().encode(id);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, request());
@@ -301,7 +320,7 @@ public class AbstractResourceServerResource {
     }
   }
 
-  protected static Result executeResourcePutByProxy(CedarNodeType nodeType, String id) {
+  protected Response executeResourcePutByProxy(CedarNodeType nodeType, String id) {
     AuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
@@ -367,7 +386,7 @@ public class AbstractResourceServerResource {
   }
 
 
-  protected static Result executeResourceDeleteByProxy(CedarNodeType nodeType, String id) {
+  protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id) {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
       //System.out.println(url);
@@ -451,7 +470,7 @@ public class AbstractResourceServerResource {
     return fsResource.currentUserCan(NodePermission.WRITE);
   }
 
-  protected static Result executeResourcePermissionGetByProxy(String resourceId) {
+  protected Response executeResourcePermissionGetByProxy(String resourceId) {
     try {
       String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
 
@@ -470,7 +489,7 @@ public class AbstractResourceServerResource {
     }
   }
 
-  protected static Result executeResourcePermissionPutByProxy(String resourceId) {
+  protected static Response executeResourcePermissionPutByProxy(String resourceId) {
     try {
       String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
 
