@@ -30,7 +30,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     super(cedarConfig);
   }
 
-
   @ApiOperation(
       value = "Create template")
   @POST
@@ -160,7 +159,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       value = "Update template permissions")
   @PUT
   @Timed
-  @Path("/{id}")
+  @Path("/{id}/permissions")
   public Response updateTemplatePermissions(@PathParam("id") String id) throws CedarAssertionException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);

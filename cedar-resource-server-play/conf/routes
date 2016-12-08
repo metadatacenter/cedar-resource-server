@@ -21,13 +21,13 @@ PUT            /folders/:id/permissions                controllers.FolderControl
 #PUT            /templates/:id/permissions              controllers.TemplateController.updateTemplatePermissions(id: String)
 
 # Template Elements
-POST           /template-elements                      controllers.TemplateElementController.createTemplateElement(importMode: play.libs.F.Option[java.lang.Boolean])
-GET            /template-elements/:id                  controllers.TemplateElementController.findTemplateElement(id: String)
-GET            /template-elements/:id/details          controllers.TemplateElementController.findTemplateElementDetails(id: String)
-PUT            /template-elements/:id                  controllers.TemplateElementController.updateTemplateElement(id: String)
-DELETE         /template-elements/:id                  controllers.TemplateElementController.deleteTemplateElement(id: String)
-GET            /template-elements/:id/permissions      controllers.TemplateElementController.getTemplateElementPermissions(id: String)
-PUT            /template-elements/:id/permissions      controllers.TemplateElementController.updateTemplateElementPermissions(id: String)
+#POST           /template-elements                      controllers.TemplateElementController.createTemplateElement(importMode: play.libs.F.Option[java.lang.Boolean])
+#GET            /template-elements/:id                  controllers.TemplateElementController.findTemplateElement(id: String)
+#GET            /template-elements/:id/details          controllers.TemplateElementController.findTemplateElementDetails(id: String)
+#PUT            /template-elements/:id                  controllers.TemplateElementController.updateTemplateElement(id: String)
+#DELETE         /template-elements/:id                  controllers.TemplateElementController.deleteTemplateElement(id: String)
+#GET            /template-elements/:id/permissions      controllers.TemplateElementController.getTemplateElementPermissions(id: String)
+#PUT            /template-elements/:id/permissions      controllers.TemplateElementController.updateTemplateElementPermissions(id: String)
 
 # Template Fields
 POST           /template-fields                        controllers.TemplateFieldController.createTemplateField(importMode: play.libs.F.Option[java.lang.Boolean])
@@ -48,7 +48,7 @@ GET            /template-instances/:id/permissions     controllers.TemplateInsta
 PUT            /template-instances/:id/permissions     controllers.TemplateInstanceController.updateTemplateInstancePermissions(id: String)
 
 # Users
-GET            /users                                  controllers.UserController.findUsers()
+#GET            /users                                  controllers.UserController.findUsers()
 
 # Search
 GET            /search                                 controllers.SearchController.search(q: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], template_id:play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
