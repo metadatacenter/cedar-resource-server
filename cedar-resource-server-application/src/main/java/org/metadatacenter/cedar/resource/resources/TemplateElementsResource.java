@@ -85,7 +85,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeResourceGetByProxy(CedarNodeType.ELEMENT, id);
   }
 
-
   @ApiOperation(
       value = "Find template element details by id")
   @GET
@@ -105,7 +104,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     }
     return executeResourceGetDetailsByProxy(CedarNodeType.ELEMENT, id);
   }
-
 
   @ApiOperation(
       value = "Update template element")
@@ -127,7 +125,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeResourcePutByProxy(CedarNodeType.ELEMENT, id);
   }
 
-
   @ApiOperation(
       value = "Delete template element")
   @DELETE
@@ -147,7 +144,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     }
     return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, id);
   }
-
 
   @ApiOperation(
       value = "Get permissions of a template element")
@@ -171,7 +167,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   }
 
   @ApiOperation(
-      value = "Update template permissions")
+      value = "Update template element permissions")
   @PUT
   @Timed
   @Path("/{id}/permissions")
@@ -182,7 +178,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
     if (!userHasWriteAccessToResource(folderBase, id)) {
       return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE)
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_ELEMENT)
           .errorMessage("You do not have write access to the template element")
           .parameter("id", id)
           .build();
