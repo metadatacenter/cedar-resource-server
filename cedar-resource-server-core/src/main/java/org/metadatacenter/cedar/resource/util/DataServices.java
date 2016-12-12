@@ -1,14 +1,12 @@
-package utils;
+package org.metadatacenter.cedar.resource.util;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ElasticsearchConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.server.security.CedarApiKeyAuthRequest;
+import org.metadatacenter.server.security.CedarApiKeyHttpServletRequest;
 import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.service.UserService;
@@ -46,7 +44,7 @@ public class DataServices {
         cedarConfig.getServers().getTemplate().getBase(),
         cedarConfig.getSearchSettings().getSearchRetrieveSettings().getLimitIndexRegeneration(),
         cedarConfig.getSearchSettings().getSearchRetrieveSettings().getMaxAttempts(),
-        cedarConfig.getSearchSettings().getSearchRetrieveSettings() .getDelayAttempts()
+        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getDelayAttempts()
     );
 
     String adminUserUUID = cedarConfig.getKeycloakConfig().getAdminUser().getUuid();
@@ -62,9 +60,9 @@ public class DataServices {
     } else {
       // Regenerate search index if necessary
       String apiKey = adminUser.getFirstActiveApiKey();
-      AuthRequest authRequest = new CedarApiKeyAuthRequest(apiKey);
+      CedarApiKeyHttpServletRequest fakeRequest = new CedarApiKeyHttpServletRequest(apiKey);
       try {
-        searchService.regenerateSearchIndex(false, authRequest);
+        searchService.regenerateSearchIndex(false, fakeRequest);
       } catch (Exception e) {
         play.Logger.error("Error while regenerating the search index: ", e);
       }

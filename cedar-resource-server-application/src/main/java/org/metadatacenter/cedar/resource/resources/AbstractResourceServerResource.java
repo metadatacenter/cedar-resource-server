@@ -1,7 +1,30 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.commons.codec.EncoderException;
+import org.apache.commons.codec.net.URLCodec;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.util.EntityUtils;
+import org.codehaus.jackson.node.JsonNodeFactory;
+import org.codehaus.jackson.node.ObjectNode;
+import org.metadatacenter.bridge.FolderServerProxy;
+import org.metadatacenter.cedar.resource.util.DataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.FolderServerNode;
+import org.metadatacenter.model.folderserver.FolderServerResource;
+import org.metadatacenter.rest.exception.CedarAssertionException;
+import org.metadatacenter.rest.exception.CedarProcessingException;
+import org.metadatacenter.server.security.exception.CedarAccessException;
+import org.metadatacenter.server.security.model.auth.NodePermission;
+import org.metadatacenter.server.security.model.user.CedarUserSummary;
+import org.metadatacenter.util.http.CedarUrlUtil;
+import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.json.JsonMapper;
+import play.mvc.Results;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -35,7 +58,6 @@ public class AbstractResourceServerResource {
   protected final String groupsURL;
   protected final String usersURL;
 
-
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
     this.cedarConfig = cedarConfig;
     folderBase = cedarConfig.getServers().getFolder().getBase();
@@ -46,11 +68,11 @@ public class AbstractResourceServerResource {
   }
 
 
-  protected static FolderServerFolder getCedarFolderById(String id) throws IOException, EncoderException {
-    String url = folderBase + CedarNodeType.FOLDER.getPrefix() + "/" + new URLCodec().encode(id);
+  protected FolderServerFolder getCedarFolderById(String id) throws CedarAssertionException {
+    String url = folderBase + CedarNodeType.FOLDER.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
 
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
 
@@ -63,23 +85,23 @@ public class AbstractResourceServerResource {
     return null;
   }
 
-  protected static FolderServerNode deserializeResource(HttpResponse proxyResponse) throws IOException {
+  protected static FolderServerNode deserializeResource(HttpResponse proxyResponse) throws CedarAssertionException {
     FolderServerNode resource = null;
     try {
       String responseString = EntityUtils.toString(proxyResponse.getEntity());
       System.out.println(responseString);
       resource = JsonMapper.MAPPER.readValue(responseString, FolderServerNode.class);
-    } catch (JsonProcessingException e) {
-      e.printStackTrace();
+    } catch (IOException e) {
+      throw new CedarAssertionException(e);
     }
     return resource;
   }
 
-  private static FolderServerNode addProvenanceDisplayName(FolderServerNode resource, Http.Request request) {
+  private FolderServerNode addProvenanceDisplayName(FolderServerNode resource) throws CedarAssertionException {
     if (resource != null) {
-      CedarUserSummary creator = getUserSummary(request, extractUserUUID(resource.getCreatedBy()));
-      CedarUserSummary updater = getUserSummary(request, extractUserUUID(resource.getLastUpdatedBy()));
-      CedarUserSummary owner = getUserSummary(request, extractUserUUID(resource.getOwnedBy()));
+      CedarUserSummary creator = getUserSummary(extractUserUUID(resource.getCreatedBy()));
+      CedarUserSummary updater = getUserSummary(extractUserUUID(resource.getLastUpdatedBy()));
+      CedarUserSummary owner = getUserSummary(extractUserUUID(resource.getOwnedBy()));
       if (creator != null) {
         resource.setCreatedByUserName(creator.getScreenName());
       }
@@ -107,7 +129,7 @@ public class AbstractResourceServerResource {
     return id;
   }
 
-  private static CedarUserSummary getUserSummary(Http.Request request, String id) {
+  private CedarUserSummary getUserSummary(String id) throws CedarAssertionException {
     String url = usersBase + id + "/" + "summary";
     HttpResponse proxyResponse = null;
     try {
@@ -128,15 +150,15 @@ public class AbstractResourceServerResource {
         }
       }
     } catch (IOException e) {
-      e.printStackTrace();
+      throw new CedarAssertionException(e);
     }
     return null;
   }
 
-  protected static JsonNode resourceWithExpandedProvenanceInfo(Http.Request request, HttpResponse proxyResponse)
-      throws IOException {
+  protected JsonNode resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse)
+      throws CedarAssertionException {
     FolderServerNode resource = deserializeResource(proxyResponse);
-    addProvenanceDisplayName(resource, request);
+    addProvenanceDisplayName(resource);
     return JsonMapper.MAPPER.valueToTree(resource);
   }
 
@@ -245,13 +267,13 @@ public class AbstractResourceServerResource {
 
   }
 
-  protected static Result generateStatusResponse(HttpResponse proxyResponse) throws IOException {
+  protected Response generateStatusResponse(HttpResponse proxyResponse) throws CedarAssertionException {
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
-      return Results.status(statusCode, entity.getContent());
+      return Response.status(statusCode).entity(entity.getContent()).build();
     } else {
-      return Results.status(statusCode);
+      return Response.status(statusCode).build();
     }
   }
 
@@ -283,50 +305,47 @@ public class AbstractResourceServerResource {
     return description;
   }
 
-  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id) {
+  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id) throws CedarAssertionException {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
       //System.out.println(url);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
+        return Response.status(statusCode).entity(entity.getContent()).build();
       } else {
-        return Results.status(statusCode);
+        return Response.status(statusCode).build();
       }
     } catch (Exception e) {
-      play.Logger.error("Error while reading " + nodeType.getValue(), e);
-      return internalServerErrorWithError(e);
+      throw new CedarAssertionException(e);
     }
   }
 
-  protected Response executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id) {
+  protected Response executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id) throws
+      CedarAssertionException {
     try {
-      String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + new URLCodec().encode(id);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+      String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, request);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        return Results.status(statusCode, resourceWithExpandedProvenanceInfo(request(), proxyResponse));
+        return Response.status(statusCode).entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
       } else {
-        return Results.status(statusCode);
+        return Response.status(statusCode).build();
       }
     } catch (Exception e) {
-      play.Logger.error("Error while reading details of " + nodeType.getValue(), e);
-      return internalServerErrorWithError(e);
+      throw new CedarAssertionException(e);
     }
   }
 
-  protected Response executeResourcePutByProxy(CedarNodeType nodeType, String id) {
-    AuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+  protected Response executeResourcePutByProxy(CedarNodeType nodeType, String id) throws CedarProcessingException {
     try {
-      String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
-      //System.out.println(url);
-      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+      String url = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
+      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_OK) {
         // resource was not created
@@ -346,7 +365,7 @@ public class AbstractResourceServerResource {
           resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
-          HttpResponse resourceUpdateResponse = ProxyUtil.proxyPut(resourceUrl, request(), resourceRequestBodyAsString);
+          HttpResponse resourceUpdateResponse = ProxyUtil.proxyPut(resourceUrl, request, resourceRequestBodyAsString);
           int resourceUpdateStatusCode = resourceUpdateResponse.getStatusLine().getStatusCode();
           HttpEntity resourceEntity = resourceUpdateResponse.getEntity();
           if (resourceEntity != null) {
@@ -355,156 +374,118 @@ public class AbstractResourceServerResource {
                 // update the resource on the index
                 DataServices.getInstance().getSearchService().updateIndexedResource(JsonMapper.MAPPER.readValue
                     (resourceUpdateResponse.getEntity().getContent(),
-                        FolderServerResource.class), jsonNode, authRequest);
-                return ok(proxyResponse.getEntity().getContent());
+                        FolderServerResource.class), jsonNode, request);
+                return Response.ok().entity(proxyResponse.getEntity().getContent()).build();
               } else {
-                return ok();
+                return Response.ok().build();
               }
             } else {
               System.out.println("Resource not updated #1, rollback resource and signal error");
-              return Results.status(resourceUpdateStatusCode, resourceEntity.getContent());
+              return Response.status(resourceUpdateStatusCode).entity(resourceEntity.getContent()).build();
             }
           } else {
             System.out.println("Resource not updated #2, rollback resource and signal error");
-            return Results.status(resourceUpdateStatusCode);
+            return Response.status(resourceUpdateStatusCode).build();
           }
 
         } else {
-          return ok();
+          return Response.ok().build();
         }
       }
-    } catch (UnknownHostException e) {
-      play.Logger.error("Error while updating the resource on the index", e);
-      return internalServerErrorWithError(e);
-    } catch (ElasticsearchException e) {
-      play.Logger.error("Error while updating the resource on the index", e);
-      return internalServerErrorWithError(e);
     } catch (Exception e) {
-      play.Logger.error("Error while updating " + nodeType.getValue(), e);
-      return internalServerErrorWithError(e);
+      throw new CedarProcessingException(e, "Error while updating the resource on the index");
     }
   }
 
 
-  protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id) {
+  protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id) throws CedarProcessingException {
     try {
-      String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
-      //System.out.println(url);
-      HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+      String url = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
+      HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_NO_CONTENT) {
         // resource was not deleted
         return generateStatusResponse(proxyResponse);
       } else {
-        String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + new URLCodec().encode(id);
-        //System.out.println(resourceUrl);
-
-        HttpResponse resourceDeleteResponse = ProxyUtil.proxyDelete(resourceUrl, request());
+        String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
+        HttpResponse resourceDeleteResponse = ProxyUtil.proxyDelete(resourceUrl, request);
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           // remove the resource from the index
           DataServices.getInstance().getSearchService().removeResourceFromIndex(id);
-          return noContent();
+          return Response.noContent().build();
         } else {
           return generateStatusResponse(resourceDeleteResponse);
         }
       }
-    } catch (UnknownHostException e) {
-      play.Logger.error("Error while un-indexing the resource", e);
-      return internalServerErrorWithError(e);
-    } catch (ElasticsearchException e) {
-      play.Logger.error("Error while un-indexing the resource", e);
-      return internalServerErrorWithError(e);
     } catch (Exception e) {
-      play.Logger.error("Error while deleting " + nodeType.getValue(), e);
-      return internalServerErrorWithError(e);
+      throw new CedarProcessingException(e);
     }
   }
 
-  protected static String getFolderIdFromBody() throws CedarAccessException {
-    JsonNode requestBody = request().body().asJson();
-    if (requestBody == null) {
-      throw new IllegalArgumentException("You must supply the request body as a json object!");
-    }
-    return ParameterUtil.getString(requestBody, "folderId", null);
-  }
-
-  protected static boolean userHasReadAccessToFolder(String folderBase, String
-      folderId) throws CedarAccessException {
+  protected boolean userHasReadAccessToFolder(String folderBase, String folderId) throws CedarProcessingException {
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
-    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request());
+    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request);
     if (fsFolder == null) {
       throw new IllegalArgumentException("Folder not found for id:" + folderId);
     }
     return fsFolder.currentUserCan(NodePermission.READ);
   }
 
-  protected static boolean userHasWriteAccessToFolder(String folderBase, String
-      folderId) throws CedarAccessException {
+  protected boolean userHasWriteAccessToFolder(String folderBase, String folderId) throws
+      CedarProcessingException {
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
-    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request());
+    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request);
     if (fsFolder == null) {
       throw new IllegalArgumentException("Folder not found for id:" + folderId);
     }
     return fsFolder.currentUserCan(NodePermission.WRITE);
   }
 
-  protected static boolean userHasReadAccessToResource(String folderBase, String
-      nodeId) throws CedarAccessException {
+  protected boolean userHasReadAccessToResource(String folderBase, String nodeId) throws CedarProcessingException {
     String url = folderBase + PREFIX_RESOURCES;
-    FolderServerResource fsResource = FolderServerProxy.getResource(url, nodeId, request());
+    FolderServerResource fsResource = FolderServerProxy.getResource(url, nodeId, request);
     if (fsResource == null) {
       throw new IllegalArgumentException("Resource not found:" + nodeId);
     }
     return fsResource.currentUserCan(NodePermission.READ);
   }
 
-  protected static boolean userHasWriteAccessToResource(String folderBase, String
-      nodeId) throws CedarAccessException {
+  protected boolean userHasWriteAccessToResource(String folderBase, String nodeId) throws CedarProcessingException {
     String url = folderBase + PREFIX_RESOURCES;
-    FolderServerResource fsResource = FolderServerProxy.getResource(url, nodeId, request());
+    FolderServerResource fsResource = FolderServerProxy.getResource(url, nodeId, request);
     if (fsResource == null) {
       throw new IllegalArgumentException("Resource not found:" + nodeId);
     }
     return fsResource.currentUserCan(NodePermission.WRITE);
   }
 
-  protected Response executeResourcePermissionGetByProxy(String resourceId) {
-    try {
-      String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
-
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
-      } else {
-        return Results.status(statusCode);
-      }
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
-    }
+  protected Response executeResourcePermissionGetByProxy(String resourceId) throws CedarProcessingException {
+    String url = folderBase + "resources" + "/" + CedarUrlUtil.urlEncode(resourceId) + "/permissions";
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+    return buildResponse(proxyResponse);
   }
 
-  protected static Response executeResourcePermissionPutByProxy(String resourceId) {
-    try {
-      String url = folderBase + "resources" + "/" + new URLCodec().encode(resourceId) + "/permissions";
+  protected Response executeResourcePermissionPutByProxy(String resourceId) throws CedarProcessingException {
+    String url = folderBase + "resources" + "/" + CedarUrlUtil.urlEncode(resourceId) + "/permissions";
+    HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request);
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+    return buildResponse(proxyResponse);
+  }
 
-      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
-      } else {
-        return Results.status(statusCode);
+  private static Response buildResponse(HttpResponse proxyResponse) throws CedarProcessingException {
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    HttpEntity entity = proxyResponse.getEntity();
+    if (entity != null) {
+      try {
+        return Response.status(statusCode).entity(entity.getContent()).build();
+      } catch (IOException e) {
+        throw new CedarProcessingException(e);
       }
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
+    } else {
+      return Response.status(statusCode).build();
     }
   }
 }

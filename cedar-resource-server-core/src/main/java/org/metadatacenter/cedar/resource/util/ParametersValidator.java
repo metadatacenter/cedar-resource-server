@@ -1,4 +1,4 @@
-package utils;
+package org.metadatacenter.cedar.resource.util;
 
 import org.metadatacenter.model.CedarNodeType;
 import play.libs.F;

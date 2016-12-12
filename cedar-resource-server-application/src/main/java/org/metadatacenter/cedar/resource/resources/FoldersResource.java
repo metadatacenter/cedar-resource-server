@@ -1,26 +1,38 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.codahale.metrics.annotation.Timed;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.metadatacenter.cedar.resource.util.DataServices;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.rest.assertion.noun.CedarParameter;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.rest.exception.CedarAssertionException;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.http.CedarResponse;
+import org.metadatacenter.util.http.CedarUrlUtil;
+import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.json.JsonMapper;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.Context;
+import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.UriInfo;
+import javax.ws.rs.core.Response;
+import java.io.IOException;
+
+import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/folders")
 @Produces(MediaType.APPLICATION_JSON)
 @Api(value = "/folders", description = "Folder operations")
 public class FoldersResource extends AbstractResourceServerResource {
-
-  private
-  @Context
-  UriInfo uriInfo;
-
-  private
-  @Context
-  HttpServletRequest request;
 
   public FoldersResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -28,227 +40,252 @@ public class FoldersResource extends AbstractResourceServerResource {
 
 
   @ApiOperation(
-      value = "Create folder",
-      httpMethod = "POST")
-  public static Result createFolder() {
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      value = "Create folder")
+  @POST
+  @Timed
+  public Response createFolder() throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.FOLDER_CREATE);
 
-      String folderId = getFolderIdFromBody();
-      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
-        return forbidden("You do not have write access to the folder");
-      }
+    CedarParameter folderIdP = c.request().getRequestBody().get("folderId");
+    c.must(folderIdP).be(NonEmpty);
 
-      String url = folderBase + CedarNodeType.Prefix.FOLDERS;
-      HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+    String folderId = folderIdP.stringValue();
 
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
+    if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
+          .errorMessage("You do not have write access to the folder")
+          .parameter("folderId", folderId)
+          .build();
+    }
+
+    String url = folderBase + CedarNodeType.Prefix.FOLDERS;
+    HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request);
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    HttpEntity entity = proxyResponse.getEntity();
+    if (entity != null) {
+      try {
         if (HttpStatus.SC_CREATED == statusCode) {
           // index the folder that has been created
           DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue(entity.getContent(),
-              FolderServerFolder.class), null, frontendRequest);
-          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
+              FolderServerFolder.class), null, request);
+          //TODO: use created here, with the proxied location header
+          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
         } else {
-          return Results.status(statusCode, entity.getContent());
+          return Response.status(statusCode).entity(entity.getContent()).build();
         }
-      } else {
-        return Results.status(statusCode);
+      } catch (IOException e) {
+        throw new CedarAssertionException(e);
       }
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
+    } else {
+      return Response.status(statusCode).build();
     }
   }
 
   @ApiOperation(
-      value = "Find folder by id",
-      httpMethod = "GET")
-  public static Result findFolder(String folderId) {
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+      value = "Find folder by id")
+  @GET
+  @Timed
+  @Path("/{id}")
+  public Response findFolder(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
-      if (!userHasReadAccessToFolder(folderBase, folderId)) {
-        return forbidden("You do not have read access to the folder");
-      }
+    if (!userHasReadAccessToFolder(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
+          .errorMessage("You do not have read access to the folder")
+          .parameter("id", id)
+          .build();
+    }
 
-      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
+    String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        if (HttpStatus.SC_OK == statusCode) {
-          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
-        } else {
-          return Results.status(statusCode, entity.getContent());
-        }
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    HttpEntity entity = proxyResponse.getEntity();
+    if (entity != null) {
+      if (HttpStatus.SC_OK == statusCode) {
+        return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
       } else {
-        return Results.status(statusCode);
+        try {
+          return Response.status(statusCode).entity(entity.getContent()).build();
+        } catch (IOException e) {
+          throw new CedarAssertionException(e);
+        }
       }
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
+    } else {
+      return Response.status(statusCode).build();
     }
   }
 
   @ApiOperation(
-      value = "Find folder details by id",
-      httpMethod = "GET")
-  public static Result findFolderDetails(String folderId) {
-    return findFolder(folderId);
+      value = "Find folder details by id")
+  @GET
+  @Timed
+  @Path("/{id}")
+  public Response findFolderDetails(@PathParam("id") String id) throws CedarAssertionException {
+    return findFolder(id);
   }
 
   @ApiOperation(
       value = "Update folder",
       httpMethod = "PUT")
-  public static Result updateFolder(String folderId) {
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+  public Response updateFolder(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 
-      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
-        return forbidden("You do not have write access to the folder");
-      }
+    if (!userHasWriteAccessToFolder(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
+          .errorMessage("You do not have write access to the folder")
+          .parameter("id", id)
+          .build();
+    }
 
-      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
+    String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
-      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+    HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request);
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    HttpEntity entity = proxyResponse.getEntity();
+    if (entity != null) {
+      try {
         if (HttpStatus.SC_OK == statusCode) {
           // update the folder on the index
           DataServices.getInstance().getSearchService().updateIndexedResource(JsonMapper.MAPPER.readValue(entity
-              .getContent(), FolderServerFolder.class), null, frontendRequest);
-          return ok(resourceWithExpandedProvenanceInfo(request(), proxyResponse));
+              .getContent(), FolderServerFolder.class), null, request);
+          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
         } else {
-          return Results.status(statusCode, entity.getContent());
+          return Response.status(statusCode).entity(entity.getContent()).build();
         }
-      } else {
-        return Results.status(statusCode);
+      } catch (IOException e) {
+        throw new CedarAssertionException(e);
       }
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
-    }
-  }
-
-  @ApiOperation(
-      value = "Delete folder",
-      httpMethod = "DELETE")
-  public static Result deleteFolder(String folderId) {
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
-
-      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
-        return forbidden("You do not have write access to the folder");
-      }
-
-      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId);
-
-      HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
-
-      int folderDeleteStatusCode = proxyResponse.getStatusLine().getStatusCode();
-      if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
-        // remove the folder from the index
-        DataServices.getInstance().getSearchService().removeResourceFromIndex(folderId);
-        return noContent();
-      } else {
-        return generateStatusResponse(proxyResponse);
-      }
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
-    }
-  }
-
-
-  @ApiOperation(
-      value = "Get permissions of a folder",
-      httpMethod = "GET")
-  public static Result getFolderPermissions(String folderId) {
-    boolean canProceed = false;
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_READ);
-      if (userHasReadAccessToFolder(folderBase, folderId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while reading the folder permissions", e);
-      return forbiddenWithError(e);
-    }
-    if (canProceed) {
-      return executeFolderPermissionGetByProxy(folderId);
     } else {
-      return forbidden("You do not have read access for this folder");
+      return Response.status(statusCode).build();
     }
   }
 
   @ApiOperation(
-      value = "Update folder permissions",
-      httpMethod = "PUT")
-  public static Result updateFolderPermissions(String folderId) {
-    boolean canProceed = false;
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.FOLDER_UPDATE);
-      if (userHasWriteAccessToFolder(folderBase, folderId)) {
-        canProceed = true;
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while updating the folder permissions", e);
-      return forbiddenWithError(e);
+      value = "Delete folder")
+  @DELETE
+  @Timed
+  @Path("/{id}")
+  public Response deleteFolder(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
+
+    if (!userHasReadAccessToFolder(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
+          .errorMessage("You do not have write access to the folder")
+          .parameter("id", id)
+          .build();
     }
-    if (canProceed) {
-      return executeFolderPermissionPutByProxy(folderId);
+
+    String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
+
+    HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request);
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+
+    int folderDeleteStatusCode = proxyResponse.getStatusLine().getStatusCode();
+    if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
+      // remove the folder from the index
+      DataServices.getInstance().getSearchService().removeResourceFromIndex(id);
+      return Response.noContent().build();
     } else {
-      return forbidden("You do not have write access for this folder");
+      return generateStatusResponse(proxyResponse);
     }
   }
 
-  private static Result executeFolderPermissionGetByProxy(String folderId) {
-    try {
-      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId) + "/permissions";
 
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+  @ApiOperation(
+      value = "Get permissions of a folder")
+  @GET
+  @Timed
+  @Path("/{id}")
+  public Response getFolderPermissions(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.FOLDER_READ);
+
+    if (!userHasReadAccessToFolder(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
+          .errorMessage("You do not have write access to the folder")
+          .parameter("id", id)
+          .build();
+    }
+    return executeFolderPermissionGetByProxy(id);
+  }
+
+  @ApiOperation(
+      value = "Update folder permissions")
+  @PUT
+  @Timed
+  @Path("/{id}")
+  public Response updateFolderPermissions(@PathParam("id") String id) throws CedarAssertionException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
+
+    if (!userHasWriteAccessToFolder(folderBase, id)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
+          .errorMessage("You do not have write access to the folder")
+          .parameter("id", id)
+          .build();
+    }
+
+    return executeFolderPermissionPutByProxy(id);
+  }
+
+  private Response executeFolderPermissionGetByProxy(String folderId) throws CedarAssertionException {
+    try {
+      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(folderId) + "/permissions";
+
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
+        return Response.status(statusCode).entity(entity.getContent()).build();
       } else {
-        return Results.status(statusCode);
+        return Response.status(statusCode).build();
       }
     } catch (Exception e) {
-      return internalServerErrorWithError(e);
+      throw new CedarAssertionException(e);
     }
   }
 
-  private static Result executeFolderPermissionPutByProxy(String folderId) {
+  private Response executeFolderPermissionPutByProxy(String folderId) throws CedarAssertionException {
     try {
-      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + new URLCodec().encode(folderId) + "/permissions";
+      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(folderId) + "/permissions";
 
-      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
-        return Results.status(statusCode, entity.getContent());
+        return Response.status(statusCode).entity(entity.getContent()).build();
       } else {
-        return Results.status(statusCode);
+        return Response.status(statusCode).build();
       }
     } catch (Exception e) {
-      return internalServerErrorWithError(e);
+      throw new CedarAssertionException(e);
     }
   }
 }

@@ -2,25 +2,24 @@ package org.metadatacenter.cedar.resource.search.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.commons.codec.EncoderException;
-import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
-import org.metadatacenter.cedar.resource.util.ProxyUtil;
-import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.index.CedarIndexFieldSchema;
 import org.metadatacenter.model.index.CedarIndexFieldValue;
-import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.AuthRequest;
+import org.metadatacenter.rest.exception.CedarProcessingException;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.http.CedarEntityUtil;
+import org.metadatacenter.util.http.CedarUrlUtil;
+import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.json.JsonMapper;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -38,8 +37,6 @@ public class IndexUtils {
   private int limit;
   private int maxAttemps;
   private int delayAttemps;
-  private static CedarConfig cedarConfig;
-  private static ObjectMapper mapper;
 
   private enum ESType {
     STRING, LONG, INTEGER, SHORT, DOUBLE, FLOAT, DATE, BOOLEAN;
@@ -47,13 +44,6 @@ public class IndexUtils {
     public String toString() {
       return name().toLowerCase();
     }
-  }
-
-  ;
-
-  static {
-    cedarConfig = CedarConfig.getInstance();
-    mapper = new ObjectMapper();
   }
 
   public IndexUtils(String folderBase, String templateBase, int limit, int maxAttemps, int delayAttemps) {
@@ -68,7 +58,7 @@ public class IndexUtils {
    * This method retrieves all the resources from the Folder Server that are expected to be in the search index. Those
    * resources that don't have to be in the index, such as the "/" folder and the "Lost+Found" folder are ignored.
    */
-  public List<FolderServerNode> findAllResources(AuthRequest authRequest) throws IOException, InterruptedException {
+  public List<FolderServerNode> findAllResources(HttpServletRequest request) throws CedarProcessingException {
     play.Logger.info("Retrieving all resources:");
     List<FolderServerNode> resources = new ArrayList<>();
     boolean finished = false;
@@ -82,7 +72,7 @@ public class IndexUtils {
       int attemp = 1;
       HttpResponse response = null;
       while (true) {
-        response = ProxyUtil.proxyGet(url, authRequest);
+        response = ProxyUtil.proxyGet(url, request);
         statusCode = response.getStatusLine().getStatusCode();
         if ((statusCode != HttpStatus.SC_BAD_GATEWAY) || (attemp > maxAttemps)) {
           break;
@@ -90,13 +80,21 @@ public class IndexUtils {
           play.Logger.info("Failed to retrieve resource. The Folder Server might have not been started yet. " +
               "Retrying... (attemp " + attemp + "/" + maxAttemps + ")");
           attemp++;
-          Thread.sleep(delayAttemps);
+          try {
+            Thread.sleep(delayAttemps);
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          }
         }
       }
       // The resources were successfully retrieved
       if (statusCode == HttpStatus.SC_OK) {
-
-        JsonNode resultJson = mapper.readTree(EntityUtils.toString(response.getEntity()));
+        JsonNode resultJson = null;
+        try {
+          resultJson = JsonMapper.MAPPER.readTree(CedarEntityUtil.toString(response.getEntity()));
+        } catch (Exception e) {
+          throw new CedarProcessingException(e);
+        }
         int count = resultJson.get("resources").size();
         int totalCount = resultJson.get("totalCount").asInt();
         countSoFar += count;
@@ -115,7 +113,7 @@ public class IndexUtils {
             indexResource = false;
           }
           if (indexResource) {
-            resources.add(mapper.convertValue(resource, FolderServerNode.class));
+            resources.add(JsonMapper.MAPPER.convertValue(resource, FolderServerNode.class));
           } else {
             play.Logger.info("The resource '" + resource.get("name").asText() + "' has been ignored");
           }
@@ -126,7 +124,7 @@ public class IndexUtils {
           offset = offset + count;
         }
       } else {
-        throw new IOException("Error retrieving resources from the folder server. HTTP status code: " +
+        throw new CedarProcessingException("Error retrieving resources from the folder server. HTTP status code: " +
             statusCode + " (" + response.getStatusLine().getReasonPhrase() + ")");
       }
     }
@@ -136,52 +134,59 @@ public class IndexUtils {
   /**
    * Returns the full content of a particular resource
    */
-  public JsonNode findResourceContent(String resourceId, CedarNodeType nodeType, AuthRequest authRequest) throws
-      CedarAccessException, IOException, EncoderException {
-    CedarPermission permission = null;
-    String resourceUrl = templateBase + nodeType.getPrefix();
-    resourceUrl += "/" + new URLCodec().encode(resourceId);
-    // Retrieve resource by id
-    JsonNode resource = null;
-    HttpResponse response = ProxyUtil.proxyGet(resourceUrl, authRequest);
-    int statusCode = response.getStatusLine().getStatusCode();
-    if (statusCode == HttpStatus.SC_OK) {
-      String resourceString = EntityUtils.toString(response.getEntity());
-      resource = mapper.readTree(resourceString);
-    } else {
-      throw new IOException("Error while retrieving resource content");
+  public JsonNode findResourceContent(String resourceId, CedarNodeType nodeType, HttpServletRequest request) throws
+      CedarProcessingException {
+    try {
+      CedarPermission permission = null;
+      String resourceUrl = templateBase + nodeType.getPrefix();
+      resourceUrl += "/" + CedarUrlUtil.urlEncode(resourceId);
+      // Retrieve resource by id
+      JsonNode resource = null;
+      HttpResponse response = ProxyUtil.proxyGet(resourceUrl, request);
+      int statusCode = response.getStatusLine().getStatusCode();
+      if (statusCode == HttpStatus.SC_OK) {
+        String resourceString = EntityUtils.toString(response.getEntity());
+        resource = JsonMapper.MAPPER.readTree(resourceString);
+      } else {
+        throw new CedarProcessingException("Error while retrieving resource content");
+      }
+      return resource;
+    } catch (IOException e) {
+      throw new CedarProcessingException(e);
     }
-    return resource;
   }
 
   // Returns summary of resourceContent. There is no need to index the full JSON for each resource. Only the
   // information necessary to satisfy search and value recommendation use cases is kept.
-  public JsonNode extractSummarizedContent(CedarNodeType nodeType, JsonNode resourceContent, AuthRequest authRequest)
-      throws JsonProcessingException, CedarAccessException, EncoderException {
-    // Templates and Elements
-    if (nodeType.equals(CedarNodeType.TEMPLATE) || (nodeType.equals(CedarNodeType.ELEMENT))) {
-      JsonNode schemaSummary = extractSchemaSummary(nodeType, resourceContent, JsonNodeFactory.instance.objectNode
-          (), null);
-      return schemaSummary;
-    }
-    // Instances
-    else if (nodeType.equals(CedarNodeType.INSTANCE)) {
-      // TODO: avoid calling this method multiple times when posting multiple instances for the same template
-      JsonNode schemaSummary = extractSchemaSummary(nodeType, resourceContent, JsonNodeFactory.instance.objectNode(),
-          authRequest);
+  public JsonNode extractSummarizedContent(CedarNodeType nodeType, JsonNode resourceContent, HttpServletRequest request)
+      throws CedarProcessingException {
+    try {
+      // Templates and Elements
+      if (nodeType.equals(CedarNodeType.TEMPLATE) || (nodeType.equals(CedarNodeType.ELEMENT))) {
+        JsonNode schemaSummary = extractSchemaSummary(nodeType, resourceContent, JsonNodeFactory.instance.objectNode
+            (), null);
+        return schemaSummary;
+      }
+      // Instances
+      else if (nodeType.equals(CedarNodeType.INSTANCE)) {
+        // TODO: avoid calling this method multiple times when posting multiple instances for the same template
+        JsonNode schemaSummary = extractSchemaSummary(nodeType, resourceContent, JsonNodeFactory.instance.objectNode(),
+            request);
 
-      JsonNode valuesSummary = extractValuesSummary(nodeType, schemaSummary, resourceContent, JsonNodeFactory
-          .instance.objectNode());
+        JsonNode valuesSummary = extractValuesSummary(nodeType, schemaSummary, resourceContent, JsonNodeFactory
+            .instance.objectNode());
 
-      return valuesSummary;
-
-    } else {
-      throw new InternalError("Invalid node type: " + nodeType);
+        return valuesSummary;
+      } else {
+        throw new InternalError("Invalid node type: " + nodeType);
+      }
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
     }
   }
 
   private JsonNode extractSchemaSummary(CedarNodeType nodeType, JsonNode resourceContent, JsonNode results,
-                                        AuthRequest authRequest) throws EncoderException, CedarAccessException {
+                                        HttpServletRequest request) throws CedarProcessingException {
     if (nodeType.compareTo(CedarNodeType.TEMPLATE) == 0 || nodeType.compareTo(CedarNodeType.ELEMENT) == 0) {
 
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
@@ -217,18 +222,18 @@ public class IndexUtils {
             f.setFieldValueType(fieldType);
             String outputFieldKey = fieldKey + FIELD_SUFFIX;
             // Add object to the results
-            ((ObjectNode) results).set(outputFieldKey, mapper.valueToTree(f));
+            ((ObjectNode) results).set(outputFieldKey, JsonMapper.MAPPER.valueToTree(f));
           } else {
             // Element
             if (fieldNode.get("@type") != null && fieldNode.get("@type").asText().equals(CedarNodeType.ELEMENT
                 .getAtType())) {
               // Add empty object to the results
               ((ObjectNode) results).set(fieldKey, JsonNodeFactory.instance.objectNode());
-              extractSchemaSummary(nodeType, fieldNode, results.get(fieldKey), authRequest);
+              extractSchemaSummary(nodeType, fieldNode, results.get(fieldKey), request);
             }
             // Other nodes
             else {
-              extractSchemaSummary(nodeType, fieldNode, results, authRequest);
+              extractSchemaSummary(nodeType, fieldNode, results, request);
             }
           }
         }
@@ -239,9 +244,9 @@ public class IndexUtils {
         String templateId = resourceContent.get("schema:isBasedOn").asText();
         JsonNode templateJson = null;
         try {
-          templateJson = findResourceContent(templateId, CedarNodeType.TEMPLATE, authRequest);
-          results = extractSchemaSummary(CedarNodeType.TEMPLATE, templateJson, results, authRequest);
-        } catch (IOException e) {
+          templateJson = findResourceContent(templateId, CedarNodeType.TEMPLATE, request);
+          results = extractSchemaSummary(CedarNodeType.TEMPLATE, templateJson, results, request);
+        } catch (CedarProcessingException e) {
           System.out.println("Error while accessing the reference template for the instance. It may have been " +
               "removed");
         }
@@ -282,7 +287,7 @@ public class IndexUtils {
                 // Controlled term
                 else {
                   JsonNode valueLabelNode = field.getValue().get("_valueLabel");
-                  CedarIndexFieldSchema fs = mapper.treeToValue(fieldSchema, CedarIndexFieldSchema.class);
+                  CedarIndexFieldSchema fs = JsonMapper.MAPPER.treeToValue(fieldSchema, CedarIndexFieldSchema.class);
                   fv = fs.toFieldValue();
                   // Controlled term URI
                   fv.setFieldValueSemanticType(valueNode.asText());
@@ -291,7 +296,7 @@ public class IndexUtils {
                   fv.generateFieldValueAndSemanticType();
                 }
                 String outputFieldKey = field.getKey() + FIELD_SUFFIX;
-                ((ObjectNode) results).set(outputFieldKey, mapper.valueToTree(fv));
+                ((ObjectNode) results).set(outputFieldKey, JsonMapper.MAPPER.valueToTree(fv));
                 // Element
               } else {
                 ((ObjectNode) results).set(field.getKey(), JsonNodeFactory.instance.objectNode());
@@ -308,7 +313,7 @@ public class IndexUtils {
                 if (arrayItem.has("@value") && (arrayItem.get("@value").isValueNode())) {
                   JsonNode fieldSchema = schemaSummary.get(field.getKey() + FIELD_SUFFIX);
                   CedarIndexFieldValue fv = valueToIndexValue(arrayItem.get("@value"), fieldSchema);
-                  ((ArrayNode) results.get(field.getKey())).add((ObjectNode) mapper.valueToTree(fv));
+                  ((ArrayNode) results.get(field.getKey())).add((ObjectNode) JsonMapper.MAPPER.valueToTree(fv));
                 } else {
                   ((ArrayNode) results.get(field.getKey())).add(JsonNodeFactory.instance.objectNode());
                   extractValuesSummary(nodeType, schemaSummary.get(field.getKey()), arrayItem, results.get(field
@@ -325,7 +330,7 @@ public class IndexUtils {
 
   private CedarIndexFieldValue valueToIndexValue(JsonNode valueNode, JsonNode fieldSchema) throws
       JsonProcessingException {
-    CedarIndexFieldSchema fs = mapper.treeToValue(fieldSchema, CedarIndexFieldSchema.class);
+    CedarIndexFieldSchema fs = JsonMapper.MAPPER.treeToValue(fieldSchema, CedarIndexFieldSchema.class);
     CedarIndexFieldValue fv = fs.toFieldValue();
     if (!valueNode.isNull()) {
       // Set appropriate value field according to the value type

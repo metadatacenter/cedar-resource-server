@@ -13,12 +13,9 @@ import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarResponse;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.*;
-import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriInfo;
 import java.util.Optional;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -28,14 +25,6 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 @Produces(MediaType.APPLICATION_JSON)
 @Api(value = "/template-fields", description = "Template field operations")
 public class TemplateFieldsResource extends AbstractResourceServerResource {
-
-  private
-  @Context
-  UriInfo uriInfo;
-
-  private
-  @Context
-  HttpServletRequest request;
 
   public TemplateFieldsResource(CedarConfig cedarConfig) {
     super(cedarConfig);

@@ -30,22 +30,22 @@ PUT            /folders/:id/permissions                controllers.FolderControl
 #PUT            /template-elements/:id/permissions      controllers.TemplateElementController.updateTemplateElementPermissions(id: String)
 
 # Template Fields
-POST           /template-fields                        controllers.TemplateFieldController.createTemplateField(importMode: play.libs.F.Option[java.lang.Boolean])
-GET            /template-fields/:id                    controllers.TemplateFieldController.findTemplateField(id: String)
-GET            /template-fields/:id/details            controllers.TemplateFieldController.findTemplateFieldDetails(id: String)
-PUT            /template-fields/:id                    controllers.TemplateFieldController.updateTemplateField(id: String)
-DELETE         /template-fields/:id                    controllers.TemplateFieldController.deleteTemplateField(id: String)
-GET            /template-fields/:id/permissions        controllers.TemplateFieldController.getTemplateFieldPermissions(id: String)
-PUT            /template-fields/:id/permissions        controllers.TemplateFieldController.updateTemplateFieldPermissions(id: String)
+#POST           /template-fields                        controllers.TemplateFieldController.createTemplateField(importMode: play.libs.F.Option[java.lang.Boolean])
+#GET            /template-fields/:id                    controllers.TemplateFieldController.findTemplateField(id: String)
+#GET            /template-fields/:id/details            controllers.TemplateFieldController.findTemplateFieldDetails(id: String)
+#PUT            /template-fields/:id                    controllers.TemplateFieldController.updateTemplateField(id: String)
+#DELETE         /template-fields/:id                    controllers.TemplateFieldController.deleteTemplateField(id: String)
+#GET            /template-fields/:id/permissions        controllers.TemplateFieldController.getTemplateFieldPermissions(id: String)
+#PUT            /template-fields/:id/permissions        controllers.TemplateFieldController.updateTemplateFieldPermissions(id: String)
 
 # Template Instances
-POST           /template-instances                     controllers.TemplateInstanceController.createTemplateInstance(importMode: play.libs.F.Option[java.lang.Boolean])
-GET            /template-instances/:id                 controllers.TemplateInstanceController.findTemplateInstance(id: String)
-GET            /template-instances/:id/details         controllers.TemplateInstanceController.findTemplateInstanceDetails(id: String)
-PUT            /template-instances/:id                 controllers.TemplateInstanceController.updateTemplateInstance(id: String)
-DELETE         /template-instances/:id                 controllers.TemplateInstanceController.deleteTemplateInstance(id: String)
-GET            /template-instances/:id/permissions     controllers.TemplateInstanceController.getTemplateInstancePermissions(id: String)
-PUT            /template-instances/:id/permissions     controllers.TemplateInstanceController.updateTemplateInstancePermissions(id: String)
+#POST           /template-instances                     controllers.TemplateInstanceController.createTemplateInstance(importMode: play.libs.F.Option[java.lang.Boolean])
+#GET            /template-instances/:id                 controllers.TemplateInstanceController.findTemplateInstance(id: String)
+#GET            /template-instances/:id/details         controllers.TemplateInstanceController.findTemplateInstanceDetails(id: String)
+#PUT            /template-instances/:id                 controllers.TemplateInstanceController.updateTemplateInstance(id: String)
+#DELETE         /template-instances/:id                 controllers.TemplateInstanceController.deleteTemplateInstance(id: String)
+#GET            /template-instances/:id/permissions     controllers.TemplateInstanceController.getTemplateInstancePermissions(id: String)
+#PUT            /template-instances/:id/permissions     controllers.TemplateInstanceController.updateTemplateInstancePermissions(id: String)
 
 # Users
 #GET            /users                                  controllers.UserController.findUsers()
