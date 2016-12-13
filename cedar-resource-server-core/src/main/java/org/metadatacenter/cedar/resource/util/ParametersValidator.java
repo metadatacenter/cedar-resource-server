@@ -1,13 +1,13 @@
 package org.metadatacenter.cedar.resource.util;
 
 import org.metadatacenter.model.CedarNodeType;
-import play.libs.F;
 
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_SORT_DESC_PREFIX;
 
@@ -24,9 +24,9 @@ public class ParametersValidator {
     knownSortKeys.add("lastUpdatedOnTS");
   }
 
-  public static String validateQuery(F.Option<String> query) {
+  public static String validateQuery(Optional<String> query) {
     String queryString = null;
-    if (query.isDefined()) {
+    if (query.isPresent()) {
       if (query.get() != null && !query.get().trim().isEmpty()) {
         queryString = query.get().trim();
       } else {
@@ -36,9 +36,9 @@ public class ParametersValidator {
     return queryString;
   }
 
-  public static List<String> validateResourceTypes(F.Option<String> resourceTypes) {
+  public static List<String> validateResourceTypes(Optional<String> resourceTypes) {
     List<String> resourceTypeStringList = null;
-    if (resourceTypes.isDefined()) {
+    if (resourceTypes.isPresent()) {
       if (resourceTypes.get() != null && !resourceTypes.get().isEmpty()) {
         String resourceTypesString = resourceTypes.get().trim();
         resourceTypeStringList = Arrays.asList(resourceTypesString.split("\\s*,\\s*"));
@@ -57,9 +57,9 @@ public class ParametersValidator {
     return resourceTypeStringList;
   }
 
-  public static String validateTemplateId(F.Option<String> templateId) {
+  public static String validateTemplateId(Optional<String> templateId) {
     String id = null;
-    if (templateId.isDefined()) {
+    if (templateId.isPresent()) {
       if (templateId.get() != null && !templateId.get().isEmpty() && isValidURL(templateId.get())) {
         id = templateId.get();
       } else {
@@ -69,12 +69,12 @@ public class ParametersValidator {
     return id;
   }
 
-  public static List<String> validateSort(F.Option<String> sort) {
+  public static List<String> validateSort(Optional<String> sort) {
     List<String> sortList = new ArrayList<>();
-    if (sort.isDefined() && !sort.get().isEmpty()) {
+    if (sort.isPresent() && !sort.get().isEmpty()) {
       sortList = Arrays.asList(sort.get().split("\\s*,\\s*"));
       for (String s : sortList) {
-        String tmp = s.startsWith(ES_SORT_DESC_PREFIX)? s.substring(1) : s;
+        String tmp = s.startsWith(ES_SORT_DESC_PREFIX) ? s.substring(1) : s;
         if (!knownSortKeys.contains(tmp)) {
           throw new IllegalArgumentException("Illegal sort type: '" + s + "'. The allowed values are:" + knownSortKeys);
         }
@@ -85,29 +85,27 @@ public class ParametersValidator {
     return sortList;
   }
 
-  public static int validateLimit(F.Option<Integer> limit, int defaultLimit, int maxAllowedLimit) {
-    if (limit.isDefined()) {
+  public static int validateLimit(Optional<Integer> limit, int defaultLimit, int maxAllowedLimit) {
+    if (limit.isPresent()) {
       if (limit.get() <= 0) {
         throw new IllegalArgumentException("You should specify a positive limit!");
       } else if (limit.get() > maxAllowedLimit) {
         throw new IllegalArgumentException("You should specify a limit smaller than " + maxAllowedLimit + "!");
       }
       return limit.get();
-    }
-    else {
+    } else {
       return defaultLimit;
     }
   }
 
-  public static int validateOffset(F.Option<Integer> offset) {
+  public static int validateOffset(Optional<Integer> offset) {
     int defaultOffset = 0;
-    if (offset.isDefined()) {
+    if (offset.isPresent()) {
       if (offset.get() < 0) {
         throw new IllegalArgumentException("You should specify a positive or zero offset!");
       }
       return offset.get();
-    }
-    else {
+    } else {
       return defaultOffset;
     }
   }
@@ -116,8 +114,7 @@ public class ParametersValidator {
     try {
       URL url = new URL(urlStr);
       return true;
-    }
-    catch (MalformedURLException e) {
+    } catch (MalformedURLException e) {
       return false;
     }
   }

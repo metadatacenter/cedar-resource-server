@@ -14,11 +14,8 @@ dist
 */RUNNING_PID
 /.settings
 keycloak.json
-cedar-resource-server-play/conf/application-include-folder.conf
-cedar-resource-server-play/conf/application-include-template.conf
-cedar-resource-server-play/conf/application-include-user.conf
-cedar-resource-server-play/conf/application-include-swagger.conf
 
 pom.xml.releaseBackup
 release.properties
 pom.xml.versionsBackup
+dependency-reduced-pom.xml

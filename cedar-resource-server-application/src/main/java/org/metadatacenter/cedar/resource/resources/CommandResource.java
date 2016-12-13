@@ -1,17 +1,19 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
+import org.keycloak.events.Event;
+import org.keycloak.events.admin.AdminEvent;
 import org.metadatacenter.bridge.CedarDataServices;
-import org.metadatacenter.cedar.resource.util.DataServices;
+import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.model.CedarNodeType;
@@ -22,30 +24,24 @@ import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
-import org.metadatacenter.server.result.BackendCallErrorType;
-import org.metadatacenter.server.result.BackendCallResult;
-import org.metadatacenter.server.security.Authorization;
-import org.metadatacenter.server.security.CedarAuthFromRequestFactory;
-import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.AuthRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserExtract;
 import org.metadatacenter.server.security.model.user.CedarUserRole;
 import org.metadatacenter.server.security.util.CedarUserUtil;
 import org.metadatacenter.server.service.UserService;
-import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
-import play.mvc.Results;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.*;
-import javax.ws.rs.core.*;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.List;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -56,9 +52,14 @@ public class CommandResource extends AbstractResourceServerResource {
 
   protected static final String MOVE_COMMAND = "command/move-node-to-folder";
 
+  private static UserService userService;
 
   public CommandResource(CedarConfig cedarConfig) {
     super(cedarConfig);
+  }
+
+  public static void injectUserService(UserService us) {
+    userService = us;
   }
 
   @POST
@@ -220,34 +221,26 @@ public class CommandResource extends AbstractResourceServerResource {
               }
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue
+                searchService.indexResource(JsonMapper.MAPPER.readValue
                         (resourceCreateResponse.getEntity().getContent(), FolderServerResource.class), jsonNode,
-                    authRequest);
-                return created(proxyResponse.getEntity().getContent());
+                    request);
+                // TODO: we should return a URL in this call.
+                return Response.created(null).entity(proxyResponse.getEntity().getContent()).build();
               } else {
-                return ok();
+                return Response.ok().build();
               }
             } else {
-              System.out.println("Resource not copied #1, rollback resource and signal error");
-              return Results.status(resourceCreateStatusCode, resourceEntity.getContent());
+              return Response.status(resourceCreateStatusCode).entity(resourceEntity.getContent()).build();
             }
           } else {
-            System.out.println("Resource not copied #2, rollback resource and signal error");
-            return Results.status(resourceCreateStatusCode);
+            return Response.status(resourceCreateStatusCode).build();
           }
         } else {
-          return ok();
+          return Response.ok().build();
         }
       }
-    } catch (UnknownHostException e) {
-      play.Logger.error("Error while indexing the resource", e);
-      return internalServerErrorWithError(e);
-    } catch (ElasticsearchException e) {
-      play.Logger.error("Error while indexing the resource", e);
-      return internalServerErrorWithError(e);
     } catch (Exception e) {
-      play.Logger.error("Error while creating the resource", e);
-      return internalServerErrorWithError(e);
+      throw new CedarAssertionException(e);
     }
   }
 
@@ -256,26 +249,22 @@ public class CommandResource extends AbstractResourceServerResource {
   @Path("/move-node-to-folder ")
   public Response moveNodeToFolder() throws CedarAssertionException {
 
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
-    }
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
 
-    JsonNode jsonBody = request().body().asJson();
+    JsonNode jsonBody = c.request().getRequestBody().asJson();
+
     String sourceId = jsonBody.get("sourceId").asText();
     String nodeTypeString = jsonBody.get("nodeType").asText();
     String folderId = jsonBody.get("folderId").asText();
 
     CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
     if (nodeType == null) {
-      BackendCallResult backendCallResult = new BackendCallResult();
-      backendCallResult.addError(BackendCallErrorType.INVALID_ARGUMENT)
-          .subType("unknownNodeType")
-          .message("Unknown node type:" + nodeTypeString)
-          .param("nodeType", nodeTypeString);
-      return backendCallError(backendCallResult);
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
+          .parameter("nodeType", nodeTypeString)
+          .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
+          .build();
     }
 
     CedarPermission permission1 = null;
@@ -304,114 +293,80 @@ public class CommandResource extends AbstractResourceServerResource {
     }
 
     if (permission1 == null || permission2 == null) {
-      BackendCallResult backendCallResult = new BackendCallResult();
-      backendCallResult.addError(BackendCallErrorType.INVALID_ARGUMENT)
-          .subType("unknownNodeType")
-          .message("Unknown node type:" + nodeTypeString)
-          .param("nodeType", nodeTypeString);
-      return backendCallError(backendCallResult);
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
+          .errorMessage("Unknown node type:" + nodeTypeString)
+          .parameter("nodeType", nodeTypeString)
+          .build();
     }
+
+    // Check read permission
+    c.must(c.user()).have(permission1);
 
     // Check create permission
-    AuthRequest authRequest = null;
-    try {
-      authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(authRequest, permission1);
-    } catch (CedarAccessException e) {
-      BackendCallResult backendCallResult = new BackendCallResult();
-      backendCallResult.addError(BackendCallErrorType.AUTHORIZATION)
-          .subType("missingPermission")
-          .message("Missing permission:" + permission1)
-          .param("permission", permission1);
-      return backendCallError(backendCallResult);
+    c.must(c.user()).have(permission2);
+
+    String folderURL = folderBase + CedarNodeType.Prefix.FOLDERS;
+
+    // Check if the source node exists
+    if (nodeType == CedarNodeType.FOLDER) {
+      FolderServerFolder sourceFolder = FolderServerProxy.getFolder(folderURL, sourceId, request);
+      if (sourceFolder == null) {
+        return CedarResponse.badRequest()
+            .errorKey(CedarErrorKey.SOURCE_FOLDER_NOT_FOUND)
+            .errorMessage("The source folder can not be found:" + sourceId)
+            .parameter("sourceId", sourceId)
+            .build();
+      }
+    } else {
+      String resourceURL = folderBase + "/" + PREFIX_RESOURCES;
+      FolderServerResource sourceResource = FolderServerProxy.getResource(resourceURL, sourceId, request);
+      if (sourceResource == null) {
+        return CedarResponse.badRequest()
+            .errorKey(CedarErrorKey.SOURCE_RESOURCE_NOT_FOUND)
+            .errorMessage("The source resource can not be found:" + sourceId)
+            .parameter("sourceId", sourceId)
+            .build();
+      }
     }
 
-    // Check delete permission
-    try {
-      authRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(authRequest, permission2);
-    } catch (CedarAccessException e) {
-      BackendCallResult backendCallResult = new BackendCallResult();
-      backendCallResult.addError(BackendCallErrorType.AUTHORIZATION)
-          .subType("missingPermission")
-          .message("Missing permission:" + permission2)
-          .param("permission", permission2);
-      return backendCallError(backendCallResult);
+    // Check if the target folder exists
+    FolderServerFolder targetFolder = FolderServerProxy.getFolder(folderURL, folderId, request);
+    if (targetFolder == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.TARGET_FOLDER_NOT_FOUND)
+          .errorMessage("The target folder can not be found:" + folderId)
+          .parameter("folderId", folderId)
+          .build();
     }
 
-    try {
-      String folderURL = folderBase + CedarNodeType.Prefix.FOLDERS;
-
-      // Check if the source node exists
-      if (nodeType == CedarNodeType.FOLDER) {
-        FolderServerFolder sourceFolder = FolderServerProxy.getFolder(folderURL, sourceId, request());
-        if (sourceFolder == null) {
-          BackendCallResult backendCallResult = new BackendCallResult();
-          backendCallResult.addError(BackendCallErrorType.NOT_FOUND)
-              .subType("sourceFolderNotFound")
-              .message("The source folder can not be found:" + sourceId)
-              .param("sourceId", sourceId);
-          return backendCallError(backendCallResult);
-        }
-      } else {
-        String resourceURL = folderBase + "/" + PREFIX_RESOURCES;
-        FolderServerResource sourceResource = FolderServerProxy.getResource(resourceURL, sourceId, request());
-        if (sourceResource == null) {
-          BackendCallResult backendCallResult = new BackendCallResult();
-          backendCallResult.addError(BackendCallErrorType.NOT_FOUND)
-              .subType("sourceResourceNotFound")
-              .message("The source resource can not be found:" + sourceId)
-              .param("sourceId", sourceId);
-          return backendCallError(backendCallResult);
-        }
+    // Check if the user has write/delete permission to the source node
+    if (nodeType == CedarNodeType.FOLDER) {
+      if (!userHasWriteAccessToFolder(folderBase, sourceId)) {
+        return CedarResponse.forbidden()
+            .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
+            .errorMessage("You do not have write access to the source folder")
+            .parameter("sourceId", sourceId)
+            .build();
       }
-
-      // Check if the target folder exists
-      FolderServerFolder targetFolder = FolderServerProxy.getFolder(folderURL, folderId, request());
-      if (targetFolder == null) {
-        BackendCallResult backendCallResult = new BackendCallResult();
-        backendCallResult.addError(BackendCallErrorType.NOT_FOUND)
-            .subType("targetFolderNotFound")
-            .message("The target folder can not be found:" + folderId)
-            .param("folderId", folderId);
-        return backendCallError(backendCallResult);
+    } else {
+      if (!userHasWriteAccessToResource(folderBase, sourceId)) {
+        return CedarResponse.forbidden()
+            .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
+            .errorMessage("You do not have write access to the source resource")
+            .parameter("sourceId", sourceId)
+            .build();
       }
-
-      // Check if the user has write/delete permission to the source node
-      if (nodeType == CedarNodeType.FOLDER) {
-        if (!userHasWriteAccessToFolder(folderBase, sourceId)) {
-          BackendCallResult backendCallResult = new BackendCallResult();
-          backendCallResult.addError(BackendCallErrorType.AUTHORIZATION)
-              .subType("missingPermission")
-              .message("The user has no write access to the source folder:" + sourceId)
-              .param("sourceId", sourceId);
-          return backendCallError(backendCallResult);
-        }
-      } else {
-        if (!userHasWriteAccessToResource(folderBase, sourceId)) {
-          BackendCallResult backendCallResult = new BackendCallResult();
-          backendCallResult.addError(BackendCallErrorType.AUTHORIZATION)
-              .subType("missingPermission")
-              .message("The user has no write access to the source resource:" + sourceId)
-              .param("sourceId", sourceId);
-          return backendCallError(backendCallResult);
-        }
-      }
-
-      // Check if the user has write permission to the target folder
-      if (!userHasWriteAccessToFolder(folderBase, folderId)) {
-        BackendCallResult backendCallResult = new BackendCallResult();
-        backendCallResult.addError(BackendCallErrorType.AUTHORIZATION)
-            .subType("missingPermission")
-            .message("The user has no write access to the target folder:" + folderId)
-            .param("folderId", folderId);
-        return backendCallError(backendCallResult);
-      }
-    } catch (CedarAccessException e) {
-      play.Logger.error("Access Error while moving the node", e);
-      return forbiddenWithError(e);
     }
 
+    // Check if the user has write permission to the target folder
+    if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+      return CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
+          .errorMessage("You do not have write access to the target folder")
+          .parameter("folderId", folderId)
+          .build();
+    }
 
     try {
       String resourceUrl = folderBase + MOVE_COMMAND;
@@ -423,28 +378,26 @@ public class CommandResource extends AbstractResourceServerResource {
 
       String folderRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(folderRequestBody);
 
-      HttpResponse nodeMoveResponse = ProxyUtil.proxyPost(resourceUrl, request(), folderRequestBodyAsString);
+      HttpResponse nodeMoveResponse = ProxyUtil.proxyPost(resourceUrl, request, folderRequestBodyAsString);
       int nodeMoveStatusCode = nodeMoveResponse.getStatusLine().getStatusCode();
       HttpEntity folderEntity = nodeMoveResponse.getEntity();
       if (folderEntity != null) {
         if (HttpStatus.SC_CREATED == nodeMoveStatusCode) {
           if (folderEntity.getContent() != null) {
             // index the resource that has been created
-            return created(folderEntity.getContent());
+            //TODO: have created url here
+            return Response.created(null).entity(folderEntity.getContent()).build();
           } else {
-            return created();
+            return Response.created(null).build();
           }
         } else {
-          System.out.println("Resource not moved");
-          return Results.status(nodeMoveStatusCode, folderEntity.getContent());
+          return Response.status(nodeMoveStatusCode).entity(folderEntity.getContent()).build();
         }
       } else {
-        System.out.println("Resource not moved");
-        return Results.status(nodeMoveStatusCode);
+        return Response.status(nodeMoveStatusCode).build();
       }
     } catch (Exception e) {
-      play.Logger.error("Error while moving the node", e);
-      return internalServerErrorWithError(e);
+      throw new CedarAssertionException(e);
     }
   }
 
@@ -453,17 +406,14 @@ public class CommandResource extends AbstractResourceServerResource {
   @Path("/auth-user-callback ")
   public Response authUserCallback() throws CedarAssertionException {
 
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
-    }
+    //TODO: we will have a different request here, we will need to extract the user ID from the content
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+
     // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
 
-    JsonNode jsonBody = request().body().asJson();
-    //System.out.println("  *** Resource Server Command - User");
-    //System.out.println(jsonBody);
+    JsonNode jsonBody = c.request().getRequestBody().asJson();
+
     if (jsonBody != null) {
       try {
         Event event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), Event.class);
@@ -471,35 +421,26 @@ public class CommandResource extends AbstractResourceServerResource {
 
         String clientId = event.getClientId();
         if (!"admin-cli".equals(clientId)) {
-          UserService userService = getUserService();
           CedarUser user = createUserRelatedObjects(userService, eventUser);
-          CedarRequestContext cedarRequestContext = CedarRequestContextFactory.fromUser(user);
-          createHomeFolderAndUser(cedarRequestContext);
-          updateHomeFolderPath(cedarRequestContext, userService, user);
+          createHomeFolderAndUser(c);
+          updateHomeFolderPath(c, userService, user);
         }
-      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-        play.Logger.error("Error while deserializing Keycloak event", e);
-        return internalServerErrorWithError(e);
+      } catch (Exception e) {
+        throw new CedarAssertionException(e);
       }
     }
 
-    return created();
+    //TODO: return created url
+    return Response.created(null).build();
   }
 
-  protected static UserService getUserService() {
-    return new UserServiceMongoDB(
-        cedarConfig.getMongoConfig().getDatabaseName(),
-        cedarConfig.getMongoConfig().getCollections().get(CedarNodeType.USER.getValue()));
-  }
-
-  private static CedarUser createUserRelatedObjects(UserService userService, CedarUserExtract eventUser) {
+  private CedarUser createUserRelatedObjects(UserService userService, CedarUserExtract eventUser) throws
+      CedarAssertionException {
     CedarUser existingUser = null;
     try {
       existingUser = userService.findUser(eventUser.getId());
-    } catch (IOException e) {
-      e.printStackTrace();
-    } catch (ProcessingException e) {
-      e.printStackTrace();
+    } catch (Exception e) {
+      throw new CedarAssertionException(e);
     }
 
     if (existingUser != null) {
@@ -513,14 +454,12 @@ public class CommandResource extends AbstractResourceServerResource {
       CedarUser u = userService.createUser(user);
       return u;
     } catch (IOException e) {
-      System.out.println("Error while creating user: " + eventUser.getEmail());
-      e.printStackTrace();
+      throw new CedarAssertionException(e);
     }
-    return null;
   }
 
-  private static void updateHomeFolderPath(CedarRequestContext cedarRequestContext, UserService userService,
-                                           CedarUser user) {
+  private void updateHomeFolderPath(CedarRequestContext cedarRequestContext, UserService userService,
+                                    CedarUser user) {
     FolderServiceSession neoSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
 
     String homeFolderPath = neoSession.getHomeFolderPath();
@@ -548,29 +487,25 @@ public class CommandResource extends AbstractResourceServerResource {
   @Timed
   @Path("/auth-admin-callback")
   public Response authAdminCallback() throws CedarAssertionException {
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
-    } catch (Exception e) {
-      return internalServerErrorWithError(e);
-    }
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+
     // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
 
-    JsonNode jsonBody = request().body().asJson();
-    //System.out.println("  *** Resource Server Command - Admin");
-    //System.out.println(jsonBody);
+    JsonNode jsonBody = c.request().getRequestBody().asJson();
+
     if (jsonBody != null) {
       try {
         AdminEvent event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), AdminEvent.class);
         CedarUserExtract eventUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
-        //System.out.println("Update user: enabled status");
+
         //TODO: read KK user, update enabled status in CEDAR - mongo and NEO
-      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-        play.Logger.error("Error while deserializing Keycloak event", e);
-        return internalServerErrorWithError(e);
+      } catch (JsonProcessingException e) {
+        throw new CedarAssertionException(e);
       }
     }
 
-    return Results.TODO;
+    //TODO: handle this. this is probably an error, having the null body here
+    return Response.noContent().build();
   }
 }

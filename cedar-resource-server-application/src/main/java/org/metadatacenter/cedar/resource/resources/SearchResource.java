@@ -1,28 +1,33 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.annotations.*;
+import org.metadatacenter.cedar.resource.util.ParametersValidator;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.response.FolderServerNodeListResponse;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.rest.exception.CedarAssertionException;
+import org.metadatacenter.util.json.JsonMapper;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
-import javax.ws.rs.core.Context;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.UriInfo;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+
+import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/search")
 @Produces(MediaType.APPLICATION_JSON)
 @Api(value = "/search", description = "Search for resources")
 public class SearchResource extends AbstractResourceServerResource {
-
-  private
-  @Context
-  UriInfo uriInfo;
-
-  private
-  @Context
-  HttpServletRequest request;
 
   public SearchResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -47,12 +52,17 @@ public class SearchResource extends AbstractResourceServerResource {
       @ApiImplicitParam(name = "sort", value="Sort by. Example: 'sort=createdOnTS'. The '-' prefix may be used to apply inverse sorting", allowableValues = "name,createdOnTS,lastUpdatedOnTS,-name,-createdOnTS,-lastUpdatedOnTS", defaultValue = "name", required = false, dataType = "string", paramType = "query"),
       @ApiImplicitParam(name = "limit", value="Maximum number of resources to be retrieved", defaultValue = "50", required = false, dataType = "int", paramType = "query"),
       @ApiImplicitParam(name = "offset", value="Offset", defaultValue = "0", required = false, dataType = "int", paramType = "query")})
-  public static Result search(F.Option<String> query, F.Option<String> resourceTypes, F.Option<String> templateId, F.Option<String> sort,  F
-      .Option<Integer> limitParam, F.Option<Integer> offsetParam) {
-    try {
-      AuthRequest frontendRequest = CedarAuthFromRequestFactory.fromRequest(request());
-      Authorization.getUserAndEnsurePermission(frontendRequest, CedarPermission.LOGGED_IN);
+  public Response search(Optional<String> query,
+                         @QueryParam("resource_types") Optional<String> resourceTypes,
+                         @QueryParam("template_id") Optional<String> templateId,
+                         @QueryParam("sort") Optional<String> sort,
+                         @QueryParam("limit") Optional<Integer> limitParam,
+                         @QueryParam("offset") Optional<Integer> offsetParam) throws CedarAssertionException {
 
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+
+    try {
       // Parameters validation
       String queryString = ParametersValidator.validateQuery(query);
       String tempId = ParametersValidator.validateTemplateId(templateId);
@@ -70,26 +80,24 @@ public class SearchResource extends AbstractResourceServerResource {
           cedarConfig.getSearchSettings().getSearchDefaultSettings().getMaxAllowedLimit());
       int offset = ParametersValidator.validateOffset(offsetParam);
 
-      // Get userId from apiKey
-      //CedarUser user = Authorization.getUser(frontendRequest);
-      //String userId = cedarConfig.getLinkedDataPrefix(CedarNodeType.USER) + user.getId();
+      UriBuilder builder = uriInfo.getAbsolutePathBuilder();
+      URI absoluteURI = builder
+          .queryParam("query", query)
+          .queryParam("resource_types", resourceTypes)
+          .queryParam("templateId", templateId)
+          .queryParam("sort", sort)
+          .queryParam("limit", limitParam)
+          .queryParam("offset", offsetParam)
+          .build();
 
-      F.Option<Integer> none = new F.None<>();
-      String absoluteUrl = routes.SearchController.search(query, resourceTypes, templateId, sort,
-          none, none).absoluteURL(request());
+      String absoluteUrl = absoluteURI.toString();
 
-      FolderServerNodeListResponse results = DataServices.getInstance().getSearchService().search(queryString,
-          resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, frontendRequest);
+      FolderServerNodeListResponse results = searchService.search(queryString, resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, request);
 
-      ObjectMapper mapper = new ObjectMapper();
-      JsonNode resultsNode = mapper.valueToTree(results);
-      return ok(resultsNode);
-    } catch (IllegalArgumentException e) {
-      play.Logger.error("Search error", e);
-      return badRequestWithError(e);
+      JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
+      return Response.ok().entity(resultsNode).build();
     } catch (Exception e) {
-      play.Logger.error("Search error", e);
-      return internalServerErrorWithError(e);
+      throw new CedarAssertionException(e);
     }
   }
 }

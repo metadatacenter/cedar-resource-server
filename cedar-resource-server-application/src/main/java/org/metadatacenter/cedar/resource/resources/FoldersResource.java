@@ -6,7 +6,6 @@ import io.swagger.annotations.ApiOperation;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
-import org.metadatacenter.cedar.resource.util.DataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.model.CedarNodeType;
@@ -70,7 +69,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       try {
         if (HttpStatus.SC_CREATED == statusCode) {
           // index the folder that has been created
-          DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue(entity.getContent(),
+          searchService.indexResource(JsonMapper.MAPPER.readValue(entity.getContent(),
               FolderServerFolder.class), null, request);
           //TODO: use created here, with the proxied location header
           return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
@@ -161,7 +160,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       try {
         if (HttpStatus.SC_OK == statusCode) {
           // update the folder on the index
-          DataServices.getInstance().getSearchService().updateIndexedResource(JsonMapper.MAPPER.readValue(entity
+          searchService.updateIndexedResource(JsonMapper.MAPPER.readValue(entity
               .getContent(), FolderServerFolder.class), null, request);
           return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
         } else {
@@ -201,7 +200,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     int folderDeleteStatusCode = proxyResponse.getStatusLine().getStatusCode();
     if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
       // remove the folder from the index
-      DataServices.getInstance().getSearchService().removeResourceFromIndex(id);
+      searchService.removeResourceFromIndex(id);
       return Response.noContent().build();
     } else {
       return generateStatusResponse(proxyResponse);

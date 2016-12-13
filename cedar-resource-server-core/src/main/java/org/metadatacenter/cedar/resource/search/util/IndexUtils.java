@@ -59,7 +59,7 @@ public class IndexUtils {
    * resources that don't have to be in the index, such as the "/" folder and the "Lost+Found" folder are ignored.
    */
   public List<FolderServerNode> findAllResources(HttpServletRequest request) throws CedarProcessingException {
-    play.Logger.info("Retrieving all resources:");
+    System.out.println("Retrieving all resources:");
     List<FolderServerNode> resources = new ArrayList<>();
     boolean finished = false;
     String baseUrl = folderBase + FOLDER_ALL_NODES;
@@ -67,7 +67,7 @@ public class IndexUtils {
     int countSoFar = 0;
     while (!finished) {
       String url = baseUrl + "?offset=" + offset + "&limit=" + limit;
-      play.Logger.info("Retrieving resources from Folder Server. Url: " + url);
+      System.out.println("Retrieving resources from Folder Server. Url: " + url);
       int statusCode = -1;
       int attemp = 1;
       HttpResponse response = null;
@@ -77,7 +77,7 @@ public class IndexUtils {
         if ((statusCode != HttpStatus.SC_BAD_GATEWAY) || (attemp > maxAttemps)) {
           break;
         } else {
-          play.Logger.info("Failed to retrieve resource. The Folder Server might have not been started yet. " +
+          System.out.println("Failed to retrieve resource. The Folder Server might have not been started yet. " +
               "Retrying... (attemp " + attemp + "/" + maxAttemps + ")");
           attemp++;
           try {
@@ -98,7 +98,7 @@ public class IndexUtils {
         int count = resultJson.get("resources").size();
         int totalCount = resultJson.get("totalCount").asInt();
         countSoFar += count;
-        play.Logger.info("Retrieved " + countSoFar + "/" + totalCount + " resources");
+        System.out.println("Retrieved " + countSoFar + "/" + totalCount + " resources");
         int currentOffset = resultJson.get("currentOffset").asInt();
         for (JsonNode resource : resultJson.get("resources")) {
           boolean indexResource = true;
@@ -115,7 +115,7 @@ public class IndexUtils {
           if (indexResource) {
             resources.add(JsonMapper.MAPPER.convertValue(resource, FolderServerNode.class));
           } else {
-            play.Logger.info("The resource '" + resource.get("name").asText() + "' has been ignored");
+            System.out.println("The resource '" + resource.get("name").asText() + "' has been ignored");
           }
         }
         if (currentOffset + count >= totalCount) {

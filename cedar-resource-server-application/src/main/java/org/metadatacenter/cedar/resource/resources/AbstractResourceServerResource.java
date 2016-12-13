@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.net.URLCodec;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -10,30 +11,34 @@ import org.apache.http.util.EntityUtils;
 import org.codehaus.jackson.node.JsonNodeFactory;
 import org.codehaus.jackson.node.ObjectNode;
 import org.metadatacenter.bridge.FolderServerProxy;
-import org.metadatacenter.cedar.resource.util.DataServices;
+import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.rest.exception.CedarProcessingException;
-import org.metadatacenter.server.security.exception.CedarAccessException;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
+import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
-import play.mvc.Results;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.Optional;
+
+import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 public class AbstractResourceServerResource {
 
@@ -51,6 +56,8 @@ public class AbstractResourceServerResource {
 
   protected static final String PREFIX_RESOURCES = "resources";
 
+  protected static SearchService searchService;
+
   protected final CedarConfig cedarConfig;
   protected final String folderBase;
   protected final String templateBase;
@@ -67,6 +74,9 @@ public class AbstractResourceServerResource {
     usersURL = cedarConfig.getServers().getFolder().getUsers();
   }
 
+  public static void injectSearchService(SearchService searchService) {
+    AbstractResourceServerResource.searchService = searchService;
+  }
 
   protected FolderServerFolder getCedarFolderById(String id) throws CedarAssertionException {
     String url = folderBase + CedarNodeType.FOLDER.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
@@ -168,38 +178,43 @@ public class AbstractResourceServerResource {
   }
 
   // Proxy methods for resource types
-  protected static Response executeResourcePostByProxy(CedarNodeType nodeType, Optional<Boolean> importMode) {
-    AuthRequest authRequest = CedarAuthFromRequestFactory.fromRequest(request());
+  protected Response executeResourcePostByProxy(CedarNodeType nodeType, Optional<Boolean> importMode) throws
+      CedarAssertionException {
+
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
     try {
-      String folderId = request().getQueryString("folderId");
+      String folderId = request.getParameter("folderId");
       if (folderId != null) {
         folderId = folderId.trim();
       }
 
       if (folderId == null || folderId.length() == 0) {
-        ObjectNode errorParams = JsonNodeFactory.instance.objectNode();
-        errorParams.put("paramName", "folderId");
-        return badRequest(generateErrorDescription("parameterMissing",
-            "You must specify the folderId as a request parameter!", errorParams));
+        return CedarResponse.badRequest()
+            .parameter("parameterName", "folderId")
+            .errorMessage("You must specify the folderId as a request parameter!")
+            .errorKey(CedarErrorKey.MISSING_PARAMETER)
+            .build();
       }
 
       FolderServerFolder targetFolder = getCedarFolderById(folderId);
       if (targetFolder == null) {
-        ObjectNode errorParams = JsonNodeFactory.instance.objectNode();
-        errorParams.put("folderId", folderId);
-        return badRequest(generateErrorDescription("folderNotFound",
-            "The folder with the given id can not be found!", errorParams));
+        //TODO should this be NOT_FOUND
+        return CedarResponse.badRequest()
+            .parameter("folderId", folderId)
+            .errorMessage("The folder with the given id can not be found!")
+            .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+            .build();
       }
 
       String url = templateBase + nodeType.getPrefix();
-      if (importMode != null && importMode.isDefined() && importMode.get()) {
+      if (importMode != null && importMode.isPresent() && importMode.get()) {
         url += "?importMode=true";
       }
       System.out.println("***RESOURCE PROXY:" + url);
-      play.Logger.debug("***RESOURCE PROXY:" + url);
 
-      HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request());
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response());
+      HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_CREATED) {
@@ -224,54 +239,47 @@ public class AbstractResourceServerResource {
           resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
-          HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, request(),
-              resourceRequestBodyAsString);
+          HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, request, resourceRequestBodyAsString);
           int resourceCreateStatusCode = resourceCreateResponse.getStatusLine().getStatusCode();
           HttpEntity resourceEntity = resourceCreateResponse.getEntity();
           if (resourceEntity != null) {
             if (HttpStatus.SC_CREATED == resourceCreateStatusCode) {
               if (locationHeader != null) {
-                response().setHeader(locationHeader.getName(), locationHeader.getValue());
+                response.setHeader(locationHeader.getName(), locationHeader.getValue());
               }
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                DataServices.getInstance().getSearchService().indexResource(JsonMapper.MAPPER.readValue
-                        (resourceCreateResponse.getEntity().getContent(), FolderServerResource.class), jsonNode,
-                    authRequest);
-                return created(proxyResponse.getEntity().getContent());
+                searchService.indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
+                    (), FolderServerResource.class), jsonNode, request);
+                //TODO use created url
+                return Response.created(null).entity(proxyResponse.getEntity()).build();
               } else {
-                return ok();
+                return Response.ok().build();
               }
             } else {
-              System.out.println("Resource not created #1, rollback resource and signal error");
-              return Results.status(resourceCreateStatusCode, resourceEntity.getContent());
+              return Response.status(resourceCreateStatusCode).entity(resourceEntity.getContent()).build();
             }
           } else {
-            System.out.println("Resource not created #2, rollback resource and signal error");
-            return Results.status(resourceCreateStatusCode);
+            return Response.status(resourceCreateStatusCode).build();
           }
         } else {
-          return ok();
+          return Response.ok().build();
         }
       }
-    } catch (UnknownHostException e) {
-      play.Logger.error("Error while indexing the resource", e);
-      return internalServerErrorWithError(e);
-    } catch (ElasticsearchException e) {
-      play.Logger.error("Error while indexing the resource", e);
-      return internalServerErrorWithError(e);
     } catch (Exception e) {
-      play.Logger.error("Error while creating the resource", e);
-      return internalServerErrorWithError(e);
+      throw new CedarAssertionException(e);
     }
-
   }
 
   protected Response generateStatusResponse(HttpResponse proxyResponse) throws CedarAssertionException {
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
-      return Response.status(statusCode).entity(entity.getContent()).build();
+      try {
+        return Response.status(statusCode).entity(entity.getContent()).build();
+      } catch (Exception e) {
+        throw new CedarAssertionException(e);
+      }
     } else {
       return Response.status(statusCode).build();
     }
@@ -372,9 +380,8 @@ public class AbstractResourceServerResource {
             if (HttpStatus.SC_OK == resourceUpdateStatusCode) {
               if (proxyResponse.getEntity() != null) {
                 // update the resource on the index
-                DataServices.getInstance().getSearchService().updateIndexedResource(JsonMapper.MAPPER.readValue
-                    (resourceUpdateResponse.getEntity().getContent(),
-                        FolderServerResource.class), jsonNode, request);
+                searchService.updateIndexedResource(JsonMapper.MAPPER.readValue(resourceUpdateResponse.getEntity()
+                    .getContent(), FolderServerResource.class), jsonNode, request);
                 return Response.ok().entity(proxyResponse.getEntity().getContent()).build();
               } else {
                 return Response.ok().build();
@@ -413,7 +420,7 @@ public class AbstractResourceServerResource {
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           // remove the resource from the index
-          DataServices.getInstance().getSearchService().removeResourceFromIndex(id);
+          searchService.removeResourceFromIndex(id);
           return Response.noContent().build();
         } else {
           return generateStatusResponse(resourceDeleteResponse);

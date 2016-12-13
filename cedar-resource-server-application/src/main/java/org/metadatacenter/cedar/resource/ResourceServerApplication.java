@@ -1,28 +1,24 @@
 package org.metadatacenter.cedar.resource;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.dropwizard.Application;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 import org.eclipse.jetty.servlets.CrossOriginFilter;
 import org.metadatacenter.bridge.CedarDataServices;
-import org.metadatacenter.cedar.resource.core.CedarAssertionExceptionMapper;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
+import org.metadatacenter.cedar.resource.search.SearchService;
+import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
+import org.metadatacenter.cedar.util.dw.CedarAssertionExceptionMapper;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.config.ElasticsearchConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.server.security.Authorization;
 import org.metadatacenter.server.security.AuthorizationKeycloakAndApiKeyResolver;
 import org.metadatacenter.server.security.IAuthorizationResolver;
 import org.metadatacenter.server.security.KeycloakDeploymentProvider;
-import org.metadatacenter.server.service.TemplateElementService;
-import org.metadatacenter.server.service.TemplateFieldService;
-import org.metadatacenter.server.service.TemplateInstanceService;
-import org.metadatacenter.server.service.TemplateService;
-import org.metadatacenter.server.service.mongodb.TemplateElementServiceMongoDB;
-import org.metadatacenter.server.service.mongodb.TemplateFieldServiceMongoDB;
-import org.metadatacenter.server.service.mongodb.TemplateInstanceServiceMongoDB;
-import org.metadatacenter.server.service.mongodb.TemplateServiceMongoDB;
+import org.metadatacenter.server.service.UserService;
+import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
 
 import javax.servlet.DispatcherType;
 import javax.servlet.FilterRegistration;
@@ -32,7 +28,9 @@ import static org.eclipse.jetty.servlets.CrossOriginFilter.*;
 
 public class ResourceServerApplication extends Application<ResourceServerConfiguration> {
 
-  protected static CedarConfig cedarConfig;
+  private static CedarConfig cedarConfig;
+  private static UserService userService;
+  private static SearchService searchService;
 
   public static void main(String[] args) throws Exception {
     new ResourceServerApplication().run(args);
@@ -54,6 +52,32 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
 
     cedarConfig = CedarConfig.getInstance();
 
+    userService = new UserServiceMongoDB(
+        cedarConfig.getMongoConfig().getDatabaseName(),
+        cedarConfig.getMongoCollectionName(CedarNodeType.USER));
+
+    ElasticsearchConfig esc = cedarConfig.getElasticsearchConfig();
+
+    searchService = new SearchService(new ElasticsearchService(
+        esc.getCluster(),
+        esc.getHost(),
+        esc.getTransportPort(),
+        esc.getSize(),
+        esc.getScrollKeepAlive(),
+        esc.getSettings(),
+        esc.getMappings()),
+        esc.getIndex(),
+        esc.getType(),
+        cedarConfig.getServers().getFolder().getBase(),
+        cedarConfig.getServers().getTemplate().getBase(),
+        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getLimitIndexRegeneration(),
+        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getMaxAttempts(),
+        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getDelayAttempts()
+    );
+
+
+    CommandResource.injectUserService(userService);
+    SearchResource.injectSearchService(searchService);
   }
 
   @Override
@@ -61,32 +85,31 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
     final IndexResource index = new IndexResource();
     environment.jersey().register(index);
 
-    final FolderResource folders = new FolderResource(cedarConfig, templateFieldService);
+    final FoldersResource folders = new FoldersResource(cedarConfig);
     environment.jersey().register(folders);
 
-    final FolderContentsResource folderContents = new FolderContentsResource(cedarConfig, templateFieldService);
+    final FolderContentsResource folderContents = new FolderContentsResource(cedarConfig);
     environment.jersey().register(folderContents);
 
-    final UserResource user = new UserResource(cedarConfig, templateFieldService);
+    final UsersResource user = new UsersResource(cedarConfig);
     environment.jersey().register(user);
 
-    final CommandResource command = new CommandResource(cedarConfig, templateFieldService);
+    final CommandResource command = new CommandResource(cedarConfig);
     environment.jersey().register(command);
 
-    final SearchResource search = new SearchResource(cedarConfig, templateFieldService);
+    final SearchResource search = new SearchResource(cedarConfig);
     environment.jersey().register(search);
 
-    final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig, templateFieldService);
+    final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig);
     environment.jersey().register(fields);
 
-    final TemplateElementsResource elements = new TemplateElementsResource(cedarConfig, templateElementService,
-        templateFieldService);
+    final TemplateElementsResource elements = new TemplateElementsResource(cedarConfig);
     environment.jersey().register(elements);
 
-    final TemplatesResource templates = new TemplatesResource(cedarConfig, templateService, templateFieldService);
+    final TemplatesResource templates = new TemplatesResource(cedarConfig);
     environment.jersey().register(templates);
 
-    final TemplateInstancesResource instances = new TemplateInstancesResource(cedarConfig, templateInstanceService);
+    final TemplateInstancesResource instances = new TemplateInstancesResource(cedarConfig);
     environment.jersey().register(instances);
 
     final ResourceServerHealthCheck healthCheck = new ResourceServerHealthCheck();
