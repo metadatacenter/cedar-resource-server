@@ -1,6 +1,6 @@
 # Folder contents
-GET            /folders/contents                       controllers.FolderContentsController.findFolderContentsByPath(path: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
-GET            /folders/:id/contents                   controllers.FolderContentsController.findFolderContentsById(id: String, resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
+#GET            /folders/contents                       controllers.FolderContentsController.findFolderContentsByPath(path: play.libs.F.Option[String], resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
+#GET            /folders/:id/contents                   controllers.FolderContentsController.findFolderContentsById(id: String, resource_types: play.libs.F.Option[String], sort: play.libs.F.Option[String], limit: play.libs.F.Option[Integer], offset: play.libs.F.Option[Integer])
 
 # Folders
 POST           /folders                                controllers.FolderController.createFolder()
@@ -56,7 +56,7 @@ GET            /search-deep                            controllers.SearchControl
 #POST           /search                          controllers.SearchController.searchByPost()
 
 # Commands
-POST           /command/regenerate-search-index        controllers.SearchController.regenerateSearchIndex()
+#!!!!!POST           /command/regenerate-search-index        controllers.SearchController.regenerateSearchIndex()
 POST           /command/copy-resource-to-folder        controllers.CommandController.copyResourceToFolder()
 POST           /command/move-node-to-folder            controllers.CommandController.moveNodeToFolder()
 POST           /command/auth-user-callback             controllers.CommandController.authUserCallback()

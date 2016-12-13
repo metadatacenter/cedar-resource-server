@@ -38,7 +38,6 @@ public class FoldersResource extends AbstractResourceServerResource {
     super(cedarConfig);
   }
 
-
   @ApiOperation(
       value = "Create folder")
   @POST
