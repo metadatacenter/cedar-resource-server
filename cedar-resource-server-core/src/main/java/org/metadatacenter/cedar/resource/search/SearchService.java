@@ -12,7 +12,7 @@ import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
-import org.metadatacenter.rest.exception.CedarProcessingException;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 
 import javax.servlet.http.HttpServletRequest;

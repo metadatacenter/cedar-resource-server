@@ -5,6 +5,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -34,7 +35,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       value = "Create template element")
   @POST
   @Timed
-  public Response createTemplateElement(Optional<Boolean> importMode) throws CedarAssertionException {
+  public Response createTemplateElement(Optional<Boolean> importMode) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_CREATE);
@@ -59,7 +60,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}")
-  public Response findTemplateElement(@PathParam("id") String id) throws CedarAssertionException {
+  public Response findTemplateElement(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
@@ -79,7 +80,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}/details")
-  public Response findTemplateElementDetails(@PathParam("id") String id) throws CedarAssertionException {
+  public Response findTemplateElementDetails(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
@@ -99,7 +100,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{id}")
-  public Response updateTemplateElement(@PathParam("id") String id) throws CedarAssertionException {
+  public Response updateTemplateElement(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
@@ -119,7 +120,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{id}")
-  public Response deleteTemplateElement(@PathParam("id") String id) throws CedarAssertionException {
+  public Response deleteTemplateElement(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_DELETE);
@@ -139,7 +140,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}/permissions")
-  public Response getTemplateElementPermissions(@PathParam("id") String id) throws CedarAssertionException {
+  public Response getTemplateElementPermissions(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
@@ -160,7 +161,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{id}/permissions")
-  public Response updateTemplateElementPermissions(@PathParam("id") String id) throws CedarAssertionException {
+  public Response updateTemplateElementPermissions(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);

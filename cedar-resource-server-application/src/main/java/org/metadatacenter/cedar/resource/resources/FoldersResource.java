@@ -8,6 +8,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
@@ -41,7 +42,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       value = "Create folder")
   @POST
   @Timed
-  public Response createFolder() throws CedarAssertionException {
+  public Response createFolder() throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_CREATE);
@@ -89,7 +90,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}")
-  public Response findFolder(@PathParam("id") String id) throws CedarAssertionException {
+  public Response findFolder(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
@@ -128,15 +129,17 @@ public class FoldersResource extends AbstractResourceServerResource {
       value = "Find folder details by id")
   @GET
   @Timed
-  @Path("/{id}")
-  public Response findFolderDetails(@PathParam("id") String id) throws CedarAssertionException {
+  @Path("/{id}/details")
+  public Response findFolderDetails(@PathParam("id") String id) throws CedarException {
     return findFolder(id);
   }
 
   @ApiOperation(
-      value = "Update folder",
-      httpMethod = "PUT")
-  public Response updateFolder(@PathParam("id") String id) throws CedarAssertionException {
+      value = "Update folder")
+  @PUT
+  @Timed
+  @Path("/{id}")
+  public Response updateFolder(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
@@ -179,7 +182,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{id}")
-  public Response deleteFolder(@PathParam("id") String id) throws CedarAssertionException {
+  public Response deleteFolder(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
@@ -212,8 +215,8 @@ public class FoldersResource extends AbstractResourceServerResource {
       value = "Get permissions of a folder")
   @GET
   @Timed
-  @Path("/{id}")
-  public Response getFolderPermissions(@PathParam("id") String id) throws CedarAssertionException {
+  @Path("/{id}/permissions ")
+  public Response getFolderPermissions(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
@@ -232,8 +235,8 @@ public class FoldersResource extends AbstractResourceServerResource {
       value = "Update folder permissions")
   @PUT
   @Timed
-  @Path("/{id}")
-  public Response updateFolderPermissions(@PathParam("id") String id) throws CedarAssertionException {
+  @Path("/{id}/permissions ")
+  public Response updateFolderPermissions(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
@@ -249,7 +252,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     return executeFolderPermissionPutByProxy(id);
   }
 
-  private Response executeFolderPermissionGetByProxy(String folderId) throws CedarAssertionException {
+  private Response executeFolderPermissionGetByProxy(String folderId) throws CedarException {
     try {
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(folderId) + "/permissions";
 
@@ -268,7 +271,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
   }
 
-  private Response executeFolderPermissionPutByProxy(String folderId) throws CedarAssertionException {
+  private Response executeFolderPermissionPutByProxy(String folderId) throws CedarException {
     try {
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(folderId) + "/permissions";
 

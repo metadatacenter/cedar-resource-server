@@ -3,7 +3,7 @@ package org.metadatacenter.cedar.resource.search.elasticsearch;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
-import org.metadatacenter.rest.exception.CedarProcessingException;
+import org.metadatacenter.exception.CedarProcessingException;
 
 import java.util.List;
 

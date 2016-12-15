@@ -1,16 +1,20 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.annotations.*;
 import org.metadatacenter.cedar.resource.util.ParametersValidator;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.rest.exception.CedarAssertionException;
+import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.json.JsonMapper;
 
+import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
@@ -24,7 +28,7 @@ import java.util.Optional;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
-@Path("/search")
+@Path("/")
 @Produces(MediaType.APPLICATION_JSON)
 @Api(value = "/search", description = "Search for resources")
 public class SearchResource extends AbstractResourceServerResource {
@@ -35,9 +39,7 @@ public class SearchResource extends AbstractResourceServerResource {
 
 
   @ApiOperation(
-      value = "Search for resources",
-      // notes = ...
-      httpMethod = "GET")
+      value = "Search for resources")
   @ApiResponses(value = {
       @ApiResponse(code = 200, message = "Success!"),
       @ApiResponse(code = 400, message = "Bad Request"),
@@ -52,19 +54,22 @@ public class SearchResource extends AbstractResourceServerResource {
       @ApiImplicitParam(name = "sort", value="Sort by. Example: 'sort=createdOnTS'. The '-' prefix may be used to apply inverse sorting", allowableValues = "name,createdOnTS,lastUpdatedOnTS,-name,-createdOnTS,-lastUpdatedOnTS", defaultValue = "name", required = false, dataType = "string", paramType = "query"),
       @ApiImplicitParam(name = "limit", value="Maximum number of resources to be retrieved", defaultValue = "50", required = false, dataType = "int", paramType = "query"),
       @ApiImplicitParam(name = "offset", value="Offset", defaultValue = "0", required = false, dataType = "int", paramType = "query")})
-  public Response search(Optional<String> query,
+  @GET
+  @Timed
+  @Path("/search")
+  public Response search(@QueryParam("query") Optional<String> q,
                          @QueryParam("resource_types") Optional<String> resourceTypes,
                          @QueryParam("template_id") Optional<String> templateId,
                          @QueryParam("sort") Optional<String> sort,
                          @QueryParam("limit") Optional<Integer> limitParam,
-                         @QueryParam("offset") Optional<Integer> offsetParam) throws CedarAssertionException {
+                         @QueryParam("offset") Optional<Integer> offsetParam) throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 
     try {
       // Parameters validation
-      String queryString = ParametersValidator.validateQuery(query);
+      String queryString = ParametersValidator.validateQuery(q);
       String tempId = ParametersValidator.validateTemplateId(templateId);
       // If templateId is specified, the resource types is limited to instances
       List<String> resourceTypeList = null;
@@ -80,17 +85,15 @@ public class SearchResource extends AbstractResourceServerResource {
           cedarConfig.getSearchSettings().getSearchDefaultSettings().getMaxAllowedLimit());
       int offset = ParametersValidator.validateOffset(offsetParam);
 
-      UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-      URI absoluteURI = builder
-          .queryParam("query", query)
+      CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
+          .queryParam("query", q)
           .queryParam("resource_types", resourceTypes)
           .queryParam("templateId", templateId)
           .queryParam("sort", sort)
           .queryParam("limit", limitParam)
-          .queryParam("offset", offsetParam)
-          .build();
+          .queryParam("offset", offsetParam);
 
-      String absoluteUrl = absoluteURI.toString();
+      String absoluteUrl = builder.build().toString();
 
       FolderServerNodeListResponse results = searchService.search(queryString, resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, request);
 

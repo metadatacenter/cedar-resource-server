@@ -12,7 +12,7 @@ import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.index.CedarIndexFieldSchema;
 import org.metadatacenter.model.index.CedarIndexFieldValue;
-import org.metadatacenter.rest.exception.CedarProcessingException;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarEntityUtil;
 import org.metadatacenter.util.http.CedarUrlUtil;

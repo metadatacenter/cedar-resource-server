@@ -14,6 +14,8 @@ import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
@@ -21,7 +23,7 @@ import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.rest.exception.CedarAssertionException;
-import org.metadatacenter.rest.exception.CedarProcessingException;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.http.CedarResponse;
@@ -78,7 +80,7 @@ public class AbstractResourceServerResource {
     AbstractResourceServerResource.searchService = searchService;
   }
 
-  protected FolderServerFolder getCedarFolderById(String id) throws CedarAssertionException {
+  protected FolderServerFolder getCedarFolderById(String id) throws CedarException {
     String url = folderBase + CedarNodeType.FOLDER.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
 
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
@@ -107,7 +109,7 @@ public class AbstractResourceServerResource {
     return resource;
   }
 
-  private FolderServerNode addProvenanceDisplayName(FolderServerNode resource) throws CedarAssertionException {
+  private FolderServerNode addProvenanceDisplayName(FolderServerNode resource) throws CedarException {
     if (resource != null) {
       CedarUserSummary creator = getUserSummary(extractUserUUID(resource.getCreatedBy()));
       CedarUserSummary updater = getUserSummary(extractUserUUID(resource.getLastUpdatedBy()));
@@ -139,7 +141,7 @@ public class AbstractResourceServerResource {
     return id;
   }
 
-  private CedarUserSummary getUserSummary(String id) throws CedarAssertionException {
+  private CedarUserSummary getUserSummary(String id) throws CedarException {
     String url = usersBase + id + "/" + "summary";
     HttpResponse proxyResponse = null;
     try {
@@ -165,13 +167,11 @@ public class AbstractResourceServerResource {
     return null;
   }
 
-  protected JsonNode resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse)
-      throws CedarAssertionException {
+  protected JsonNode resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse) throws CedarException {
     FolderServerNode resource = deserializeResource(proxyResponse);
     addProvenanceDisplayName(resource);
     return JsonMapper.MAPPER.valueToTree(resource);
   }
-
 
   protected static String responseAsJsonString(HttpResponse proxyResponse) throws IOException {
     return EntityUtils.toString(proxyResponse.getEntity());
@@ -400,7 +400,7 @@ public class AbstractResourceServerResource {
         }
       }
     } catch (Exception e) {
-      throw new CedarProcessingException(e, "Error while updating the resource on the index");
+      throw new CedarProcessingException("Error while updating the resource on the index", e);
     }
   }
 
@@ -431,21 +431,24 @@ public class AbstractResourceServerResource {
     }
   }
 
-  protected boolean userHasReadAccessToFolder(String folderBase, String folderId) throws CedarProcessingException {
+  protected boolean userHasReadAccessToFolder(String folderBase, String folderId) throws CedarException {
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
     FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request);
     if (fsFolder == null) {
-      throw new IllegalArgumentException("Folder not found for id:" + folderId);
+      throw new CedarObjectNotFoundException("Folder not found by id")
+          .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+          .parameter("folderId", folderId);
     }
     return fsFolder.currentUserCan(NodePermission.READ);
   }
 
-  protected boolean userHasWriteAccessToFolder(String folderBase, String folderId) throws
-      CedarProcessingException {
+  protected boolean userHasWriteAccessToFolder(String folderBase, String folderId) throws CedarException {
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
     FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request);
     if (fsFolder == null) {
-      throw new IllegalArgumentException("Folder not found for id:" + folderId);
+      throw new CedarObjectNotFoundException("Folder not found by id")
+          .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+          .parameter("folderId", folderId);
     }
     return fsFolder.currentUserCan(NodePermission.WRITE);
   }

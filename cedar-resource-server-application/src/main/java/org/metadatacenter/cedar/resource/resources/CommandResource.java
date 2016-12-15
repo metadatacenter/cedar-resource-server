@@ -16,6 +16,7 @@ import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerResource;
@@ -65,7 +66,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/copy-resource-to-folder")
-  public Response copyResourceToFolder() throws CedarAssertionException {
+  public Response copyResourceToFolder() throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
@@ -247,7 +248,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/move-node-to-folder ")
-  public Response moveNodeToFolder() throws CedarAssertionException {
+  public Response moveNodeToFolder() throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
@@ -404,7 +405,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/auth-user-callback ")
-  public Response authUserCallback() throws CedarAssertionException {
+  public Response authUserCallback() throws CedarException {
 
     //TODO: we will have a different request here, we will need to extract the user ID from the content
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
@@ -435,7 +436,7 @@ public class CommandResource extends AbstractResourceServerResource {
   }
 
   private CedarUser createUserRelatedObjects(UserService userService, CedarUserExtract eventUser) throws
-      CedarAssertionException {
+      CedarException {
     CedarUser existingUser = null;
     try {
       existingUser = userService.findUser(eventUser.getId());

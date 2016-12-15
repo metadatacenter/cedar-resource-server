@@ -1,16 +1,20 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.codahale.metrics.annotation.Timed;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.util.http.CedarEntityUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
@@ -30,7 +34,9 @@ public class UsersResource extends AbstractResourceServerResource {
   @ApiOperation(
       value = "List all users",
       httpMethod = "GET")
-  public Response findUsers() throws CedarAssertionException {
+  @GET
+  @Timed
+  public Response findUsers() throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 

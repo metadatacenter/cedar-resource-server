@@ -5,10 +5,12 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.rest.exception.CedarAssertionException;
+import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
@@ -27,7 +29,7 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 public class FolderContentsResource extends AbstractResourceServerResource {
 
 
-  private static final String ROOT_PATH_BY_PATH = "folders/contents";
+  private static final String ROOT_PATH_BY_PATH = "folders/";
   private static final String ROOT_PATH_BY_ID = "folders/";
 
   public FolderContentsResource(CedarConfig cedarConfig) {
@@ -37,30 +39,24 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/folders/contents")
+  @Path("/contents")
   public Response findFolderContentsByPath(@QueryParam("path") Optional<String> pathParam,
                                            @QueryParam("resource_types") Optional<String> resourceTypes,
                                            @QueryParam("sort") Optional<String> sort,
                                            @QueryParam("limit") Optional<Integer> limitParam,
                                            @QueryParam("offset") Optional<Integer> offsetParam) throws
-      CedarAssertionException {
+      CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 
-    UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-    URI absoluteURI = builder.queryParam("path", pathParam)
+    CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
+        .queryParam("path", pathParam)
         .queryParam("resource_types", resourceTypes)
         .queryParam("sort", sort)
         .queryParam("limit", limitParam)
-        .queryParam("offset", offsetParam)
-        .build();
+        .queryParam("offset", offsetParam);
 
-    String absoluteUrl = absoluteURI.toString();
-
-    int idx = absoluteUrl.indexOf(ROOT_PATH_BY_PATH);
-    String suffix = absoluteUrl.substring(idx);
-
-    String url = folderBase + suffix;
+    String url = builder.getProxyUrl(ROOT_PATH_BY_ID, folderBase);
 
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
@@ -69,30 +65,23 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/folders/{id}/contents")
+  @Path("/{id}/contents")
   public Response findFolderContentsById(@PathParam("id") String id,
                                          @QueryParam("resource_types") Optional<String> resourceTypes,
                                          @QueryParam("sort") Optional<String> sort,
                                          @QueryParam("limit") Optional<Integer> limitParam,
                                          @QueryParam("offset") Optional<Integer> offsetParam) throws
-      CedarAssertionException {
+      CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 
-    UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-    URI absoluteURI = builder
+    CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
         .queryParam("resource_types", resourceTypes)
         .queryParam("sort", sort)
         .queryParam("limit", limitParam)
-        .queryParam("offset", offsetParam)
-        .build();
+        .queryParam("offset", offsetParam);
 
-    String absoluteUrl = absoluteURI.toString();
-
-    int idx = absoluteUrl.indexOf(ROOT_PATH_BY_ID);
-    String suffix = absoluteUrl.substring(idx);
-
-    String url = folderBase + suffix;
+    String url = builder.getProxyUrl(ROOT_PATH_BY_PATH, folderBase);
 
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
