@@ -16,6 +16,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
@@ -23,7 +24,6 @@ import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.rest.exception.CedarAssertionException;
-import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.http.CedarResponse;
@@ -80,10 +80,10 @@ public class AbstractResourceServerResource {
     AbstractResourceServerResource.searchService = searchService;
   }
 
-  protected FolderServerFolder getCedarFolderById(String id) throws CedarException {
+  protected FolderServerFolder getCedarFolderById(String id, CedarRequestContext context) throws CedarException {
     String url = folderBase + CedarNodeType.FOLDER.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
 
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -109,11 +109,12 @@ public class AbstractResourceServerResource {
     return resource;
   }
 
-  private FolderServerNode addProvenanceDisplayName(FolderServerNode resource) throws CedarException {
+  private FolderServerNode addProvenanceDisplayName(FolderServerNode resource, CedarRequestContext context) throws
+      CedarException {
     if (resource != null) {
-      CedarUserSummary creator = getUserSummary(extractUserUUID(resource.getCreatedBy()));
-      CedarUserSummary updater = getUserSummary(extractUserUUID(resource.getLastUpdatedBy()));
-      CedarUserSummary owner = getUserSummary(extractUserUUID(resource.getOwnedBy()));
+      CedarUserSummary creator = getUserSummary(extractUserUUID(resource.getCreatedBy()), context);
+      CedarUserSummary updater = getUserSummary(extractUserUUID(resource.getLastUpdatedBy()), context);
+      CedarUserSummary owner = getUserSummary(extractUserUUID(resource.getOwnedBy()), context);
       if (creator != null) {
         resource.setCreatedByUserName(creator.getScreenName());
       }
@@ -141,11 +142,11 @@ public class AbstractResourceServerResource {
     return id;
   }
 
-  private CedarUserSummary getUserSummary(String id) throws CedarException {
+  private CedarUserSummary getUserSummary(String id, CedarRequestContext context) throws CedarException {
     String url = usersBase + id + "/" + "summary";
     HttpResponse proxyResponse = null;
     try {
-      proxyResponse = ProxyUtil.proxyGet(url, request);
+      proxyResponse = ProxyUtil.proxyGet(url, context);
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
@@ -167,9 +168,10 @@ public class AbstractResourceServerResource {
     return null;
   }
 
-  protected JsonNode resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse) throws CedarException {
+  protected JsonNode resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse, CedarRequestContext context)
+      throws CedarException {
     FolderServerNode resource = deserializeResource(proxyResponse);
-    addProvenanceDisplayName(resource);
+    addProvenanceDisplayName(resource, context);
     return JsonMapper.MAPPER.valueToTree(resource);
   }
 
@@ -197,7 +199,7 @@ public class AbstractResourceServerResource {
             .build();
       }
 
-      FolderServerFolder targetFolder = getCedarFolderById(folderId);
+      FolderServerFolder targetFolder = getCedarFolderById(folderId, c);
       if (targetFolder == null) {
         //TODO should this be NOT_FOUND
         return CedarResponse.badRequest()
@@ -213,7 +215,7 @@ public class AbstractResourceServerResource {
       }
       System.out.println("***RESOURCE PROXY:" + url);
 
-      HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request);
+      HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -239,7 +241,7 @@ public class AbstractResourceServerResource {
           resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
-          HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, request, resourceRequestBodyAsString);
+          HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, c, resourceRequestBodyAsString);
           int resourceCreateStatusCode = resourceCreateResponse.getStatusLine().getStatusCode();
           HttpEntity resourceEntity = resourceCreateResponse.getEntity();
           if (resourceEntity != null) {
@@ -250,7 +252,7 @@ public class AbstractResourceServerResource {
               if (proxyResponse.getEntity() != null) {
                 // index the resource that has been created
                 searchService.indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
-                    (), FolderServerResource.class), jsonNode, request);
+                    (), FolderServerResource.class), jsonNode, c);
                 //TODO use created url
                 return Response.created(null).entity(proxyResponse.getEntity()).build();
               } else {
@@ -313,11 +315,12 @@ public class AbstractResourceServerResource {
     return description;
   }
 
-  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id) throws CedarAssertionException {
+  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id, CedarRequestContext context) throws
+      CedarAssertionException {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
       //System.out.println(url);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -331,16 +334,17 @@ public class AbstractResourceServerResource {
     }
   }
 
-  protected Response executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id) throws
+  protected Response executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
+      throws
       CedarAssertionException {
     try {
       String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, request);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        return Response.status(statusCode).entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
+        return Response.status(statusCode).entity(resourceWithExpandedProvenanceInfo(proxyResponse, context)).build();
       } else {
         return Response.status(statusCode).build();
       }
@@ -349,10 +353,11 @@ public class AbstractResourceServerResource {
     }
   }
 
-  protected Response executeResourcePutByProxy(CedarNodeType nodeType, String id) throws CedarProcessingException {
+  protected Response executeResourcePutByProxy(CedarNodeType nodeType, String id, CedarRequestContext context) throws
+      CedarProcessingException {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
-      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request);
+      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_OK) {
@@ -373,7 +378,7 @@ public class AbstractResourceServerResource {
           resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
-          HttpResponse resourceUpdateResponse = ProxyUtil.proxyPut(resourceUrl, request, resourceRequestBodyAsString);
+          HttpResponse resourceUpdateResponse = ProxyUtil.proxyPut(resourceUrl, context, resourceRequestBodyAsString);
           int resourceUpdateStatusCode = resourceUpdateResponse.getStatusLine().getStatusCode();
           HttpEntity resourceEntity = resourceUpdateResponse.getEntity();
           if (resourceEntity != null) {
@@ -381,7 +386,7 @@ public class AbstractResourceServerResource {
               if (proxyResponse.getEntity() != null) {
                 // update the resource on the index
                 searchService.updateIndexedResource(JsonMapper.MAPPER.readValue(resourceUpdateResponse.getEntity()
-                    .getContent(), FolderServerResource.class), jsonNode, request);
+                    .getContent(), FolderServerResource.class), jsonNode, context);
                 return Response.ok().entity(proxyResponse.getEntity().getContent()).build();
               } else {
                 return Response.ok().build();
@@ -405,10 +410,11 @@ public class AbstractResourceServerResource {
   }
 
 
-  protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id) throws CedarProcessingException {
+  protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
+      throws CedarProcessingException {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
-      HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request);
+      HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_NO_CONTENT) {
@@ -416,7 +422,7 @@ public class AbstractResourceServerResource {
         return generateStatusResponse(proxyResponse);
       } else {
         String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
-        HttpResponse resourceDeleteResponse = ProxyUtil.proxyDelete(resourceUrl, request);
+        HttpResponse resourceDeleteResponse = ProxyUtil.proxyDelete(resourceUrl, context);
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           // remove the resource from the index
@@ -431,9 +437,10 @@ public class AbstractResourceServerResource {
     }
   }
 
-  protected boolean userHasReadAccessToFolder(String folderBase, String folderId) throws CedarException {
+  protected boolean userHasReadAccessToFolder(String folderBase, String folderId, CedarRequestContext context) throws
+      CedarException {
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
-    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request);
+    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, context);
     if (fsFolder == null) {
       throw new CedarObjectNotFoundException("Folder not found by id")
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
@@ -442,9 +449,10 @@ public class AbstractResourceServerResource {
     return fsFolder.currentUserCan(NodePermission.READ);
   }
 
-  protected boolean userHasWriteAccessToFolder(String folderBase, String folderId) throws CedarException {
+  protected boolean userHasWriteAccessToFolder(String folderBase, String folderId, CedarRequestContext context)
+      throws CedarException {
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
-    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, request);
+    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, context);
     if (fsFolder == null) {
       throw new CedarObjectNotFoundException("Folder not found by id")
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
@@ -453,34 +461,38 @@ public class AbstractResourceServerResource {
     return fsFolder.currentUserCan(NodePermission.WRITE);
   }
 
-  protected boolean userHasReadAccessToResource(String folderBase, String nodeId) throws CedarProcessingException {
+  protected boolean userHasReadAccessToResource(String folderBase, String nodeId, CedarRequestContext context) throws
+      CedarProcessingException {
     String url = folderBase + PREFIX_RESOURCES;
-    FolderServerResource fsResource = FolderServerProxy.getResource(url, nodeId, request);
+    FolderServerResource fsResource = FolderServerProxy.getResource(url, nodeId, context);
     if (fsResource == null) {
       throw new IllegalArgumentException("Resource not found:" + nodeId);
     }
     return fsResource.currentUserCan(NodePermission.READ);
   }
 
-  protected boolean userHasWriteAccessToResource(String folderBase, String nodeId) throws CedarProcessingException {
+  protected boolean userHasWriteAccessToResource(String folderBase, String nodeId, CedarRequestContext context)
+      throws CedarProcessingException {
     String url = folderBase + PREFIX_RESOURCES;
-    FolderServerResource fsResource = FolderServerProxy.getResource(url, nodeId, request);
+    FolderServerResource fsResource = FolderServerProxy.getResource(url, nodeId, context);
     if (fsResource == null) {
       throw new IllegalArgumentException("Resource not found:" + nodeId);
     }
     return fsResource.currentUserCan(NodePermission.WRITE);
   }
 
-  protected Response executeResourcePermissionGetByProxy(String resourceId) throws CedarProcessingException {
+  protected Response executeResourcePermissionGetByProxy(String resourceId, CedarRequestContext context) throws
+      CedarProcessingException {
     String url = folderBase + "resources" + "/" + CedarUrlUtil.urlEncode(resourceId) + "/permissions";
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     return buildResponse(proxyResponse);
   }
 
-  protected Response executeResourcePermissionPutByProxy(String resourceId) throws CedarProcessingException {
+  protected Response executeResourcePermissionPutByProxy(String resourceId, CedarRequestContext context) throws
+      CedarProcessingException {
     String url = folderBase + "resources" + "/" + CedarUrlUtil.urlEncode(resourceId) + "/permissions";
-    HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     return buildResponse(proxyResponse);
   }

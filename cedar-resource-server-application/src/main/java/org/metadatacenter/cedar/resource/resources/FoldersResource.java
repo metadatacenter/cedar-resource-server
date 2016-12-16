@@ -52,7 +52,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     String folderId = folderIdP.stringValue();
 
-    if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+    if (!userHasWriteAccessToFolder(folderBase, folderId, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
           .errorMessage("You do not have write access to the folder")
@@ -61,7 +61,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
-    HttpResponse proxyResponse = ProxyUtil.proxyPost(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -71,9 +71,9 @@ public class FoldersResource extends AbstractResourceServerResource {
         if (HttpStatus.SC_CREATED == statusCode) {
           // index the folder that has been created
           searchService.indexResource(JsonMapper.MAPPER.readValue(entity.getContent(),
-              FolderServerFolder.class), null, request);
+              FolderServerFolder.class), null, c);
           //TODO: use created here, with the proxied location header
-          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
+          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
         }
@@ -95,7 +95,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
-    if (!userHasReadAccessToFolder(folderBase, id)) {
+    if (!userHasReadAccessToFolder(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
           .errorMessage("You do not have read access to the folder")
@@ -105,14 +105,14 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
       if (HttpStatus.SC_OK == statusCode) {
-        return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
+        return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
       } else {
         try {
           return Response.status(statusCode).entity(entity.getContent()).build();
@@ -144,7 +144,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 
-    if (!userHasWriteAccessToFolder(folderBase, id)) {
+    if (!userHasWriteAccessToFolder(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
           .errorMessage("You do not have write access to the folder")
@@ -154,7 +154,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
-    HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyPut(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -164,8 +164,8 @@ public class FoldersResource extends AbstractResourceServerResource {
         if (HttpStatus.SC_OK == statusCode) {
           // update the folder on the index
           searchService.updateIndexedResource(JsonMapper.MAPPER.readValue(entity
-              .getContent(), FolderServerFolder.class), null, request);
-          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse)).build();
+              .getContent(), FolderServerFolder.class), null, c);
+          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
         }
@@ -187,7 +187,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
 
-    if (!userHasReadAccessToFolder(folderBase, id)) {
+    if (!userHasReadAccessToFolder(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
           .errorMessage("You do not have write access to the folder")
@@ -197,7 +197,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
-    HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
     int folderDeleteStatusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -221,14 +221,14 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
-    if (!userHasReadAccessToFolder(folderBase, id)) {
+    if (!userHasReadAccessToFolder(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
           .errorMessage("You do not have write access to the folder")
           .parameter("id", id)
           .build();
     }
-    return executeFolderPermissionGetByProxy(id);
+    return executeFolderPermissionGetByProxy(id, c);
   }
 
   @ApiOperation(
@@ -241,7 +241,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 
-    if (!userHasWriteAccessToFolder(folderBase, id)) {
+    if (!userHasWriteAccessToFolder(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
           .errorMessage("You do not have write access to the folder")
@@ -249,14 +249,15 @@ public class FoldersResource extends AbstractResourceServerResource {
           .build();
     }
 
-    return executeFolderPermissionPutByProxy(id);
+    return executeFolderPermissionPutByProxy(id, c);
   }
 
-  private Response executeFolderPermissionGetByProxy(String folderId) throws CedarException {
+  private Response executeFolderPermissionGetByProxy(String folderId, CedarRequestContext context) throws
+      CedarException {
     try {
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(folderId) + "/permissions";
 
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -271,11 +272,12 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
   }
 
-  private Response executeFolderPermissionPutByProxy(String folderId) throws CedarException {
+  private Response executeFolderPermissionPutByProxy(String folderId, CedarRequestContext context) throws
+      CedarException {
     try {
       String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(folderId) + "/permissions";
 
-      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, request);
+      HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
       int statusCode = proxyResponse.getStatusLine().getStatusCode();

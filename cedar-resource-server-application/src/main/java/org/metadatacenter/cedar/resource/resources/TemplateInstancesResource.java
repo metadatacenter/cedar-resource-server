@@ -46,7 +46,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
     String folderId = folderIdP.stringValue();
 
-    if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+    if (!userHasWriteAccessToFolder(folderBase, folderId, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
           .errorMessage("You do not have write access to the folder")
@@ -66,14 +66,14 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id)) {
+    if (!userHasReadAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_INSTANCE)
           .errorMessage("You do not have read access to the instance")
           .parameter("id", id)
           .build();
     }
-    return executeResourceGetByProxy(CedarNodeType.INSTANCE, id);
+    return executeResourceGetByProxy(CedarNodeType.INSTANCE, id, c);
   }
 
   @ApiOperation(
@@ -86,14 +86,14 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id)) {
+    if (!userHasReadAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_INSTANCE)
           .errorMessage("You do not have read access to the instance")
           .parameter("id", id)
           .build();
     }
-    return executeResourceGetDetailsByProxy(CedarNodeType.INSTANCE, id);
+    return executeResourceGetDetailsByProxy(CedarNodeType.INSTANCE, id, c);
   }
 
   @ApiOperation(
@@ -106,14 +106,14 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
-    if (!userHasWriteAccessToResource(folderBase, id)) {
+    if (!userHasWriteAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_INSTANCE)
           .errorMessage("You do not have write access to the template instance")
           .parameter("id", id)
           .build();
     }
-    return executeResourcePutByProxy(CedarNodeType.INSTANCE, id);
+    return executeResourcePutByProxy(CedarNodeType.INSTANCE, id, c);
   }
 
   @ApiOperation(
@@ -126,14 +126,14 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
 
-    if (!userHasWriteAccessToResource(folderBase, id)) {
+    if (!userHasWriteAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_INSTANCE)
           .errorMessage("You do not have write access to the template instance")
           .parameter("id", id)
           .build();
     }
-    return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, id);
+    return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, id, c);
   }
 
   @ApiOperation(
@@ -146,7 +146,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id)) {
+    if (!userHasReadAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_INSTANCE)
           .errorMessage("You do not have read access to the template instance")
@@ -154,7 +154,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
           .build();
     }
 
-    return executeResourcePermissionGetByProxy(id);
+    return executeResourcePermissionGetByProxy(id, c);
   }
 
   @ApiOperation(
@@ -167,7 +167,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
-    if (!userHasWriteAccessToResource(folderBase, id)) {
+    if (!userHasWriteAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_INSTANCE)
           .errorMessage("You do not have write access to the template instance")
@@ -175,7 +175,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
           .build();
     }
 
-    return executeResourcePermissionPutByProxy(id);
+    return executeResourcePermissionPutByProxy(id, c);
   }
 
 }

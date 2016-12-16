@@ -13,6 +13,7 @@ import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.exception.CedarProcessingException;
+import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 
 import javax.servlet.http.HttpServletRequest;
@@ -40,10 +41,10 @@ public class SearchService implements ISearchService {
   }
 
   public void indexResource(FolderServerNode resource, JsonNode resourceContent, String indexName, String
-      documentType, HttpServletRequest request) throws CedarProcessingException {
+      documentType, CedarRequestContext context) throws CedarProcessingException {
     JsonNode summarizedContent = null;
     if (resourceContent != null) {
-      summarizedContent = indexUtils.extractSummarizedContent(resource.getType(), resourceContent, request);
+      summarizedContent = indexUtils.extractSummarizedContent(resource.getType(), resourceContent, context);
     }
     System.out.println("Indexing resource (id = " + resource.getId() + ")");
     // Set resource details
@@ -57,10 +58,10 @@ public class SearchService implements ISearchService {
     esService.addToIndex(jsonResource, indexName, documentType);
   }
 
-  public void indexResource(FolderServerNode resource, JsonNode resourceContent, HttpServletRequest request) throws
+  public void indexResource(FolderServerNode resource, JsonNode resourceContent, CedarRequestContext context) throws
       CedarProcessingException {
     // Use default index and type
-    indexResource(resource, resourceContent, esIndex, esType, request);
+    indexResource(resource, resourceContent, esIndex, esType, context);
   }
 
   public void removeResourceFromIndex(String resourceId, String indexName, String documentType) throws
@@ -76,11 +77,11 @@ public class SearchService implements ISearchService {
 
 
   public void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, String indexName, String
-      documentType, HttpServletRequest request) throws CedarProcessingException {
+      documentType, CedarRequestContext context) throws CedarProcessingException {
     JsonNode summarizedContent = null;
     try {
       if (resourceContent != null) {
-        summarizedContent = indexUtils.extractSummarizedContent(newResource.getType(), resourceContent, request);
+        summarizedContent = indexUtils.extractSummarizedContent(newResource.getType(), resourceContent, context);
       }
       System.out.println("Updating resource (id = " + newResource.getId());
       removeResourceFromIndex(newResource.getId(), indexName, documentType);
@@ -95,18 +96,18 @@ public class SearchService implements ISearchService {
     }
   }
 
-  public void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, HttpServletRequest request)
+  public void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, CedarRequestContext context)
       throws CedarProcessingException {
     // Use default index and type
-    updateIndexedResource(newResource, resourceContent, esIndex, esType, request);
+    updateIndexedResource(newResource, resourceContent, esIndex, esType, context);
   }
 
   public FolderServerNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String>
-      sortList, int limit, int offset, String absoluteUrl, HttpServletRequest request) throws CedarProcessingException {
+      sortList, int limit, int offset, String absoluteUrl, CedarRequestContext context) throws CedarProcessingException {
     ObjectMapper mapper = new ObjectMapper();
 
     // Accessible node ids
-    HashMap<String, String> accessibleNodeIds = new HashMap(FolderServerUtil.getAccessibleNodeIds(request));
+    HashMap<String, String> accessibleNodeIds = new HashMap(FolderServerUtil.getAccessibleNodeIds(context));
 
     try {
 
@@ -232,10 +233,10 @@ public class SearchService implements ISearchService {
     }
   }
 
-  public void regenerateSearchIndex(boolean force, HttpServletRequest request) throws CedarProcessingException {
+  public void regenerateSearchIndex(boolean force, CedarRequestContext context) throws CedarProcessingException {
     boolean regenerate = true;
     // Get all resources
-    List<FolderServerNode> resources = indexUtils.findAllResources(request);
+    List<FolderServerNode> resources = indexUtils.findAllResources(context);
     // Checks if is necessary to regenerate the index or not
     if (!force) {
       System.out.println("Checking if it is necessary to regenerate the search index from DB");
@@ -275,12 +276,12 @@ public class SearchService implements ISearchService {
       int count = 1;
       for (FolderServerNode resource : resources) {
         if (resource.getType() != CedarNodeType.FOLDER) {
-          JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), request);
+          JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), context);
           if (resourceContent != null) {
-            indexResource(resource, resourceContent, newIndexName, esType, request);
+            indexResource(resource, resourceContent, newIndexName, esType, context);
           }
         } else {
-          indexResource(resource, null, newIndexName, esType, request);
+          indexResource(resource, null, newIndexName, esType, context);
         }
         float progress = (100 * count++) / resources.size();
         System.out.println(String.format("Progress: %.0f%%", progress));

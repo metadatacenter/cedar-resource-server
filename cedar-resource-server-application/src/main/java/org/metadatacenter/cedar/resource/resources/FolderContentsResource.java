@@ -58,7 +58,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     String url = builder.getProxyUrl(ROOT_PATH_BY_ID, folderBase);
 
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
   }
@@ -83,7 +83,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     String url = builder.getProxyUrl(ROOT_PATH_BY_PATH, folderBase);
 
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
   }

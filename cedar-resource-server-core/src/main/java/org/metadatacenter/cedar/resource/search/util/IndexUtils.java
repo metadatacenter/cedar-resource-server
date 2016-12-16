@@ -13,6 +13,7 @@ import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.index.CedarIndexFieldSchema;
 import org.metadatacenter.model.index.CedarIndexFieldValue;
 import org.metadatacenter.exception.CedarProcessingException;
+import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarEntityUtil;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -58,7 +59,7 @@ public class IndexUtils {
    * This method retrieves all the resources from the Folder Server that are expected to be in the search index. Those
    * resources that don't have to be in the index, such as the "/" folder and the "Lost+Found" folder are ignored.
    */
-  public List<FolderServerNode> findAllResources(HttpServletRequest request) throws CedarProcessingException {
+  public List<FolderServerNode> findAllResources(CedarRequestContext context) throws CedarProcessingException {
     System.out.println("Retrieving all resources:");
     List<FolderServerNode> resources = new ArrayList<>();
     boolean finished = false;
@@ -72,7 +73,7 @@ public class IndexUtils {
       int attemp = 1;
       HttpResponse response = null;
       while (true) {
-        response = ProxyUtil.proxyGet(url, request);
+        response = ProxyUtil.proxyGet(url, context);
         statusCode = response.getStatusLine().getStatusCode();
         if ((statusCode != HttpStatus.SC_BAD_GATEWAY) || (attemp > maxAttemps)) {
           break;
@@ -134,7 +135,7 @@ public class IndexUtils {
   /**
    * Returns the full content of a particular resource
    */
-  public JsonNode findResourceContent(String resourceId, CedarNodeType nodeType, HttpServletRequest request) throws
+  public JsonNode findResourceContent(String resourceId, CedarNodeType nodeType, CedarRequestContext context) throws
       CedarProcessingException {
     try {
       CedarPermission permission = null;
@@ -142,7 +143,7 @@ public class IndexUtils {
       resourceUrl += "/" + CedarUrlUtil.urlEncode(resourceId);
       // Retrieve resource by id
       JsonNode resource = null;
-      HttpResponse response = ProxyUtil.proxyGet(resourceUrl, request);
+      HttpResponse response = ProxyUtil.proxyGet(resourceUrl, context);
       int statusCode = response.getStatusLine().getStatusCode();
       if (statusCode == HttpStatus.SC_OK) {
         String resourceString = EntityUtils.toString(response.getEntity());
@@ -158,7 +159,7 @@ public class IndexUtils {
 
   // Returns summary of resourceContent. There is no need to index the full JSON for each resource. Only the
   // information necessary to satisfy search and value recommendation use cases is kept.
-  public JsonNode extractSummarizedContent(CedarNodeType nodeType, JsonNode resourceContent, HttpServletRequest request)
+  public JsonNode extractSummarizedContent(CedarNodeType nodeType, JsonNode resourceContent, CedarRequestContext context)
       throws CedarProcessingException {
     try {
       // Templates and Elements
@@ -171,7 +172,7 @@ public class IndexUtils {
       else if (nodeType.equals(CedarNodeType.INSTANCE)) {
         // TODO: avoid calling this method multiple times when posting multiple instances for the same template
         JsonNode schemaSummary = extractSchemaSummary(nodeType, resourceContent, JsonNodeFactory.instance.objectNode(),
-            request);
+            context);
 
         JsonNode valuesSummary = extractValuesSummary(nodeType, schemaSummary, resourceContent, JsonNodeFactory
             .instance.objectNode());
@@ -186,7 +187,7 @@ public class IndexUtils {
   }
 
   private JsonNode extractSchemaSummary(CedarNodeType nodeType, JsonNode resourceContent, JsonNode results,
-                                        HttpServletRequest request) throws CedarProcessingException {
+                                        CedarRequestContext context) throws CedarProcessingException {
     if (nodeType.compareTo(CedarNodeType.TEMPLATE) == 0 || nodeType.compareTo(CedarNodeType.ELEMENT) == 0) {
 
       Iterator<Map.Entry<String, JsonNode>> fieldsIterator = resourceContent.fields();
@@ -229,11 +230,11 @@ public class IndexUtils {
                 .getAtType())) {
               // Add empty object to the results
               ((ObjectNode) results).set(fieldKey, JsonNodeFactory.instance.objectNode());
-              extractSchemaSummary(nodeType, fieldNode, results.get(fieldKey), request);
+              extractSchemaSummary(nodeType, fieldNode, results.get(fieldKey), context);
             }
             // Other nodes
             else {
-              extractSchemaSummary(nodeType, fieldNode, results, request);
+              extractSchemaSummary(nodeType, fieldNode, results, context);
             }
           }
         }
@@ -244,8 +245,8 @@ public class IndexUtils {
         String templateId = resourceContent.get("schema:isBasedOn").asText();
         JsonNode templateJson = null;
         try {
-          templateJson = findResourceContent(templateId, CedarNodeType.TEMPLATE, request);
-          results = extractSchemaSummary(CedarNodeType.TEMPLATE, templateJson, results, request);
+          templateJson = findResourceContent(templateId, CedarNodeType.TEMPLATE, context);
+          results = extractSchemaSummary(CedarNodeType.TEMPLATE, templateJson, results, context);
         } catch (CedarProcessingException e) {
           System.out.println("Error while accessing the reference template for the instance. It may have been " +
               "removed");

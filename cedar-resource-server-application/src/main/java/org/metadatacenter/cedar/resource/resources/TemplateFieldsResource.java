@@ -45,7 +45,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
     String folderId = folderIdP.stringValue();
 
-    if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+    if (!userHasWriteAccessToFolder(folderBase, folderId, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
           .errorMessage("You do not have write access to the folder")
@@ -65,14 +65,14 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id)) {
+    if (!userHasReadAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_FIELD)
           .errorMessage("You do not have read access to the field")
           .parameter("id", id)
           .build();
     }
-    return executeResourceGetByProxy(CedarNodeType.FIELD, id);
+    return executeResourceGetByProxy(CedarNodeType.FIELD, id, c);
   }
 
   @ApiOperation(
@@ -85,14 +85,14 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id)) {
+    if (!userHasReadAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_FIELD)
           .errorMessage("You do not have read access to the field")
           .parameter("id", id)
           .build();
     }
-    return executeResourceGetDetailsByProxy(CedarNodeType.FIELD, id);
+    return executeResourceGetDetailsByProxy(CedarNodeType.FIELD, id, c);
   }
 
   @ApiOperation(
@@ -105,14 +105,14 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
 
-    if (!userHasWriteAccessToResource(folderBase, id)) {
+    if (!userHasWriteAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_FIELD)
           .errorMessage("You do not have write access to the template field")
           .parameter("id", id)
           .build();
     }
-    return executeResourcePutByProxy(CedarNodeType.FIELD, id);
+    return executeResourcePutByProxy(CedarNodeType.FIELD, id, c);
   }
 
   @ApiOperation(
@@ -125,14 +125,14 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_DELETE);
 
-    if (!userHasWriteAccessToResource(folderBase, id)) {
+    if (!userHasWriteAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_FIELD)
           .errorMessage("You do not have write access to the template field")
           .parameter("id", id)
           .build();
     }
-    return executeResourceDeleteByProxy(CedarNodeType.FIELD, id);
+    return executeResourceDeleteByProxy(CedarNodeType.FIELD, id, c);
   }
 
   @ApiOperation(
@@ -145,7 +145,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id)) {
+    if (!userHasReadAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_FIELD)
           .errorMessage("You do not have read access to the template field")
@@ -153,7 +153,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
           .build();
     }
 
-    return executeResourcePermissionGetByProxy(id);
+    return executeResourcePermissionGetByProxy(id, c);
   }
 
   @ApiOperation(
@@ -166,7 +166,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
 
-    if (!userHasWriteAccessToResource(folderBase, id)) {
+    if (!userHasWriteAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_FIELD)
           .errorMessage("You do not have write access to the template field")
@@ -174,7 +174,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
           .build();
     }
 
-    return executeResourcePermissionPutByProxy(id);
+    return executeResourcePermissionPutByProxy(id, c);
   }
 
 }

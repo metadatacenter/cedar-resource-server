@@ -7,6 +7,7 @@ import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarProcessingException;
+import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
@@ -17,12 +18,12 @@ import java.util.Map;
 
 public class FolderServerUtil {
 
-  public static Map<String, String> getAccessibleNodeIds(HttpServletRequest request) throws CedarProcessingException {
+  public static Map<String, String> getAccessibleNodeIds(CedarRequestContext context) throws CedarProcessingException {
     String folderBase = CedarConfig.getInstance().getServers().getFolder().getBase();
     String url = folderBase + "/" + "accessible-node-ids";
     Map<String, String> accessibleNodeIds = null;
     try {
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {

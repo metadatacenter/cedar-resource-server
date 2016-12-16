@@ -45,7 +45,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
     String folderId = folderIdP.stringValue();
 
-    if (!userHasWriteAccessToFolder(folderBase, folderId)) {
+    if (!userHasWriteAccessToFolder(folderBase, folderId, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
           .errorMessage("You do not have write access to the folder")
@@ -65,14 +65,14 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id)) {
+    if (!userHasReadAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_ELEMENT)
           .errorMessage("You do not have read access to the element")
           .parameter("id", id)
           .build();
     }
-    return executeResourceGetByProxy(CedarNodeType.ELEMENT, id);
+    return executeResourceGetByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
   @ApiOperation(
@@ -85,14 +85,14 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id)) {
+    if (!userHasReadAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_ELEMENT)
           .errorMessage("You do not have read access to the element")
           .parameter("id", id)
           .build();
     }
-    return executeResourceGetDetailsByProxy(CedarNodeType.ELEMENT, id);
+    return executeResourceGetDetailsByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
   @ApiOperation(
@@ -105,14 +105,14 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
 
-    if (!userHasWriteAccessToResource(folderBase, id)) {
+    if (!userHasWriteAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_ELEMENT)
           .errorMessage("You do not have write access to the template element")
           .parameter("id", id)
           .build();
     }
-    return executeResourcePutByProxy(CedarNodeType.ELEMENT, id);
+    return executeResourcePutByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
   @ApiOperation(
@@ -125,14 +125,14 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_DELETE);
 
-    if (!userHasWriteAccessToResource(folderBase, id)) {
+    if (!userHasWriteAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_ELEMENT)
           .errorMessage("You do not have write access to the template element")
           .parameter("id", id)
           .build();
     }
-    return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, id);
+    return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
   @ApiOperation(
@@ -145,7 +145,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id)) {
+    if (!userHasReadAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_ELEMENT)
           .errorMessage("You do not have read access to the template element")
@@ -153,7 +153,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
           .build();
     }
 
-    return executeResourcePermissionGetByProxy(id);
+    return executeResourcePermissionGetByProxy(id, c);
   }
 
   @ApiOperation(
@@ -166,7 +166,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
 
-    if (!userHasWriteAccessToResource(folderBase, id)) {
+    if (!userHasWriteAccessToResource(folderBase, id, c)) {
       return CedarResponse.forbidden()
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_ELEMENT)
           .errorMessage("You do not have write access to the template element")
@@ -174,7 +174,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
           .build();
     }
 
-    return executeResourcePermissionPutByProxy(id);
+    return executeResourcePermissionPutByProxy(id, c);
   }
 
 }

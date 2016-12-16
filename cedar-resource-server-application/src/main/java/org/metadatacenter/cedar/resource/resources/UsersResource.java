@@ -41,7 +41,7 @@ public class UsersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     String url = usersURL;
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, request);
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     HttpEntity entity = proxyResponse.getEntity();
     int statusCode = proxyResponse.getStatusLine().getStatusCode();

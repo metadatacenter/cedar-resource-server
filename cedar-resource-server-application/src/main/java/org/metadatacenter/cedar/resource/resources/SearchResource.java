@@ -95,7 +95,7 @@ public class SearchResource extends AbstractResourceServerResource {
 
       String absoluteUrl = builder.build().toString();
 
-      FolderServerNodeListResponse results = searchService.search(queryString, resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, request);
+      FolderServerNodeListResponse results = searchService.search(queryString, resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, c);
 
       JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
       return Response.ok().entity(resultsNode).build();
