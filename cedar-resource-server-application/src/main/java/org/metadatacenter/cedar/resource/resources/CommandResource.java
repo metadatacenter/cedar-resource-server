@@ -17,12 +17,12 @@ import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
-import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -43,6 +43,7 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -122,22 +123,10 @@ public class CommandResource extends AbstractResourceServerResource {
     // Check create permission
     c.must(c.user()).have(permission2);
 
-    if (!userHasReadAccessToResource(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_RESOURCE)
-          .errorMessage("You do not have read access to the source resource")
-          .parameter("sourceId", id)
-          .build();
-    }
+    userMustHaveReadAccessToResource(c, id);
 
     // Check if the user has write permission to the target folder
-    if (!userHasWriteAccessToFolder(folderBase, folderId, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have read access to the target folder")
-          .parameter("folderId", folderId)
-          .build();
-    }
+    FolderServerFolder targetFolder = userMustHaveWriteAccessToFolder(c, folderId);
 
     String originalDocument = null;
     try {
@@ -162,41 +151,27 @@ public class CommandResource extends AbstractResourceServerResource {
         originalDocument = jsonNode.toString();
       }
     } catch (Exception e) {
-      throw new CedarAssertionException(e);
+      throw new CedarProcessingException(e);
     }
-
-    /*if (originalDocument != null) {
-      System.out.println("Original document:");
-      System.out.println(originalDocument);
-    }*/
 
     // TODO : from this point, this block is repeated 90% in:
     // AbstractResourceServerController.executeResourcePostByProxy
     // refactor, if possible
     try {
-      FolderServerFolder targetFolder = getCedarFolderById(folderId, c);
-      if (targetFolder == null) {
-        return CedarResponse.badRequest()
-            .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
-            .errorMessage("The folder with the given id can not be found!")
-            .parameter("folderId", folderId)
-            .build();
-      }
-
       String url = templateBase + nodeType.getPrefix();
 
-      HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c, originalDocument);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, c, originalDocument);
+      ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_CREATED) {
         // resource was not created
-        return generateStatusResponse(proxyResponse);
+        return generateStatusResponse(templateProxyResponse);
       } else {
         // resource was created
-        HttpEntity entity = proxyResponse.getEntity();
+        HttpEntity entity = templateProxyResponse.getEntity();
         if (entity != null) {
-          Header locationHeader = proxyResponse.getFirstHeader(HttpHeaders.LOCATION);
+          Header locationHeader = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION);
           String entityContent = EntityUtils.toString(entity);
           JsonNode jsonNode = JsonMapper.MAPPER.readTree(entityContent);
           String createdId = jsonNode.get("@id").asText();
@@ -219,12 +194,12 @@ public class CommandResource extends AbstractResourceServerResource {
               if (locationHeader != null) {
                 response.setHeader(locationHeader.getName(), locationHeader.getValue());
               }
-              if (proxyResponse.getEntity() != null) {
+              if (templateProxyResponse.getEntity() != null) {
                 // index the resource that has been created
                 searchService.indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
                     (), FolderServerResource.class), jsonNode, c);
-                // TODO: we should return a URL in this call.
-                return Response.created(null).entity(proxyResponse.getEntity().getContent()).build();
+                URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
+                return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
               } else {
                 return Response.ok().build();
               }
@@ -239,7 +214,7 @@ public class CommandResource extends AbstractResourceServerResource {
         }
       }
     } catch (Exception e) {
-      throw new CedarAssertionException(e);
+      throw new CedarProcessingException(e);
     }
   }
 
@@ -341,31 +316,13 @@ public class CommandResource extends AbstractResourceServerResource {
 
     // Check if the user has write/delete permission to the source node
     if (nodeType == CedarNodeType.FOLDER) {
-      if (!userHasWriteAccessToFolder(folderBase, sourceId, c)) {
-        return CedarResponse.forbidden()
-            .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
-            .errorMessage("You do not have write access to the source folder")
-            .parameter("sourceId", sourceId)
-            .build();
-      }
+      userMustHaveWriteAccessToFolder(c, sourceId);
     } else {
-      if (!userHasWriteAccessToResource(folderBase, sourceId, c)) {
-        return CedarResponse.forbidden()
-            .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
-            .errorMessage("You do not have write access to the source resource")
-            .parameter("sourceId", sourceId)
-            .build();
-      }
+      userMustHaveWriteAccessToResource(c, sourceId);
     }
 
     // Check if the user has write permission to the target folder
-    if (!userHasWriteAccessToFolder(folderBase, folderId, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have write access to the target folder")
-          .parameter("folderId", folderId)
-          .build();
-    }
+    userMustHaveWriteAccessToFolder(c, folderId);
 
     try {
       String resourceUrl = folderBase + MOVE_COMMAND;
@@ -382,12 +339,12 @@ public class CommandResource extends AbstractResourceServerResource {
       HttpEntity folderEntity = nodeMoveResponse.getEntity();
       if (folderEntity != null) {
         if (HttpStatus.SC_CREATED == nodeMoveStatusCode) {
+          URI location = CedarUrlUtil.getLocationURI(nodeMoveResponse);
           if (folderEntity.getContent() != null) {
             // index the resource that has been created
-            //TODO: have created url here
-            return Response.created(null).entity(folderEntity.getContent()).build();
+            return Response.created(location).entity(folderEntity.getContent()).build();
           } else {
-            return Response.created(null).build();
+            return Response.created(location).build();
           }
         } else {
           return Response.status(nodeMoveStatusCode).entity(folderEntity.getContent()).build();
@@ -396,7 +353,7 @@ public class CommandResource extends AbstractResourceServerResource {
         return Response.status(nodeMoveStatusCode).build();
       }
     } catch (Exception e) {
-      throw new CedarAssertionException(e);
+      throw new CedarProcessingException(e);
     }
   }
 
@@ -425,7 +382,7 @@ public class CommandResource extends AbstractResourceServerResource {
           updateHomeFolderPath(c, userService, user);
         }
       } catch (Exception e) {
-        throw new CedarAssertionException(e);
+        throw new CedarProcessingException(e);
       }
     }
 
@@ -439,7 +396,7 @@ public class CommandResource extends AbstractResourceServerResource {
     try {
       existingUser = userService.findUser(eventUser.getId());
     } catch (Exception e) {
-      throw new CedarAssertionException(e);
+      throw new CedarProcessingException(e);
     }
 
     if (existingUser != null) {
@@ -453,7 +410,7 @@ public class CommandResource extends AbstractResourceServerResource {
       CedarUser u = userService.createUser(user);
       return u;
     } catch (IOException e) {
-      throw new CedarAssertionException(e);
+      throw new CedarProcessingException(e);
     }
   }
 
@@ -500,7 +457,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
         //TODO: read KK user, update enabled status in CEDAR - mongo and NEO
       } catch (JsonProcessingException e) {
-        throw new CedarAssertionException(e);
+        throw new CedarProcessingException(e);
       }
     }
 

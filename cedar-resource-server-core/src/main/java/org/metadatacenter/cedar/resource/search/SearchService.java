@@ -7,16 +7,15 @@ import org.elasticsearch.search.SearchHit;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.cedar.resource.util.FolderServerUtil;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
-import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 
-import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_ID_FIELD;
@@ -103,7 +102,8 @@ public class SearchService implements ISearchService {
   }
 
   public FolderServerNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String>
-      sortList, int limit, int offset, String absoluteUrl, CedarRequestContext context) throws CedarProcessingException {
+      sortList, int limit, int offset, String absoluteUrl, CedarRequestContext context) throws
+      CedarProcessingException {
     ObjectMapper mapper = new ObjectMapper();
 
     // Accessible node ids

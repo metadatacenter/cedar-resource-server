@@ -3,29 +3,16 @@ package org.metadatacenter.cedar.resource;
 import io.dropwizard.Application;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
-import org.eclipse.jetty.servlets.CrossOriginFilter;
-import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.cedar.util.dw.CedarDropwizardApplicationUtil;
-import org.metadatacenter.cedar.util.dw.CedarExceptionMapper;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ElasticsearchConfig;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.server.security.Authorization;
-import org.metadatacenter.server.security.AuthorizationKeycloakAndApiKeyResolver;
-import org.metadatacenter.server.security.IAuthorizationResolver;
-import org.metadatacenter.server.security.KeycloakDeploymentProvider;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
-
-import javax.servlet.DispatcherType;
-import javax.servlet.FilterRegistration;
-import java.util.EnumSet;
-
-import static org.eclipse.jetty.servlets.CrossOriginFilter.*;
 
 public class ResourceServerApplication extends Application<ResourceServerConfiguration> {
 
@@ -108,6 +95,9 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
 
     final TemplateInstancesResource instances = new TemplateInstancesResource(cedarConfig);
     environment.jersey().register(instances);
+
+    final SharedWithMeResource sharedWithMe = new SharedWithMeResource(cedarConfig);
+    environment.jersey().register(sharedWithMe);
 
     final ResourceServerHealthCheck healthCheck = new ResourceServerHealthCheck();
     environment.healthChecks().register("errorMessage", healthCheck);

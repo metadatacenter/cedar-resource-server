@@ -7,16 +7,14 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
-import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -52,13 +50,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     String folderId = folderIdP.stringValue();
 
-    if (!userHasWriteAccessToFolder(folderBase, folderId, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have write access to the folder")
-          .parameter("folderId", folderId)
-          .build();
-    }
+    userMustHaveWriteAccessToFolder(c, folderId);
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS;
     HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
@@ -78,7 +70,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           return Response.status(statusCode).entity(entity.getContent()).build();
         }
       } catch (IOException e) {
-        throw new CedarAssertionException(e);
+        throw new CedarProcessingException(e);
       }
     } else {
       return Response.status(statusCode).build();
@@ -95,13 +87,9 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
-    if (!userHasReadAccessToFolder(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have read access to the folder")
-          .parameter("id", id)
-          .build();
-    }
+    // TODO: the folder returned by this may be that is exactly what
+    // we read below. Check this
+    userMustHaveReadAccessToFolder(c, id);
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
@@ -117,7 +105,7 @@ public class FoldersResource extends AbstractResourceServerResource {
         try {
           return Response.status(statusCode).entity(entity.getContent()).build();
         } catch (IOException e) {
-          throw new CedarAssertionException(e);
+          throw new CedarProcessingException(e);
         }
       }
     } else {
@@ -144,13 +132,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 
-    if (!userHasWriteAccessToFolder(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have write access to the folder")
-          .parameter("id", id)
-          .build();
-    }
+    userMustHaveWriteAccessToFolder(c, id);
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
@@ -170,7 +152,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           return Response.status(statusCode).entity(entity.getContent()).build();
         }
       } catch (IOException e) {
-        throw new CedarAssertionException(e);
+        throw new CedarProcessingException(e);
       }
     } else {
       return Response.status(statusCode).build();
@@ -187,13 +169,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
 
-    if (!userHasReadAccessToFolder(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have write access to the folder")
-          .parameter("id", id)
-          .build();
-    }
+    userMustHaveWriteAccessToFolder(c, id);
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
@@ -215,19 +191,13 @@ public class FoldersResource extends AbstractResourceServerResource {
       value = "Get permissions of a folder")
   @GET
   @Timed
-  @Path("/{id}/permissions ")
+  @Path("/{id}/permissions")
   public Response getFolderPermissions(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
-    if (!userHasReadAccessToFolder(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have write access to the folder")
-          .parameter("id", id)
-          .build();
-    }
+    userMustHaveReadAccessToFolder(c, id);
     return executeFolderPermissionGetByProxy(id, c);
   }
 
@@ -235,19 +205,13 @@ public class FoldersResource extends AbstractResourceServerResource {
       value = "Update folder permissions")
   @PUT
   @Timed
-  @Path("/{id}/permissions ")
+  @Path("/{id}/permissions")
   public Response updateFolderPermissions(@PathParam("id") String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 
-    if (!userHasWriteAccessToFolder(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have write access to the folder")
-          .parameter("id", id)
-          .build();
-    }
+    userMustHaveWriteAccessToFolder(c, id);
 
     return executeFolderPermissionPutByProxy(id, c);
   }
@@ -268,7 +232,7 @@ public class FoldersResource extends AbstractResourceServerResource {
         return Response.status(statusCode).build();
       }
     } catch (Exception e) {
-      throw new CedarAssertionException(e);
+      throw new CedarProcessingException(e);
     }
   }
 
@@ -288,7 +252,7 @@ public class FoldersResource extends AbstractResourceServerResource {
         return Response.status(statusCode).build();
       }
     } catch (Exception e) {
-      throw new CedarAssertionException(e);
+      throw new CedarProcessingException(e);
     }
   }
 }

@@ -4,15 +4,13 @@ import com.codahale.metrics.annotation.Timed;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
-import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.util.http.CedarResponse;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
@@ -35,24 +33,19 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       value = "Create template element")
   @POST
   @Timed
-  public Response createTemplateElement(Optional<Boolean> importMode) throws CedarException {
+  public Response createTemplateElement(@QueryParam("folderId") Optional<String> folderId, @QueryParam("importMode")
+      Optional<Boolean> importMode) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_CREATE);
 
-    CedarParameter folderIdP = c.request().getRequestBody().get("folderId");
+    CedarParameter folderIdP = c.request().wrapQueryParam("folderId", folderId);
     c.must(folderIdP).be(NonEmpty);
 
-    String folderId = folderIdP.stringValue();
+    String folderIdS = folderIdP.stringValue();
 
-    if (!userHasWriteAccessToFolder(folderBase, folderId, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have write access to the folder")
-          .parameter("folderId", folderId)
-          .build();
-    }
-    return executeResourcePostByProxy(CedarNodeType.ELEMENT, importMode);
+    FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
+    return executeResourcePostByProxy(c, CedarNodeType.ELEMENT, folder, importMode);
   }
 
   @ApiOperation(
@@ -65,13 +58,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_ELEMENT)
-          .errorMessage("You do not have read access to the element")
-          .parameter("id", id)
-          .build();
-    }
+    userMustHaveReadAccessToResource(c, id);
     return executeResourceGetByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
@@ -85,13 +72,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_ELEMENT)
-          .errorMessage("You do not have read access to the element")
-          .parameter("id", id)
-          .build();
-    }
+    userMustHaveReadAccessToResource(c, id);
     return executeResourceGetDetailsByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
@@ -105,13 +86,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
 
-    if (!userHasWriteAccessToResource(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_ELEMENT)
-          .errorMessage("You do not have write access to the template element")
-          .parameter("id", id)
-          .build();
-    }
+    userMustHaveWriteAccessToResource(c, id);
     return executeResourcePutByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
@@ -125,13 +100,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_DELETE);
 
-    if (!userHasWriteAccessToResource(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_ELEMENT)
-          .errorMessage("You do not have write access to the template element")
-          .parameter("id", id)
-          .build();
-    }
+    userMustHaveWriteAccessToResource(c, id);
     return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
@@ -145,14 +114,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
-    if (!userHasReadAccessToResource(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_TEMPLATE_ELEMENT)
-          .errorMessage("You do not have read access to the template element")
-          .parameter("id", id)
-          .build();
-    }
-
+    userMustHaveReadAccessToResource(c, id);
     return executeResourcePermissionGetByProxy(id, c);
   }
 
@@ -166,14 +128,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
 
-    if (!userHasWriteAccessToResource(folderBase, id, c)) {
-      return CedarResponse.forbidden()
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_TEMPLATE_ELEMENT)
-          .errorMessage("You do not have write access to the template element")
-          .parameter("id", id)
-          .build();
-    }
-
+    userMustHaveWriteAccessToResource(c, id);
     return executeResourcePermissionPutByProxy(id, c);
   }
 

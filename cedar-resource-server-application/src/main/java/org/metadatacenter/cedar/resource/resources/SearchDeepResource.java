@@ -6,11 +6,11 @@ import io.swagger.annotations.ApiOperation;
 import org.metadatacenter.cedar.resource.util.ParametersValidator;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
-import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.util.json.JsonMapper;
 
 import javax.ws.rs.GET;
@@ -74,7 +74,7 @@ public class SearchDeepResource extends AbstractResourceServerResource {
       JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
       return Response.ok().entity(resultsNode).build();
     } catch (Exception e) {
-      throw new CedarAssertionException(e);
+      throw new CedarProcessingException(e);
     }
   }
 }

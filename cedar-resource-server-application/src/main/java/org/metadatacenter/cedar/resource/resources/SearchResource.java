@@ -6,11 +6,11 @@ import io.swagger.annotations.*;
 import org.metadatacenter.cedar.resource.util.ParametersValidator;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
-import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.json.JsonMapper;
 
@@ -20,8 +20,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -100,7 +98,7 @@ public class SearchResource extends AbstractResourceServerResource {
       JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
       return Response.ok().entity(resultsNode).build();
     } catch (Exception e) {
-      throw new CedarAssertionException(e);
+      throw new CedarProcessingException(e);
     }
   }
 }
