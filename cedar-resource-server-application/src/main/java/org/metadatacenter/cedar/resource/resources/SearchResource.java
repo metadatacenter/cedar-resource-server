@@ -55,7 +55,7 @@ public class SearchResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/search")
-  public Response search(@QueryParam("query") Optional<String> q,
+  public Response search(@QueryParam("q") Optional<String> q,
                          @QueryParam("resource_types") Optional<String> resourceTypes,
                          @QueryParam("template_id") Optional<String> templateId,
                          @QueryParam("sort") Optional<String> sort,
@@ -84,7 +84,7 @@ public class SearchResource extends AbstractResourceServerResource {
       int offset = ParametersValidator.validateOffset(offsetParam);
 
       CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
-          .queryParam("query", q)
+          .queryParam("q", q)
           .queryParam("resource_types", resourceTypes)
           .queryParam("templateId", templateId)
           .queryParam("sort", sort)
