@@ -16,11 +16,6 @@
   <name>CEDAR Resource Server</name>
   <description>CEDAR server to handle resource data</description>
 
-  <properties>
-    <!-- Do Not Remove This! We need it in Pom.scala -->
-    <scala.version>2.11.5</scala.version>
-  </properties>
-
   <scm>
     <connection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</connection>
     <developerConnection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</developerConnection>
@@ -30,7 +25,7 @@
 
   <modules>
     <module>cedar-resource-server-core</module>
-    <module>cedar-resource-server-play</module>
+    <module>cedar-resource-server-application</module>
   </modules>
 
 </project>
