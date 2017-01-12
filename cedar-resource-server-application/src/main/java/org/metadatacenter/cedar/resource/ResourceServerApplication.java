@@ -100,7 +100,7 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
     environment.jersey().register(sharedWithMe);
 
     final ResourceServerHealthCheck healthCheck = new ResourceServerHealthCheck();
-    environment.healthChecks().register("errorMessage", healthCheck);
+    environment.healthChecks().register("message", healthCheck);
 
     CedarDropwizardApplicationUtil.setupEnvironment(environment);
 
