@@ -220,7 +220,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/move-node-to-folder ")
+  @Path("/move-node-to-folder")
   public Response moveNodeToFolder() throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
