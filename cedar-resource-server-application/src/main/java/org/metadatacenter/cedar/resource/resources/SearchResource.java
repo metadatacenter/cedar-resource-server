@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarQueryParameters.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/")
@@ -56,11 +57,11 @@ public class SearchResource extends AbstractResourceServerResource {
   @Timed
   @Path("/search")
   public Response search(@QueryParam("q") Optional<String> q,
-                         @QueryParam("resource_types") Optional<String> resourceTypes,
-                         @QueryParam("template_id") Optional<String> templateId,
-                         @QueryParam("sort") Optional<String> sort,
-                         @QueryParam("limit") Optional<Integer> limitParam,
-                         @QueryParam("offset") Optional<Integer> offsetParam) throws CedarException {
+                         @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
+                         @QueryParam(QP_TEMPLATE_ID) Optional<String> templateId,
+                         @QueryParam(QP_SORT) Optional<String> sort,
+                         @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
+                         @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
@@ -84,12 +85,12 @@ public class SearchResource extends AbstractResourceServerResource {
       int offset = ParametersValidator.validateOffset(offsetParam);
 
       CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
-          .queryParam("q", q)
-          .queryParam("resource_types", resourceTypes)
-          .queryParam("templateId", templateId)
-          .queryParam("sort", sort)
-          .queryParam("limit", limitParam)
-          .queryParam("offset", offsetParam);
+          .queryParam(QP_Q, q)
+          .queryParam(QP_RESOURCE_TYPES, resourceTypes)
+          .queryParam(QP_TEMPLATE_ID, templateId)
+          .queryParam(QP_SORT, sort)
+          .queryParam(QP_LIMIT, limitParam)
+          .queryParam(QP_OFFSET, offsetParam);
 
       String absoluteUrl = builder.build().toString();
 

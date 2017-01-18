@@ -17,6 +17,9 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_IMPORT_MODE;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
@@ -33,13 +36,13 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       value = "Create template field")
   @POST
   @Timed
-  public Response createTemplateField(@QueryParam("folderId") Optional<String> folderId, @QueryParam("importMode")
+  public Response createTemplateField(@QueryParam(QP_FOLDER_ID) Optional<String> folderId, @QueryParam(QP_IMPORT_MODE)
       Optional<Boolean> importMode) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_CREATE);
 
-    CedarParameter folderIdP = c.request().wrapQueryParam("folderId", folderId);
+    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
     c.must(folderIdP).be(NonEmpty);
 
     String folderIdS = folderIdP.stringValue();
@@ -53,7 +56,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}")
-  public Response findTemplateField(@PathParam("id") String id) throws CedarException {
+  public Response findTemplateField(@PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
@@ -67,7 +70,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}/details")
-  public Response findTemplateFieldDetails(@PathParam("id") String id) throws CedarException {
+  public Response findTemplateFieldDetails(@PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
@@ -81,7 +84,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{id}")
-  public Response updateTemplateField(@PathParam("id") String id) throws CedarException {
+  public Response updateTemplateField(@PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
@@ -95,7 +98,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{id}")
-  public Response deleteTemplateField(@PathParam("id") String id) throws CedarException {
+  public Response deleteTemplateField(@PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_DELETE);
@@ -109,7 +112,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}/permissions")
-  public Response getTemplateElementPermissions(@PathParam("id") String id) throws CedarException {
+  public Response getTemplateElementPermissions(@PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
@@ -123,7 +126,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{id}/permissions")
-  public Response updateTemplateElementPermissions(@PathParam("id") String id) throws CedarException {
+  public Response updateTemplateElementPermissions(@PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);

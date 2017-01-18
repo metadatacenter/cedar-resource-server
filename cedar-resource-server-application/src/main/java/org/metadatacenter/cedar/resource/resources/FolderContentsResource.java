@@ -14,6 +14,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/folders")
@@ -27,21 +29,21 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/contents")
-  public Response findFolderContentsByPath(@QueryParam("path") Optional<String> pathParam,
-                                           @QueryParam("resource_types") Optional<String> resourceTypes,
-                                           @QueryParam("sort") Optional<String> sort,
-                                           @QueryParam("limit") Optional<Integer> limitParam,
-                                           @QueryParam("offset") Optional<Integer> offsetParam) throws
+  public Response findFolderContentsByPath(@QueryParam(QP_PATH) Optional<String> pathParam,
+                                           @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
+                                           @QueryParam(QP_SORT) Optional<String> sort,
+                                           @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
+                                           @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws
       CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
-        .queryParam("path", pathParam)
-        .queryParam("resource_types", resourceTypes)
-        .queryParam("sort", sort)
-        .queryParam("limit", limitParam)
-        .queryParam("offset", offsetParam);
+        .queryParam(QP_PATH, pathParam)
+        .queryParam(QP_RESOURCE_TYPES, resourceTypes)
+        .queryParam(QP_SORT, sort)
+        .queryParam(QP_LIMIT, limitParam)
+        .queryParam(QP_OFFSET, offsetParam);
 
     String url = builder.getProxyUrl(folderBase);
 
@@ -53,20 +55,20 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}/contents")
-  public Response findFolderContentsById(@PathParam("id") String id,
-                                         @QueryParam("resource_types") Optional<String> resourceTypes,
-                                         @QueryParam("sort") Optional<String> sort,
-                                         @QueryParam("limit") Optional<Integer> limitParam,
-                                         @QueryParam("offset") Optional<Integer> offsetParam) throws
+  public Response findFolderContentsById(@PathParam(PP_ID) String id,
+                                         @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
+                                         @QueryParam(QP_SORT) Optional<String> sort,
+                                         @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
+                                         @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws
       CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
-        .queryParam("resource_types", resourceTypes)
-        .queryParam("sort", sort)
-        .queryParam("limit", limitParam)
-        .queryParam("offset", offsetParam);
+        .queryParam(QP_RESOURCE_TYPES, resourceTypes)
+        .queryParam(QP_SORT, sort)
+        .queryParam(QP_LIMIT, limitParam)
+        .queryParam(QP_OFFSET, offsetParam);
 
     String url = builder.getProxyUrl(folderBase);
 

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarQueryParameters.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/")
@@ -41,11 +42,11 @@ public class SearchDeepResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/search-deep")
-  public Response searchDeep(@QueryParam("query") Optional<String> query,
-                             @QueryParam("resource_types") Optional<String> resourceTypes,
-                             @QueryParam("template_id") Optional<String> templateId,
-                             @QueryParam("sort") Optional<String> sort,
-                             @QueryParam("offset") Optional<Integer> limitParam) throws CedarException {
+  public Response searchDeep(@QueryParam(QP_Q) Optional<String> query,
+                             @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
+                             @QueryParam(QP_TEMPLATE_ID) Optional<String> templateId,
+                             @QueryParam(QP_SORT) Optional<String> sort,
+                             @QueryParam(QP_OFFSET) Optional<Integer> limitParam) throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
