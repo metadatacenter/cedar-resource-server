@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.swagger.annotations.Authorization;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -14,6 +15,7 @@ import org.keycloak.events.Event;
 import org.keycloak.events.admin.AdminEvent;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.FolderServerProxy;
+import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
@@ -464,4 +466,22 @@ public class CommandResource extends AbstractResourceServerResource {
     //TODO: handle this. this is probably an error, having the null body here
     return Response.noContent().build();
   }
+
+  @POST
+  @Timed
+  @Path("/regenerate-search-index")
+  public Response regenerateSearchIndex() throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
+
+    JsonNode jsonBody = c.request().getRequestBody().asJson();
+
+    boolean force = jsonBody.get("force").asBoolean();
+
+    searchService.regenerateSearchIndex(force, c);
+
+    return Response.ok().build();
+  }
+
 }

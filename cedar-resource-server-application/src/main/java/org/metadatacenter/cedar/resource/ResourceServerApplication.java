@@ -84,6 +84,9 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
     final SearchResource search = new SearchResource(cedarConfig);
     environment.jersey().register(search);
 
+    final SearchDeepResource searchDeep = new SearchDeepResource(cedarConfig);
+    environment.jersey().register(searchDeep);
+
     final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig);
     environment.jersey().register(fields);
 
