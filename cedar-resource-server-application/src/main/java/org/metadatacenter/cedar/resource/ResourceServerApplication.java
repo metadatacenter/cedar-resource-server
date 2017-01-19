@@ -5,6 +5,7 @@ import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
+import org.metadatacenter.cedar.resource.search.IndexRegenerator;
 import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.cedar.util.dw.CedarDropwizardApplicationUtil;
@@ -13,6 +14,9 @@ import org.metadatacenter.config.ElasticsearchConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ResourceServerApplication extends Application<ResourceServerConfiguration> {
 
@@ -62,6 +66,11 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
 
     CommandResource.injectUserService(userService);
     SearchResource.injectSearchService(searchService);
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.submit(() -> {
+      IndexRegenerator.regenerate(cedarConfig, searchService, userService);
+    });
   }
 
   @Override

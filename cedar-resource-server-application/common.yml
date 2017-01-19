@@ -1,0 +1,6 @@
+{
+  "messageQueue": {
+    "host": "abc${CEDAR_NEO4J_TRANSACTION_URL} -",
+    "port": 5673
+  }
+}
