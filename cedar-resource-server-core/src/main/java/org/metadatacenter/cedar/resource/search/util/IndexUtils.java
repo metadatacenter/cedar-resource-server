@@ -20,7 +20,6 @@ import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
-import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -36,8 +35,8 @@ public class IndexUtils {
   private String folderBase;
   private String templateBase;
   private int limit;
-  private int maxAttemps;
-  private int delayAttemps;
+  private int maxAttempts;
+  private int delayAttempts;
 
   private enum ESType {
     STRING, LONG, INTEGER, SHORT, DOUBLE, FLOAT, DATE, BOOLEAN;
@@ -47,12 +46,12 @@ public class IndexUtils {
     }
   }
 
-  public IndexUtils(String folderBase, String templateBase, int limit, int maxAttemps, int delayAttemps) {
+  public IndexUtils(String folderBase, String templateBase, int limit, int maxAttempts, int delayAttempts) {
     this.folderBase = folderBase;
     this.templateBase = templateBase;
     this.limit = limit;
-    this.maxAttemps = maxAttemps;
-    this.delayAttemps = delayAttemps;
+    this.maxAttempts = maxAttempts;
+    this.delayAttempts = delayAttempts;
   }
 
   /**
@@ -75,14 +74,14 @@ public class IndexUtils {
       while (true) {
         response = ProxyUtil.proxyGet(url, context);
         statusCode = response.getStatusLine().getStatusCode();
-        if ((statusCode != HttpStatus.SC_BAD_GATEWAY) || (attemp > maxAttemps)) {
+        if ((statusCode != HttpStatus.SC_BAD_GATEWAY) || (attemp > maxAttempts)) {
           break;
         } else {
           System.out.println("Failed to retrieve resource. The Folder Server might have not been started yet. " +
-              "Retrying... (attemp " + attemp + "/" + maxAttemps + ")");
+              "Retrying... (attemp " + attemp + "/" + maxAttempts + ")");
           attemp++;
           try {
-            Thread.sleep(delayAttemps);
+            Thread.sleep(delayAttempts);
           } catch (InterruptedException e) {
             e.printStackTrace();
           }

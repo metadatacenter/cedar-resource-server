@@ -406,7 +406,7 @@ public class CommandResource extends AbstractResourceServerResource {
     }
 
     List<CedarUserRole> roles = null;
-    CedarUser user = CedarUserUtil.createUserFromBlueprint(eventUser, roles);
+    CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig, eventUser, roles);
 
     try {
       CedarUser u = userService.createUser(user);

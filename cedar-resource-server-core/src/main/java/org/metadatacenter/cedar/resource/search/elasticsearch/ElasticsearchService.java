@@ -23,6 +23,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.metadatacenter.config.ElasticsearchConfig;
+import org.metadatacenter.config.ElasticsearchSettingsMappingsConfig;
 import org.metadatacenter.exception.CedarProcessingException;
 
 import java.net.InetAddress;
@@ -38,21 +40,20 @@ public class ElasticsearchService implements IElasticsearchService {
   private int esTransportPort;
   private int esSize;
   private int scrollKeepAlive;
-  private HashMap indexSettings;
-  private HashMap indexMappings;
+  private HashMap<String, Object> indexSettings;
+  private HashMap<String, Object> indexMappings;
   private Client client = null;
 
-  public ElasticsearchService(String esCluster, String esHost, int esTransportPort, int esSize, int scrollKeepAlive,
-                              HashMap indexSettings, HashMap indexMappings) {
-    this.esHost = esHost;
-    this.esTransportPort = esTransportPort;
-    this.esSize = esSize;
-    this.scrollKeepAlive = scrollKeepAlive;
-    this.indexSettings = indexSettings;
-    this.indexMappings = indexMappings;
+  public ElasticsearchService(ElasticsearchConfig esc, ElasticsearchSettingsMappingsConfig essmc) {
+    this.esHost = esc.getHost();
+    this.esTransportPort = esc.getTransportPort();
+    this.esSize = esc.getSize();
+    this.scrollKeepAlive = esc.getScrollKeepAlive();
+    this.indexSettings = essmc.getSettings();
+    this.indexMappings = essmc.getMappings();
 
     settings = Settings.settingsBuilder()
-        .put("cluster.name", esCluster).build();
+        .put("cluster.name", esc.getCluster()).build();
   }
 
   public void createIndex(String indexName, String documentType)
@@ -86,7 +87,7 @@ public class ElasticsearchService implements IElasticsearchService {
   public void addToIndex(JsonNode json, String indexName, String documentType) throws CedarProcessingException {
     try {
       boolean again = true;
-      int maxAttemps = 20;
+      int maxAttempts = 20;
       int count = 0;
       while (again) {
         try {
@@ -99,7 +100,7 @@ public class ElasticsearchService implements IElasticsearchService {
             throw new CedarProcessingException("Failed to index resource");
           }
         } catch (NoNodeAvailableException e) {
-          if (count++ > maxAttemps) {
+          if (count++ > maxAttempts) {
             throw e;
           }
         }

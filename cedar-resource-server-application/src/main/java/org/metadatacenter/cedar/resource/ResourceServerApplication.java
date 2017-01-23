@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource;
 import io.dropwizard.Application;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
+import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.IndexRegenerator;
@@ -11,6 +12,7 @@ import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchServi
 import org.metadatacenter.cedar.util.dw.CedarDropwizardApplicationUtil;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ElasticsearchConfig;
+import org.metadatacenter.config.ElasticsearchSettingsMappingsConfig;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
@@ -35,32 +37,21 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
 
   @Override
   public void initialize(Bootstrap<ResourceServerConfiguration> bootstrap) {
+    cedarConfig = CedarConfig.getInstance();
+    CedarDataServices.getInstance(cedarConfig);
 
     CedarDropwizardApplicationUtil.setupKeycloak();
-
-    cedarConfig = CedarConfig.getInstance();
 
     userService = new UserServiceMongoDB(
         cedarConfig.getMongoConfig().getDatabaseName(),
         cedarConfig.getMongoCollectionName(CedarNodeType.USER));
 
     ElasticsearchConfig esc = cedarConfig.getElasticsearchConfig();
+    ElasticsearchSettingsMappingsConfig essmc = cedarConfig.getElasticsearchSettingsMappingsConfig();
 
-    searchService = new SearchService(new ElasticsearchService(
-        esc.getCluster(),
-        esc.getHost(),
-        esc.getTransportPort(),
-        esc.getSize(),
-        esc.getScrollKeepAlive(),
-        esc.getSettings(),
-        esc.getMappings()),
+    searchService = new SearchService(cedarConfig, new ElasticsearchService(esc, essmc),
         esc.getIndex(),
-        esc.getType(),
-        cedarConfig.getServers().getFolder().getBase(),
-        cedarConfig.getServers().getTemplate().getBase(),
-        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getLimitIndexRegeneration(),
-        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getMaxAttempts(),
-        cedarConfig.getSearchSettings().getSearchRetrieveSettings().getDelayAttempts()
+        esc.getType()
     );
 
 

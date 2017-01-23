@@ -7,6 +7,7 @@ import org.elasticsearch.search.SearchHit;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.cedar.resource.util.FolderServerUtil;
+import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerNode;
@@ -23,20 +24,28 @@ import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_PRE
 
 public class SearchService implements ISearchService {
 
+  private CedarConfig cedarConfig;
   private ElasticsearchService esService;
   private String esIndex;
   private String esType;
   private IndexUtils indexUtils;
 
-  // TODO: folderBase, templateBase, limit, maxAttemps and delayAttemps should ideally come from a centralized
+  // TODO: folderBase, templateBase, limit, maxAttempts and delayAttempts should ideally come from a centralized
   // configuration solution instead of passing them to the constructor. IndexUtils should be able to directly read
   // those parameters and it would not be necessary to create an instance of it. Static methods could be used instead.
-  public SearchService(ElasticsearchService esService, String esIndex, String esType, String folderBase, String
-      templateBase, int limit, int maxAttemps, int delayAttemps) {
+  public SearchService(CedarConfig cedarConfig, ElasticsearchService esService, String esIndex, String esType) {
+    this.cedarConfig = cedarConfig;
     this.esService = esService;
     this.esIndex = esIndex;
     this.esType = esType;
-    this.indexUtils = new IndexUtils(folderBase, templateBase, limit, maxAttemps, delayAttemps);
+
+    String folderBase = cedarConfig.getServers().getFolder().getBase();
+    String templateBase = cedarConfig.getServers().getTemplate().getBase();
+    int limit = cedarConfig.getSearchSettings().getSearchRetrieveSettings().getLimitIndexRegeneration();
+    int maxAttempts = cedarConfig.getSearchSettings().getSearchRetrieveSettings().getMaxAttempts();
+    int delayAttempts = cedarConfig.getSearchSettings().getSearchRetrieveSettings().getDelayAttempts();
+
+    this.indexUtils = new IndexUtils(folderBase, templateBase, limit, maxAttempts, delayAttempts);
   }
 
   public void indexResource(FolderServerNode resource, JsonNode resourceContent, String indexName, String
@@ -107,7 +116,8 @@ public class SearchService implements ISearchService {
     ObjectMapper mapper = new ObjectMapper();
 
     // Accessible node ids
-    HashMap<String, String> accessibleNodeIds = new HashMap(FolderServerUtil.getAccessibleNodeIds(context));
+    HashMap<String, String> accessibleNodeIds = new HashMap(FolderServerUtil.getAccessibleNodeIds(cedarConfig,
+        context));
 
     try {
 

@@ -17,8 +17,8 @@ import java.util.Map;
 
 public class FolderServerUtil {
 
-  public static Map<String, String> getAccessibleNodeIds(CedarRequestContext context) throws CedarProcessingException {
-    String folderBase = CedarConfig.getInstance().getServers().getFolder().getBase();
+  public static Map<String, String> getAccessibleNodeIds(CedarConfig cedarConfig, CedarRequestContext context) throws CedarProcessingException {
+    String folderBase = cedarConfig.getServers().getFolder().getBase();
     String url = folderBase + "/" + "accessible-node-ids";
     Map<String, String> accessibleNodeIds = null;
     try {
