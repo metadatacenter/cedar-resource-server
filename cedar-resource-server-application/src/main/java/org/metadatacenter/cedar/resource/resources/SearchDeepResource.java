@@ -8,6 +8,8 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.request.NodeListQueryType;
+import org.metadatacenter.model.request.NodeListQueryTypeDetector;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
@@ -42,19 +44,22 @@ public class SearchDeepResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/search-deep")
-  public Response searchDeep(@QueryParam(QP_Q) Optional<String> query,
+  public Response searchDeep(@QueryParam(QP_Q) Optional<String> q,
                              @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
-                             @QueryParam(QP_TEMPLATE_ID) Optional<String> templateId,
+                             @QueryParam(QP_DERIVED_FROM_ID) Optional<String> derivedFromId,
                              @QueryParam(QP_SORT) Optional<String> sort,
-                             @QueryParam(QP_OFFSET) Optional<Integer> limitParam) throws CedarException {
+                             @QueryParam(QP_OFFSET) Optional<Integer> limitParam,
+                             @QueryParam(QP_SHARING) Optional<String> sharing) throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 
+    NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, derivedFromId, sharing);
+
     try {
       // Parameters validation
-      String queryString = ParametersValidator.validateQuery(query);
-      String tempId = ParametersValidator.validateTemplateId(templateId);
+      String queryString = ParametersValidator.validateQuery(q);
+      String tempId = ParametersValidator.validateTemplateId(derivedFromId);
       // If templateId is specified, the resource types is limited to instances
       List<String> resourceTypeList = null;
       if (tempId != null) {
@@ -71,6 +76,7 @@ public class SearchDeepResource extends AbstractResourceServerResource {
 
       FolderServerNodeListResponse results = searchService.searchDeep(queryString, resourceTypeList, tempId,
           sortList, limit);
+      results.setNodeListQueryType(nlqt);
 
       JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
       return Response.ok().entity(resultsNode).build();

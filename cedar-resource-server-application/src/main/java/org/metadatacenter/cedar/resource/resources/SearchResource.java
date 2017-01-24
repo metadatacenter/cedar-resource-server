@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.annotations.*;
+import org.apache.http.HttpResponse;
 import org.metadatacenter.cedar.resource.util.ParametersValidator;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -11,7 +12,10 @@ import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.model.request.NodeListQueryType;
+import org.metadatacenter.model.request.NodeListQueryTypeDetector;
 import org.metadatacenter.util.http.CedarURIBuilder;
+import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
 import javax.ws.rs.GET;
@@ -56,50 +60,73 @@ public class SearchResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/search")
-  public Response search(@QueryParam("q") Optional<String> q,
+  public Response search(@QueryParam(QP_Q) Optional<String> q,
                          @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
-                         @QueryParam(QP_TEMPLATE_ID) Optional<String> templateId,
+                         @QueryParam(QP_DERIVED_FROM_ID) Optional<String> derivedFromId,
                          @QueryParam(QP_SORT) Optional<String> sort,
                          @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-                         @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
+                         @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
+                         @QueryParam(QP_SHARING) Optional<String> sharing) throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 
-    try {
-      // Parameters validation
-      String queryString = ParametersValidator.validateQuery(q);
-      String tempId = ParametersValidator.validateTemplateId(templateId);
-      // If templateId is specified, the resource types is limited to instances
-      List<String> resourceTypeList = null;
-      if (tempId != null) {
-        resourceTypeList = new ArrayList<>();
-        resourceTypeList.add(CedarNodeType.Types.INSTANCE);
-      } else {
-        resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
-      }
-      List<String> sortList = ParametersValidator.validateSort(sort);
-      int limit = ParametersValidator.validateLimit(limitParam,
-          cedarConfig.getSearchSettings().getSearchDefaultSettings().getDefaultLimit(),
-          cedarConfig.getSearchSettings().getSearchDefaultSettings().getMaxAllowedLimit());
-      int offset = ParametersValidator.validateOffset(offsetParam);
+    NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, derivedFromId, sharing);
 
+    if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_ME || nlqt == NodeListQueryType.VIEW_ALL) {
       CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
           .queryParam(QP_Q, q)
           .queryParam(QP_RESOURCE_TYPES, resourceTypes)
-          .queryParam(QP_TEMPLATE_ID, templateId)
+          .queryParam(QP_DERIVED_FROM_ID, derivedFromId)
           .queryParam(QP_SORT, sort)
           .queryParam(QP_LIMIT, limitParam)
-          .queryParam(QP_OFFSET, offsetParam);
+          .queryParam(QP_OFFSET, offsetParam)
+          .queryParam(QP_SHARING, sharing);
 
-      String absoluteUrl = builder.build().toString();
+      String url = builder.getProxyUrl(folderBase);
 
-      FolderServerNodeListResponse results = searchService.search(queryString, resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, c);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
+    } else {
+      try {
+        // Parameters validation
+        String queryString = ParametersValidator.validateQuery(q);
+        String tempId = ParametersValidator.validateTemplateId(derivedFromId);
+        // If templateId is specified, the resource types is limited to instances
+        List<String> resourceTypeList = null;
+        if (tempId != null) {
+          resourceTypeList = new ArrayList<>();
+          resourceTypeList.add(CedarNodeType.Types.INSTANCE);
+        } else {
+          resourceTypeList = ParametersValidator.validateResourceTypes(resourceTypes);
+        }
+        List<String> sortList = ParametersValidator.validateSort(sort);
+        int limit = ParametersValidator.validateLimit(limitParam,
+            cedarConfig.getSearchSettings().getSearchDefaultSettings().getDefaultLimit(),
+            cedarConfig.getSearchSettings().getSearchDefaultSettings().getMaxAllowedLimit());
+        int offset = ParametersValidator.validateOffset(offsetParam);
 
-      JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
-      return Response.ok().entity(resultsNode).build();
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
+        CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
+            .queryParam(QP_Q, q)
+            .queryParam(QP_RESOURCE_TYPES, resourceTypes)
+            .queryParam(QP_DERIVED_FROM_ID, derivedFromId)
+            .queryParam(QP_SORT, sort)
+            .queryParam(QP_LIMIT, limitParam)
+            .queryParam(QP_OFFSET, offsetParam)
+            .queryParam(QP_SHARING, sharing);
+
+        String absoluteUrl = builder.build().toString();
+
+        FolderServerNodeListResponse results = searchService.search(queryString, resourceTypeList, tempId, sortList,
+            limit, offset, absoluteUrl, c);
+        results.setNodeListQueryType(nlqt);
+
+        JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
+        return Response.ok().entity(resultsNode).build();
+      } catch (Exception e) {
+        throw new CedarProcessingException(e);
+      }
     }
   }
 }

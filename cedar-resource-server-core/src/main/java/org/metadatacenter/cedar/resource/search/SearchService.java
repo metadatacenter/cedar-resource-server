@@ -194,6 +194,8 @@ public class SearchService implements ISearchService {
       req.setLimit(limit);
       req.setOffset(offset);
       req.setSort(sortList);
+      req.setQ(query);
+      req.setDerivedFromId(templateId);
       response.setRequest(req);
 
       return response;

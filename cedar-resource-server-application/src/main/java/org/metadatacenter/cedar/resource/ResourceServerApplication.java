@@ -54,7 +54,6 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
         esc.getType()
     );
 
-
     CommandResource.injectUserService(userService);
     SearchResource.injectSearchService(searchService);
 
@@ -99,13 +98,9 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
     final TemplateInstancesResource instances = new TemplateInstancesResource(cedarConfig);
     environment.jersey().register(instances);
 
-    final SharedWithMeResource sharedWithMe = new SharedWithMeResource(cedarConfig);
-    environment.jersey().register(sharedWithMe);
-
     final ResourceServerHealthCheck healthCheck = new ResourceServerHealthCheck();
     environment.healthChecks().register("message", healthCheck);
 
     CedarDropwizardApplicationUtil.setupEnvironment(environment);
-
   }
 }
