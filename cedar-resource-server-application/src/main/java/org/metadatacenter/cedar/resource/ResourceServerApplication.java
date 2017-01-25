@@ -1,0 +1,106 @@
+package org.metadatacenter.cedar.resource;
+
+import io.dropwizard.Application;
+import io.dropwizard.setup.Bootstrap;
+import io.dropwizard.setup.Environment;
+import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
+import org.metadatacenter.cedar.resource.resources.*;
+import org.metadatacenter.cedar.resource.search.IndexRegenerator;
+import org.metadatacenter.cedar.resource.search.SearchService;
+import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
+import org.metadatacenter.cedar.util.dw.CedarDropwizardApplicationUtil;
+import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.config.ElasticsearchConfig;
+import org.metadatacenter.config.ElasticsearchSettingsMappingsConfig;
+import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.server.service.UserService;
+import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ResourceServerApplication extends Application<ResourceServerConfiguration> {
+
+  private static CedarConfig cedarConfig;
+  private static UserService userService;
+  private static SearchService searchService;
+
+  public static void main(String[] args) throws Exception {
+    new ResourceServerApplication().run(args);
+  }
+
+  @Override
+  public String getName() {
+    return "resource-server";
+  }
+
+  @Override
+  public void initialize(Bootstrap<ResourceServerConfiguration> bootstrap) {
+    cedarConfig = CedarConfig.getInstance();
+    CedarDataServices.getInstance(cedarConfig);
+
+    CedarDropwizardApplicationUtil.setupKeycloak();
+
+    userService = new UserServiceMongoDB(
+        cedarConfig.getMongoConfig().getDatabaseName(),
+        cedarConfig.getMongoCollectionName(CedarNodeType.USER));
+
+    ElasticsearchConfig esc = cedarConfig.getElasticsearchConfig();
+    ElasticsearchSettingsMappingsConfig essmc = cedarConfig.getElasticsearchSettingsMappingsConfig();
+
+    searchService = new SearchService(cedarConfig, new ElasticsearchService(esc, essmc),
+        esc.getIndex(),
+        esc.getType()
+    );
+
+    CommandResource.injectUserService(userService);
+    SearchResource.injectSearchService(searchService);
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.submit(() -> {
+      IndexRegenerator.regenerate(cedarConfig, searchService, userService);
+    });
+  }
+
+  @Override
+  public void run(ResourceServerConfiguration configuration, Environment environment) {
+    final IndexResource index = new IndexResource();
+    environment.jersey().register(index);
+
+    final FoldersResource folders = new FoldersResource(cedarConfig);
+    environment.jersey().register(folders);
+
+    final FolderContentsResource folderContents = new FolderContentsResource(cedarConfig);
+    environment.jersey().register(folderContents);
+
+    final UsersResource user = new UsersResource(cedarConfig);
+    environment.jersey().register(user);
+
+    final CommandResource command = new CommandResource(cedarConfig);
+    environment.jersey().register(command);
+
+    final SearchResource search = new SearchResource(cedarConfig);
+    environment.jersey().register(search);
+
+    final SearchDeepResource searchDeep = new SearchDeepResource(cedarConfig);
+    environment.jersey().register(searchDeep);
+
+    final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig);
+    environment.jersey().register(fields);
+
+    final TemplateElementsResource elements = new TemplateElementsResource(cedarConfig);
+    environment.jersey().register(elements);
+
+    final TemplatesResource templates = new TemplatesResource(cedarConfig);
+    environment.jersey().register(templates);
+
+    final TemplateInstancesResource instances = new TemplateInstancesResource(cedarConfig);
+    environment.jersey().register(instances);
+
+    final ResourceServerHealthCheck healthCheck = new ResourceServerHealthCheck();
+    environment.healthChecks().register("message", healthCheck);
+
+    CedarDropwizardApplicationUtil.setupEnvironment(environment);
+  }
+}

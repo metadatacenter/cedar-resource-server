@@ -2,26 +2,21 @@ package org.metadatacenter.cedar.resource.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.commons.codec.EncoderException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.cedar.resource.util.FolderServerUtil;
+import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
-import org.metadatacenter.server.security.exception.CedarAccessException;
-import org.metadatacenter.server.security.model.AuthRequest;
+import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.util.http.LinkHeaderUtil;
-import org.metadatacenter.util.json.JsonMapper;
 
-import java.io.IOException;
 import java.util.*;
 
 import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_ID_FIELD;
@@ -29,27 +24,35 @@ import static org.metadatacenter.constant.ElasticsearchConstants.ES_RESOURCE_PRE
 
 public class SearchService implements ISearchService {
 
+  private CedarConfig cedarConfig;
   private ElasticsearchService esService;
   private String esIndex;
   private String esType;
   private IndexUtils indexUtils;
 
-  // TODO: folderBase, templateBase, limit, maxAttemps and delayAttemps should ideally come from a centralized
+  // TODO: folderBase, templateBase, limit, maxAttempts and delayAttempts should ideally come from a centralized
   // configuration solution instead of passing them to the constructor. IndexUtils should be able to directly read
   // those parameters and it would not be necessary to create an instance of it. Static methods could be used instead.
-  public SearchService(ElasticsearchService esService, String esIndex, String esType, String folderBase, String
-      templateBase, int limit, int maxAttemps, int delayAttemps) {
+  public SearchService(CedarConfig cedarConfig, ElasticsearchService esService, String esIndex, String esType) {
+    this.cedarConfig = cedarConfig;
     this.esService = esService;
     this.esIndex = esIndex;
     this.esType = esType;
-    this.indexUtils = new IndexUtils(folderBase, templateBase, limit, maxAttemps, delayAttemps);
+
+    String folderBase = cedarConfig.getServers().getFolder().getBase();
+    String templateBase = cedarConfig.getServers().getTemplate().getBase();
+    int limit = cedarConfig.getSearchSettings().getSearchRetrieveSettings().getLimitIndexRegeneration();
+    int maxAttempts = cedarConfig.getSearchSettings().getSearchRetrieveSettings().getMaxAttempts();
+    int delayAttempts = cedarConfig.getSearchSettings().getSearchRetrieveSettings().getDelayAttempts();
+
+    this.indexUtils = new IndexUtils(folderBase, templateBase, limit, maxAttempts, delayAttempts);
   }
 
-  public void indexResource(FolderServerNode resource, JsonNode resourceContent, String indexName, String documentType, AuthRequest authRequest)
-      throws IOException, CedarAccessException, EncoderException {
+  public void indexResource(FolderServerNode resource, JsonNode resourceContent, String indexName, String
+      documentType, CedarRequestContext context) throws CedarProcessingException {
     JsonNode summarizedContent = null;
     if (resourceContent != null) {
-      summarizedContent = indexUtils.extractSummarizedContent(resource.getType(), resourceContent, authRequest);
+      summarizedContent = indexUtils.extractSummarizedContent(resource.getType(), resourceContent, context);
     }
     System.out.println("Indexing resource (id = " + resource.getId() + ")");
     // Set resource details
@@ -63,168 +66,189 @@ public class SearchService implements ISearchService {
     esService.addToIndex(jsonResource, indexName, documentType);
   }
 
-  public void indexResource(FolderServerNode resource, JsonNode resourceContent, AuthRequest authRequest) throws
-      IOException, CedarAccessException, EncoderException {
+  public void indexResource(FolderServerNode resource, JsonNode resourceContent, CedarRequestContext context) throws
+      CedarProcessingException {
     // Use default index and type
-    indexResource(resource, resourceContent, esIndex, esType, authRequest);
+    indexResource(resource, resourceContent, esIndex, esType, context);
   }
 
-  public void removeResourceFromIndex(String resourceId, String indexName, String documentType) throws IOException {
+  public void removeResourceFromIndex(String resourceId, String indexName, String documentType) throws
+      CedarProcessingException {
     System.out.println("Removing resource from index (id = " + resourceId);
     esService.removeFromIndex(resourceId, indexName, documentType);
   }
 
-  public void removeResourceFromIndex(String resourceId) throws IOException {
+  public void removeResourceFromIndex(String resourceId) throws CedarProcessingException {
     // Use default index and type
     removeResourceFromIndex(resourceId, esIndex, esType);
   }
 
 
   public void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, String indexName, String
-      documentType, AuthRequest authRequest) throws IOException, CedarAccessException, EncoderException {
+      documentType, CedarRequestContext context) throws CedarProcessingException {
     JsonNode summarizedContent = null;
-
-    if (resourceContent != null) {
-      summarizedContent = indexUtils.extractSummarizedContent(newResource.getType(), resourceContent, authRequest);
+    try {
+      if (resourceContent != null) {
+        summarizedContent = indexUtils.extractSummarizedContent(newResource.getType(), resourceContent, context);
+      }
+      System.out.println("Updating resource (id = " + newResource.getId());
+      removeResourceFromIndex(newResource.getId(), indexName, documentType);
+      String templateId = null;
+      if (CedarNodeType.INSTANCE.equals(newResource.getType())) {
+        templateId = resourceContent.get("schema:isBasedOn").asText();
+      }
+      newResource = setResourceDetails(newResource);
+      addToIndex(new CedarIndexResource(newResource, summarizedContent, templateId), indexName, documentType);
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
     }
-    System.out.println("Updating resource (id = " + newResource.getId());
-    removeResourceFromIndex(newResource.getId(), indexName, documentType);
-    String templateId = null;
-    if (CedarNodeType.INSTANCE.equals(newResource.getType())) {
-      templateId = resourceContent.get("schema:isBasedOn").asText();
-    }
-    newResource = setResourceDetails(newResource);
-    addToIndex(new CedarIndexResource(newResource, summarizedContent, templateId), indexName, documentType);
   }
 
-  public void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, AuthRequest authRequest)
-      throws IOException, CedarAccessException, EncoderException {
+  public void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, CedarRequestContext context)
+      throws CedarProcessingException {
     // Use default index and type
-    updateIndexedResource(newResource, resourceContent, esIndex, esType, authRequest);
+    updateIndexedResource(newResource, resourceContent, esIndex, esType, context);
   }
 
   public FolderServerNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String>
-      sortList, int limit, int offset, String absoluteUrl, AuthRequest authRequest) throws IOException {
+      sortList, int limit, int offset, String absoluteUrl, CedarRequestContext context) throws
+      CedarProcessingException {
     ObjectMapper mapper = new ObjectMapper();
 
     // Accessible node ids
-    HashMap<String, String> accessibleNodeIds = new HashMap(FolderServerUtil.getAccessibleNodeIds(authRequest));
+    HashMap<String, String> accessibleNodeIds = new HashMap(FolderServerUtil.getAccessibleNodeIds(cedarConfig,
+        context));
 
-    // The offset for the resources accessible by the user needs to be translated to the offset at the index level
-    int offsetIndex = 0;
-    int count = 0;
-    while (count < offset) {
-      SearchResponse esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit, offsetIndex);
-      if (esResults.getHits().getHits().length == 0) {
-        break;
-      }
-      for (SearchHit hit : esResults.getHits()) {
-        String hitJson = hit.sourceAsString();
-        CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
-        // The resource is taken into account only if the user has access to it
-        if (accessibleNodeIds.containsKey(resource.getInfo().getId())) {
-          count++;
-        }
-        offsetIndex++;
-        if (count == offset) {
+    try {
+
+      // The offset for the resources accessible by the user needs to be translated to the offset at the index level
+      int offsetIndex = 0;
+      int count = 0;
+      while (count < offset) {
+        SearchResponse esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit,
+            offsetIndex);
+        if (esResults.getHits().getHits().length == 0) {
           break;
         }
-      }
-    }
-
-    // Retrieve resources
-    FolderServerNodeListResponse response = new FolderServerNodeListResponse();
-    List<FolderServerNode> resources = new ArrayList<>();
-    SearchResponse esResults = null;
-    while (resources.size() < limit) {
-      esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit, offsetIndex);
-      if (esResults.getHits().getHits().length == 0) {
-        break;
-      }
-      for (SearchHit hit : esResults.getHits()) {
-        String hitJson = hit.sourceAsString();
-        CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
-        // The resource is added to the results only if the user has access to it
-        if (accessibleNodeIds.containsKey(resource.getInfo().getId())) {
-          resources.add(resource.getInfo());
-          if (resources.size() == limit) {
+        for (SearchHit hit : esResults.getHits()) {
+          String hitJson = hit.sourceAsString();
+          CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
+          // The resource is taken into account only if the user has access to it
+          if (accessibleNodeIds.containsKey(resource.getInfo().getId())) {
+            count++;
+          }
+          offsetIndex++;
+          if (count == offset) {
             break;
           }
         }
-        offsetIndex ++;
       }
-    }
-    
-    // The total number of resources accessible by the user is sometimes too expensive to compute with our current (temporal)
-    // approach, so we set the total to -1 unless offsetIndex = totalHits, which means that there are no more resources
-    // in the index that match the query and that we can be sure about the number of resources that the user has access to.
-    long total = -1;
-    if (offsetIndex == esResults.getHits().getTotalHits()) {
-      total = resources.size();
-    }
-    response.setTotalCount(total);
-    response.setCurrentOffset(offset);
-    response.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, total, limit, offset));
-    response.setResources(resources);
 
-    List<CedarNodeType> nodeTypeList = new ArrayList<>();
-    if (resourceTypes != null) {
-      for (String rt : resourceTypes) {
-        nodeTypeList.add(CedarNodeType.forValue(rt));
+      // Retrieve resources
+      FolderServerNodeListResponse response = new FolderServerNodeListResponse();
+      List<FolderServerNode> resources = new ArrayList<>();
+      SearchResponse esResults = null;
+      while (resources.size() < limit) {
+        esResults = esService.search(query, resourceTypes, sortList, templateId, esIndex, esType, limit, offsetIndex);
+        if (esResults.getHits().getHits().length == 0) {
+          break;
+        }
+        for (SearchHit hit : esResults.getHits()) {
+          String hitJson = hit.sourceAsString();
+          CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
+          // The resource is added to the results only if the user has access to it
+          if (accessibleNodeIds.containsKey(resource.getInfo().getId())) {
+            resources.add(resource.getInfo());
+            if (resources.size() == limit) {
+              break;
+            }
+          }
+          offsetIndex++;
+        }
       }
+
+      // The total number of resources accessible by the user is sometimes too expensive to compute with our current
+      // (temporal)
+      // approach, so we set the total to -1 unless offsetIndex = totalHits, which means that there are no more
+      // resources
+      // in the index that match the query and that we can be sure about the number of resources that the user has
+      // access to.
+      long total = -1;
+      if (offsetIndex == esResults.getHits().getTotalHits()) {
+        total = resources.size();
+      }
+      response.setTotalCount(total);
+      response.setCurrentOffset(offset);
+      response.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, total, limit, offset));
+      response.setResources(resources);
+
+      List<CedarNodeType> nodeTypeList = new ArrayList<>();
+      if (resourceTypes != null) {
+        for (String rt : resourceTypes) {
+          nodeTypeList.add(CedarNodeType.forValue(rt));
+        }
+      }
+
+      NodeListRequest req = new NodeListRequest();
+      req.setNodeTypes(nodeTypeList);
+      req.setLimit(limit);
+      req.setOffset(offset);
+      req.setSort(sortList);
+      req.setQ(query);
+      req.setDerivedFromId(templateId);
+      response.setRequest(req);
+
+      return response;
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
     }
-
-    NodeListRequest req = new NodeListRequest();
-    req.setNodeTypes(nodeTypeList);
-    req.setLimit(limit);
-    req.setOffset(offset);
-    req.setSort(sortList);
-    response.setRequest(req);
-
-    return response;
   }
 
   // TODO: Update to take into account the user's access permissions to resources
-  public FolderServerNodeListResponse searchDeep(String query, List<String> resourceTypes, String templateId, List<String> sortList, int limit) throws IOException {
+  public FolderServerNodeListResponse searchDeep(String query, List<String> resourceTypes, String templateId,
+                                                 List<String> sortList, int limit) throws CedarProcessingException {
     ObjectMapper mapper = new ObjectMapper();
-    List<SearchHit> esHits = esService.searchDeep(query, resourceTypes, sortList, templateId, esIndex, esType, limit);
+    try {
+      List<SearchHit> esHits = esService.searchDeep(query, resourceTypes, sortList, templateId, esIndex, esType, limit);
 
-    // Apply limit
-    if (esHits.size() >= limit) {
-      esHits = esHits.subList(0, limit);
-    }
-
-    FolderServerNodeListResponse response = new FolderServerNodeListResponse();
-    List<FolderServerNode> resources = new ArrayList<>();
-    for (SearchHit hit : esHits) {
-      String hitJson = hit.sourceAsString();
-      CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
-      resources.add(resource.getInfo());
-    }
-
-    response.setTotalCount(resources.size());
-    response.setResources(resources);
-
-    List<CedarNodeType> nodeTypeList = new ArrayList<>();
-    if (resourceTypes != null) {
-      for (String rt : resourceTypes) {
-        nodeTypeList.add(CedarNodeType.forValue(rt));
+      // Apply limit
+      if (esHits.size() >= limit) {
+        esHits = esHits.subList(0, limit);
       }
-    }
-    NodeListRequest req = new NodeListRequest();
-    req.setNodeTypes(nodeTypeList);
-    req.setLimit(limit);
-    req.setSort(sortList);
-    response.setRequest(req);
 
-    return response;
+      FolderServerNodeListResponse response = new FolderServerNodeListResponse();
+      List<FolderServerNode> resources = new ArrayList<>();
+      for (SearchHit hit : esHits) {
+        String hitJson = hit.sourceAsString();
+        CedarIndexResource resource = mapper.readValue(hitJson, CedarIndexResource.class);
+        resources.add(resource.getInfo());
+      }
+
+      response.setTotalCount(resources.size());
+      response.setResources(resources);
+
+      List<CedarNodeType> nodeTypeList = new ArrayList<>();
+      if (resourceTypes != null) {
+        for (String rt : resourceTypes) {
+          nodeTypeList.add(CedarNodeType.forValue(rt));
+        }
+      }
+      NodeListRequest req = new NodeListRequest();
+      req.setNodeTypes(nodeTypeList);
+      req.setLimit(limit);
+      req.setSort(sortList);
+      response.setRequest(req);
+
+      return response;
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
   }
 
-  public void regenerateSearchIndex(boolean force, AuthRequest authRequest) throws IOException, CedarAccessException,
-      EncoderException, InterruptedException {
+  public void regenerateSearchIndex(boolean force, CedarRequestContext context) throws CedarProcessingException {
     boolean regenerate = true;
     // Get all resources
-    List<FolderServerNode> resources = indexUtils.findAllResources(authRequest);
+    List<FolderServerNode> resources = indexUtils.findAllResources(context);
     // Checks if is necessary to regenerate the index or not
     if (!force) {
       System.out.println("Checking if it is necessary to regenerate the search index from DB");
@@ -233,7 +257,8 @@ public class SearchService implements ISearchService {
         // Use the resource ids to check if the resources in the DBs and in the index are different
         List<String> dbResourceIds = getResourceIds(resources);
         System.out.println("No. of resources in DB that are expected to be indexed: " + dbResourceIds.size());
-        List<String> indexResourceIds = esService.findAllValuesForField(ES_RESOURCE_PREFIX + ES_RESOURCE_ID_FIELD, esIndex, esType);
+        List<String> indexResourceIds = esService.findAllValuesForField(ES_RESOURCE_PREFIX + ES_RESOURCE_ID_FIELD,
+            esIndex, esType);
         System.out.println("No. of resources in the index: " + indexResourceIds.size());
         if (dbResourceIds.size() == indexResourceIds.size()) {
           // Compare the two lists
@@ -263,16 +288,15 @@ public class SearchService implements ISearchService {
       int count = 1;
       for (FolderServerNode resource : resources) {
         if (resource.getType() != CedarNodeType.FOLDER) {
-          JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), authRequest);
+          JsonNode resourceContent = indexUtils.findResourceContent(resource.getId(), resource.getType(), context);
           if (resourceContent != null) {
-            indexResource(resource, resourceContent, newIndexName, esType, authRequest);
+            indexResource(resource, resourceContent, newIndexName, esType, context);
           }
-        }
-        else {
-          indexResource(resource, null, newIndexName, esType, authRequest);
+        } else {
+          indexResource(resource, null, newIndexName, esType, context);
         }
         float progress = (100 * count++) / resources.size();
-        System.out.println(String.format("Progress: %.0f%%",progress));
+        System.out.println(String.format("Progress: %.0f%%", progress));
       }
       // Point alias to new index
       esService.addAlias(newIndexName, esIndex);
@@ -298,7 +322,8 @@ public class SearchService implements ISearchService {
     return ids;
   }
 
-  private void addToIndex(CedarIndexResource resource, String indexName, String documentType) throws IOException {
+  private void addToIndex(CedarIndexResource resource, String indexName, String documentType) throws
+      CedarProcessingException {
     JsonNode resourceJson = new ObjectMapper().valueToTree(resource);
     esService.addToIndex(resourceJson, indexName, documentType);
   }
