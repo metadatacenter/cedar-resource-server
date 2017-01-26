@@ -10,6 +10,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.bridge.FolderServerProxy;
+import org.metadatacenter.cedar.resource.search.SearchPermissionService;
 import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
@@ -55,6 +56,7 @@ public class AbstractResourceServerResource {
   protected static final String PREFIX_RESOURCES = "resources";
 
   protected static SearchService searchService;
+  protected static SearchPermissionService searchPermissionService;
 
   protected final CedarConfig cedarConfig;
   protected final String folderBase;
@@ -219,6 +221,7 @@ public class AbstractResourceServerResource {
                 // index the resource that has been created
                 searchService.indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
                     (), FolderServerResource.class), jsonNode, c);
+                searchPermissionService.resourceCreated(id);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateEntityContent).build();
               } else {
@@ -393,6 +396,7 @@ public class AbstractResourceServerResource {
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           // remove the resource from the index
           searchService.removeResourceFromIndex(id);
+          searchPermissionService.resourceDeleted(id);
           return Response.noContent().build();
         } else {
           return generateStatusResponse(resourceDeleteResponse);
@@ -488,6 +492,8 @@ public class AbstractResourceServerResource {
     String url = folderBase + "resources" + "/" + CedarUrlUtil.urlEncode(resourceId) + "/permissions";
     HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+    // TODO: check if this was a real update
+    searchPermissionService.resourcePermissionsChanged(resourceId);
     return buildResponse(proxyResponse);
   }
 

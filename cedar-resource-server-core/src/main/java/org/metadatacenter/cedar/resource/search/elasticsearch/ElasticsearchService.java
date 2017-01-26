@@ -161,8 +161,8 @@ public class ElasticsearchService implements IElasticsearchService {
                                     String indexName, String documentType, int limit) throws CedarProcessingException {
 
     client = getClient();
-    SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList,
-        templateId, indexName, documentType);
+    SearchRequestBuilder searchRequest = getSearchRequestBuilder(client, query, resourceTypes, sortList, templateId,
+        indexName, documentType);
 
     // Set scroll and scroll size
     searchRequest.setScroll(TimeValue.timeValueMinutes(2));

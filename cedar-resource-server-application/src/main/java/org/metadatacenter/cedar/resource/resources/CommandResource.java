@@ -200,6 +200,7 @@ public class CommandResource extends AbstractResourceServerResource {
                 // index the resource that has been created
                 searchService.indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
                     (), FolderServerResource.class), jsonNode, c);
+                searchPermissionService.resourceCopied(createdId);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
               } else {
@@ -343,7 +344,12 @@ public class CommandResource extends AbstractResourceServerResource {
         if (HttpStatus.SC_CREATED == nodeMoveStatusCode) {
           URI location = CedarUrlUtil.getLocationURI(nodeMoveResponse);
           if (folderEntity.getContent() != null) {
-            // index the resource that has been created
+            // there is no need to index the resource itself, since the content and meta is unchanged
+            if (nodeType == CedarNodeType.FOLDER) {
+              searchPermissionService.folderMoved(sourceId);
+            } else {
+              searchPermissionService.resourceMoved(sourceId);
+            }
             return Response.created(location).entity(folderEntity.getContent()).build();
           } else {
             return Response.created(location).build();
@@ -382,6 +388,7 @@ public class CommandResource extends AbstractResourceServerResource {
           CedarUser user = createUserRelatedObjects(userService, eventUser);
           createHomeFolderAndUser(c);
           updateHomeFolderPath(c, userService, user);
+          searchPermissionService.userCreated(user.getId());
         }
       } catch (Exception e) {
         throw new CedarProcessingException(e);
