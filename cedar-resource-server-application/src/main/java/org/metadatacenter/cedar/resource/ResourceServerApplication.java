@@ -14,6 +14,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ElasticsearchConfig;
 import org.metadatacenter.config.ElasticsearchSettingsMappingsConfig;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.server.search.util.SearchPermissionService;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
 
@@ -25,6 +26,7 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
   private static CedarConfig cedarConfig;
   private static UserService userService;
   private static SearchService searchService;
+  private static SearchPermissionService searchPermissionService;
 
   public static void main(String[] args) throws Exception {
     new ResourceServerApplication().run(args);
@@ -54,8 +56,10 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
         esc.getType()
     );
 
+    searchPermissionService = new SearchPermissionService();
+
     CommandResource.injectUserService(userService);
-    SearchResource.injectSearchService(searchService);
+    SearchResource.injectSearchService(searchService, searchPermissionService);
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {

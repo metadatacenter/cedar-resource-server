@@ -10,7 +10,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.bridge.FolderServerProxy;
-import org.metadatacenter.cedar.resource.search.SearchPermissionService;
 import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
@@ -24,6 +23,7 @@ import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.search.util.SearchPermissionService;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -74,8 +74,9 @@ public class AbstractResourceServerResource {
     usersURL = cedarConfig.getServers().getFolder().getUsers();
   }
 
-  public static void injectSearchService(SearchService searchService) {
+  public static void injectSearchService(SearchService searchService, SearchPermissionService searchPermissionService) {
     AbstractResourceServerResource.searchService = searchService;
+    AbstractResourceServerResource.searchPermissionService = searchPermissionService;
   }
 
   protected FolderServerFolder getCedarFolderById(String id, CedarRequestContext context) throws
