@@ -23,7 +23,7 @@ import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.server.search.util.SearchPermissionService;
+import org.metadatacenter.server.search.util.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -56,7 +56,7 @@ public class AbstractResourceServerResource {
   protected static final String PREFIX_RESOURCES = "resources";
 
   protected static SearchService searchService;
-  protected static SearchPermissionService searchPermissionService;
+  protected static SearchPermissionEnqueueService searchPermissionService;
 
   protected final CedarConfig cedarConfig;
   protected final String folderBase;
@@ -74,7 +74,7 @@ public class AbstractResourceServerResource {
     usersURL = cedarConfig.getServers().getFolder().getUsers();
   }
 
-  public static void injectSearchService(SearchService searchService, SearchPermissionService searchPermissionService) {
+  public static void injectSearchService(SearchService searchService, SearchPermissionEnqueueService searchPermissionService) {
     AbstractResourceServerResource.searchService = searchService;
     AbstractResourceServerResource.searchPermissionService = searchPermissionService;
   }
