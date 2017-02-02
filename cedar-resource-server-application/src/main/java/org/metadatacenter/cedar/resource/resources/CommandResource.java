@@ -5,7 +5,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.swagger.annotations.Authorization;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -15,7 +14,6 @@ import org.keycloak.events.Event;
 import org.keycloak.events.admin.AdminEvent;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.FolderServerProxy;
-import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
@@ -200,7 +198,7 @@ public class CommandResource extends AbstractResourceServerResource {
                 // index the resource that has been created
                 searchService.indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
                     (), FolderServerResource.class), jsonNode, c);
-                searchPermissionService.resourceCopied(createdId);
+                searchPermissionEnqueueService.resourceCopied(createdId);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
               } else {
@@ -346,9 +344,9 @@ public class CommandResource extends AbstractResourceServerResource {
           if (folderEntity.getContent() != null) {
             // there is no need to index the resource itself, since the content and meta is unchanged
             if (nodeType == CedarNodeType.FOLDER) {
-              searchPermissionService.folderMoved(sourceId);
+              searchPermissionEnqueueService.folderMoved(sourceId);
             } else {
-              searchPermissionService.resourceMoved(sourceId);
+              searchPermissionEnqueueService.resourceMoved(sourceId);
             }
             return Response.created(location).entity(folderEntity.getContent()).build();
           } else {
@@ -367,28 +365,26 @@ public class CommandResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/auth-user-callback ")
+  @Path("/auth-user-callback")
   public Response authUserCallback() throws CedarException {
-
-    //TODO: we will have a different request here, we will need to extract the user ID from the content
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
-    c.must(c.user()).be(LoggedIn);
+    CedarRequestContext adminContext = CedarRequestContextFactory.fromRequest(request);
+    adminContext.must(adminContext.user()).be(LoggedIn);
 
     // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
-
-    JsonNode jsonBody = c.request().getRequestBody().asJson();
+    JsonNode jsonBody = adminContext.request().getRequestBody().asJson();
 
     if (jsonBody != null) {
       try {
         Event event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), Event.class);
-        CedarUserExtract eventUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
+        CedarUserExtract targetUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
 
         String clientId = event.getClientId();
         if (!"admin-cli".equals(clientId)) {
-          CedarUser user = createUserRelatedObjects(userService, eventUser);
-          createHomeFolderAndUser(c);
-          updateHomeFolderPath(c, userService, user);
-          searchPermissionService.userCreated(user.getId());
+          CedarUser user = createUserRelatedObjects(userService, targetUser);
+          CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
+          createHomeFolderAndUser(userContext);
+          updateHomeFolderPath(userContext, userService, user);
+          searchPermissionEnqueueService.userCreated(user.getId());
         }
       } catch (Exception e) {
         throw new CedarProcessingException(e);

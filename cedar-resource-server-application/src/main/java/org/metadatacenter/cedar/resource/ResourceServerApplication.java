@@ -8,13 +8,13 @@ import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.IndexRegenerator;
 import org.metadatacenter.cedar.resource.search.SearchService;
-import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
+import org.metadatacenter.server.search.elasticsearch.ElasticsearchService;
 import org.metadatacenter.cedar.util.dw.CedarDropwizardApplicationUtil;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ElasticsearchConfig;
 import org.metadatacenter.config.ElasticsearchSettingsMappingsConfig;
 import org.metadatacenter.server.cache.util.CacheService;
-import org.metadatacenter.server.search.util.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.service.UserService;
 
 import java.util.concurrent.ExecutorService;
@@ -25,7 +25,7 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
   private static CedarConfig cedarConfig;
   private static UserService userService;
   private static SearchService searchService;
-  private static SearchPermissionEnqueueService searchPermissionService;
+  private static SearchPermissionEnqueueService searchPermissionEnqueueService;
 
   public static void main(String[] args) throws Exception {
     new ResourceServerApplication().run(args);
@@ -50,14 +50,14 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
 
     searchService = new SearchService(cedarConfig, new ElasticsearchService(esc, essmc),
         esc.getIndex(),
-        esc.getType()
+        esc.getTypeResource()
     );
 
-    searchPermissionService = new SearchPermissionEnqueueService(
+    searchPermissionEnqueueService = new SearchPermissionEnqueueService(
         new CacheService(cedarConfig.getCacheConfig().getPersistent()));
 
     CommandResource.injectUserService(userService);
-    SearchResource.injectSearchService(searchService, searchPermissionService);
+    SearchResource.injectSearchService(searchService, searchPermissionEnqueueService);
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {

@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
-import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
-import org.metadatacenter.cedar.resource.search.util.IndexUtils;
 import org.metadatacenter.cedar.resource.util.FolderServerUtil;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarProcessingException;
@@ -15,6 +13,8 @@ import org.metadatacenter.model.index.CedarIndexResource;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.search.elasticsearch.ElasticsearchService;
+import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 
 import java.util.*;

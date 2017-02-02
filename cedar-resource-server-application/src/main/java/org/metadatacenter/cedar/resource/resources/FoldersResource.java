@@ -65,7 +65,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           FolderServerFolder createdFolder = JsonMapper.MAPPER.readValue(entity.getContent(), FolderServerFolder.class);
           // index the folder that has been created
           searchService.indexResource(createdFolder, null, c);
-          searchPermissionService.folderCreated(createdFolder.getId());
+          searchPermissionEnqueueService.folderCreated(createdFolder.getId());
           URI location = CedarUrlUtil.getLocationURI(proxyResponse);
           return Response.created(location).entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
         } else {
@@ -178,7 +178,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
       // remove the folder from the index
       searchService.removeResourceFromIndex(id);
-      searchPermissionService.folderDeleted(id);
+      searchPermissionEnqueueService.folderDeleted(id);
       return Response.noContent().build();
     } else {
       return generateStatusResponse(proxyResponse);
@@ -242,7 +242,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
       // TODO: check if this was a real update
-      searchPermissionService.folderPermissionsChanged(folderId);
+      searchPermissionEnqueueService.folderPermissionsChanged(folderId);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
