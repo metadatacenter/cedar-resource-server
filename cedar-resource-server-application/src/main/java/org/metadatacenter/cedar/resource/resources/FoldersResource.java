@@ -23,6 +23,7 @@ import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
+import java.net.URI;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -37,8 +38,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     super(cedarConfig);
   }
 
-  @ApiOperation(
-      value = "Create folder")
+  @ApiOperation(value = "Create folder")
   @POST
   @Timed
   public Response createFolder() throws CedarException {
@@ -62,11 +62,12 @@ public class FoldersResource extends AbstractResourceServerResource {
     if (entity != null) {
       try {
         if (HttpStatus.SC_CREATED == statusCode) {
+          FolderServerFolder createdFolder = JsonMapper.MAPPER.readValue(entity.getContent(), FolderServerFolder.class);
           // index the folder that has been created
-          searchService.indexResource(JsonMapper.MAPPER.readValue(entity.getContent(),
-              FolderServerFolder.class), null, c);
-          //TODO: use created here, with the proxied location header
-          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
+          searchService.indexResource(createdFolder, null, c);
+          searchPermissionEnqueueService.folderCreated(createdFolder.getId());
+          URI location = CedarUrlUtil.getLocationURI(proxyResponse);
+          return Response.created(location).entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
         }
@@ -78,8 +79,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
   }
 
-  @ApiOperation(
-      value = "Find folder by id")
+  @ApiOperation(value = "Find folder by id")
   @GET
   @Timed
   @Path("/{id}")
@@ -114,8 +114,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
   }
 
-  @ApiOperation(
-      value = "Find folder details by id")
+  @ApiOperation(value = "Find folder details by id")
   @GET
   @Timed
   @Path("/{id}/details")
@@ -123,8 +122,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     return findFolder(id);
   }
 
-  @ApiOperation(
-      value = "Update folder")
+  @ApiOperation(value = "Update folder")
   @PUT
   @Timed
   @Path("/{id}")
@@ -160,8 +158,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
   }
 
-  @ApiOperation(
-      value = "Delete folder")
+  @ApiOperation(value = "Delete folder")
   @DELETE
   @Timed
   @Path("/{id}")
@@ -181,6 +178,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
       // remove the folder from the index
       searchService.removeResourceFromIndex(id);
+      searchPermissionEnqueueService.folderDeleted(id);
       return Response.noContent().build();
     } else {
       return generateStatusResponse(proxyResponse);
@@ -188,8 +186,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   }
 
 
-  @ApiOperation(
-      value = "Get permissions of a folder")
+  @ApiOperation(value = "Get permissions of a folder")
   @GET
   @Timed
   @Path("/{id}/permissions")
@@ -202,8 +199,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     return executeFolderPermissionGetByProxy(id, c);
   }
 
-  @ApiOperation(
-      value = "Update folder permissions")
+  @ApiOperation(value = "Update folder permissions")
   @PUT
   @Timed
   @Path("/{id}/permissions")
@@ -245,6 +241,8 @@ public class FoldersResource extends AbstractResourceServerResource {
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
+      // TODO: check if this was a real update
+      searchPermissionEnqueueService.folderPermissionsChanged(folderId);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {

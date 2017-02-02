@@ -23,6 +23,7 @@ import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -55,6 +56,7 @@ public class AbstractResourceServerResource {
   protected static final String PREFIX_RESOURCES = "resources";
 
   protected static SearchService searchService;
+  protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
 
   protected final CedarConfig cedarConfig;
   protected final String folderBase;
@@ -72,8 +74,10 @@ public class AbstractResourceServerResource {
     usersURL = cedarConfig.getServers().getFolder().getUsers();
   }
 
-  public static void injectSearchService(SearchService searchService) {
+  public static void injectSearchService(SearchService searchService, SearchPermissionEnqueueService
+      searchPermissionEnqueueService) {
     AbstractResourceServerResource.searchService = searchService;
+    AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
   }
 
   protected FolderServerFolder getCedarFolderById(String id, CedarRequestContext context) throws
@@ -219,6 +223,7 @@ public class AbstractResourceServerResource {
                 // index the resource that has been created
                 searchService.indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
                     (), FolderServerResource.class), jsonNode, c);
+                searchPermissionEnqueueService.resourceCreated(id);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateEntityContent).build();
               } else {
@@ -393,6 +398,7 @@ public class AbstractResourceServerResource {
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           // remove the resource from the index
           searchService.removeResourceFromIndex(id);
+          searchPermissionEnqueueService.resourceDeleted(id);
           return Response.noContent().build();
         } else {
           return generateStatusResponse(resourceDeleteResponse);
@@ -488,6 +494,8 @@ public class AbstractResourceServerResource {
     String url = folderBase + "resources" + "/" + CedarUrlUtil.urlEncode(resourceId) + "/permissions";
     HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+    // TODO: check if this was a real update
+    searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
     return buildResponse(proxyResponse);
   }
 
