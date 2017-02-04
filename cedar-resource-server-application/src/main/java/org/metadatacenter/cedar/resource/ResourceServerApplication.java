@@ -14,6 +14,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ElasticsearchConfig;
 import org.metadatacenter.config.ElasticsearchSettingsMappingsConfig;
 import org.metadatacenter.server.cache.util.CacheService;
+import org.metadatacenter.server.search.permission.PermissionSearchService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.service.UserService;
 
@@ -26,6 +27,7 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
   private static UserService userService;
   private static SearchService searchService;
   private static SearchPermissionEnqueueService searchPermissionEnqueueService;
+  private static PermissionSearchService permissionSearchService;
 
   public static void main(String[] args) throws Exception {
     new ResourceServerApplication().run(args);
@@ -48,9 +50,17 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
     ElasticsearchConfig esc = cedarConfig.getElasticsearchConfig();
     ElasticsearchSettingsMappingsConfig essmc = cedarConfig.getElasticsearchSettingsMappingsConfig();
 
-    searchService = new SearchService(cedarConfig, new ElasticsearchService(esc, essmc),
+    permissionSearchService = new PermissionSearchService(cedarConfig, new
+        ElasticsearchService(esc, essmc),
         esc.getIndex(),
-        esc.getTypeResource()
+        esc.getTypePermissions()
+    );
+
+    searchService = new SearchService(cedarConfig, new ElasticsearchService(esc, essmc),
+        permissionSearchService,
+        esc.getIndex(),
+        esc.getTypeResource(),
+        esc.getTypePermissions()
     );
 
     searchPermissionEnqueueService = new SearchPermissionEnqueueService(

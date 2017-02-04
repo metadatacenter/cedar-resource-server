@@ -5,16 +5,17 @@ import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.search.elasticsearch.IndexedDocumentId;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
 public interface ISearchService {
 
-  void indexResource(FolderServerNode resource, JsonNode resourceContent, String indexName, String documentType,
-                     CedarRequestContext context) throws CedarProcessingException;
+  IndexedDocumentId indexResource(FolderServerNode resource, JsonNode resourceContent, String indexName, String documentType,
+                                  CedarRequestContext context) throws CedarProcessingException;
 
-  void indexResource(FolderServerNode resource, JsonNode resourceContent, CedarRequestContext context) throws
+  IndexedDocumentId indexResource(FolderServerNode resource, JsonNode resourceContent, CedarRequestContext context) throws
       CedarProcessingException;
 
   void removeResourceFromIndex(String resourceId, String indexName, String documentType) throws
@@ -22,10 +23,10 @@ public interface ISearchService {
 
   void removeResourceFromIndex(String resourceId) throws CedarProcessingException;
 
-  void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, String indexName, String
+  IndexedDocumentId updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, String indexName, String
       documentType, CedarRequestContext context) throws CedarProcessingException;
 
-  void updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, CedarRequestContext context) throws
+  IndexedDocumentId updateIndexedResource(FolderServerNode newResource, JsonNode resourceContent, CedarRequestContext context) throws
       CedarProcessingException;
 
   FolderServerNodeListResponse search(String query, List<String> resourceTypes, String templateId, List<String>
