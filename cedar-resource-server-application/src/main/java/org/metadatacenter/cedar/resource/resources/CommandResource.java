@@ -444,6 +444,9 @@ public class CommandResource extends AbstractResourceServerResource {
     folderSession.ensureUserHomeExists();
   }
 
+  // TODO: Think about this method. What do we want to achieve.
+  // What can we handle, and how.
+  /*
   @POST
   @Timed
   @Path("/auth-admin-callback")
@@ -469,6 +472,7 @@ public class CommandResource extends AbstractResourceServerResource {
     //TODO: handle this. this is probably an error, having the null body here
     return Response.noContent().build();
   }
+  */
 
   @POST
   @Timed
