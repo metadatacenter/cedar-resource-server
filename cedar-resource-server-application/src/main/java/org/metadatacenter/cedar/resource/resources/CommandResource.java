@@ -140,13 +140,18 @@ public class CommandResource extends AbstractResourceServerResource {
         originalDocument = EntityUtils.toString(entity);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
         ((ObjectNode) jsonNode).remove("@id");
-        JsonNode titleNode = ((ObjectNode) jsonNode).at("/_ui/title");
-        if (!titleNode.isMissingNode()) {
-          String newTitle = titleTemplate.replace("{{title}}", titleNode.asText());
+        String oldTitle = extractNameFromResponseObject(nodeType, jsonNode);
+        if (oldTitle != null) {
+          oldTitle = "";
+        }
+        String newTitle = titleTemplate.replace("{{title}}", oldTitle);
+        if (nodeType != CedarNodeType.INSTANCE) {
           JsonNode ui = jsonNode.get("_ui");
           if (ui != null) {
             ((ObjectNode) ui).put("title", newTitle);
           }
+        } else {
+          ((ObjectNode) jsonNode).put("schema:name", newTitle);
         }
         originalDocument = jsonNode.toString();
       }
