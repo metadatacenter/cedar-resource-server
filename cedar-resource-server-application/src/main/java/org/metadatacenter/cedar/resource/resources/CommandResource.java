@@ -25,6 +25,7 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
+import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserExtract;
@@ -201,9 +202,8 @@ public class CommandResource extends AbstractResourceServerResource {
               }
               if (templateProxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                searchService.indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
+                createIndexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
                     (), FolderServerResource.class), jsonNode, c);
-                searchPermissionEnqueueService.resourceCopied(createdId);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
               } else {
@@ -384,7 +384,7 @@ public class CommandResource extends AbstractResourceServerResource {
         CedarUserExtract targetUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
 
         String clientId = event.getClientId();
-        if (!"admin-cli".equals(clientId)) {
+        if (!cedarConfig.getKeycloakConfig().getClientId().equals(clientId)) {
           CedarUser user = createUserRelatedObjects(userService, targetUser);
           CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
           createHomeFolderAndUser(userContext);
@@ -414,7 +414,7 @@ public class CommandResource extends AbstractResourceServerResource {
     }
 
     List<CedarUserRole> roles = null;
-    CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig, eventUser, roles);
+    CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig, eventUser, null, roles);
 
     try {
       CedarUser u = userService.createUser(user);
@@ -491,7 +491,8 @@ public class CommandResource extends AbstractResourceServerResource {
 
     boolean force = jsonBody.get("force").asBoolean();
 
-    searchService.regenerateSearchIndex(force, c);
+    RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
+    task.regenerateSearchIndex(force, c);
 
     return Response.ok().build();
   }

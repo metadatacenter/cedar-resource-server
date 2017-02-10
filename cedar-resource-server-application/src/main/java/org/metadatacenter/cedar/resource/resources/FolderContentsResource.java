@@ -26,7 +26,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     super(cedarConfig);
   }
 
-  @GET
+/*  @GET
   @Timed
   @Path("/contents")
   public Response findFolderContentsByPath(@QueryParam(QP_PATH) Optional<String> pathParam,
@@ -50,7 +50,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
-  }
+  }*/
 
   @GET
   @Timed
