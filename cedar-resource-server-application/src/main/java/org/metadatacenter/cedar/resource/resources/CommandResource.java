@@ -389,7 +389,6 @@ public class CommandResource extends AbstractResourceServerResource {
           CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
           createHomeFolderAndUser(userContext);
           updateHomeFolderPath(userContext, userService, user);
-          searchPermissionEnqueueService.userCreated(user.getId());
         }
       } catch (Exception e) {
         throw new CedarProcessingException(e);
