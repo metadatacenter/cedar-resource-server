@@ -131,9 +131,8 @@ public class SearchResource extends AbstractResourceServerResource {
 
         String absoluteUrl = builder.build().toString();
 
-        FolderServerNodeListResponse results = contentSearchingService.search(
-            cedarConfig.getServers().getFolder().getBase(),
-            queryString, resourceTypeList, tempId, sortList, limit, offset, absoluteUrl, c);
+        FolderServerNodeListResponse results = contentSearchingService.search(c,
+            queryString, resourceTypeList, tempId, sortList, limit, offset, absoluteUrl);
         results.setNodeListQueryType(nlqt);
 
         JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);

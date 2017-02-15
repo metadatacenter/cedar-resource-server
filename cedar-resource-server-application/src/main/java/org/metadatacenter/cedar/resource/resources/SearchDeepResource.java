@@ -74,8 +74,8 @@ public class SearchDeepResource extends AbstractResourceServerResource {
       int limit = ParametersValidator.validateLimit(limitParam,
           cedarConfig.getSearchSettings().getSearchDefaultSettings().getDefaultLimit(), Integer.MAX_VALUE);
 
-      FolderServerNodeListResponse results = contentSearchingService.searchDeep(queryString, resourceTypeList, tempId,
-          sortList, limit);
+      FolderServerNodeListResponse results = contentSearchingService.searchDeep(c, queryString, resourceTypeList,
+          tempId, sortList, limit);
       results.setNodeListQueryType(nlqt);
 
       JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);

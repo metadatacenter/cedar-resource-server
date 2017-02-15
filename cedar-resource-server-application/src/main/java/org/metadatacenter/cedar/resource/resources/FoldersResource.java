@@ -89,7 +89,8 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     // TODO: the folder returned by this may be that is exactly what
     // we read below. Check this
-    userMustHaveReadAccessToFolder(c, id);
+    FolderServerFolder folderServerFolder = userMustHaveReadAccessToFolder(c, id);
+
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
