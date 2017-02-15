@@ -6,15 +6,20 @@ import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.service.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IndexRegenerator {
 
-  public static void regenerate(CedarConfig cedarConfig, SearchService searchService, UserService userService) {
+  private static final Logger log = LoggerFactory.getLogger(IndexRegenerator.class);
+
+  public static void regenerate(CedarConfig cedarConfig, UserService userService) {
     try {
-      String adminUserUUID = cedarConfig.getKeycloakConfig().getAdminUser().getUuid();
-      CedarUser adminUser = null;
+      String adminUserUUID = cedarConfig.getAdminUserConfig().getUuid();
+      CedarUser adminUser;
       try {
         adminUser = userService.findUser(adminUserUUID);
       } catch (Exception e) {
@@ -25,10 +30,12 @@ public class IndexRegenerator {
       }
 
       CedarRequestContext c = CedarRequestContextFactory.fromUser(adminUser);
-      searchService.regenerateSearchIndex(false, c);
+      RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
+      task.regenerateSearchIndex(false, c);
     } catch (CedarException e) {
       System.out.println("There was an error while regenerating the search index");
       e.printStackTrace();
     }
   }
+
 }

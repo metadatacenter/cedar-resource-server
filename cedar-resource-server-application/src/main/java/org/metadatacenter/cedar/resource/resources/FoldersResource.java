@@ -64,8 +64,7 @@ public class FoldersResource extends AbstractResourceServerResource {
         if (HttpStatus.SC_CREATED == statusCode) {
           FolderServerFolder createdFolder = JsonMapper.MAPPER.readValue(entity.getContent(), FolderServerFolder.class);
           // index the folder that has been created
-          searchService.indexResource(createdFolder, null, c);
-          searchPermissionEnqueueService.folderCreated(createdFolder.getId());
+          createIndexFolder(createdFolder, c);
           URI location = CedarUrlUtil.getLocationURI(proxyResponse);
           return Response.created(location).entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
         } else {
@@ -90,7 +89,8 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     // TODO: the folder returned by this may be that is exactly what
     // we read below. Check this
-    userMustHaveReadAccessToFolder(c, id);
+    FolderServerFolder folderServerFolder = userMustHaveReadAccessToFolder(c, id);
+
 
     String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
 
@@ -144,8 +144,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       try {
         if (HttpStatus.SC_OK == statusCode) {
           // update the folder on the index
-          searchService.updateIndexedResource(JsonMapper.MAPPER.readValue(entity
-              .getContent(), FolderServerFolder.class), null, c);
+          updateIndexFolder(JsonMapper.MAPPER.readValue(entity.getContent(), FolderServerFolder.class), c);
           return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
@@ -177,8 +176,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     int folderDeleteStatusCode = proxyResponse.getStatusLine().getStatusCode();
     if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
       // remove the folder from the index
-      searchService.removeResourceFromIndex(id);
-      searchPermissionEnqueueService.folderDeleted(id);
+      indexRemoveDocument(id);
       return Response.noContent().build();
     } else {
       return generateStatusResponse(proxyResponse);
