@@ -569,11 +569,19 @@ public class AbstractResourceServerResource {
    */
 
   protected void createIndexResource(FolderServerResource folderServerResource, JsonNode templateJsonNode,
-                                   CedarRequestContext c) throws CedarProcessingException {
+                                     CedarRequestContext c) throws CedarProcessingException {
     String newId = folderServerResource.getId();
     IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId);
-    contentIndexingService.indexResource(folderServerResource, templateJsonNode, c, parentId);
-    searchPermissionEnqueueService.resourceCreated(newId, parentId);
+    IndexedDocumentId indexedContentId = contentIndexingService.indexResource(folderServerResource, templateJsonNode,
+        c, parentId);
+    // The content was not indexed, we should remove the node
+    if (indexedContentId == null) {
+      nodeIndexingService.removeDocumentFromIndex(parentId);
+      // and do not index permissions
+    } else {
+      // othwerwise index permissions
+      searchPermissionEnqueueService.resourceCreated(newId, parentId);
+    }
   }
 
   protected void createIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
@@ -585,10 +593,17 @@ public class AbstractResourceServerResource {
   }
 
   protected void updateIndexResource(FolderServerResource folderServerResource, JsonNode templateJsonNode,
-                                   CedarRequestContext c) throws CedarProcessingException {
+                                     CedarRequestContext c) throws CedarProcessingException {
     // get the id old id based on the cid
     IndexedDocumentId parentId = nodeSearchingService.getByCedarId(folderServerResource.getId());
-    contentIndexingService.updateResource(folderServerResource, templateJsonNode, c, parentId);
+    IndexedDocumentId indexedContentId = contentIndexingService.updateResource(folderServerResource,
+        templateJsonNode, c, parentId);
+    // The content was not indexed: remove permissions and parent node
+    if (indexedContentId == null) {
+      userPermissionIndexingService.removeDocumentFromIndex(folderServerResource.getId(), parentId);
+      groupPermissionIndexingService.removeDocumentFromIndex(folderServerResource.getId(), parentId);
+      nodeIndexingService.removeDocumentFromIndex(parentId);
+    }
   }
 
   protected void updateIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
