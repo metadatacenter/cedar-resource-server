@@ -23,6 +23,7 @@ import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.search.IndexedDocumentId;
+import org.metadatacenter.server.search.elasticsearch.document.IndexingDocumentNode;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.NodePermission;
@@ -602,7 +603,8 @@ public class AbstractResourceServerResource {
   protected void createIndexResource(FolderServerResource folderServerResource, JsonNode templateJsonNode,
                                      CedarRequestContext c) throws CedarProcessingException {
     String newId = folderServerResource.getId();
-    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerResource.getDisplayName());
+    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerResource.getDisplayName(),
+        folderServerResource.getType());
     IndexedDocumentId indexedContentId = contentIndexingService.indexResource(folderServerResource, templateJsonNode,
         c, parentId);
     // The content was not indexed, we should remove the node
@@ -618,7 +620,8 @@ public class AbstractResourceServerResource {
   protected void createIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
       CedarProcessingException {
     String newId = folderServerFolder.getId();
-    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerFolder.getDisplayName());
+    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerFolder.getDisplayName(),
+        folderServerFolder.getType());
     contentIndexingService.indexFolder(folderServerFolder, c, parentId);
     searchPermissionEnqueueService.folderCreated(newId, parentId);
   }
