@@ -1,30 +1,20 @@
 package org.metadatacenter.cedar.resource;
 
-import io.dropwizard.Application;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.IndexRegenerator;
-import org.metadatacenter.cedar.resource.search.SearchService;
-import org.metadatacenter.cedar.resource.search.elasticsearch.ElasticsearchService;
-import org.metadatacenter.cedar.util.dw.CedarDropwizardApplicationUtil;
-import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.config.ElasticsearchConfig;
-import org.metadatacenter.config.ElasticsearchSettingsMappingsConfig;
-import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.server.service.UserService;
-import org.metadatacenter.server.service.mongodb.UserServiceMongoDB;
+import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
+import org.metadatacenter.server.cache.util.CacheService;
+import org.metadatacenter.server.search.elasticsearch.service.*;
+import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class ResourceServerApplication extends Application<ResourceServerConfiguration> {
-
-  private static CedarConfig cedarConfig;
-  private static UserService userService;
-  private static SearchService searchService;
+public class ResourceServerApplication extends CedarMicroserviceApplication<ResourceServerConfiguration> {
 
   public static void main(String[] args) throws Exception {
     new ResourceServerApplication().run(args);
@@ -32,39 +22,37 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
 
   @Override
   public String getName() {
-    return "resource-server";
+    return "cedar-resource-server";
   }
 
   @Override
-  public void initialize(Bootstrap<ResourceServerConfiguration> bootstrap) {
-    cedarConfig = CedarConfig.getInstance();
-    CedarDataServices.getInstance(cedarConfig);
+  public void initializeApp(Bootstrap<ResourceServerConfiguration> bootstrap) {
+    CedarDataServices.initializeFolderServices(cedarConfig);
 
-    CedarDropwizardApplicationUtil.setupKeycloak();
+    ElasticsearchServiceFactory esServiceFactory = ElasticsearchServiceFactory.getInstance(cedarConfig);
+    NodeIndexingService nodeIndexingService = esServiceFactory.nodeIndexingService();
+    NodeSearchingService nodeSearchingService = esServiceFactory.nodeSearchingService();
+    ContentIndexingService contentIndexingService = esServiceFactory.contentIndexingService();
+    ContentSearchingService contentSearchingService = esServiceFactory.contentSearchingService();
+    UserPermissionIndexingService userPermissionIndexingService = esServiceFactory.userPermissionsIndexingService();
+    GroupPermissionIndexingService groupPermissionIndexingService = esServiceFactory.groupPermissionsIndexingService();
 
-    userService = new UserServiceMongoDB(
-        cedarConfig.getMongoConfig().getDatabaseName(),
-        cedarConfig.getMongoCollectionName(CedarNodeType.USER));
-
-    ElasticsearchConfig esc = cedarConfig.getElasticsearchConfig();
-    ElasticsearchSettingsMappingsConfig essmc = cedarConfig.getElasticsearchSettingsMappingsConfig();
-
-    searchService = new SearchService(cedarConfig, new ElasticsearchService(esc, essmc),
-        esc.getIndex(),
-        esc.getType()
-    );
+    SearchPermissionEnqueueService searchPermissionEnqueueService = new SearchPermissionEnqueueService(
+        new CacheService(cedarConfig.getCacheConfig().getPersistent()));
 
     CommandResource.injectUserService(userService);
-    SearchResource.injectSearchService(searchService);
+    SearchResource.injectServices(nodeIndexingService, nodeSearchingService, contentIndexingService,
+        contentSearchingService, searchPermissionEnqueueService, userPermissionIndexingService,
+        groupPermissionIndexingService);
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
-      IndexRegenerator.regenerate(cedarConfig, searchService, userService);
+      IndexRegenerator.regenerate(cedarConfig, userService);
     });
   }
 
   @Override
-  public void run(ResourceServerConfiguration configuration, Environment environment) {
+  public void runApp(ResourceServerConfiguration configuration, Environment environment) {
     final IndexResource index = new IndexResource();
     environment.jersey().register(index);
 
@@ -86,8 +74,9 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
     final SearchDeepResource searchDeep = new SearchDeepResource(cedarConfig);
     environment.jersey().register(searchDeep);
 
-    final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig);
-    environment.jersey().register(fields);
+    // TODO: we do not handle fields for now
+    //final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig);
+    //environment.jersey().register(fields);
 
     final TemplateElementsResource elements = new TemplateElementsResource(cedarConfig);
     environment.jersey().register(elements);
@@ -100,7 +89,5 @@ public class ResourceServerApplication extends Application<ResourceServerConfigu
 
     final ResourceServerHealthCheck healthCheck = new ResourceServerHealthCheck();
     environment.healthChecks().register("message", healthCheck);
-
-    CedarDropwizardApplicationUtil.setupEnvironment(environment);
   }
 }

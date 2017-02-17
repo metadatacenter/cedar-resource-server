@@ -1,8 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
@@ -25,15 +23,12 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/template-fields")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/template-fields", description = "Template field operations")
 public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   public TemplateFieldsResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
 
-  @ApiOperation(
-      value = "Create template field")
   @POST
   @Timed
   public Response createTemplateField(@QueryParam(QP_FOLDER_ID) Optional<String> folderId, @QueryParam(QP_IMPORT_MODE)
@@ -42,17 +37,19 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_CREATE);
 
-    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
-    c.must(folderIdP).be(NonEmpty);
+    String folderIdS;
 
-    String folderIdS = folderIdP.stringValue();
+    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
+    if (folderIdP.isEmpty()) {
+      folderIdS = c.getCedarUser().getHomeFolderId();
+    } else {
+      folderIdS = folderIdP.stringValue();
+    }
 
     FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
     return executeResourcePostByProxy(c, CedarNodeType.FIELD, folder, importMode);
   }
 
-  @ApiOperation(
-      value = "Find template field by id")
   @GET
   @Timed
   @Path("/{id}")
@@ -65,8 +62,6 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     return executeResourceGetByProxy(CedarNodeType.FIELD, id, c);
   }
 
-  @ApiOperation(
-      value = "Find template field details by id")
   @GET
   @Timed
   @Path("/{id}/details")
@@ -79,8 +74,6 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     return executeResourceGetDetailsByProxy(CedarNodeType.FIELD, id, c);
   }
 
-  @ApiOperation(
-      value = "Update template field")
   @PUT
   @Timed
   @Path("/{id}")
@@ -93,8 +86,6 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     return executeResourcePutByProxy(CedarNodeType.FIELD, id, c);
   }
 
-  @ApiOperation(
-      value = "Delete template field")
   @DELETE
   @Timed
   @Path("/{id}")
@@ -107,8 +98,6 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     return executeResourceDeleteByProxy(CedarNodeType.FIELD, id, c);
   }
 
-  @ApiOperation(
-      value = "Get permissions of a template field")
   @GET
   @Timed
   @Path("/{id}/permissions")
@@ -121,8 +110,6 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     return executeResourcePermissionGetByProxy(id, c);
   }
 
-  @ApiOperation(
-      value = "Update template field permissions")
   @PUT
   @Timed
   @Path("/{id}/permissions")

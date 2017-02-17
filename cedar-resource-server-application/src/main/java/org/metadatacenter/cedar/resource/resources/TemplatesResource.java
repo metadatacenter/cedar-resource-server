@@ -42,10 +42,14 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_CREATE);
 
-    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
-    c.must(folderIdP).be(NonEmpty);
+    String folderIdS;
 
-    String folderIdS = folderIdP.stringValue();
+    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
+    if (folderIdP.isEmpty()) {
+      folderIdS = c.getCedarUser().getHomeFolderId();
+    } else {
+      folderIdS = folderIdP.stringValue();
+    }
 
     FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
     return executeResourcePostByProxy(c, CedarNodeType.TEMPLATE, folder, importMode);

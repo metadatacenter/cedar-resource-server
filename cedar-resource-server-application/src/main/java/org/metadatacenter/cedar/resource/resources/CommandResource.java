@@ -5,7 +5,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.swagger.annotations.Authorization;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -15,7 +14,6 @@ import org.keycloak.events.Event;
 import org.keycloak.events.admin.AdminEvent;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.FolderServerProxy;
-import org.metadatacenter.cedar.resource.search.SearchService;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
@@ -27,6 +25,7 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
+import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserExtract;
@@ -142,13 +141,18 @@ public class CommandResource extends AbstractResourceServerResource {
         originalDocument = EntityUtils.toString(entity);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
         ((ObjectNode) jsonNode).remove("@id");
-        JsonNode titleNode = ((ObjectNode) jsonNode).at("/_ui/title");
-        if (!titleNode.isMissingNode()) {
-          String newTitle = titleTemplate.replace("{{title}}", titleNode.asText());
+        String oldTitle = extractNameFromResponseObject(nodeType, jsonNode);
+        if (oldTitle != null) {
+          oldTitle = "";
+        }
+        String newTitle = titleTemplate.replace("{{title}}", oldTitle);
+        if (nodeType != CedarNodeType.INSTANCE) {
           JsonNode ui = jsonNode.get("_ui");
           if (ui != null) {
             ((ObjectNode) ui).put("title", newTitle);
           }
+        } else {
+          ((ObjectNode) jsonNode).put("schema:name", newTitle);
         }
         originalDocument = jsonNode.toString();
       }
@@ -198,7 +202,7 @@ public class CommandResource extends AbstractResourceServerResource {
               }
               if (templateProxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                searchService.indexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
+                createIndexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
                     (), FolderServerResource.class), jsonNode, c);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
@@ -343,7 +347,12 @@ public class CommandResource extends AbstractResourceServerResource {
         if (HttpStatus.SC_CREATED == nodeMoveStatusCode) {
           URI location = CedarUrlUtil.getLocationURI(nodeMoveResponse);
           if (folderEntity.getContent() != null) {
-            // index the resource that has been created
+            // there is no need to index the resource itself, since the content and meta is unchanged
+            if (nodeType == CedarNodeType.FOLDER) {
+              searchPermissionEnqueueService.folderMoved(sourceId);
+            } else {
+              searchPermissionEnqueueService.resourceMoved(sourceId);
+            }
             return Response.created(location).entity(folderEntity.getContent()).build();
           } else {
             return Response.created(location).build();
@@ -361,27 +370,25 @@ public class CommandResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/auth-user-callback ")
+  @Path("/auth-user-callback")
   public Response authUserCallback() throws CedarException {
-
-    //TODO: we will have a different request here, we will need to extract the user ID from the content
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
-    c.must(c.user()).be(LoggedIn);
+    CedarRequestContext adminContext = CedarRequestContextFactory.fromRequest(request);
+    adminContext.must(adminContext.user()).be(LoggedIn);
 
     // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
-
-    JsonNode jsonBody = c.request().getRequestBody().asJson();
+    JsonNode jsonBody = adminContext.request().getRequestBody().asJson();
 
     if (jsonBody != null) {
       try {
         Event event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), Event.class);
-        CedarUserExtract eventUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
+        CedarUserExtract targetUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
 
         String clientId = event.getClientId();
-        if (!"admin-cli".equals(clientId)) {
-          CedarUser user = createUserRelatedObjects(userService, eventUser);
-          createHomeFolderAndUser(c);
-          updateHomeFolderPath(c, userService, user);
+        if (!cedarConfig.getKeycloakConfig().getClientId().equals(clientId)) {
+          CedarUser user = createUserRelatedObjects(userService, targetUser);
+          CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
+          createHomeFolderAndUser(userContext);
+          updateHomeFolderPath(userContext, userService, user);
         }
       } catch (Exception e) {
         throw new CedarProcessingException(e);
@@ -406,7 +413,7 @@ public class CommandResource extends AbstractResourceServerResource {
     }
 
     List<CedarUserRole> roles = null;
-    CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig, eventUser, roles);
+    CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig, eventUser, null, roles);
 
     try {
       CedarUser u = userService.createUser(user);
@@ -441,6 +448,9 @@ public class CommandResource extends AbstractResourceServerResource {
     folderSession.ensureUserHomeExists();
   }
 
+  // TODO: Think about this method. What do we want to achieve.
+  // What can we handle, and how.
+  /*
   @POST
   @Timed
   @Path("/auth-admin-callback")
@@ -466,6 +476,7 @@ public class CommandResource extends AbstractResourceServerResource {
     //TODO: handle this. this is probably an error, having the null body here
     return Response.noContent().build();
   }
+  */
 
   @POST
   @Timed
@@ -479,7 +490,8 @@ public class CommandResource extends AbstractResourceServerResource {
 
     boolean force = jsonBody.get("force").asBoolean();
 
-    searchService.regenerateSearchIndex(force, c);
+    RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
+    task.regenerateSearchIndex(force, c);
 
     return Response.ok().build();
   }

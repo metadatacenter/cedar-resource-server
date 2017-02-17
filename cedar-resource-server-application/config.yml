@@ -9,3 +9,16 @@ logging:
   level: INFO
   loggers:
     org.metadatacenter: DEBUG
+    org.metadatacenter.server.neo4j.proxy.AbstractNeo4JProxy: INFO
+  appenders:
+    - type: console
+      threshold: ALL
+      timeZone: UTC
+      target: stdout
+    - type: file
+      currentLogFilename: ${CEDAR_HOME}/log/cedar-resource-server.log
+      threshold: ALL
+      archive: true
+      archivedLogFilenamePattern: ${CEDAR_HOME}/log/cedar-resource-server-%d.log
+      archivedFileCount: 5
+      timeZone: UTC

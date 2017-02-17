@@ -50,13 +50,26 @@ public class SearchResource extends AbstractResourceServerResource {
       @ApiResponse(code = 500, message = "Internal Server Error")})
 
   @ApiImplicitParams(value = {
-      @ApiImplicitParam(name = "Authorization", value = "Authorization header. Format: 'apiKey {your_apiKey}'. Example: 'apiKey eb110fac-4970-492a-87b7-ccbfac4f31cc'", required = true, dataType = "string", paramType = "header"),
-      @ApiImplicitParam(name = "q", value = "Search query. Example: 'q=investigation'", required = true, dataType = "string", paramType = "query"),
-      @ApiImplicitParam(name = "resource_types", value="Comma-separated list of resource types. Allowed values: {template, element, field, instance, folder}. Example: 'resource_types=template,element'. If template_id is provided, resource_types is automatically set to 'instance'", required = false, dataType = "string", paramType = "query"),
-      @ApiImplicitParam(name = "template_id", value="Template identifier. Example: 'template_id=https://repo.metadatacenter.net/templates/432db060-8ac1-4f26-9e5b-082e563d8e34'. If this parameter is provided, all instances for the given template will be returned", required = false, dataType = "string", paramType = "query"),
-      @ApiImplicitParam(name = "sort", value="Sort by. Example: 'sort=createdOnTS'. The '-' prefix may be used to apply inverse sorting", allowableValues = "name,createdOnTS,lastUpdatedOnTS,-name,-createdOnTS,-lastUpdatedOnTS", defaultValue = "name", required = false, dataType = "string", paramType = "query"),
-      @ApiImplicitParam(name = "limit", value="Maximum number of resources to be retrieved", defaultValue = "50", required = false, dataType = "int", paramType = "query"),
-      @ApiImplicitParam(name = "offset", value="Offset", defaultValue = "0", required = false, dataType = "int", paramType = "query")})
+      @ApiImplicitParam(name = "Authorization", value = "Authorization header. Format: 'apiKey {your_apiKey}'. " +
+          "Example: 'apiKey eb110fac-4970-492a-87b7-ccbfac4f31cc'", required = true, dataType = "string", paramType =
+          "header"),
+      @ApiImplicitParam(name = "q", value = "Search query. Example: 'q=investigation'", required = true, dataType =
+          "string", paramType = "query"),
+      @ApiImplicitParam(name = "resource_types", value = "Comma-separated list of resource types. Allowed values: " +
+          "{template, element, field, instance, folder}. Example: 'resource_types=template,element'. If template_id " +
+          "is provided, resource_types is automatically set to 'instance'", required = false, dataType = "string",
+          paramType = "query"),
+      @ApiImplicitParam(name = "template_id", value = "Template identifier. Example: 'template_id=https://repo" +
+          ".metadatacenter.net/templates/432db060-8ac1-4f26-9e5b-082e563d8e34'. If this parameter is provided, all " +
+          "instances for the given template will be returned", required = false, dataType = "string", paramType =
+          "query"),
+      @ApiImplicitParam(name = "sort", value = "Sort by. Example: 'sort=createdOnTS'. The '-' prefix may be used to " +
+          "apply inverse sorting", allowableValues = "name,createdOnTS,lastUpdatedOnTS,-name,-createdOnTS," +
+          "-lastUpdatedOnTS", defaultValue = "name", required = false, dataType = "string", paramType = "query"),
+      @ApiImplicitParam(name = "limit", value = "Maximum number of resources to be retrieved", defaultValue = "50",
+          required = false, dataType = "int", paramType = "query"),
+      @ApiImplicitParam(name = "offset", value = "Offset", defaultValue = "0", required = false, dataType = "int",
+          paramType = "query")})
   @GET
   @Timed
   @Path("/search")
@@ -92,10 +105,10 @@ public class SearchResource extends AbstractResourceServerResource {
       try {
         // Parameters validation
         String queryString = ParametersValidator.validateQuery(q);
-        String tempId = ParametersValidator.validateTemplateId(derivedFromId);
+        String templateId = ParametersValidator.validateTemplateId(derivedFromId);
         // If templateId is specified, the resource types is limited to instances
         List<String> resourceTypeList = null;
-        if (tempId != null) {
+        if (templateId != null) {
           resourceTypeList = new ArrayList<>();
           resourceTypeList.add(CedarNodeType.Types.INSTANCE);
         } else {
@@ -118,8 +131,8 @@ public class SearchResource extends AbstractResourceServerResource {
 
         String absoluteUrl = builder.build().toString();
 
-        FolderServerNodeListResponse results = searchService.search(queryString, resourceTypeList, tempId, sortList,
-            limit, offset, absoluteUrl, c);
+        FolderServerNodeListResponse results = contentSearchingService.search(c,
+            queryString, resourceTypeList, templateId, sortList, limit, offset, absoluteUrl);
         results.setNodeListQueryType(nlqt);
 
         JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);

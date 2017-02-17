@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-resource-server</artifactId>
-    <version>0.9.2</version>
+    <version>0.9.3</version>
   </parent>
 
   <groupId>org.metadatacenter</groupId>
@@ -23,6 +23,11 @@
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-server-rest</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-search-operations</artifactId>
     </dependency>
 
     <dependency>
