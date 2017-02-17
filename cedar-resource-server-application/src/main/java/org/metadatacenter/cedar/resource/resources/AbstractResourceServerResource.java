@@ -343,6 +343,23 @@ public class AbstractResourceServerResource {
       CedarProcessingException {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
+
+      String currentName = null;
+
+      HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(url, context);
+      int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();
+      if (currentStatusCode != HttpStatus.SC_OK) {
+        // resource was not created
+        return generateStatusResponse(templateCurrentProxyResponse);
+      } else {
+        HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
+        if (currentTemplateEntity != null) {
+          String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity);
+          JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
+          currentName = extractNameFromResponseObject(nodeType, currentTemplateJsonNode);
+        }
+      }
+
       HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
       int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
@@ -350,26 +367,25 @@ public class AbstractResourceServerResource {
         // resource was not created
         return generateStatusResponse(templateProxyResponse);
       } else {
-        // resource was created
+        // resource was updated
         HttpEntity templateEntity = templateProxyResponse.getEntity();
         if (templateEntity != null) {
-          // Check if this was a rename.
-          // If it was, we need to reindex the node and the children
-          // Otherwise we just reindex the content child
-          boolean wasRename = false;
-          // we need to find this
-          // read from the folder or template server
-
-
           String templateEntityContent = EntityUtils.toString(templateEntity);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
 
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           String newName = extractNameFromResponseObject(nodeType, templateJsonNode);
-          String newDescription = extractDescriptionFromResponseObject(nodeType, templateJsonNode);
           resourceRequestBody.put("name", newName);
-          resourceRequestBody.put("description", newDescription);
+          resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, templateJsonNode));
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
+
+          // Check if this was a rename.
+          // If it was, we need to reindex the node and the children
+          // Otherwise we just reindex the content child
+          boolean wasRename = false;
+          if (currentName == null || !currentName.equals(newName)) {
+            wasRename = true;
+          }
 
           String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
           //System.out.println(resourceUrl);
