@@ -105,10 +105,10 @@ public class SearchResource extends AbstractResourceServerResource {
       try {
         // Parameters validation
         String queryString = ParametersValidator.validateQuery(q);
-        String tempId = ParametersValidator.validateTemplateId(derivedFromId);
+        String templateId = ParametersValidator.validateTemplateId(derivedFromId);
         // If templateId is specified, the resource types is limited to instances
         List<String> resourceTypeList = null;
-        if (tempId != null) {
+        if (templateId != null) {
           resourceTypeList = new ArrayList<>();
           resourceTypeList.add(CedarNodeType.Types.INSTANCE);
         } else {
@@ -132,7 +132,7 @@ public class SearchResource extends AbstractResourceServerResource {
         String absoluteUrl = builder.build().toString();
 
         FolderServerNodeListResponse results = contentSearchingService.search(c,
-            queryString, resourceTypeList, tempId, sortList, limit, offset, absoluteUrl);
+            queryString, resourceTypeList, templateId, sortList, limit, offset, absoluteUrl);
         results.setNodeListQueryType(nlqt);
 
         JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
