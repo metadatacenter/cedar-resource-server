@@ -31,6 +31,8 @@ import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -54,6 +56,8 @@ public class AbstractResourceServerResource {
   protected
   @Context
   HttpServletResponse response;
+
+  private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
 
   protected static final String PREFIX_RESOURCES = "resources";
 
@@ -119,7 +123,6 @@ public class AbstractResourceServerResource {
     FolderServerNode resource = null;
     try {
       String responseString = EntityUtils.toString(proxyResponse.getEntity());
-      System.out.println(responseString);
       resource = JsonMapper.MAPPER.readValue(responseString, FolderServerNode.class);
     } catch (IOException e) {
       throw new CedarProcessingException(e);
@@ -155,7 +158,7 @@ public class AbstractResourceServerResource {
       }
       id = new URLCodec().encode(id);
     } catch (EncoderException e) {
-      e.printStackTrace();
+      log.error("Error while extracting user UUID", e);
     }
     return id;
   }
@@ -204,7 +207,6 @@ public class AbstractResourceServerResource {
       if (importMode != null && importMode.isPresent() && importMode.get()) {
         url += "?importMode=true";
       }
-      System.out.println("***RESOURCE PROXY:" + url);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -222,7 +224,6 @@ public class AbstractResourceServerResource {
           String id = templateJsonNode.get("@id").asText();
 
           String resourceUrl = folderBase + PREFIX_RESOURCES;
-          //System.out.println(resourceUrl);
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           resourceRequestBody.put("parentId", folder.getId());
           resourceRequestBody.put("id", id);
@@ -307,7 +308,6 @@ public class AbstractResourceServerResource {
       CedarProcessingException {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
-      //System.out.println(url);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
@@ -389,7 +389,6 @@ public class AbstractResourceServerResource {
           }
 
           String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
-          //System.out.println(resourceUrl);
 
           HttpResponse folderServerUpdateResponse = ProxyUtil.proxyPut(resourceUrl, context,
               resourceRequestBodyAsString);
@@ -412,11 +411,11 @@ public class AbstractResourceServerResource {
                 return Response.ok().build();
               }
             } else {
-              System.out.println("Resource not updated #1, rollback resource and signal error");
+              log.error("Resource not updated #1, rollback resource and signal error");
               return Response.status(folderServerUpdateStatusCode).entity(resourceEntity.getContent()).build();
             }
           } else {
-            System.out.println("Resource not updated #2, rollback resource and signal error");
+            log.error("Resource not updated #2, rollback resource and signal error");
             return Response.status(folderServerUpdateStatusCode).build();
           }
 
