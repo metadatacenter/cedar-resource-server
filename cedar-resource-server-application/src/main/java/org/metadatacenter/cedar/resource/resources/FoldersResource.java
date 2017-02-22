@@ -248,9 +248,10 @@ public class FoldersResource extends AbstractResourceServerResource {
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
-      // TODO: check if this was a real update
-      searchPermissionEnqueueService.folderPermissionsChanged(folderId);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      if (statusCode == HttpStatus.SC_OK) {
+        searchPermissionEnqueueService.folderPermissionsChanged(folderId);
+      }
       HttpEntity entity = proxyResponse.getEntity();
       if (entity != null) {
         return Response.status(statusCode).entity(entity.getContent()).build();

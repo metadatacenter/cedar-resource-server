@@ -526,9 +526,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       CedarProcessingException {
     String url = folderBase + "resources" + "/" + CedarUrlUtil.urlEncode(resourceId) + "/permissions";
     HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    if (statusCode == HttpStatus.SC_OK) {
+      searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
+    }
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-    // TODO: check if this was a real update
-    searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
     return buildResponse(proxyResponse);
   }
 
