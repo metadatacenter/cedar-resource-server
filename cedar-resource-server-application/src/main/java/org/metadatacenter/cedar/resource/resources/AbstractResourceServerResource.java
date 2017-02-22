@@ -10,6 +10,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.bridge.FolderServerProxy;
+import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
@@ -43,22 +44,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
 
-public class AbstractResourceServerResource {
-
-  protected
-  @Context
-  UriInfo uriInfo;
-
-  protected
-  @Context
-  HttpServletRequest request;
-
-  protected
-  @Context
-  HttpServletResponse response;
+public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
-
   protected static final String PREFIX_RESOURCES = "resources";
 
   protected static NodeIndexingService nodeIndexingService;
@@ -69,7 +57,6 @@ public class AbstractResourceServerResource {
   protected static UserPermissionIndexingService userPermissionIndexingService;
   protected static GroupPermissionIndexingService groupPermissionIndexingService;
 
-  protected final CedarConfig cedarConfig;
   protected final String folderBase;
   protected final String templateBase;
   protected final String usersBase;
@@ -77,7 +64,7 @@ public class AbstractResourceServerResource {
   protected final String usersURL;
 
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
-    this.cedarConfig = cedarConfig;
+    super(cedarConfig);
     folderBase = cedarConfig.getServers().getFolder().getBase();
     templateBase = cedarConfig.getServers().getTemplate().getBase();
     usersBase = cedarConfig.getServers().getUser().getUsersBase();
