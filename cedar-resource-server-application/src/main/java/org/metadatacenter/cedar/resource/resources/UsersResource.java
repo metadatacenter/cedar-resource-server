@@ -1,8 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.metadatacenter.config.CedarConfig;
@@ -22,16 +20,12 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/users")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/users", description = "User operations")
 public class UsersResource extends AbstractResourceServerResource {
 
   public UsersResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
 
-  @ApiOperation(
-      value = "List all users",
-      httpMethod = "GET")
   @GET
   @Timed
   public Response findUsers() throws CedarException {

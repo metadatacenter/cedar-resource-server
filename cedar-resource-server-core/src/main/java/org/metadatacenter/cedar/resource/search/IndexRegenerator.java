@@ -33,8 +33,7 @@ public class IndexRegenerator {
       RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
       task.regenerateSearchIndex(false, c);
     } catch (CedarException e) {
-      System.out.println("There was an error while regenerating the search index");
-      e.printStackTrace();
+      log.error("There was an error while regenerating the search index", e);
     }
   }
 

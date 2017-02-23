@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -11,7 +10,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.keycloak.events.Event;
-import org.keycloak.events.admin.AdminEvent;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.config.CedarConfig;
@@ -36,6 +34,8 @@ import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -52,6 +52,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
 public class CommandResource extends AbstractResourceServerResource {
+
+  private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
 
   protected static final String MOVE_COMMAND = "command/move-node-to-folder";
 
@@ -132,7 +134,6 @@ public class CommandResource extends AbstractResourceServerResource {
     String originalDocument = null;
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
-      System.out.println(url);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
@@ -433,10 +434,9 @@ public class CommandResource extends AbstractResourceServerResource {
     if (userHomeFolder != null) {
       user.setHomeFolderId(userHomeFolder.getId());
       try {
-        userService.updateUser(user.getId(), JsonMapper.MAPPER.valueToTree(user));
+        userService.updateUser(user.getId(), user);
       } catch (Exception e) {
-        e.printStackTrace();
-        System.out.println("Error while updating user: " + user.getEmail());
+        log.error("Error while updating user: " + user.getEmail(), e);
       }
     }
   }
