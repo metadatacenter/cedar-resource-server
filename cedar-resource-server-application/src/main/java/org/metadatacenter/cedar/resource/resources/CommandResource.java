@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -11,10 +10,8 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.keycloak.events.Event;
-import org.keycloak.events.admin.AdminEvent;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.FolderServerProxy;
-import org.metadatacenter.cedar.resource.search.IndexRegenerator;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
@@ -437,7 +434,7 @@ public class CommandResource extends AbstractResourceServerResource {
     if (userHomeFolder != null) {
       user.setHomeFolderId(userHomeFolder.getId());
       try {
-        userService.updateUser(user.getId(), JsonMapper.MAPPER.valueToTree(user));
+        userService.updateUser(user.getId(), user);
       } catch (Exception e) {
         log.error("Error while updating user: " + user.getEmail(), e);
       }
