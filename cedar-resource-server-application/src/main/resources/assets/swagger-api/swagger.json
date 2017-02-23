@@ -1,0 +1,83 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "CEDAR Resource Server API",
+    "description": "Better Metadata - Better Science",
+    "version": "1.0.0"
+  },
+  "schemes": [
+    "https"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/users": {
+      "get": {
+        "summary": "Users",
+        "description": "The Users endpoint returns information about all the users present in the system.\n",
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of users",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/User"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "User": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific user."
+        },
+        "createdOn": {
+          "type": "string",
+          "description": "Creation time in xsd:dateTime format."
+        },
+        "createdOnTS": {
+          "type": "number",
+          "description": "Creation time as Unix timestamp."
+        },
+        "lastUpdatedOn": {
+          "type": "string",
+          "description": "Last update time in xsd:dateTime format."
+        },
+        "lastUpdatedOnTS": {
+          "type": "string",
+          "description": "Last update time as Unix timestamp."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email."
+        },
+        "nodeType": {
+          "type": "string",
+          "description": "The value \"user\""
+        }
+      }
+    }
+  }
+}
