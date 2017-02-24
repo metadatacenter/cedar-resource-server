@@ -3,10 +3,8 @@ info:
   title: CEDAR Resource Server API
   description: Better Metadata - Better Science
   version: "1.0.0"
-host: resource.metadatacenter.net
 schemes:
   - https
-# will be prefixed to all paths
 produces:
   - application/json
 paths:

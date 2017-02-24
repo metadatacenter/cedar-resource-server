@@ -53,7 +53,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
   @Override
   public void runApp(ResourceServerConfiguration configuration, Environment environment) {
-    final IndexResource index = new IndexResource();
+    final IndexResource index = new IndexResource(cedarConfig);
     environment.jersey().register(index);
 
     final FoldersResource folders = new FoldersResource(cedarConfig);
