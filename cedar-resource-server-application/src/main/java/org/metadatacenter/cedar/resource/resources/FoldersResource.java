@@ -20,7 +20,6 @@ import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
 import javax.ws.rs.*;
-import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
@@ -30,7 +29,6 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/folders")
-@Produces(MediaType.APPLICATION_JSON)
 @Api(value = "/folders", description = "Folder operations")
 public class FoldersResource extends AbstractResourceServerResource {
 
