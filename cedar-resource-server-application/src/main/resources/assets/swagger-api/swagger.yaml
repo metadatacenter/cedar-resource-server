@@ -19,7 +19,7 @@ securityDefinitions:
   api_key:
     type: apiKey
     name: Authorization
-    description: Your CEDAR API key, using the format 'apiKey <yourApiKey>'
+    description: Your CEDAR API key, using the format 'apiKey &lt;yourApiKey&gt;'
     in: header
 ################################################################################
 #                              Responses                                       #
@@ -33,12 +33,24 @@ responses:
       type: object
       items:
         $ref: '#/definitions/Folder'
+  ok_template_element: #200
+    description: A template element
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/TemplateElement'
   created_folder: #201
     description: A folder
     schema:
       type: object
       items:
         $ref: '#/definitions/Folder'
+  created_template_element: #201
+    description: A template element
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/TemplateElement'
   no_content: #204
     description: Successful operation (no content)
   bad_request: #400
@@ -61,6 +73,53 @@ parameters:
     description: Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e
     type: string
     required: true
+  qs_folder_id:
+    name: folder_id
+    in: query
+    description: Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e
+    type: string
+    required: true
+  resource_types:
+    name: resource_types
+    in: query
+    description: |
+      Resource types as comma separated values.
+      The allowed values are: 'folder', 'field', 'element', 'template', 'instance'
+    type: string
+    required: false
+  sort:
+    name: sort
+    in: query
+    description: |
+      Sort field names as comma separated values.
+      Prepending a field with '-' means descending order on that field.
+      The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'
+    type: string
+    required: false
+    default: name
+  limit:
+    name: limit
+    in: query
+    description: Paging limit
+    type: integer
+    required: false
+    default: 100
+    minimum: 0
+    maximum: 500
+  offset:
+    name: offset
+    in: query
+    description: Paging offset
+    type: number
+    required: false
+    default: 0
+    minimum: 0
+  template_element_id:
+    name: template_element_id
+    in: path
+    description: Template Element identifier. Example&#58; https://repo.metadatacenter.net/templatesd/8bc64ab5-df6b-48c8-8c61-6c016245918e
+    type: string
+    required: true
 ################################################################################
 #                              Paths                                           #
 ################################################################################
@@ -69,7 +128,7 @@ paths:
     get:
       summary: Users
       description: |
-        The Users endpoint returns information about all the users present in the system.
+        The Users endpoint returns information about the users of the system.
       tags:
         - Users
       security:
@@ -89,9 +148,9 @@ paths:
           $ref: '#/responses/internal_error'
   /folders/{folder_id}:
     get:
-      summary: Find folder by id
+      summary: Get a folder
       description: |
-        Find folder by id.
+        Get a folder.
       tags:
         - Folders
       security:
@@ -112,9 +171,9 @@ paths:
         500:
           $ref: '#/responses/internal_error'
     put:
-      summary: Update one folder
+      summary: Update a folder
       description: |
-        Update one folder.
+        Update a folder.
       tags:
         - Folders
       security:
@@ -135,9 +194,9 @@ paths:
         500:
           $ref: '#/responses/internal_error'
     delete:
-      summary: Delete one folder
+      summary: Delete a folder
       description: |
-        Delete one folder.
+        Delete a folder.
       tags:
         - Folders
       security:
@@ -159,9 +218,9 @@ paths:
           $ref: '#/responses/internal_error'
   /folders:
     post:
-      summary: Create one folder
+      summary: Create a folder
       description: |
-        Create one folder.
+        Create a folder.
       tags:
         - Folders
       security:
@@ -181,12 +240,13 @@ paths:
           $ref: '#/responses/internal_error'
   /folders/{folder_id}/permissions:
     get:
-      summary: Get permissions for a folder by id
+      summary: Get permissions of a folder
       description: |
-        Get permissions for a folder by id.
+        Get permissions of a folder.
       tags:
         - Folders
         - Permissions
+        - Folder Permissions
       security:
         - api_key: []
       parameters:
@@ -205,12 +265,13 @@ paths:
         500:
           $ref: '#/responses/internal_error'
     put:
-      summary: Update permissions for a folder by id
+      summary: Update permissions of a folder
       description: |
-        Update permissions for a folder by id.
+        Update permissions of a folder.
       tags:
         - Folders
         - Permissions
+        - Folder Permissions
       security:
         - api_key: []
       parameters:
@@ -230,9 +291,9 @@ paths:
           $ref: '#/responses/internal_error'
   /folders/{folder_id}/details:
     get:
-      summary: Get details for a folder by id
+      summary: Get the details of a folder
       description: |
-        Get details for a folder by id.
+        Get the details of a folder.
       tags:
         - Folders
       security:
@@ -252,6 +313,180 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
+  /folders/{folder_id}/contents:
+    get:
+      summary: Get the contents of a folder
+      description: |
+        Get the contents of a folder.
+      tags:
+        - Folders
+        - Folder contents
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/folder_id'
+        - $ref: '#/parameters/resource_types'
+        - $ref: '#/parameters/sort'
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/offset'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template-elements/{template_element_id}:
+    get:
+      summary: Get a template element
+      description: |
+        Get a template element.
+      tags:
+        - Template elements
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_element_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_template_element'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update a template element
+      description: |
+        Update a template element.
+      tags:
+        - Template elements
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_element_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_template_element'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    delete:
+      summary: Delete a template element
+      description: |
+        Delete a template element.
+      tags:
+        - Template elements
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_element_id'
+      responses:
+        204:
+          $ref: '#/responses/no_content'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template_elements:
+    post:
+      summary: Create a template element
+      description: |
+        Create a template element.
+      tags:
+        - Template elements
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/qs_folder_id'
+      responses:
+        201:
+          $ref: '#/responses/created_template_element'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template_elements/{template_element_id}/permissions:
+    get:
+      summary: Get permissions of a template element
+      description: |
+        Get permissions of a template element.
+      tags:
+        - Template elements
+        - Permissions
+        - Template element Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_element_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update permissions of a template element
+      description: |
+        Update permissions of a template element.
+      tags:
+        - Template elements
+        - Permissions
+        - Template element Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_element_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'          
 definitions:
   User:
     type: object
@@ -292,3 +527,9 @@ definitions:
       id:
         type: string
         description: Unique URL identifier representing a specific folder.
+  TemplateElement:
+    type: object
+    properties:
+      '@id':
+        type: string
+        description: Unique URL identifier representing a specific template element.

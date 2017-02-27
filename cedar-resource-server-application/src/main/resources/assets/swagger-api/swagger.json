@@ -18,7 +18,7 @@
         "api_key": {
             "type": "apiKey",
             "name": "Authorization",
-            "description": "Your CEDAR API key, using the format 'apiKey <yourApiKey>'",
+            "description": "Your CEDAR API key, using the format 'apiKey &lt;yourApiKey&gt;'",
             "in": "header"
         }
     },
@@ -35,12 +35,30 @@
                 }
             }
         },
+        "ok_template_element": {
+            "description": "A template element",
+            "schema": {
+                "type": "object",
+                "items": {
+                    "$ref": "#/definitions/TemplateElement"
+                }
+            }
+        },
         "created_folder": {
             "description": "A folder",
             "schema": {
                 "type": "object",
                 "items": {
                     "$ref": "#/definitions/Folder"
+                }
+            }
+        },
+        "created_template_element": {
+            "description": "A template element",
+            "schema": {
+                "type": "object",
+                "items": {
+                    "$ref": "#/definitions/TemplateElement"
                 }
             }
         },
@@ -70,13 +88,61 @@
             "description": "Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
             "type": "string",
             "required": true
+        },
+        "qs_folder_id": {
+            "name": "folder_id",
+            "in": "query",
+            "description": "Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+            "type": "string",
+            "required": true
+        },
+        "resource_types": {
+            "name": "resource_types",
+            "in": "query",
+            "description": "Resource types as comma separated values.\nThe allowed values are: 'folder', 'field', 'element', 'template', 'instance'\n",
+            "type": "string",
+            "required": false
+        },
+        "sort": {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort field names as comma separated values.\nPrepending a field with '-' means descending order on that field.\nThe allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'\n",
+            "type": "string",
+            "required": false,
+            "default": "name"
+        },
+        "limit": {
+            "name": "limit",
+            "in": "query",
+            "description": "Paging limit",
+            "type": "integer",
+            "required": false,
+            "default": 100,
+            "minimum": 0,
+            "maximum": 500
+        },
+        "offset": {
+            "name": "offset",
+            "in": "query",
+            "description": "Paging offset",
+            "type": "number",
+            "required": false,
+            "default": 0,
+            "minimum": 0
+        },
+        "template_element_id": {
+            "name": "template_element_id",
+            "in": "path",
+            "description": "Template Element identifier. Example&#58; https://repo.metadatacenter.net/templatesd/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+            "type": "string",
+            "required": true
         }
     },
     "paths": {
         "/users": {
             "get": {
                 "summary": "Users",
-                "description": "The Users endpoint returns information about all the users present in the system.\n",
+                "description": "The Users endpoint returns information about the users of the system.\n",
                 "tags": [
                     "Users"
                 ],
@@ -109,8 +175,8 @@
         },
         "/folders/{folder_id}": {
             "get": {
-                "summary": "Find folder by id",
-                "description": "Find folder by id.\n",
+                "summary": "Get a folder",
+                "description": "Get a folder.\n",
                 "tags": [
                     "Folders"
                 ],
@@ -146,8 +212,8 @@
                 }
             },
             "put": {
-                "summary": "Update one folder",
-                "description": "Update one folder.\n",
+                "summary": "Update a folder",
+                "description": "Update a folder.\n",
                 "tags": [
                     "Folders"
                 ],
@@ -183,8 +249,8 @@
                 }
             },
             "delete": {
-                "summary": "Delete one folder",
-                "description": "Delete one folder.\n",
+                "summary": "Delete a folder",
+                "description": "Delete a folder.\n",
                 "tags": [
                     "Folders"
                 ],
@@ -222,8 +288,8 @@
         },
         "/folders": {
             "post": {
-                "summary": "Create one folder",
-                "description": "Create one folder.\n",
+                "summary": "Create a folder",
+                "description": "Create a folder.\n",
                 "tags": [
                     "Folders"
                 ],
@@ -256,11 +322,12 @@
         },
         "/folders/{folder_id}/permissions": {
             "get": {
-                "summary": "Get permissions for a folder by id",
-                "description": "Get permissions for a folder by id.\n",
+                "summary": "Get permissions of a folder",
+                "description": "Get permissions of a folder.\n",
                 "tags": [
                     "Folders",
-                    "Permissions"
+                    "Permissions",
+                    "Folder Permissions"
                 ],
                 "security": [
                     {
@@ -294,11 +361,12 @@
                 }
             },
             "put": {
-                "summary": "Update permissions for a folder by id",
-                "description": "Update permissions for a folder by id.\n",
+                "summary": "Update permissions of a folder",
+                "description": "Update permissions of a folder.\n",
                 "tags": [
                     "Folders",
-                    "Permissions"
+                    "Permissions",
+                    "Folder Permissions"
                 ],
                 "security": [
                     {
@@ -334,8 +402,8 @@
         },
         "/folders/{folder_id}/details": {
             "get": {
-                "summary": "Get details for a folder by id",
-                "description": "Get details for a folder by id.\n",
+                "summary": "Get the details of a folder",
+                "description": "Get the details of a folder.\n",
                 "tags": [
                     "Folders"
                 ],
@@ -347,6 +415,290 @@
                 "parameters": [
                     {
                         "$ref": "#/parameters/folder_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/folders/{folder_id}/contents": {
+            "get": {
+                "summary": "Get the contents of a folder",
+                "description": "Get the contents of a folder.\n",
+                "tags": [
+                    "Folders",
+                    "Folder contents"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/folder_id"
+                    },
+                    {
+                        "$ref": "#/parameters/resource_types"
+                    },
+                    {
+                        "$ref": "#/parameters/sort"
+                    },
+                    {
+                        "$ref": "#/parameters/limit"
+                    },
+                    {
+                        "$ref": "#/parameters/offset"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/template-elements/{template_element_id}": {
+            "get": {
+                "summary": "Get a template element",
+                "description": "Get a template element.\n",
+                "tags": [
+                    "Template elements"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_element_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok_template_element"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update a template element",
+                "description": "Update a template element.\n",
+                "tags": [
+                    "Template elements"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_element_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok_template_element"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete a template element",
+                "description": "Delete a template element.\n",
+                "tags": [
+                    "Template elements"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_element_id"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "$ref": "#/responses/no_content"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/template_elements": {
+            "post": {
+                "summary": "Create a template element",
+                "description": "Create a template element.\n",
+                "tags": [
+                    "Template elements"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/qs_folder_id"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "$ref": "#/responses/created_template_element"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/template_elements/{template_element_id}/permissions": {
+            "get": {
+                "summary": "Get permissions of a template element",
+                "description": "Get permissions of a template element.\n",
+                "tags": [
+                    "Template elements",
+                    "Permissions",
+                    "Template element Permissions"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_element_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update permissions of a template element",
+                "description": "Update permissions of a template element.\n",
+                "tags": [
+                    "Template elements",
+                    "Permissions",
+                    "Template element Permissions"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_element_id"
                     }
                 ],
                 "responses": {
@@ -424,6 +776,15 @@
                 "id": {
                     "type": "string",
                     "description": "Unique URL identifier representing a specific folder."
+                }
+            }
+        },
+        "TemplateElement": {
+            "type": "object",
+            "properties": {
+                "@id": {
+                    "type": "string",
+                    "description": "Unique URL identifier representing a specific template element."
                 }
             }
         }
