@@ -29,14 +29,12 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/folders")
-@Api(value = "/folders", description = "Folder operations")
 public class FoldersResource extends AbstractResourceServerResource {
 
   public FoldersResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
 
-  @ApiOperation(value = "Create folder")
   @POST
   @Timed
   public Response createFolder() throws CedarException {
@@ -76,7 +74,6 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
   }
 
-  @ApiOperation(value = "Find folder by id")
   @GET
   @Timed
   @Path("/{id}")
@@ -112,7 +109,6 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
   }
 
-  @ApiOperation(value = "Find folder details by id")
   @GET
   @Timed
   @Path("/{id}/details")
@@ -120,7 +116,6 @@ public class FoldersResource extends AbstractResourceServerResource {
     return findFolder(id);
   }
 
-  @ApiOperation(value = "Update folder")
   @PUT
   @Timed
   @Path("/{id}")
@@ -164,7 +159,6 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
   }
 
-  @ApiOperation(value = "Delete folder")
   @DELETE
   @Timed
   @Path("/{id}")
@@ -191,7 +185,6 @@ public class FoldersResource extends AbstractResourceServerResource {
   }
 
 
-  @ApiOperation(value = "Get permissions of a folder")
   @GET
   @Timed
   @Path("/{id}/permissions")
@@ -204,7 +197,6 @@ public class FoldersResource extends AbstractResourceServerResource {
     return executeFolderPermissionGetByProxy(id, c);
   }
 
-  @ApiOperation(value = "Update folder permissions")
   @PUT
   @Timed
   @Path("/{id}/permissions")

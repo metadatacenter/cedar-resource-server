@@ -1,83 +1,431 @@
 {
-  "swagger": "2.0",
-  "info": {
-    "title": "CEDAR Resource Server API",
-    "description": "Better Metadata - Better Science",
-    "version": "1.0.0"
-  },
-  "schemes": [
-    "https"
-  ],
-  "produces": [
-    "application/json"
-  ],
-  "paths": {
-    "/users": {
-      "get": {
-        "summary": "Users",
-        "description": "The Users endpoint returns information about all the users present in the system.\n",
-        "tags": [
-          "Users"
-        ],
-        "responses": {
-          "200": {
-            "description": "An array of users",
+    "swagger": "2.0",
+    "info": {
+        "title": "CEDAR Resource Server API",
+        "description": "Better Metadata - Better Science",
+        "version": "1.0.0"
+    },
+    "schemes": [
+        "https"
+    ],
+    "consumes": [
+        "application/json"
+    ],
+    "produces": [
+        "application/json"
+    ],
+    "securityDefinitions": {
+        "api_key": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "description": "Your CEDAR API key, using the format 'apiKey <yourApiKey>'",
+            "in": "header"
+        }
+    },
+    "responses": {
+        "ok": {
+            "description": "Successful operation"
+        },
+        "ok_folder": {
+            "description": "A folder",
             "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/User"
-              }
+                "type": "object",
+                "items": {
+                    "$ref": "#/definitions/Folder"
+                }
             }
-          }
+        },
+        "created_folder": {
+            "description": "A folder",
+            "schema": {
+                "type": "object",
+                "items": {
+                    "$ref": "#/definitions/Folder"
+                }
+            }
+        },
+        "no_content": {
+            "description": "Successful operation (no content)"
+        },
+        "bad_request": {
+            "description": "Bad request"
+        },
+        "unauthorized": {
+            "description": "Unauthorized"
+        },
+        "forbidden": {
+            "description": "Forbidden"
+        },
+        "not_found": {
+            "description": "Not found"
+        },
+        "internal_error": {
+            "description": "Internal server error"
         }
-      }
-    }
-  },
-  "definitions": {
-    "User": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique URL identifier representing a specific user."
-        },
-        "createdOn": {
-          "type": "string",
-          "description": "Creation time in xsd:dateTime format."
-        },
-        "createdOnTS": {
-          "type": "number",
-          "description": "Creation time as Unix timestamp."
-        },
-        "lastUpdatedOn": {
-          "type": "string",
-          "description": "Last update time in xsd:dateTime format."
-        },
-        "lastUpdatedOnTS": {
-          "type": "string",
-          "description": "Last update time as Unix timestamp."
-        },
-        "firstName": {
-          "type": "string",
-          "description": "First name."
-        },
-        "lastName": {
-          "type": "string",
-          "description": "Last name."
-        },
-        "displayName": {
-          "type": "string",
-          "description": "Display name."
-        },
-        "email": {
-          "type": "string",
-          "description": "Email."
-        },
-        "nodeType": {
-          "type": "string",
-          "description": "The value \"user\""
+    },
+    "parameters": {
+        "folder_id": {
+            "name": "folder_id",
+            "in": "path",
+            "description": "Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+            "type": "string",
+            "required": true
         }
-      }
+    },
+    "paths": {
+        "/users": {
+            "get": {
+                "summary": "Users",
+                "description": "The Users endpoint returns information about all the users present in the system.\n",
+                "tags": [
+                    "Users"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "An array of users",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/User"
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/folders/{folder_id}": {
+            "get": {
+                "summary": "Find folder by id",
+                "description": "Find folder by id.\n",
+                "tags": [
+                    "Folders"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/folder_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok_folder"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update one folder",
+                "description": "Update one folder.\n",
+                "tags": [
+                    "Folders"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/folder_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok_folder"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete one folder",
+                "description": "Delete one folder.\n",
+                "tags": [
+                    "Folders"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/folder_id"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "$ref": "#/responses/no_content"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/folders": {
+            "post": {
+                "summary": "Create one folder",
+                "description": "Create one folder.\n",
+                "tags": [
+                    "Folders"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "$ref": "#/responses/created_folder"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/folders/{folder_id}/permissions": {
+            "get": {
+                "summary": "Get permissions for a folder by id",
+                "description": "Get permissions for a folder by id.\n",
+                "tags": [
+                    "Folders",
+                    "Permissions"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/folder_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update permissions for a folder by id",
+                "description": "Update permissions for a folder by id.\n",
+                "tags": [
+                    "Folders",
+                    "Permissions"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/folder_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/folders/{folder_id}/details": {
+            "get": {
+                "summary": "Get details for a folder by id",
+                "description": "Get details for a folder by id.\n",
+                "tags": [
+                    "Folders"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/folder_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "User": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Unique URL identifier representing a specific user."
+                },
+                "createdOn": {
+                    "type": "string",
+                    "description": "Creation time in xsd:dateTime format."
+                },
+                "createdOnTS": {
+                    "type": "number",
+                    "description": "Creation time as Unix timestamp."
+                },
+                "lastUpdatedOn": {
+                    "type": "string",
+                    "description": "Last update time in xsd:dateTime format."
+                },
+                "lastUpdatedOnTS": {
+                    "type": "string",
+                    "description": "Last update time as Unix timestamp."
+                },
+                "firstName": {
+                    "type": "string",
+                    "description": "First name."
+                },
+                "lastName": {
+                    "type": "string",
+                    "description": "Last name."
+                },
+                "displayName": {
+                    "type": "string",
+                    "description": "Display name."
+                },
+                "email": {
+                    "type": "string",
+                    "description": "Email."
+                },
+                "nodeType": {
+                    "type": "string",
+                    "description": "The value \"user\""
+                }
+            }
+        },
+        "Folder": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Unique URL identifier representing a specific folder."
+                }
+            }
+        }
     }
-  }
 }

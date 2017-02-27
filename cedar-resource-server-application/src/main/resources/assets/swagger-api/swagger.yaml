@@ -1,12 +1,69 @@
 swagger: '2.0'
+################################################################################
+#                              API Information                                 #
+################################################################################
 info:
   title: CEDAR Resource Server API
   description: Better Metadata - Better Science
   version: "1.0.0"
 schemes:
   - https
+consumes:
+  - application/json
 produces:
   - application/json
+################################################################################
+#                              Security                                        #
+################################################################################
+securityDefinitions:
+  api_key:
+    type: apiKey
+    name: Authorization
+    description: Your CEDAR API key, using the format 'apiKey <yourApiKey>'
+    in: header
+################################################################################
+#                              Responses                                       #
+################################################################################
+responses:
+  ok: #200
+    description: Successful operation
+  ok_folder: #200
+    description: A folder
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/Folder'
+  created_folder: #201
+    description: A folder
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/Folder'
+  no_content: #204
+    description: Successful operation (no content)
+  bad_request: #400
+    description: Bad request
+  unauthorized: #401
+    description: Unauthorized
+  forbidden: #403
+    description: Forbidden
+  not_found: #404
+    description: Not found
+  internal_error: #500
+    description: Internal server error
+################################################################################
+#                              Parameters                                      #
+################################################################################
+parameters:
+  folder_id:
+    name: folder_id
+    in: path
+    description: Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e
+    type: string
+    required: true
+################################################################################
+#                              Paths                                           #
+################################################################################
 paths:
   /users:
     get:
@@ -15,6 +72,8 @@ paths:
         The Users endpoint returns information about all the users present in the system.
       tags:
         - Users
+      security:
+        - api_key: []
       responses:
         200:
           description: An array of users
@@ -22,6 +81,177 @@ paths:
             type: array
             items:
               $ref: '#/definitions/User'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        500:
+          $ref: '#/responses/internal_error'
+  /folders/{folder_id}:
+    get:
+      summary: Find folder by id
+      description: |
+        Find folder by id.
+      tags:
+        - Folders
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/folder_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_folder'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update one folder
+      description: |
+        Update one folder.
+      tags:
+        - Folders
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/folder_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_folder'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    delete:
+      summary: Delete one folder
+      description: |
+        Delete one folder.
+      tags:
+        - Folders
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/folder_id'
+      responses:
+        204:
+          $ref: '#/responses/no_content'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /folders:
+    post:
+      summary: Create one folder
+      description: |
+        Create one folder.
+      tags:
+        - Folders
+      security:
+        - api_key: []
+      responses:
+        201:
+          $ref: '#/responses/created_folder'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /folders/{folder_id}/permissions:
+    get:
+      summary: Get permissions for a folder by id
+      description: |
+        Get permissions for a folder by id.
+      tags:
+        - Folders
+        - Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/folder_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update permissions for a folder by id
+      description: |
+        Update permissions for a folder by id.
+      tags:
+        - Folders
+        - Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/folder_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /folders/{folder_id}/details:
+    get:
+      summary: Get details for a folder by id
+      description: |
+        Get details for a folder by id.
+      tags:
+        - Folders
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/folder_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
 definitions:
   User:
     type: object
@@ -56,3 +286,9 @@ definitions:
       nodeType:
         type: string
         description: The value "user"
+  Folder:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Unique URL identifier representing a specific folder.
