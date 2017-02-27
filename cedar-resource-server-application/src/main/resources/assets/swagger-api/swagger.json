@@ -44,6 +44,15 @@
                 }
             }
         },
+        "ok_template_instance": {
+            "description": "A template instance",
+            "schema": {
+                "type": "object",
+                "items": {
+                    "$ref": "#/definitions/TemplateInstance"
+                }
+            }
+        },
         "created_folder": {
             "description": "A folder",
             "schema": {
@@ -59,6 +68,15 @@
                 "type": "object",
                 "items": {
                     "$ref": "#/definitions/TemplateElement"
+                }
+            }
+        },
+        "created_template_instance": {
+            "description": "A template instance",
+            "schema": {
+                "type": "object",
+                "items": {
+                    "$ref": "#/definitions/TemplateInstance"
                 }
             }
         },
@@ -133,7 +151,14 @@
         "template_element_id": {
             "name": "template_element_id",
             "in": "path",
-            "description": "Template Element identifier. Example&#58; https://repo.metadatacenter.net/templatesd/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+            "description": "Template Element identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+            "type": "string",
+            "required": true
+        },
+        "template_instance_id": {
+            "name": "template_instance_id",
+            "in": "path",
+            "description": "Template Instance identifier. Example&#58; https://repo.metadatacenter.net/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e",
             "type": "string",
             "required": true
         }
@@ -722,6 +747,238 @@
                     }
                 }
             }
+        },
+        "/template-instances/{template_instance_id}": {
+            "get": {
+                "summary": "Get a template instance",
+                "description": "Get a template instance.\n",
+                "tags": [
+                    "Template instances"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_instance_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok_template_instance"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update a template instance",
+                "description": "Update a template instance.\n",
+                "tags": [
+                    "Template instances"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_instance_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok_template_instance"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete a template instance",
+                "description": "Delete a template instance.\n",
+                "tags": [
+                    "Template instances"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_instance_id"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "$ref": "#/responses/no_content"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/template_instances": {
+            "post": {
+                "summary": "Create a template instance",
+                "description": "Create a template instance.\n",
+                "tags": [
+                    "Template instances"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/qs_folder_id"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "$ref": "#/responses/created_template_instance"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/template_instances/{template_instance_id}/permissions": {
+            "get": {
+                "summary": "Get permissions of a template instance",
+                "description": "Get permissions of a template instance.\n",
+                "tags": [
+                    "Template instances",
+                    "Permissions",
+                    "Template instance Permissions"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_instance_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update permissions of a template instance",
+                "description": "Update permissions of a template instance.\n",
+                "tags": [
+                    "Template instances",
+                    "Permissions",
+                    "Template instance Permissions"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_instance_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -785,6 +1042,15 @@
                 "@id": {
                     "type": "string",
                     "description": "Unique URL identifier representing a specific template element."
+                }
+            }
+        },
+        "TemplateInstance": {
+            "type": "object",
+            "properties": {
+                "@id": {
+                    "type": "string",
+                    "description": "Unique URL identifier representing a specific template instance."
                 }
             }
         }

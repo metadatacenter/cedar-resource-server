@@ -39,6 +39,12 @@ responses:
       type: object
       items:
         $ref: '#/definitions/TemplateElement'
+  ok_template_instance: #200
+    description: A template instance
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/TemplateInstance'
   created_folder: #201
     description: A folder
     schema:
@@ -51,6 +57,12 @@ responses:
       type: object
       items:
         $ref: '#/definitions/TemplateElement'
+  created_template_instance: #201
+    description: A template instance
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/TemplateInstance'
   no_content: #204
     description: Successful operation (no content)
   bad_request: #400
@@ -117,7 +129,13 @@ parameters:
   template_element_id:
     name: template_element_id
     in: path
-    description: Template Element identifier. Example&#58; https://repo.metadatacenter.net/templatesd/8bc64ab5-df6b-48c8-8c61-6c016245918e
+    description: Template Element identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e
+    type: string
+    required: true
+  template_instance_id:
+    name: template_instance_id
+    in: path
+    description: Template Instance identifier. Example&#58; https://repo.metadatacenter.net/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e
     type: string
     required: true
 ################################################################################
@@ -486,7 +504,152 @@ paths:
         404:
           $ref: '#/responses/not_found'
         500:
-          $ref: '#/responses/internal_error'          
+          $ref: '#/responses/internal_error'
+  /template-instances/{template_instance_id}:
+    get:
+      summary: Get a template instance
+      description: |
+        Get a template instance.
+      tags:
+        - Template instances
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_instance_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_template_instance'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update a template instance
+      description: |
+        Update a template instance.
+      tags:
+        - Template instances
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_instance_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_template_instance'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    delete:
+      summary: Delete a template instance
+      description: |
+        Delete a template instance.
+      tags:
+        - Template instances
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_instance_id'
+      responses:
+        204:
+          $ref: '#/responses/no_content'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template_instances:
+    post:
+      summary: Create a template instance
+      description: |
+        Create a template instance.
+      tags:
+        - Template instances
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/qs_folder_id'
+      responses:
+        201:
+          $ref: '#/responses/created_template_instance'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template_instances/{template_instance_id}/permissions:
+    get:
+      summary: Get permissions of a template instance
+      description: |
+        Get permissions of a template instance.
+      tags:
+        - Template instances
+        - Permissions
+        - Template instance Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_instance_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update permissions of a template instance
+      description: |
+        Update permissions of a template instance.
+      tags:
+        - Template instances
+        - Permissions
+        - Template instance Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_instance_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'  
 definitions:
   User:
     type: object
@@ -533,3 +696,9 @@ definitions:
       '@id':
         type: string
         description: Unique URL identifier representing a specific template element.
+  TemplateInstance:
+    type: object
+    properties:
+      '@id':
+        type: string
+        description: Unique URL identifier representing a specific template instance.
