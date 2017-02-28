@@ -25,16 +25,12 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/template-instances")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/template-instances", description = "Template instance operations")
 public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   public TemplateInstancesResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
 
-
-  @ApiOperation(
-      value = "Create template instance")
   @POST
   @Timed
   public Response createTemplateInstance(@QueryParam(QP_FOLDER_ID) Optional<String> folderId, @QueryParam(QP_IMPORT_MODE)
@@ -56,8 +52,6 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     return executeResourcePostByProxy(c, CedarNodeType.INSTANCE, folder, importMode);
   }
 
-  @ApiOperation(
-      value = "Find template instance by id")
   @GET
   @Timed
   @Path("/{id}")
@@ -70,8 +64,6 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     return executeResourceGetByProxy(CedarNodeType.INSTANCE, id, c);
   }
 
-  @ApiOperation(
-      value = "Find template instance details by id")
   @GET
   @Timed
   @Path("/{id}/details")
@@ -84,8 +76,6 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     return executeResourceGetDetailsByProxy(CedarNodeType.INSTANCE, id, c);
   }
 
-  @ApiOperation(
-      value = "Update template instance")
   @PUT
   @Timed
   @Path("/{id}")
@@ -98,8 +88,6 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     return executeResourcePutByProxy(CedarNodeType.INSTANCE, id, c);
   }
 
-  @ApiOperation(
-      value = "Delete template instance")
   @DELETE
   @Timed
   @Path("/{id}")
@@ -112,8 +100,6 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, id, c);
   }
 
-  @ApiOperation(
-      value = "Get permissions of a template instance")
   @GET
   @Timed
   @Path("/{id}/permissions")
@@ -126,8 +112,6 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     return executeResourcePermissionGetByProxy(id, c);
   }
 
-  @ApiOperation(
-      value = "Update template instance permissions")
   @PUT
   @Timed
   @Path("/{id}/permissions")

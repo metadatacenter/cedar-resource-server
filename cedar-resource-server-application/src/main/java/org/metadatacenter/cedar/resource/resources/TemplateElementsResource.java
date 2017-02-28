@@ -25,15 +25,12 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/template-elements")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/template-elements", description = "Template element operations")
 public class TemplateElementsResource extends AbstractResourceServerResource {
 
   public TemplateElementsResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
 
-  @ApiOperation(
-      value = "Create template element")
   @POST
   @Timed
   public Response createTemplateElement(@QueryParam(QP_FOLDER_ID) Optional<String> folderId, @QueryParam(QP_IMPORT_MODE)
@@ -55,8 +52,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeResourcePostByProxy(c, CedarNodeType.ELEMENT, folder, importMode);
   }
 
-  @ApiOperation(
-      value = "Find template element by id")
   @GET
   @Timed
   @Path("/{id}")
@@ -69,8 +64,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeResourceGetByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
-  @ApiOperation(
-      value = "Find template element details by id")
   @GET
   @Timed
   @Path("/{id}/details")
@@ -83,8 +76,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeResourceGetDetailsByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
-  @ApiOperation(
-      value = "Update template element")
   @PUT
   @Timed
   @Path("/{id}")
@@ -97,8 +88,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeResourcePutByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
-  @ApiOperation(
-      value = "Delete template element")
   @DELETE
   @Timed
   @Path("/{id}")
@@ -111,8 +100,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, id, c);
   }
 
-  @ApiOperation(
-      value = "Get permissions of a template element")
   @GET
   @Timed
   @Path("/{id}/permissions")
@@ -125,8 +112,6 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeResourcePermissionGetByProxy(id, c);
   }
 
-  @ApiOperation(
-      value = "Update template element permissions")
   @PUT
   @Timed
   @Path("/{id}/permissions")

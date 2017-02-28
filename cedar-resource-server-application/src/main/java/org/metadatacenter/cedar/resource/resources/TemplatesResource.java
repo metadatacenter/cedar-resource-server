@@ -25,15 +25,12 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/templates")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/templates", description = "Template operations")
 public class TemplatesResource extends AbstractResourceServerResource {
 
   public TemplatesResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
 
-  @ApiOperation(
-      value = "Create template")
   @POST
   @Timed
   public Response createTemplate(@QueryParam(QP_FOLDER_ID) Optional<String> folderId, @QueryParam(QP_IMPORT_MODE)
@@ -55,8 +52,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     return executeResourcePostByProxy(c, CedarNodeType.TEMPLATE, folder, importMode);
   }
 
-  @ApiOperation(
-      value = "Find template by id")
   @GET
   @Timed
   @Path("/{id}")
@@ -71,8 +66,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     return executeResourceGetByProxy(CedarNodeType.TEMPLATE, id, c);
   }
 
-  @ApiOperation(
-      value = "Find template details by id")
   @GET
   @Timed
   @Path("/{id}/details")
@@ -85,8 +78,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     return executeResourceGetDetailsByProxy(CedarNodeType.TEMPLATE, id, c);
   }
 
-  @ApiOperation(
-      value = "Update template")
   @PUT
   @Timed
   @Path("/{id}")
@@ -99,8 +90,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     return executeResourcePutByProxy(CedarNodeType.TEMPLATE, id, c);
   }
 
-  @ApiOperation(
-      value = "Delete template")
   @DELETE
   @Timed
   @Path("/{id}")
@@ -113,8 +102,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     return executeResourceDeleteByProxy(CedarNodeType.TEMPLATE, id, c);
   }
 
-  @ApiOperation(
-      value = "Get permissions of a template")
   @GET
   @Timed
   @Path("/{id}/permissions")
@@ -127,8 +114,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     return executeResourcePermissionGetByProxy(id, c);
   }
 
-  @ApiOperation(
-      value = "Update template permissions")
   @PUT
   @Timed
   @Path("/{id}/permissions")

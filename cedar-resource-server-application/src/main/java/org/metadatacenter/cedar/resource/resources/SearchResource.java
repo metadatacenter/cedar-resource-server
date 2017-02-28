@@ -31,43 +31,12 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/search", description = "Search for resources")
 public class SearchResource extends AbstractResourceServerResource {
 
   public SearchResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
 
-
-  @ApiOperation(
-      value = "Search for resources")
-  @ApiResponses(value = {
-      @ApiResponse(code = 200, message = "Success!"),
-      @ApiResponse(code = 400, message = "Bad Request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 500, message = "Internal Server Error")})
-
-  @ApiImplicitParams(value = {
-      @ApiImplicitParam(name = "Authorization", value = "Authorization header. Format: 'apiKey {your_apiKey}'. " +
-          "Example: 'apiKey eb110fac-4970-492a-87b7-ccbfac4f31cc'", required = true, dataType = "string", paramType =
-          "header"),
-      @ApiImplicitParam(name = "q", value = "Search query. Example: 'q=investigation'", required = true, dataType =
-          "string", paramType = "query"),
-      @ApiImplicitParam(name = "resource_types", value = "Comma-separated list of resource types. Allowed values: " +
-          "{template, element, field, instance, folder}. Example: 'resource_types=template,element'. If template_id " +
-          "is provided, resource_types is automatically set to 'instance'", required = false, dataType = "string",
-          paramType = "query"),
-      @ApiImplicitParam(name = "template_id", value = "Template identifier. Example: 'template_id=https://repo" +
-          ".metadatacenter.net/templates/432db060-8ac1-4f26-9e5b-082e563d8e34'. If this parameter is provided, all " +
-          "instances for the given template will be returned", required = false, dataType = "string", paramType =
-          "query"),
-      @ApiImplicitParam(name = "sort", value = "Sort by. Example: 'sort=createdOnTS'. The '-' prefix may be used to " +
-          "apply inverse sorting", allowableValues = "name,createdOnTS,lastUpdatedOnTS,-name,-createdOnTS," +
-          "-lastUpdatedOnTS", defaultValue = "name", required = false, dataType = "string", paramType = "query"),
-      @ApiImplicitParam(name = "limit", value = "Maximum number of resources to be retrieved", defaultValue = "50",
-          required = false, dataType = "int", paramType = "query"),
-      @ApiImplicitParam(name = "offset", value = "Offset", defaultValue = "0", required = false, dataType = "int",
-          paramType = "query")})
   @GET
   @Timed
   @Path("/search")
