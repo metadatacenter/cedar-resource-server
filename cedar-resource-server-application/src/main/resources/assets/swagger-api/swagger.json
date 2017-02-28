@@ -53,6 +53,15 @@
                 }
             }
         },
+        "ok_template": {
+            "description": "A template",
+            "schema": {
+                "type": "object",
+                "items": {
+                    "$ref": "#/definitions/Template"
+                }
+            }
+        },
         "created_folder": {
             "description": "A folder",
             "schema": {
@@ -77,6 +86,15 @@
                 "type": "object",
                 "items": {
                     "$ref": "#/definitions/TemplateInstance"
+                }
+            }
+        },
+        "created_template": {
+            "description": "A template",
+            "schema": {
+                "type": "object",
+                "items": {
+                    "$ref": "#/definitions/Template"
                 }
             }
         },
@@ -161,6 +179,34 @@
             "description": "Template Instance identifier. Example&#58; https://repo.metadatacenter.net/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e",
             "type": "string",
             "required": true
+        },
+        "template_id": {
+            "name": "template_id",
+            "in": "path",
+            "description": "Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+            "type": "string",
+            "required": true
+        },
+        "q": {
+            "name": "q",
+            "in": "query",
+            "description": "Search term. It will be looked up in the resource names",
+            "type": "string",
+            "required": false
+        },
+        "derived_from_id": {
+            "name": "derived_from_id",
+            "in": "query",
+            "description": "Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e\nAll the instances with this template id will be returned\n",
+            "type": "string",
+            "required": false
+        },
+        "sharing": {
+            "name": "sharing",
+            "in": "query",
+            "description": "Sharing modifier for the search.\nOnly the value 'shared-with-me' is currently supported.\n",
+            "type": "string",
+            "required": false
         }
     },
     "paths": {
@@ -521,7 +567,7 @@
                 "summary": "Get a template element",
                 "description": "Get a template element.\n",
                 "tags": [
-                    "Template elements"
+                    "Template Elements"
                 ],
                 "security": [
                     {
@@ -558,7 +604,7 @@
                 "summary": "Update a template element",
                 "description": "Update a template element.\n",
                 "tags": [
-                    "Template elements"
+                    "Template Elements"
                 ],
                 "security": [
                     {
@@ -595,7 +641,7 @@
                 "summary": "Delete a template element",
                 "description": "Delete a template element.\n",
                 "tags": [
-                    "Template elements"
+                    "Template Elements"
                 ],
                 "security": [
                     {
@@ -634,7 +680,7 @@
                 "summary": "Create a template element",
                 "description": "Create a template element.\n",
                 "tags": [
-                    "Template elements"
+                    "Template Elements"
                 ],
                 "security": [
                     {
@@ -673,9 +719,9 @@
                 "summary": "Get permissions of a template element",
                 "description": "Get permissions of a template element.\n",
                 "tags": [
-                    "Template elements",
+                    "Template Elements",
                     "Permissions",
-                    "Template element Permissions"
+                    "Template Element Permissions"
                 ],
                 "security": [
                     {
@@ -712,9 +758,9 @@
                 "summary": "Update permissions of a template element",
                 "description": "Update permissions of a template element.\n",
                 "tags": [
-                    "Template elements",
+                    "Template Elements",
                     "Permissions",
-                    "Template element Permissions"
+                    "Template Element Permissions"
                 ],
                 "security": [
                     {
@@ -753,7 +799,7 @@
                 "summary": "Get a template instance",
                 "description": "Get a template instance.\n",
                 "tags": [
-                    "Template instances"
+                    "Template Instances"
                 ],
                 "security": [
                     {
@@ -790,7 +836,7 @@
                 "summary": "Update a template instance",
                 "description": "Update a template instance.\n",
                 "tags": [
-                    "Template instances"
+                    "Template Instances"
                 ],
                 "security": [
                     {
@@ -827,7 +873,7 @@
                 "summary": "Delete a template instance",
                 "description": "Delete a template instance.\n",
                 "tags": [
-                    "Template instances"
+                    "Template Instances"
                 ],
                 "security": [
                     {
@@ -866,7 +912,7 @@
                 "summary": "Create a template instance",
                 "description": "Create a template instance.\n",
                 "tags": [
-                    "Template instances"
+                    "Template Instances"
                 ],
                 "security": [
                     {
@@ -905,9 +951,9 @@
                 "summary": "Get permissions of a template instance",
                 "description": "Get permissions of a template instance.\n",
                 "tags": [
-                    "Template instances",
+                    "Template Instances",
                     "Permissions",
-                    "Template instance Permissions"
+                    "Template Instance Permissions"
                 ],
                 "security": [
                     {
@@ -944,9 +990,9 @@
                 "summary": "Update permissions of a template instance",
                 "description": "Update permissions of a template instance.\n",
                 "tags": [
-                    "Template instances",
+                    "Template Instances",
                     "Permissions",
-                    "Template instance Permissions"
+                    "Template Instance Permissions"
                 ],
                 "security": [
                     {
@@ -956,6 +1002,356 @@
                 "parameters": [
                     {
                         "$ref": "#/parameters/template_instance_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/templates/{template_id}": {
+            "get": {
+                "summary": "Get a template",
+                "description": "Get a template.\n",
+                "tags": [
+                    "Templates"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok_template"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update a template",
+                "description": "Update a template.\n",
+                "tags": [
+                    "Templates"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok_template"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete a template",
+                "description": "Delete a template.\n",
+                "tags": [
+                    "Templates"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_id"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "$ref": "#/responses/no_content"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/templates": {
+            "post": {
+                "summary": "Create a template",
+                "description": "Create a template.\n",
+                "tags": [
+                    "Templates"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/qs_folder_id"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "$ref": "#/responses/created_template"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/templates/{template_id}/permissions": {
+            "get": {
+                "summary": "Get permissions of a template",
+                "description": "Get permissions of a template.\n",
+                "tags": [
+                    "Templates",
+                    "Permissions",
+                    "Template Permissions"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update permissions of a template",
+                "description": "Update permissions of a template.\n",
+                "tags": [
+                    "Templates",
+                    "Permissions",
+                    "Template Permissions"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/template_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/search": {
+            "get": {
+                "summary": "Search resources",
+                "description": "Search resources using different criteria\n",
+                "tags": [
+                    "Search",
+                    "Templates",
+                    "Template Elements",
+                    "Template Instances",
+                    "Folders",
+                    "Folder contents"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/q"
+                    },
+                    {
+                        "$ref": "#/parameters/derived_from_id"
+                    },
+                    {
+                        "$ref": "#/parameters/sort"
+                    },
+                    {
+                        "$ref": "#/parameters/limit"
+                    },
+                    {
+                        "$ref": "#/parameters/offset"
+                    },
+                    {
+                        "$ref": "#/parameters/sharing"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "$ref": "#/responses/ok"
+                    },
+                    "400": {
+                        "$ref": "#/responses/bad_request"
+                    },
+                    "401": {
+                        "$ref": "#/responses/unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/responses/forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/responses/not_found"
+                    },
+                    "500": {
+                        "$ref": "#/responses/internal_error"
+                    }
+                }
+            }
+        },
+        "/search-deep": {
+            "get": {
+                "summary": "Search resources",
+                "description": "Search resources using different criteria\nThis call can go further than 10.000 resources. It is not intended for everyday use.\n",
+                "tags": [
+                    "Search",
+                    "Templates",
+                    "Template Elements",
+                    "Template Instances",
+                    "Folders",
+                    "Folder contents"
+                ],
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/parameters/q"
+                    },
+                    {
+                        "$ref": "#/parameters/derived_from_id"
+                    },
+                    {
+                        "$ref": "#/parameters/sort"
+                    },
+                    {
+                        "$ref": "#/parameters/limit"
+                    },
+                    {
+                        "$ref": "#/parameters/offset"
+                    },
+                    {
+                        "$ref": "#/parameters/sharing"
                     }
                 ],
                 "responses": {
@@ -1051,6 +1447,15 @@
                 "@id": {
                     "type": "string",
                     "description": "Unique URL identifier representing a specific template instance."
+                }
+            }
+        },
+        "Template": {
+            "type": "object",
+            "properties": {
+                "@id": {
+                    "type": "string",
+                    "description": "Unique URL identifier representing a specific template."
                 }
             }
         }

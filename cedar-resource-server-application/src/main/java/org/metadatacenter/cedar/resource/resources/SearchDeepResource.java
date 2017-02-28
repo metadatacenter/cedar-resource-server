@@ -35,11 +35,6 @@ public class SearchDeepResource extends AbstractResourceServerResource {
     super(cedarConfig);
   }
 
-
-  @ApiOperation(
-      value = "Search for resources. This call is not paged and is not intended for real time user requests, but " +
-          "rather" +
-          " for processing large amounts of data.", httpMethod = "GET")
   @GET
   @Timed
   @Path("/search-deep")

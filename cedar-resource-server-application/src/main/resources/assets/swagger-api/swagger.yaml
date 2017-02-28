@@ -45,6 +45,12 @@ responses:
       type: object
       items:
         $ref: '#/definitions/TemplateInstance'
+  ok_template: #200
+    description: A template
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/Template'
   created_folder: #201
     description: A folder
     schema:
@@ -63,6 +69,12 @@ responses:
       type: object
       items:
         $ref: '#/definitions/TemplateInstance'
+  created_template: #201
+    description: A template
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/Template'
   no_content: #204
     description: Successful operation (no content)
   bad_request: #400
@@ -138,6 +150,35 @@ parameters:
     description: Template Instance identifier. Example&#58; https://repo.metadatacenter.net/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e
     type: string
     required: true
+  template_id:
+    name: template_id
+    in: path
+    description: Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e
+    type: string
+    required: true
+  q:
+    name: q
+    in: query
+    description: Search term. It will be looked up in the resource names
+    type: string
+    required: false
+  derived_from_id:
+    name: derived_from_id
+    in: query
+    description: |
+      Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e
+      All the instances with this template id will be returned
+    type: string
+    required: false
+  sharing:
+    name: sharing
+    in: query
+    description: |
+      Sharing modifier for the search.
+      Only the value 'shared-with-me' is currently supported.
+    type: string
+    required: false
+
 ################################################################################
 #                              Paths                                           #
 ################################################################################
@@ -366,7 +407,7 @@ paths:
       description: |
         Get a template element.
       tags:
-        - Template elements
+        - Template Elements
       security:
         - api_key: []
       parameters:
@@ -389,7 +430,7 @@ paths:
       description: |
         Update a template element.
       tags:
-        - Template elements
+        - Template Elements
       security:
         - api_key: []
       parameters:
@@ -412,7 +453,7 @@ paths:
       description: |
         Delete a template element.
       tags:
-        - Template elements
+        - Template Elements
       security:
         - api_key: []
       parameters:
@@ -436,7 +477,7 @@ paths:
       description: |
         Create a template element.
       tags:
-        - Template elements
+        - Template Elements
       security:
         - api_key: []
       parameters:
@@ -460,9 +501,9 @@ paths:
       description: |
         Get permissions of a template element.
       tags:
-        - Template elements
+        - Template Elements
         - Permissions
-        - Template element Permissions
+        - Template Element Permissions
       security:
         - api_key: []
       parameters:
@@ -485,9 +526,9 @@ paths:
       description: |
         Update permissions of a template element.
       tags:
-        - Template elements
+        - Template Elements
         - Permissions
-        - Template element Permissions
+        - Template Element Permissions
       security:
         - api_key: []
       parameters:
@@ -511,7 +552,7 @@ paths:
       description: |
         Get a template instance.
       tags:
-        - Template instances
+        - Template Instances
       security:
         - api_key: []
       parameters:
@@ -534,7 +575,7 @@ paths:
       description: |
         Update a template instance.
       tags:
-        - Template instances
+        - Template Instances
       security:
         - api_key: []
       parameters:
@@ -557,7 +598,7 @@ paths:
       description: |
         Delete a template instance.
       tags:
-        - Template instances
+        - Template Instances
       security:
         - api_key: []
       parameters:
@@ -581,7 +622,7 @@ paths:
       description: |
         Create a template instance.
       tags:
-        - Template instances
+        - Template Instances
       security:
         - api_key: []
       parameters:
@@ -605,9 +646,9 @@ paths:
       description: |
         Get permissions of a template instance.
       tags:
-        - Template instances
+        - Template Instances
         - Permissions
-        - Template instance Permissions
+        - Template Instance Permissions
       security:
         - api_key: []
       parameters:
@@ -630,9 +671,9 @@ paths:
       description: |
         Update permissions of a template instance.
       tags:
-        - Template instances
+        - Template Instances
         - Permissions
-        - Template instance Permissions
+        - Template Instance Permissions
       security:
         - api_key: []
       parameters:
@@ -649,7 +690,221 @@ paths:
         404:
           $ref: '#/responses/not_found'
         500:
+          $ref: '#/responses/internal_error'
+  /templates/{template_id}:
+    get:
+      summary: Get a template
+      description: |
+        Get a template.
+      tags:
+        - Templates
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_template'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update a template
+      description: |
+        Update a template.
+      tags:
+        - Templates
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_template'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    delete:
+      summary: Delete a template
+      description: |
+        Delete a template.
+      tags:
+        - Templates
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_id'
+      responses:
+        204:
+          $ref: '#/responses/no_content'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /templates:
+    post:
+      summary: Create a template
+      description: |
+        Create a template.
+      tags:
+        - Templates
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/qs_folder_id'
+      responses:
+        201:
+          $ref: '#/responses/created_template'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /templates/{template_id}/permissions:
+    get:
+      summary: Get permissions of a template
+      description: |
+        Get permissions of a template.
+      tags:
+        - Templates
+        - Permissions
+        - Template Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update permissions of a template
+      description: |
+        Update permissions of a template.
+      tags:
+        - Templates
+        - Permissions
+        - Template Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
           $ref: '#/responses/internal_error'  
+  /search:
+    get:
+      summary: Search resources
+      description: |
+        Search resources using different criteria
+      tags:
+        - Search
+        - Templates
+        - Template Elements
+        - Template Instances
+        - Folders
+        - Folder contents
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/q'
+        - $ref: '#/parameters/derived_from_id'
+        - $ref: '#/parameters/sort'
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/offset'
+        - $ref: '#/parameters/sharing'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /search-deep:
+    get:
+      summary: Search resources
+      description: |
+        Search resources using different criteria
+        This call can go further than 10.000 resources. It is not intended for everyday use.
+      tags:
+        - Search
+        - Templates
+        - Template Elements
+        - Template Instances
+        - Folders
+        - Folder contents
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/q'
+        - $ref: '#/parameters/derived_from_id'
+        - $ref: '#/parameters/sort'
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/offset'
+        - $ref: '#/parameters/sharing'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
 definitions:
   User:
     type: object
@@ -702,3 +957,9 @@ definitions:
       '@id':
         type: string
         description: Unique URL identifier representing a specific template instance.
+  Template:
+    type: object
+    properties:
+      '@id':
+        type: string
+        description: Unique URL identifier representing a specific template.
