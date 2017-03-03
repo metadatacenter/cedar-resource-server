@@ -25,6 +25,7 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
 import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.user.CedarSuperRole;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserExtract;
 import org.metadatacenter.server.security.model.user.CedarUserRole;
@@ -413,8 +414,7 @@ public class CommandResource extends AbstractResourceServerResource {
       return existingUser;
     }
 
-    List<CedarUserRole> roles = null;
-    CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig, eventUser, null, roles);
+    CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig, eventUser, null, CedarSuperRole.NORMAL);
 
     try {
       CedarUser u = userService.createUser(user);
