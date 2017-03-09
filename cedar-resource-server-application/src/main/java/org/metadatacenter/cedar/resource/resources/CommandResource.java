@@ -28,7 +28,6 @@ import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarSuperRole;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserExtract;
-import org.metadatacenter.server.security.model.user.CedarUserRole;
 import org.metadatacenter.server.security.util.CedarUserUtil;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.util.http.CedarResponse;
@@ -46,7 +45,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
-import java.util.List;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
@@ -390,7 +388,7 @@ public class CommandResource extends AbstractResourceServerResource {
           CedarUser user = createUserRelatedObjects(userService, targetUser);
           CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
           createHomeFolderAndUser(userContext);
-          updateHomeFolderPath(userContext, userService, user);
+          updateHomeFolderId(userContext, userService, user);
         }
       } catch (Exception e) {
         throw new CedarProcessingException(e);
@@ -424,12 +422,10 @@ public class CommandResource extends AbstractResourceServerResource {
     }
   }
 
-  private void updateHomeFolderPath(CedarRequestContext cedarRequestContext, UserService userService,
-                                    CedarUser user) {
+  private void updateHomeFolderId(CedarRequestContext cedarRequestContext, UserService userService, CedarUser user) {
     FolderServiceSession neoSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
 
-    String homeFolderPath = neoSession.getHomeFolderPath();
-    FolderServerFolder userHomeFolder = neoSession.findFolderByPath(homeFolderPath);
+    FolderServerFolder userHomeFolder = neoSession.findHomeFolderOf();
 
     if (userHomeFolder != null) {
       user.setHomeFolderId(userHomeFolder.getId());

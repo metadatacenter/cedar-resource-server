@@ -23,8 +23,8 @@ import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.jsonld.LinkedDataUtil;
 import org.metadatacenter.server.search.IndexedDocumentId;
-import org.metadatacenter.server.search.elasticsearch.document.IndexingDocumentNode;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.NodePermission;
@@ -35,11 +35,7 @@ import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
@@ -62,6 +58,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected final String usersBase;
   protected final String groupsURL;
   protected final String usersURL;
+  protected final LinkedDataUtil linkedDataUtil;
 
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -70,6 +67,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     usersBase = cedarConfig.getServers().getUser().getUsersBase();
     groupsURL = cedarConfig.getServers().getFolder().getGroups();
     usersURL = cedarConfig.getServers().getFolder().getUsers();
+    linkedDataUtil = cedarConfig.getLinkedDataUtil();
   }
 
   public static void injectServices(NodeIndexingService nodeIndexingService,
