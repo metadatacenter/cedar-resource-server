@@ -415,8 +415,7 @@ public class CommandResource extends AbstractResourceServerResource {
     CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig.getBlueprintUserProfile(), eventUser,
         CedarSuperRole.NORMAL);
     try {
-      CedarUser u = userService.createUser(user);
-      return u;
+      return userService.createUser(user);
     } catch (IOException e) {
       throw new CedarProcessingException(e);
     }
