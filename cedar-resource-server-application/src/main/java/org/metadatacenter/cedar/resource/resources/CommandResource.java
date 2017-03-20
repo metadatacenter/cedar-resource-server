@@ -90,6 +90,13 @@ public class CommandResource extends AbstractResourceServerResource {
           .build();
     }
 
+    if (nodeType == CedarNodeType.FOLDER) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.FOLDER_COPY_NOT_ALLOWED)
+          .errorMessage("Folder copy is not allowed")
+          .build();
+    }
+
     CedarPermission permission1 = null;
     CedarPermission permission2 = null;
     switch (nodeType) {
