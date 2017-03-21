@@ -2,7 +2,6 @@ package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
-import io.swagger.annotations.*;
 import org.apache.http.HttpResponse;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
