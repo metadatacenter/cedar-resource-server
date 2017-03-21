@@ -40,6 +40,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
+
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
@@ -289,18 +291,28 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return description;
   }
 
-  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id, CedarRequestContext context) throws
-      CedarProcessingException {
+  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id,
+                                               CedarRequestContext context) throws CedarProcessingException {
+    return executeResourceGetByProxy(nodeType, id, Optional.empty(), context);
+  }
+
+  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id, Optional<String> format,
+                                               CedarRequestContext context) throws CedarProcessingException {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
+      if (format.isPresent()) {
+        url += "?" + QP_FORMAT + "=" + format.get();
+      }
+      // parameter
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      String mediaType = entity.getContentType().getValue();
       if (entity != null) {
-        return Response.status(statusCode).entity(entity.getContent()).build();
+        return Response.status(statusCode).type(mediaType).entity(entity.getContent()).build();
       } else {
-        return Response.status(statusCode).build();
+        return Response.status(statusCode).type(mediaType).build();
       }
     } catch (Exception e) {
       throw new CedarProcessingException(e);
