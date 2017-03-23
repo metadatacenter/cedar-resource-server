@@ -8,11 +8,10 @@ branches:
   - develop
   - master
 notifications:
-  email:
-    recipients:
-    - cedar-core-developers@lists.stanford.edu
-    on_success: never
+  slack:
+    on_success: change
     on_failure: always
+    secure: tiUFZ3HRL9tBqBZQLbh2DMFiKYzW/6El0AyJTTkF5c9YcfS1NDwezmDl25iPBxZWi/BTv0vBjAQZmdVYIRZVEJX1iQ30ZE3Pwit4PUK29HbhGnoCzmL+Tx3052B2kfUUuQ9dZ6UKnKq15x+pvVMOw7DBUxc9UHJukI3rOINP3N71PwIRifi5pPzyQWEC4heBlfEq958cMspdsgQ+XZ/SgjYryv25cs9ZVgNjEJPg+wFoNOSoQC/x/QuI66qd5GZp8HETldxlDGvM/G9w3n6ttW55/e09/VyOEvMTTSar7U6Bf8RJw0gejvcOpkny7yPdKqvdNK8DFAqEoT8ZDoaCGpNkBwA+H30gILIOCE6MueA4323pNyObX9EATs1bqvbbitUHNk0iAiNu1tEVv+Xb60KDD2rFk1LZ95Ya6SW8X/MUFxHH8AGpxbLB46bIg8gJ5mANghs4pD28KGWBMAoKfLk2g7b+A+MKi15zetdZcorak7JI1u03jXWLiwXYsJ2EBEgFQiqlhcjxEEBAqHRf//T9W0p3C3sA17sSJ7mo8LGYmpObDeueZxqtq/6F/+st8LoAX6WjzFI26sM0wuhQH1cdwhv2w1B8dsRC96Um8oC9lkRPwR9LSImjyJEgLaiTwrlS14XPmIpnRVSkP1VF00Kiz+5XuAjfi/es1bjHBog=
 install: '[ ${TRAVIS_PULL_REQUEST} = ''false'' ] && mvn -DskipTests=false clean deploy
   --settings .m2/travis-settings.xml'
 script: '[ ${TRAVIS_PULL_REQUEST} = ''false'' ] && mvn -DskipTests=true clean --settings
