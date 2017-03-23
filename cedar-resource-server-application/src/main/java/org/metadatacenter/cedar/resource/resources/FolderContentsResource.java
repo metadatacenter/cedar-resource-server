@@ -26,32 +26,6 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     super(cedarConfig);
   }
 
-/*  @GET
-  @Timed
-  @Path("/contents")
-  public Response findFolderContentsByPath(@QueryParam(QP_PATH) Optional<String> pathParam,
-                                           @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
-                                           @QueryParam(QP_SORT) Optional<String> sort,
-                                           @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-                                           @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws
-      CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
-    c.must(c.user()).be(LoggedIn);
-
-    CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
-        .queryParam(QP_PATH, pathParam)
-        .queryParam(QP_RESOURCE_TYPES, resourceTypes)
-        .queryParam(QP_SORT, sort)
-        .queryParam(QP_LIMIT, limitParam)
-        .queryParam(QP_OFFSET, offsetParam);
-
-    String url = builder.getProxyUrl(folderBase);
-
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-    return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
-  }*/
-
   @GET
   @Timed
   @Path("/{id}/contents")

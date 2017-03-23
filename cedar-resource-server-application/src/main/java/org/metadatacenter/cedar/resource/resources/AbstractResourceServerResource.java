@@ -27,6 +27,7 @@ import org.metadatacenter.server.jsonld.LinkedDataUtil;
 import org.metadatacenter.server.search.IndexedDocumentId;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -461,7 +462,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
           .parameter("folderId", folderId);
     }
-    if (fsFolder.currentUserCan(NodePermission.READ)) {
+    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsFolder.currentUserCan(NodePermission
+        .READ)) {
       return fsFolder;
     } else {
       throw new CedarPermissionException("You do not have read access to the folder")
@@ -479,7 +481,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
           .parameter("folderId", folderId);
     }
-    if (fsFolder.currentUserCan(NodePermission.WRITE)) {
+    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsFolder.currentUserCan(NodePermission
+        .WRITE)) {
       return fsFolder;
     } else {
       throw new CedarPermissionException("You do not have write access to the folder")
@@ -497,7 +500,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
           .parameter("resourceId", resourceId);
     }
-    if (fsResource.currentUserCan(NodePermission.READ)) {
+    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsResource.currentUserCan
+        (NodePermission.READ)) {
       return fsResource;
     } else {
       throw new CedarPermissionException("You do not have read access to the resource")
@@ -515,7 +519,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
           .parameter("resourceId", resourceId);
     }
-    if (fsResource.currentUserCan(NodePermission.WRITE)) {
+    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsResource.currentUserCan
+        (NodePermission.WRITE)) {
       return fsResource;
     } else {
       throw new CedarPermissionException("You do not have write access to the resource")
