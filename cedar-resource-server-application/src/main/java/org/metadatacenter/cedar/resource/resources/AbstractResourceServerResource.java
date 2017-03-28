@@ -23,10 +23,11 @@ import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.jsonld.LinkedDataUtil;
 import org.metadatacenter.server.search.IndexedDocumentId;
-import org.metadatacenter.server.search.elasticsearch.document.IndexingDocumentNode;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -35,14 +36,12 @@ import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
+
+import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
@@ -62,6 +61,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected final String usersBase;
   protected final String groupsURL;
   protected final String usersURL;
+  protected final LinkedDataUtil linkedDataUtil;
 
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -70,6 +70,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     usersBase = cedarConfig.getServers().getUser().getUsersBase();
     groupsURL = cedarConfig.getServers().getFolder().getGroups();
     usersURL = cedarConfig.getServers().getFolder().getUsers();
+    linkedDataUtil = cedarConfig.getLinkedDataUtil();
   }
 
   public static void injectServices(NodeIndexingService nodeIndexingService,
@@ -291,18 +292,28 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return description;
   }
 
-  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id, CedarRequestContext context) throws
-      CedarProcessingException {
+  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id,
+                                               CedarRequestContext context) throws CedarProcessingException {
+    return executeResourceGetByProxy(nodeType, id, Optional.empty(), context);
+  }
+
+  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id, Optional<String> format,
+                                               CedarRequestContext context) throws CedarProcessingException {
     try {
       String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
+      if (format.isPresent()) {
+        url += "?" + QP_FORMAT + "=" + format.get();
+      }
+      // parameter
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      String mediaType = entity.getContentType().getValue();
       if (entity != null) {
-        return Response.status(statusCode).entity(entity.getContent()).build();
+        return Response.status(statusCode).type(mediaType).entity(entity.getContent()).build();
       } else {
-        return Response.status(statusCode).build();
+        return Response.status(statusCode).type(mediaType).build();
       }
     } catch (Exception e) {
       throw new CedarProcessingException(e);
@@ -451,7 +462,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
           .parameter("folderId", folderId);
     }
-    if (fsFolder.currentUserCan(NodePermission.READ)) {
+    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsFolder.currentUserCan(NodePermission
+        .READ)) {
       return fsFolder;
     } else {
       throw new CedarPermissionException("You do not have read access to the folder")
@@ -469,7 +481,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
           .parameter("folderId", folderId);
     }
-    if (fsFolder.currentUserCan(NodePermission.WRITE)) {
+    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsFolder.currentUserCan(NodePermission
+        .WRITE)) {
       return fsFolder;
     } else {
       throw new CedarPermissionException("You do not have write access to the folder")
@@ -487,7 +500,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
           .parameter("resourceId", resourceId);
     }
-    if (fsResource.currentUserCan(NodePermission.READ)) {
+    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsResource.currentUserCan
+        (NodePermission.READ)) {
       return fsResource;
     } else {
       throw new CedarPermissionException("You do not have read access to the resource")
@@ -505,7 +519,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
           .parameter("resourceId", resourceId);
     }
-    if (fsResource.currentUserCan(NodePermission.WRITE)) {
+    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsResource.currentUserCan
+        (NodePermission.WRITE)) {
       return fsResource;
     } else {
       throw new CedarPermissionException("You do not have write access to the resource")

@@ -25,9 +25,9 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
 import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.user.CedarSuperRole;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserExtract;
-import org.metadatacenter.server.security.model.user.CedarUserRole;
 import org.metadatacenter.server.security.util.CedarUserUtil;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.util.http.CedarResponse;
@@ -45,7 +45,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
-import java.util.List;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
@@ -88,6 +87,13 @@ public class CommandResource extends AbstractResourceServerResource {
           .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
           .parameter("nodeType", nodeTypeString)
           .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
+          .build();
+    }
+
+    if (nodeType == CedarNodeType.FOLDER) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.FOLDER_COPY_NOT_ALLOWED)
+          .errorMessage("Folder copy is not allowed")
           .build();
     }
 
@@ -389,7 +395,7 @@ public class CommandResource extends AbstractResourceServerResource {
           CedarUser user = createUserRelatedObjects(userService, targetUser);
           CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
           createHomeFolderAndUser(userContext);
-          updateHomeFolderPath(userContext, userService, user);
+          updateHomeFolderId(userContext, userService, user);
         }
       } catch (Exception e) {
         throw new CedarProcessingException(e);
@@ -413,23 +419,19 @@ public class CommandResource extends AbstractResourceServerResource {
       return existingUser;
     }
 
-    List<CedarUserRole> roles = null;
-    CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig, eventUser, null, roles);
-
+    CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig.getBlueprintUserProfile(), eventUser,
+        CedarSuperRole.NORMAL);
     try {
-      CedarUser u = userService.createUser(user);
-      return u;
+      return userService.createUser(user);
     } catch (IOException e) {
       throw new CedarProcessingException(e);
     }
   }
 
-  private void updateHomeFolderPath(CedarRequestContext cedarRequestContext, UserService userService,
-                                    CedarUser user) {
+  private void updateHomeFolderId(CedarRequestContext cedarRequestContext, UserService userService, CedarUser user) {
     FolderServiceSession neoSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
 
-    String homeFolderPath = neoSession.getHomeFolderPath();
-    FolderServerFolder userHomeFolder = neoSession.findFolderByPath(homeFolderPath);
+    FolderServerFolder userHomeFolder = neoSession.findHomeFolderOf();
 
     if (userHomeFolder != null) {
       user.setHomeFolderId(userHomeFolder.getId());

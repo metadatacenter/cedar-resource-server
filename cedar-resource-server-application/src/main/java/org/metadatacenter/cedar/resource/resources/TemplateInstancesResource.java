@@ -1,8 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
@@ -19,9 +17,9 @@ import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_IMPORT_MODE;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
-import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/template-instances")
 @Produces(MediaType.APPLICATION_JSON)
@@ -55,13 +53,14 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}")
-  public Response findTemplateInstance(@PathParam(PP_ID) String id) throws CedarException {
+  public Response findTemplateInstance(@PathParam(PP_ID) String id, @QueryParam(QP_FORMAT) Optional<String> format)
+      throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxy(CedarNodeType.INSTANCE, id, c);
+    return executeResourceGetByProxy(CedarNodeType.INSTANCE, id, format, c);
   }
 
   @GET
