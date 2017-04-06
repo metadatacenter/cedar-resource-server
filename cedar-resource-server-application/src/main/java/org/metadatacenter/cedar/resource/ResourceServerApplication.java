@@ -7,6 +7,7 @@ import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.IndexRegenerator;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
+import org.metadatacenter.model.ServerName;
 import org.metadatacenter.server.cache.util.CacheService;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
@@ -21,8 +22,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
   }
 
   @Override
-  public String getName() {
-    return "cedar-resource-server";
+  protected ServerName getServerName() {
+    return ServerName.RESOURCE;
   }
 
   @Override

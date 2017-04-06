@@ -1,10 +1,8 @@
 server:
   applicationConnectors:
   - type: http 
-    port: 9007
   adminConnectors:
   - type: http
-    port: 9107
 logging:
   level: INFO
   loggers:
@@ -18,9 +16,9 @@ logging:
       timeZone: UTC
       target: stdout
     - type: file
-      currentLogFilename: ${CEDAR_HOME}/log/cedar-resource-server.log
+      currentLogFilename: ${CEDAR_HOME}/log/cedar-resource-server/dropwizard.log
       threshold: ALL
       archive: true
-      archivedLogFilenamePattern: ${CEDAR_HOME}/log/cedar-resource-server-%d.log
-      archivedFileCount: 5
+      archivedLogFilenamePattern: ${CEDAR_HOME}/log/cedar-resource-server/dropwizard-%d.log
+      archivedFileCount: 30
       timeZone: UTC
