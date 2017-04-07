@@ -40,12 +40,14 @@ import org.slf4j.LoggerFactory;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
 
+import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPES;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
@@ -55,6 +57,7 @@ public class CommandResource extends AbstractResourceServerResource {
   private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
 
   protected static final String MOVE_COMMAND = "command/move-node-to-folder";
+  protected static final String VALIDATE_COMMAND = "command/validate";
 
   private static UserService userService;
 
@@ -498,4 +501,30 @@ public class CommandResource extends AbstractResourceServerResource {
     return Response.ok().build();
   }
 
+  @POST
+  @Timed
+  @Path("/validate")
+  public Response validateResource(@QueryParam(QP_RESOURCE_TYPES) String resourceType) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+//    c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?
+
+    String url = String.format("%s%s?%s=%s", templateBase, VALIDATE_COMMAND, QP_RESOURCE_TYPES, resourceType);
+
+    try {
+      HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      return createServiceResponse(proxyResponse);
+    }
+    catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
+  }
+
+  private Response createServiceResponse(HttpResponse proxyResponse) throws IOException {
+    HttpEntity entity = proxyResponse.getEntity();
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    String mediaType = entity.getContentType().getValue();
+    return Response.status(statusCode).type(mediaType).entity(entity.getContent()).build();
+  }
 }
