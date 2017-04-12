@@ -9,9 +9,11 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.cluster.ClusterState;
 import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
@@ -231,12 +233,18 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                     .getEntity().getContent(), FolderServerResource.class);
                 createIndexResource(folderServerResource, templateJsonNode, context);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
-                return Response.created(location).entity(templateEntityContent).build();
+                return Response.created(location)
+                    .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(templateProxyResponse))
+                    .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT, getValidationReport(templateProxyResponse))
+                    .entity(templateEntityContent).build();
               } else {
                 return Response.ok().build();
               }
             } else {
-              return Response.status(resourceCreateStatusCode).entity(resourceEntity.getContent()).build();
+              return Response.status(resourceCreateStatusCode)
+                  .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(templateProxyResponse))
+                  .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT, getValidationReport(templateProxyResponse))
+                  .entity(resourceEntity.getContent()).build();
             }
           } else {
             return Response.status(resourceCreateStatusCode).build();
@@ -404,7 +412,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                 } else {
                   updateIndexResource(folderServerResource, templateJsonNode, context);
                 }
-                return Response.ok().entity(templateEntityContent).build();
+                return Response.ok()
+                    .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(templateProxyResponse))
+                    .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT, getValidationReport(templateProxyResponse))
+                    .entity(templateEntityContent).build();
               } else {
                 return Response.ok().build();
               }
@@ -424,6 +435,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
+  }
+
+  private String getValidationStatus(HttpResponse response) {
+    return response.getFirstHeader(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS).getValue();
+  }
+
+  private String getValidationReport(HttpResponse response) {
+    return response.getFirstHeader(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT).getValue();
   }
 
   protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
