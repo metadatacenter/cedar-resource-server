@@ -1,6 +1,5 @@
 package org.metadatacenter.cedar.resource;
 
-import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
@@ -27,7 +26,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
   }
 
   @Override
-  public void initializeApp(Bootstrap<ResourceServerConfiguration> bootstrap) {
+  public void initializeApp() {
     CedarDataServices.initializeFolderServices(cedarConfig);
 
     ElasticsearchServiceFactory esServiceFactory = ElasticsearchServiceFactory.getInstance(cedarConfig);
