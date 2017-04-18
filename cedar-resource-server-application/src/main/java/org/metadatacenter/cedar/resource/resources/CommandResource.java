@@ -394,7 +394,7 @@ public class CommandResource extends AbstractResourceServerResource {
         CedarUserExtract targetUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
 
         String clientId = event.getClientId();
-        if (!cedarConfig.getKeycloakConfig().getClientId().equals(clientId)) {
+        if (cedarConfig.getKeycloakConfig().getResource().equals(clientId)) {
           CedarUser user = createUserRelatedObjects(userService, targetUser);
           CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
           createHomeFolderAndUser(userContext);
