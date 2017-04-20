@@ -4,6 +4,7 @@ import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.jsonldjava.core.JsonLdError;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -19,6 +20,9 @@ import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerResource;
+import org.metadatacenter.model.request.OutputFormatType;
+import org.metadatacenter.model.request.OutputFormatTypeDetector;
+import org.metadatacenter.model.validation.JsonLdDocument;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
@@ -40,12 +44,15 @@ import org.slf4j.LoggerFactory;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
@@ -498,4 +505,48 @@ public class CommandResource extends AbstractResourceServerResource {
     return Response.ok().build();
   }
 
+  @POST
+  @Timed
+  @Path("/convert")
+  public Response convertResource(@QueryParam(QP_FORMAT) Optional<String> format) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+//    c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ); // XXX Need a permission to convert?
+
+    OutputFormatType formatType = OutputFormatTypeDetector.detectFormat(format);
+    JsonNode resourceNode = c.request().getRequestBody().asJson();
+
+    Response response = doConvert(resourceNode, formatType);
+    return response;
+  }
+
+  private static Response doConvert(JsonNode resourceNode, OutputFormatType formatType) throws CedarException {
+    Object responseObject = null;
+    String mediaType = null;
+    if (formatType == OutputFormatType.JSONLD) {
+      responseObject = resourceNode;
+      mediaType = MediaType.APPLICATION_JSON;
+    } else if (formatType == OutputFormatType.JSON) {
+      responseObject = getJsonString(resourceNode);
+      mediaType = MediaType.APPLICATION_JSON;
+    } else if (formatType == OutputFormatType.RDF_NQUAD) {
+      responseObject = getRdfString(resourceNode);
+      mediaType = "application/n-quads";
+    } else {
+      throw new CedarException("Programming error: no handler is programmed for format type: " + formatType) {};
+    }
+    return Response.ok(responseObject, mediaType).build();
+  }
+
+  private static JsonNode getJsonString(JsonNode resourceNode) {
+    return new JsonLdDocument(resourceNode).asJson();
+  }
+
+  private static String getRdfString(JsonNode resourceNode) throws CedarException {
+    try {
+      return new JsonLdDocument(resourceNode).asRdf();
+    } catch (JsonLdError e) {
+      throw new CedarProcessingException("Error while converting the instance to RDF", e);
+    }
+  }
 }
