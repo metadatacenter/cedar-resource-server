@@ -53,7 +53,7 @@ import java.net.URI;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
-import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPES;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPE;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
@@ -552,18 +552,21 @@ public class CommandResource extends AbstractResourceServerResource {
     }
   }
 
+  @POST
+  @Timed
   @Path("/validate")
-  public Response validateResource(@QueryParam(QP_RESOURCE_TYPES) String resourceType) throws CedarException {
+  public Response validateResource(@QueryParam(QP_RESOURCE_TYPE) String resourceType) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 //    c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?
 
-    String url = String.format("%s%s?%s=%s", templateBase, VALIDATE_COMMAND, QP_RESOURCE_TYPES, resourceType);
+    String url = String.format("%s%s?%s=%s", templateBase, VALIDATE_COMMAND, QP_RESOURCE_TYPE, resourceType);
 
     try {
       HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      return createServiceResponse(proxyResponse);
+      Response response = createServiceResponse(proxyResponse);
+      return response;
     }
     catch (Exception e) {
       throw new CedarProcessingException(e);
