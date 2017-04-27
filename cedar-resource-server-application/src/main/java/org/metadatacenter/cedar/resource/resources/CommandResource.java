@@ -22,7 +22,7 @@ import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.request.OutputFormatType;
 import org.metadatacenter.model.request.OutputFormatTypeDetector;
-import org.metadatacenter.model.validation.JsonLdDocument;
+import org.metadatacenter.model.trimmer.JsonLdDocument;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
@@ -53,6 +53,7 @@ import java.net.URI;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPES;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
@@ -62,6 +63,7 @@ public class CommandResource extends AbstractResourceServerResource {
   private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
 
   protected static final String MOVE_COMMAND = "command/move-node-to-folder";
+  protected static final String VALIDATE_COMMAND = "command/validate";
 
   private static UserService userService;
 
@@ -548,5 +550,30 @@ public class CommandResource extends AbstractResourceServerResource {
     } catch (JsonLdError e) {
       throw new CedarProcessingException("Error while converting the instance to RDF", e);
     }
+  }
+
+  @Path("/validate")
+  public Response validateResource(@QueryParam(QP_RESOURCE_TYPES) String resourceType) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+//    c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?
+
+    String url = String.format("%s%s?%s=%s", templateBase, VALIDATE_COMMAND, QP_RESOURCE_TYPES, resourceType);
+
+    try {
+      HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      return createServiceResponse(proxyResponse);
+    }
+    catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
+  }
+
+  private Response createServiceResponse(HttpResponse proxyResponse) throws IOException {
+    HttpEntity entity = proxyResponse.getEntity();
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    String mediaType = entity.getContentType().getValue();
+    return Response.status(statusCode).type(mediaType).entity(entity.getContent()).build();
   }
 }
