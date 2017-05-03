@@ -409,7 +409,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                 } else {
                   updateIndexResource(folderServerResource, templateJsonNode, context);
                 }
-                return newResponseWithValidationHeader(Response.ok(), templateCurrentProxyResponse, templateEntityContent);
+                return newResponseWithValidationHeader(Response.ok(), templateProxyResponse, templateEntityContent);
               } else {
                 return Response.ok().build();
               }
