@@ -9,7 +9,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.cluster.ClusterState;
 import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
@@ -48,6 +47,9 @@ import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
+
+  private static final String ACCESS_CONTROL_EXPOSE_HEADERS = "Access-Control-Expose-Headers";
+
   protected static final String PREFIX_RESOURCES = "resources";
 
   protected static NodeIndexingService nodeIndexingService;
@@ -233,18 +235,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                     .getEntity().getContent(), FolderServerResource.class);
                 createIndexResource(folderServerResource, templateJsonNode, context);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
-                return Response.created(location)
-                    .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(templateProxyResponse))
-                    .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT, getValidationReport(templateProxyResponse))
-                    .entity(templateEntityContent).build();
+                return newResponseWithValidationHeader(Response.created(location), templateProxyResponse, templateEntityContent);
               } else {
                 return Response.ok().build();
               }
             } else {
-              return Response.status(resourceCreateStatusCode)
-                  .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(templateProxyResponse))
-                  .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT, getValidationReport(templateProxyResponse))
-                  .entity(resourceEntity.getContent()).build();
+              return newResponseWithValidationHeader(Response.status(resourceCreateStatusCode), templateProxyResponse,
+                  resourceEntity.getContent());
             }
           } else {
             return Response.status(resourceCreateStatusCode).build();
@@ -412,10 +409,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                 } else {
                   updateIndexResource(folderServerResource, templateJsonNode, context);
                 }
-                return Response.ok()
-                    .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(templateProxyResponse))
-                    .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT, getValidationReport(templateProxyResponse))
-                    .entity(templateEntityContent).build();
+                return newResponseWithValidationHeader(Response.ok(), templateCurrentProxyResponse, templateEntityContent);
               } else {
                 return Response.ok().build();
               }
@@ -437,12 +431,26 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private String getValidationStatus(HttpResponse response) {
+  private static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse proxyResponse,
+      Object responseContent) {
+    return responseBuilder
+        .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(proxyResponse))
+        .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT, getValidationReport(proxyResponse))
+        .header(ACCESS_CONTROL_EXPOSE_HEADERS, printCedarValidationHeaderList())
+        .entity(responseContent).build();
+  }
+
+  private static String getValidationStatus(HttpResponse response) {
     return response.getFirstHeader(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS).getValue();
   }
 
-  private String getValidationReport(HttpResponse response) {
+  private static String getValidationReport(HttpResponse response) {
     return response.getFirstHeader(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT).getValue();
+  }
+
+  private static String printCedarValidationHeaderList() {
+    return String.format("%s, %s",
+        CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT);
   }
 
   protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
