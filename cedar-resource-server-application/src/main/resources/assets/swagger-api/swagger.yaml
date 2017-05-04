@@ -178,6 +178,16 @@ parameters:
       Only the value 'shared-with-me' is currently supported.
     type: string
     required: false
+  format:
+    name: format
+    in: query
+    description: |
+      Output format type to display the content of the template instance.
+      The allowed values are: 'jsonld', 'json', 'rdf-nquad'
+    type: string
+    enum: [ "jsonld", "json", "rdf-nquad"]
+    required: false
+    default: jsonld
 
 ################################################################################
 #                              Paths                                           #
@@ -557,6 +567,7 @@ paths:
         - api_key: []
       parameters:
         - $ref: '#/parameters/template_instance_id'
+        - $ref: '#/parameters/format'
       responses:
         200:
           $ref: '#/responses/ok_template_instance'

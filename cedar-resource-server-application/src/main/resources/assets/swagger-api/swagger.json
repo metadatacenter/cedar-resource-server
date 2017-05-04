@@ -207,6 +207,19 @@
             "description": "Sharing modifier for the search.\nOnly the value 'shared-with-me' is currently supported.\n",
             "type": "string",
             "required": false
+        },
+        "format": {
+            "name": "format",
+            "in": "query",
+            "description": "Output format type to display the content of the template instance.\nThe allowed values are: 'jsonld', 'json', 'rdf-nquad'\n",
+            "type": "string",
+            "enum": [
+                "jsonld",
+                "json",
+                "rdf-nquad"
+            ],
+            "required": false,
+            "default": "jsonld"
         }
     },
     "paths": {
@@ -809,6 +822,9 @@
                 "parameters": [
                     {
                         "$ref": "#/parameters/template_instance_id"
+                    },
+                    {
+                        "$ref": "#/parameters/format"
                     }
                 ],
                 "responses": {

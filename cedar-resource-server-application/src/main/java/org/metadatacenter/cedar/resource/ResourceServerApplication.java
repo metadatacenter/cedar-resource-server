@@ -1,12 +1,12 @@
 package org.metadatacenter.cedar.resource;
 
-import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.IndexRegenerator;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
+import org.metadatacenter.model.ServerName;
 import org.metadatacenter.server.cache.util.CacheService;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
@@ -21,12 +21,12 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
   }
 
   @Override
-  public String getName() {
-    return "cedar-resource-server";
+  protected ServerName getServerName() {
+    return ServerName.RESOURCE;
   }
 
   @Override
-  public void initializeApp(Bootstrap<ResourceServerConfiguration> bootstrap) {
+  public void initializeApp() {
     CedarDataServices.initializeFolderServices(cedarConfig);
 
     ElasticsearchServiceFactory esServiceFactory = ElasticsearchServiceFactory.getInstance(cedarConfig);
