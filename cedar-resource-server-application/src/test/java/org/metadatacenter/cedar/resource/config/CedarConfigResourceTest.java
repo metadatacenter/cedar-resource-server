@@ -24,6 +24,8 @@ public class CedarConfigResourceTest {
 
     env.put(CedarEnvironmentVariable.CEDAR_NEO4J_USER_NAME.getName(), "name");
     env.put(CedarEnvironmentVariable.CEDAR_NEO4J_USER_PASSWORD.getName(), "password");
+    env.put(CedarEnvironmentVariable.CEDAR_NEO4J_HOST.getName(), "127.0.0.1");
+    env.put(CedarEnvironmentVariable.CEDAR_NEO4J_REST_PORT.getName(), "7474");
 
     env.put(CedarEnvironmentVariable.CEDAR_KEYCLOAK_CLIENT_ID.getName(), "cedar-angular-app");
 
