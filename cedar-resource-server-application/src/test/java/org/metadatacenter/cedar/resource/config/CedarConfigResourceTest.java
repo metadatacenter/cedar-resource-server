@@ -34,6 +34,9 @@ public class CedarConfigResourceTest {
     env.put(CedarEnvironmentVariable.CEDAR_MONGO_HOST.getName(), "localhost");
     env.put(CedarEnvironmentVariable.CEDAR_MONGO_PORT.getName(), "27017");
 
+    env.put(CedarEnvironmentVariable.CEDAR_REDIS_PERSISTENT_HOST.getName(), "127.0.0.1");
+    env.put(CedarEnvironmentVariable.CEDAR_REDIS_PERSISTENT_PORT.getName(), "6379");
+
     env.put(CedarEnvironmentVariable.CEDAR_SALT_API_KEY.getName(), "saltme");
 
     env.put(CedarEnvironmentVariable.CEDAR_ELASTICSEARCH_HOST.getName(), "127.0.0.1");
