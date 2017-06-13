@@ -63,7 +63,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected final String folderBase;
   protected final String templateBase;
   protected final String usersBase;
-  protected final String groupsURL;
   protected final String usersURL;
   protected final LinkedDataUtil linkedDataUtil;
 
@@ -72,7 +71,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     folderBase = cedarConfig.getServers().getFolder().getBase();
     templateBase = cedarConfig.getServers().getTemplate().getBase();
     usersBase = cedarConfig.getServers().getUser().getUsersBase();
-    groupsURL = cedarConfig.getServers().getFolder().getGroups();
     usersURL = cedarConfig.getServers().getFolder().getUsers();
     linkedDataUtil = cedarConfig.getLinkedDataUtil();
   }
