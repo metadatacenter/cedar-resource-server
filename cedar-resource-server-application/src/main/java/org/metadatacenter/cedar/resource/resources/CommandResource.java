@@ -23,6 +23,7 @@ import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.request.OutputFormatType;
 import org.metadatacenter.model.request.OutputFormatTypeDetector;
 import org.metadatacenter.model.trimmer.JsonLdDocument;
+import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
@@ -535,7 +536,8 @@ public class CommandResource extends AbstractResourceServerResource {
       responseObject = getRdfString(resourceNode);
       mediaType = "application/n-quads";
     } else {
-      throw new CedarException("Programming error: no handler is programmed for format type: " + formatType) {};
+      throw new CedarException("Programming error: no handler is programmed for format type: " + formatType) {
+      };
     }
     return Response.ok(responseObject, mediaType).build();
   }
@@ -567,8 +569,7 @@ public class CommandResource extends AbstractResourceServerResource {
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       Response response = createServiceResponse(proxyResponse);
       return response;
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
   }
@@ -579,4 +580,123 @@ public class CommandResource extends AbstractResourceServerResource {
     String mediaType = entity.getContentType().getValue();
     return Response.status(statusCode).type(mediaType).entity(entity.getContent()).build();
   }
+
+  @POST
+  @Timed
+  @Path("/rename-node")
+  public Response renameResource() throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+
+    CedarParameter nameParam = c.request().getRequestBody().get("name");
+    CedarParameter descriptionParam = c.request().getRequestBody().get("description");
+    CedarParameter nodeTypeParam = c.request().getRequestBody().get("nodeType");
+    CedarParameter idParam = c.request().getRequestBody().get("id");
+
+    String id = idParam.stringValue();
+    String nodeTypeString = nodeTypeParam.stringValue();
+    String name = null;
+    if (!nameParam.isEmpty()) {
+      name = nameParam.stringValue();
+    }
+    String description = null;
+    if (!descriptionParam.isEmpty()) {
+      description = descriptionParam.stringValue();
+    }
+
+    CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
+    if (nodeType == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
+          .parameter("nodeType", nodeTypeString)
+          .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
+          .build();
+    }
+
+    boolean isFolder = false;
+
+    CedarPermission permission = null;
+    switch (nodeType) {
+      case FIELD:
+        permission = CedarPermission.TEMPLATE_FIELD_UPDATE;
+        break;
+      case ELEMENT:
+        permission = CedarPermission.TEMPLATE_ELEMENT_UPDATE;
+        break;
+      case TEMPLATE:
+        permission = CedarPermission.TEMPLATE_UPDATE;
+        break;
+      case INSTANCE:
+        permission = CedarPermission.TEMPLATE_INSTANCE_UPDATE;
+        break;
+      case FOLDER:
+        permission = CedarPermission.FOLDER_UPDATE;
+        isFolder = true;
+        break;
+    }
+
+    if (permission == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
+          .errorMessage("Unknown node type:" + nodeTypeString)
+          .parameter("nodeType", nodeTypeString)
+          .build();
+    }
+
+    // Check read permission
+    c.must(c.user()).have(permission);
+
+    if (isFolder) {
+      return updateFolderNameAndDescriptionOnFolderServer(c, id);
+    } else {
+      String templateServerUrl = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
+      String folderServerUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
+
+      HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(templateServerUrl, c);
+      int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();
+      if (currentStatusCode != HttpStatus.SC_OK) {
+        // resource was not created
+        return generateStatusResponse(templateCurrentProxyResponse);
+      } else {
+        HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
+        if (currentTemplateEntity != null) {
+          try {
+            String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity);
+            JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
+            String currentName = extractNameFromResponseObject(nodeType, currentTemplateJsonNode);
+            String currentDescription = extractDescriptionFromResponseObject(nodeType, currentTemplateJsonNode);
+            boolean changeName = false;
+            boolean changeDescription = false;
+            if (name != null && !name.equals(currentName)) {
+              changeName = true;
+            }
+            if (description != null && !description.equals(currentDescription)) {
+              changeDescription = true;
+            }
+            if (changeName || changeDescription) {
+              if (changeName) {
+                updateNameInObject(nodeType, currentTemplateJsonNode, name);
+              }
+              if (changeDescription) {
+                updateDescriptionInObject(nodeType, currentTemplateJsonNode, description);
+              }
+              return executeResourcePutByProxy(nodeType, id, c, JsonMapper.MAPPER.writeValueAsString
+                  (currentTemplateJsonNode));
+            } else {
+              return CedarResponse.badRequest()
+                  .errorKey(CedarErrorKey.NOTHING_TO_DO)
+                  .errorMessage("The name and the description are unchanged. There is nothing to do!")
+                  .parameter("name", name)
+                  .parameter("description", description)
+                  .build();
+            }
+          } catch (IOException e) {
+            throw new CedarProcessingException(e);
+          }
+        }
+        return CedarResponse.internalServerError().build();
+      }
+    }
+  }
+
 }
