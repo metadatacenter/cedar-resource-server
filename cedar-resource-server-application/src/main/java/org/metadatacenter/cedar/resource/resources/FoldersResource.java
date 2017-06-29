@@ -17,6 +17,7 @@ import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
+import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
@@ -122,39 +123,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 
-    FolderServerFolder folderServerFolder = userMustHaveWriteAccessToFolder(c, id);
-    String oldName = folderServerFolder.getDisplayName();
-
-    String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
-
-    HttpResponse proxyResponse = ProxyUtil.proxyPut(url, c);
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    HttpEntity entity = proxyResponse.getEntity();
-    if (entity != null) {
-      try {
-        if (HttpStatus.SC_OK == statusCode) {
-          // update the folder on the index
-          FolderServerFolder folderServerFolderUpdated = JsonMapper.MAPPER.readValue(entity.getContent(),
-              FolderServerFolder.class);
-          String newName = folderServerFolderUpdated.getDisplayName();
-          if (oldName == null || !oldName.equals(newName)) {
-            indexRemoveDocument(id);
-            createIndexFolder(folderServerFolderUpdated, c);
-          } else {
-            updateIndexFolder(folderServerFolderUpdated, c);
-          }
-          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
-        } else {
-          return Response.status(statusCode).entity(entity.getContent()).build();
-        }
-      } catch (IOException e) {
-        throw new CedarProcessingException(e);
-      }
-    } else {
-      return Response.status(statusCode).build();
-    }
+    return updateFolderNameAndDescriptionOnFolderServer(c, id);
   }
 
   @DELETE
