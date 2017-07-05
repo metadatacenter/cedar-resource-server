@@ -108,9 +108,9 @@ parameters:
     in: query
     description: |
       Resource types as comma separated values.
-      The allowed values are: 'folder', 'field', 'element', 'template', 'instance'
+      The allowed values are: 'folder', 'element', 'template', 'instance'
     type: string
-    required: false
+    required: true
   sort:
     name: sort
     in: query
@@ -294,6 +294,13 @@ paths:
         - Folders
       security:
         - api_key: []
+      parameters:
+        - name: folder
+          in: body
+          description: The folder to be created
+          required: true
+          schema:
+            $ref: '#/definitions/Folder'
       responses:
         201:
           $ref: '#/responses/created_folder'
@@ -481,7 +488,7 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-  /template_elements:
+  /template-elements:
     post:
       summary: Create a template element
       description: |
@@ -491,6 +498,12 @@ paths:
       security:
         - api_key: []
       parameters:
+        - name: template_element
+          in: body
+          description: The template element to be created
+          required: true
+          schema:
+            $ref: '#/definitions/TemplateElement'
         - $ref: '#/parameters/qs_folder_id'
       responses:
         201:
@@ -505,7 +518,7 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-  /template_elements/{template_element_id}/permissions:
+  /template-elements/{template_element_id}/permissions:
     get:
       summary: Get permissions of a template element
       description: |
@@ -627,7 +640,7 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-  /template_instances:
+  /template-instances:
     post:
       summary: Create a template instance
       description: |
@@ -637,6 +650,12 @@ paths:
       security:
         - api_key: []
       parameters:
+        - name: template_instance
+          in: body
+          description: The template instance to be created
+          required: true
+          schema:
+            $ref: '#/definitions/TemplateInstance'
         - $ref: '#/parameters/qs_folder_id'
       responses:
         201:
@@ -651,7 +670,7 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-  /template_instances/{template_instance_id}/permissions:
+  /template-instances/{template_instance_id}/permissions:
     get:
       summary: Get permissions of a template instance
       description: |
@@ -782,6 +801,12 @@ paths:
       security:
         - api_key: []
       parameters:
+        - name: template
+          in: body
+          description: The template to be created
+          required: true
+          schema:
+            $ref: '#/definitions/Template'
         - $ref: '#/parameters/qs_folder_id'
       responses:
         201:
@@ -846,7 +871,7 @@ paths:
         404:
           $ref: '#/responses/not_found'
         500:
-          $ref: '#/responses/internal_error'  
+          $ref: '#/responses/internal_error'
   /search:
     get:
       summary: Search resources
@@ -863,6 +888,7 @@ paths:
         - api_key: []
       parameters:
         - $ref: '#/parameters/q'
+        - $ref: '#/parameters/resource_types'
         - $ref: '#/parameters/derived_from_id'
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/limit'
@@ -885,7 +911,7 @@ paths:
     get:
       summary: Search resources
       description: |
-        Search resources using different criteria
+        Search resources using different criteria.
         This call can go further than 10.000 resources. It is not intended for everyday use.
       tags:
         - Search
@@ -898,6 +924,7 @@ paths:
         - api_key: []
       parameters:
         - $ref: '#/parameters/q'
+        - $ref: '#/parameters/resource_types'
         - $ref: '#/parameters/derived_from_id'
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/limit'
