@@ -1,1479 +1,1523 @@
 {
-    "swagger": "2.0",
-    "info": {
-        "title": "CEDAR Resource Server API",
-        "description": "Better Metadata - Better Science",
-        "version": "1.0.0"
-    },
-    "schemes": [
-        "https"
-    ],
-    "consumes": [
-        "application/json"
-    ],
-    "produces": [
-        "application/json"
-    ],
-    "securityDefinitions": {
-        "api_key": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "description": "Your CEDAR API key, using the format 'apiKey &lt;yourApiKey&gt;'",
-            "in": "header"
-        }
-    },
-    "responses": {
-        "ok": {
-            "description": "Successful operation"
-        },
-        "ok_folder": {
-            "description": "A folder",
-            "schema": {
-                "type": "object",
-                "items": {
-                    "$ref": "#/definitions/Folder"
-                }
-            }
-        },
-        "ok_template_element": {
-            "description": "A template element",
-            "schema": {
-                "type": "object",
-                "items": {
-                    "$ref": "#/definitions/TemplateElement"
-                }
-            }
-        },
-        "ok_template_instance": {
-            "description": "A template instance",
-            "schema": {
-                "type": "object",
-                "items": {
-                    "$ref": "#/definitions/TemplateInstance"
-                }
-            }
-        },
-        "ok_template": {
-            "description": "A template",
-            "schema": {
-                "type": "object",
-                "items": {
-                    "$ref": "#/definitions/Template"
-                }
-            }
-        },
-        "created_folder": {
-            "description": "A folder",
-            "schema": {
-                "type": "object",
-                "items": {
-                    "$ref": "#/definitions/Folder"
-                }
-            }
-        },
-        "created_template_element": {
-            "description": "A template element",
-            "schema": {
-                "type": "object",
-                "items": {
-                    "$ref": "#/definitions/TemplateElement"
-                }
-            }
-        },
-        "created_template_instance": {
-            "description": "A template instance",
-            "schema": {
-                "type": "object",
-                "items": {
-                    "$ref": "#/definitions/TemplateInstance"
-                }
-            }
-        },
-        "created_template": {
-            "description": "A template",
-            "schema": {
-                "type": "object",
-                "items": {
-                    "$ref": "#/definitions/Template"
-                }
-            }
-        },
-        "no_content": {
-            "description": "Successful operation (no content)"
-        },
-        "bad_request": {
-            "description": "Bad request"
-        },
-        "unauthorized": {
-            "description": "Unauthorized"
-        },
-        "forbidden": {
-            "description": "Forbidden"
-        },
-        "not_found": {
-            "description": "Not found"
-        },
-        "internal_error": {
-            "description": "Internal server error"
-        }
-    },
-    "parameters": {
-        "folder_id": {
-            "name": "folder_id",
-            "in": "path",
-            "description": "Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-            "type": "string",
-            "required": true
-        },
-        "qs_folder_id": {
-            "name": "folder_id",
-            "in": "query",
-            "description": "Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-            "type": "string",
-            "required": true
-        },
-        "resource_types": {
-            "name": "resource_types",
-            "in": "query",
-            "description": "Resource types as comma separated values.\nThe allowed values are: 'folder', 'field', 'element', 'template', 'instance'\n",
-            "type": "string",
-            "required": false
-        },
-        "sort": {
-            "name": "sort",
-            "in": "query",
-            "description": "Sort field names as comma separated values.\nPrepending a field with '-' means descending order on that field.\nThe allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'\n",
-            "type": "string",
-            "required": false,
-            "default": "name"
-        },
-        "limit": {
-            "name": "limit",
-            "in": "query",
-            "description": "Paging limit",
-            "type": "integer",
-            "required": false,
-            "default": 100,
-            "minimum": 0,
-            "maximum": 500
-        },
-        "offset": {
-            "name": "offset",
-            "in": "query",
-            "description": "Paging offset",
-            "type": "number",
-            "required": false,
-            "default": 0,
-            "minimum": 0
-        },
-        "template_element_id": {
-            "name": "template_element_id",
-            "in": "path",
-            "description": "Template Element identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-            "type": "string",
-            "required": true
-        },
-        "template_instance_id": {
-            "name": "template_instance_id",
-            "in": "path",
-            "description": "Template Instance identifier. Example&#58; https://repo.metadatacenter.net/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-            "type": "string",
-            "required": true
-        },
-        "template_id": {
-            "name": "template_id",
-            "in": "path",
-            "description": "Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-            "type": "string",
-            "required": true
-        },
-        "q": {
-            "name": "q",
-            "in": "query",
-            "description": "Search term. It will be looked up in the resource names",
-            "type": "string",
-            "required": false
-        },
-        "derived_from_id": {
-            "name": "derived_from_id",
-            "in": "query",
-            "description": "Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e\nAll the instances with this template id will be returned\n",
-            "type": "string",
-            "required": false
-        },
-        "sharing": {
-            "name": "sharing",
-            "in": "query",
-            "description": "Sharing modifier for the search.\nOnly the value 'shared-with-me' is currently supported.\n",
-            "type": "string",
-            "required": false
-        },
-        "format": {
-            "name": "format",
-            "in": "query",
-            "description": "Output format type to display the content of the template instance.\nThe allowed values are: 'jsonld', 'json', 'rdf-nquad'\n",
-            "type": "string",
-            "enum": [
-                "jsonld",
-                "json",
-                "rdf-nquad"
-            ],
-            "required": false,
-            "default": "jsonld"
-        }
-    },
-    "paths": {
-        "/users": {
-            "get": {
-                "summary": "Users",
-                "description": "The Users endpoint returns information about the users of the system.\n",
-                "tags": [
-                    "Users"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "An array of users",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/User"
-                            }
-                        }
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/folders/{folder_id}": {
-            "get": {
-                "summary": "Get a folder",
-                "description": "Get a folder.\n",
-                "tags": [
-                    "Folders"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/folder_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok_folder"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "put": {
-                "summary": "Update a folder",
-                "description": "Update a folder.\n",
-                "tags": [
-                    "Folders"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/folder_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok_folder"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "delete": {
-                "summary": "Delete a folder",
-                "description": "Delete a folder.\n",
-                "tags": [
-                    "Folders"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/folder_id"
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "$ref": "#/responses/no_content"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/folders": {
-            "post": {
-                "summary": "Create a folder",
-                "description": "Create a folder.\n",
-                "tags": [
-                    "Folders"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "$ref": "#/responses/created_folder"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/folders/{folder_id}/permissions": {
-            "get": {
-                "summary": "Get permissions of a folder",
-                "description": "Get permissions of a folder.\n",
-                "tags": [
-                    "Folders",
-                    "Permissions",
-                    "Folder Permissions"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/folder_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "put": {
-                "summary": "Update permissions of a folder",
-                "description": "Update permissions of a folder.\n",
-                "tags": [
-                    "Folders",
-                    "Permissions",
-                    "Folder Permissions"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/folder_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/folders/{folder_id}/details": {
-            "get": {
-                "summary": "Get the details of a folder",
-                "description": "Get the details of a folder.\n",
-                "tags": [
-                    "Folders"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/folder_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/folders/{folder_id}/contents": {
-            "get": {
-                "summary": "Get the contents of a folder",
-                "description": "Get the contents of a folder.\n",
-                "tags": [
-                    "Folders",
-                    "Folder contents"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/folder_id"
-                    },
-                    {
-                        "$ref": "#/parameters/resource_types"
-                    },
-                    {
-                        "$ref": "#/parameters/sort"
-                    },
-                    {
-                        "$ref": "#/parameters/limit"
-                    },
-                    {
-                        "$ref": "#/parameters/offset"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/template-elements/{template_element_id}": {
-            "get": {
-                "summary": "Get a template element",
-                "description": "Get a template element.\n",
-                "tags": [
-                    "Template Elements"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_element_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok_template_element"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "put": {
-                "summary": "Update a template element",
-                "description": "Update a template element.\n",
-                "tags": [
-                    "Template Elements"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_element_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok_template_element"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "delete": {
-                "summary": "Delete a template element",
-                "description": "Delete a template element.\n",
-                "tags": [
-                    "Template Elements"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_element_id"
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "$ref": "#/responses/no_content"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/template_elements": {
-            "post": {
-                "summary": "Create a template element",
-                "description": "Create a template element.\n",
-                "tags": [
-                    "Template Elements"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/qs_folder_id"
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "$ref": "#/responses/created_template_element"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/template_elements/{template_element_id}/permissions": {
-            "get": {
-                "summary": "Get permissions of a template element",
-                "description": "Get permissions of a template element.\n",
-                "tags": [
-                    "Template Elements",
-                    "Permissions",
-                    "Template Element Permissions"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_element_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "put": {
-                "summary": "Update permissions of a template element",
-                "description": "Update permissions of a template element.\n",
-                "tags": [
-                    "Template Elements",
-                    "Permissions",
-                    "Template Element Permissions"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_element_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/template-instances/{template_instance_id}": {
-            "get": {
-                "summary": "Get a template instance",
-                "description": "Get a template instance.\n",
-                "tags": [
-                    "Template Instances"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_instance_id"
-                    },
-                    {
-                        "$ref": "#/parameters/format"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok_template_instance"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "put": {
-                "summary": "Update a template instance",
-                "description": "Update a template instance.\n",
-                "tags": [
-                    "Template Instances"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_instance_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok_template_instance"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "delete": {
-                "summary": "Delete a template instance",
-                "description": "Delete a template instance.\n",
-                "tags": [
-                    "Template Instances"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_instance_id"
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "$ref": "#/responses/no_content"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/template_instances": {
-            "post": {
-                "summary": "Create a template instance",
-                "description": "Create a template instance.\n",
-                "tags": [
-                    "Template Instances"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/qs_folder_id"
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "$ref": "#/responses/created_template_instance"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/template_instances/{template_instance_id}/permissions": {
-            "get": {
-                "summary": "Get permissions of a template instance",
-                "description": "Get permissions of a template instance.\n",
-                "tags": [
-                    "Template Instances",
-                    "Permissions",
-                    "Template Instance Permissions"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_instance_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "put": {
-                "summary": "Update permissions of a template instance",
-                "description": "Update permissions of a template instance.\n",
-                "tags": [
-                    "Template Instances",
-                    "Permissions",
-                    "Template Instance Permissions"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_instance_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/templates/{template_id}": {
-            "get": {
-                "summary": "Get a template",
-                "description": "Get a template.\n",
-                "tags": [
-                    "Templates"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok_template"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "put": {
-                "summary": "Update a template",
-                "description": "Update a template.\n",
-                "tags": [
-                    "Templates"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok_template"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "delete": {
-                "summary": "Delete a template",
-                "description": "Delete a template.\n",
-                "tags": [
-                    "Templates"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_id"
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "$ref": "#/responses/no_content"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/templates": {
-            "post": {
-                "summary": "Create a template",
-                "description": "Create a template.\n",
-                "tags": [
-                    "Templates"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/qs_folder_id"
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "$ref": "#/responses/created_template"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/templates/{template_id}/permissions": {
-            "get": {
-                "summary": "Get permissions of a template",
-                "description": "Get permissions of a template.\n",
-                "tags": [
-                    "Templates",
-                    "Permissions",
-                    "Template Permissions"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            },
-            "put": {
-                "summary": "Update permissions of a template",
-                "description": "Update permissions of a template.\n",
-                "tags": [
-                    "Templates",
-                    "Permissions",
-                    "Template Permissions"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/template_id"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/search": {
-            "get": {
-                "summary": "Search resources",
-                "description": "Search resources using different criteria\n",
-                "tags": [
-                    "Search",
-                    "Templates",
-                    "Template Elements",
-                    "Template Instances",
-                    "Folders",
-                    "Folder contents"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/q"
-                    },
-                    {
-                        "$ref": "#/parameters/derived_from_id"
-                    },
-                    {
-                        "$ref": "#/parameters/sort"
-                    },
-                    {
-                        "$ref": "#/parameters/limit"
-                    },
-                    {
-                        "$ref": "#/parameters/offset"
-                    },
-                    {
-                        "$ref": "#/parameters/sharing"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        },
-        "/search-deep": {
-            "get": {
-                "summary": "Search resources",
-                "description": "Search resources using different criteria\nThis call can go further than 10.000 resources. It is not intended for everyday use.\n",
-                "tags": [
-                    "Search",
-                    "Templates",
-                    "Template Elements",
-                    "Template Instances",
-                    "Folders",
-                    "Folder contents"
-                ],
-                "security": [
-                    {
-                        "api_key": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "$ref": "#/parameters/q"
-                    },
-                    {
-                        "$ref": "#/parameters/derived_from_id"
-                    },
-                    {
-                        "$ref": "#/parameters/sort"
-                    },
-                    {
-                        "$ref": "#/parameters/limit"
-                    },
-                    {
-                        "$ref": "#/parameters/offset"
-                    },
-                    {
-                        "$ref": "#/parameters/sharing"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/responses/ok"
-                    },
-                    "400": {
-                        "$ref": "#/responses/bad_request"
-                    },
-                    "401": {
-                        "$ref": "#/responses/unauthorized"
-                    },
-                    "403": {
-                        "$ref": "#/responses/forbidden"
-                    },
-                    "404": {
-                        "$ref": "#/responses/not_found"
-                    },
-                    "500": {
-                        "$ref": "#/responses/internal_error"
-                    }
-                }
-            }
-        }
-    },
-    "definitions": {
-        "User": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string",
-                    "description": "Unique URL identifier representing a specific user."
-                },
-                "createdOn": {
-                    "type": "string",
-                    "description": "Creation time in xsd:dateTime format."
-                },
-                "createdOnTS": {
-                    "type": "number",
-                    "description": "Creation time as Unix timestamp."
-                },
-                "lastUpdatedOn": {
-                    "type": "string",
-                    "description": "Last update time in xsd:dateTime format."
-                },
-                "lastUpdatedOnTS": {
-                    "type": "string",
-                    "description": "Last update time as Unix timestamp."
-                },
-                "firstName": {
-                    "type": "string",
-                    "description": "First name."
-                },
-                "lastName": {
-                    "type": "string",
-                    "description": "Last name."
-                },
-                "displayName": {
-                    "type": "string",
-                    "description": "Display name."
-                },
-                "email": {
-                    "type": "string",
-                    "description": "Email."
-                },
-                "nodeType": {
-                    "type": "string",
-                    "description": "The value \"user\""
-                }
-            }
-        },
-        "Folder": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string",
-                    "description": "Unique URL identifier representing a specific folder."
-                }
-            }
-        },
-        "TemplateElement": {
-            "type": "object",
-            "properties": {
-                "@id": {
-                    "type": "string",
-                    "description": "Unique URL identifier representing a specific template element."
-                }
-            }
-        },
-        "TemplateInstance": {
-            "type": "object",
-            "properties": {
-                "@id": {
-                    "type": "string",
-                    "description": "Unique URL identifier representing a specific template instance."
-                }
-            }
-        },
-        "Template": {
-            "type": "object",
-            "properties": {
-                "@id": {
-                    "type": "string",
-                    "description": "Unique URL identifier representing a specific template."
-                }
-            }
-        }
+  "swagger": "2.0",
+  "info": {
+    "title": "CEDAR Resource Server API",
+    "description": "Better Metadata - Better Science",
+    "version": "1.0.0"
+  },
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "securityDefinitions": {
+    "api_key": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "description": "Your CEDAR API key, using the format 'apiKey &lt;yourApiKey&gt;'",
+      "in": "header"
     }
+  },
+  "responses": {
+    "ok": {
+      "description": "Successful operation"
+    },
+    "ok_folder": {
+      "description": "A folder",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/Folder"
+        }
+      }
+    },
+    "ok_template_element": {
+      "description": "A template element",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/TemplateElement"
+        }
+      }
+    },
+    "ok_template_instance": {
+      "description": "A template instance",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/TemplateInstance"
+        }
+      }
+    },
+    "ok_template": {
+      "description": "A template",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/Template"
+        }
+      }
+    },
+    "created_folder": {
+      "description": "A folder",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/Folder"
+        }
+      }
+    },
+    "created_template_element": {
+      "description": "A template element",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/TemplateElement"
+        }
+      }
+    },
+    "created_template_instance": {
+      "description": "A template instance",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/TemplateInstance"
+        }
+      }
+    },
+    "created_template": {
+      "description": "A template",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/Template"
+        }
+      }
+    },
+    "no_content": {
+      "description": "Successful operation (no content)"
+    },
+    "bad_request": {
+      "description": "Bad request"
+    },
+    "unauthorized": {
+      "description": "Unauthorized"
+    },
+    "forbidden": {
+      "description": "Forbidden"
+    },
+    "not_found": {
+      "description": "Not found"
+    },
+    "internal_error": {
+      "description": "Internal server error"
+    }
+  },
+  "parameters": {
+    "folder_id": {
+      "name": "folder_id",
+      "in": "path",
+      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "type": "string",
+      "required": true
+    },
+    "qs_folder_id": {
+      "name": "folder_id",
+      "in": "query",
+      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "type": "string",
+      "required": true
+    },
+    "resource_types": {
+      "name": "resource_types",
+      "in": "query",
+      "description": "Resource types as comma separated values.\nThe allowed values are: 'folder', 'element', 'template', 'instance'\n",
+      "type": "string",
+      "required": true
+    },
+    "sort": {
+      "name": "sort",
+      "in": "query",
+      "description": "Sort field names as comma separated values.\nPrepending a field with '-' means descending order on that field.\nThe allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'\n",
+      "type": "string",
+      "required": false,
+      "default": "name"
+    },
+    "limit": {
+      "name": "limit",
+      "in": "query",
+      "description": "Paging limit",
+      "type": "integer",
+      "required": false,
+      "default": 100,
+      "minimum": 0,
+      "maximum": 500
+    },
+    "offset": {
+      "name": "offset",
+      "in": "query",
+      "description": "Paging offset",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "minimum": 0
+    },
+    "template_element_id": {
+      "name": "template_element_id",
+      "in": "path",
+      "description": "Template Element identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "type": "string",
+      "required": true
+    },
+    "template_instance_id": {
+      "name": "template_instance_id",
+      "in": "path",
+      "description": "Template Instance identifier. Example&#58; https://repo.metadatacenter.net/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "type": "string",
+      "required": true
+    },
+    "template_id": {
+      "name": "template_id",
+      "in": "path",
+      "description": "Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "type": "string",
+      "required": true
+    },
+    "q": {
+      "name": "q",
+      "in": "query",
+      "description": "Search term. It will be looked up in the resource names",
+      "type": "string",
+      "required": false
+    },
+    "derived_from_id": {
+      "name": "derived_from_id",
+      "in": "query",
+      "description": "Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e\nAll the instances with this template id will be returned\n",
+      "type": "string",
+      "required": false
+    },
+    "sharing": {
+      "name": "sharing",
+      "in": "query",
+      "description": "Sharing modifier for the search.\nOnly the value 'shared-with-me' is currently supported.\n",
+      "type": "string",
+      "required": false
+    },
+    "format": {
+      "name": "format",
+      "in": "query",
+      "description": "Output format type to display the content of the template instance.\nThe allowed values are: 'jsonld', 'json', 'rdf-nquad'\n",
+      "type": "string",
+      "enum": [
+        "jsonld",
+        "json",
+        "rdf-nquad"
+      ],
+      "required": false,
+      "default": "jsonld"
+    }
+  },
+  "paths": {
+    "/users": {
+      "get": {
+        "summary": "Users",
+        "description": "The Users endpoint returns information about the users of the system.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of users",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/User"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/folders/{folder_id}": {
+      "get": {
+        "summary": "Get a folder",
+        "description": "Get a folder.\n",
+        "tags": [
+          "Folders"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/folder_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_folder"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a folder",
+        "description": "Update a folder.\n",
+        "tags": [
+          "Folders"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/folder_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_folder"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a folder",
+        "description": "Delete a folder.\n",
+        "tags": [
+          "Folders"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/folder_id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "#/responses/no_content"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/folders": {
+      "post": {
+        "summary": "Create a folder",
+        "description": "Create a folder.\n",
+        "tags": [
+          "Folders"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "folder",
+            "in": "body",
+            "description": "The folder to be created",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Folder"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/responses/created_folder"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/folders/{folder_id}/permissions": {
+      "get": {
+        "summary": "Get permissions of a folder",
+        "description": "Get permissions of a folder.\n",
+        "tags": [
+          "Folders",
+          "Permissions",
+          "Folder Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/folder_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update permissions of a folder",
+        "description": "Update permissions of a folder.\n",
+        "tags": [
+          "Folders",
+          "Permissions",
+          "Folder Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/folder_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/folders/{folder_id}/details": {
+      "get": {
+        "summary": "Get the details of a folder",
+        "description": "Get the details of a folder.\n",
+        "tags": [
+          "Folders"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/folder_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/folders/{folder_id}/contents": {
+      "get": {
+        "summary": "Get the contents of a folder",
+        "description": "Get the contents of a folder.\n",
+        "tags": [
+          "Folders",
+          "Folder contents"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/folder_id"
+          },
+          {
+            "$ref": "#/parameters/resource_types"
+          },
+          {
+            "$ref": "#/parameters/sort"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-elements/{template_element_id}": {
+      "get": {
+        "summary": "Get a template element",
+        "description": "Get a template element.\n",
+        "tags": [
+          "Template Elements"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_element_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_template_element"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a template element",
+        "description": "Update a template element.\n",
+        "tags": [
+          "Template Elements"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_element_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_template_element"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a template element",
+        "description": "Delete a template element.\n",
+        "tags": [
+          "Template Elements"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_element_id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "#/responses/no_content"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-elements": {
+      "post": {
+        "summary": "Create a template element",
+        "description": "Create a template element.\n",
+        "tags": [
+          "Template Elements"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_element",
+            "in": "body",
+            "description": "The template element to be created",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TemplateElement"
+            }
+          },
+          {
+            "$ref": "#/parameters/qs_folder_id"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/responses/created_template_element"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-elements/{template_element_id}/permissions": {
+      "get": {
+        "summary": "Get permissions of a template element",
+        "description": "Get permissions of a template element.\n",
+        "tags": [
+          "Template Elements",
+          "Permissions",
+          "Template Element Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_element_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update permissions of a template element",
+        "description": "Update permissions of a template element.\n",
+        "tags": [
+          "Template Elements",
+          "Permissions",
+          "Template Element Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_element_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-instances/{template_instance_id}": {
+      "get": {
+        "summary": "Get a template instance",
+        "description": "Get a template instance.\n",
+        "tags": [
+          "Template Instances"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_instance_id"
+          },
+          {
+            "$ref": "#/parameters/format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_template_instance"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a template instance",
+        "description": "Update a template instance.\n",
+        "tags": [
+          "Template Instances"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_instance_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_template_instance"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a template instance",
+        "description": "Delete a template instance.\n",
+        "tags": [
+          "Template Instances"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_instance_id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "#/responses/no_content"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-instances": {
+      "post": {
+        "summary": "Create a template instance",
+        "description": "Create a template instance.\n",
+        "tags": [
+          "Template Instances"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_instance",
+            "in": "body",
+            "description": "The template instance to be created",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TemplateInstance"
+            }
+          },
+          {
+            "$ref": "#/parameters/qs_folder_id"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/responses/created_template_instance"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-instances/{template_instance_id}/permissions": {
+      "get": {
+        "summary": "Get permissions of a template instance",
+        "description": "Get permissions of a template instance.\n",
+        "tags": [
+          "Template Instances",
+          "Permissions",
+          "Template Instance Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_instance_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update permissions of a template instance",
+        "description": "Update permissions of a template instance.\n",
+        "tags": [
+          "Template Instances",
+          "Permissions",
+          "Template Instance Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_instance_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/templates/{template_id}": {
+      "get": {
+        "summary": "Get a template",
+        "description": "Get a template.\n",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_template"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a template",
+        "description": "Update a template.\n",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_template"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a template",
+        "description": "Delete a template.\n",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "#/responses/no_content"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/templates": {
+      "post": {
+        "summary": "Create a template",
+        "description": "Create a template.\n",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template",
+            "in": "body",
+            "description": "The template to be created",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Template"
+            }
+          },
+          {
+            "$ref": "#/parameters/qs_folder_id"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/responses/created_template"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/templates/{template_id}/permissions": {
+      "get": {
+        "summary": "Get permissions of a template",
+        "description": "Get permissions of a template.\n",
+        "tags": [
+          "Templates",
+          "Permissions",
+          "Template Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update permissions of a template",
+        "description": "Update permissions of a template.\n",
+        "tags": [
+          "Templates",
+          "Permissions",
+          "Template Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "summary": "Search resources",
+        "description": "Search resources using different criteria\n",
+        "tags": [
+          "Search",
+          "Templates",
+          "Template Elements",
+          "Template Instances",
+          "Folders",
+          "Folder contents"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/q"
+          },
+          {
+            "$ref": "#/parameters/resource_types"
+          },
+          {
+            "$ref": "#/parameters/derived_from_id"
+          },
+          {
+            "$ref": "#/parameters/sort"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/sharing"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/search-deep": {
+      "get": {
+        "summary": "Search resources",
+        "description": "Search resources using different criteria.\nThis call can go further than 10.000 resources. It is not intended for everyday use.\n",
+        "tags": [
+          "Search",
+          "Templates",
+          "Template Elements",
+          "Template Instances",
+          "Folders",
+          "Folder contents"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/q"
+          },
+          {
+            "$ref": "#/parameters/resource_types"
+          },
+          {
+            "$ref": "#/parameters/derived_from_id"
+          },
+          {
+            "$ref": "#/parameters/sort"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/sharing"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "User": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific user."
+        },
+        "createdOn": {
+          "type": "string",
+          "description": "Creation time in xsd:dateTime format."
+        },
+        "createdOnTS": {
+          "type": "number",
+          "description": "Creation time as Unix timestamp."
+        },
+        "lastUpdatedOn": {
+          "type": "string",
+          "description": "Last update time in xsd:dateTime format."
+        },
+        "lastUpdatedOnTS": {
+          "type": "string",
+          "description": "Last update time as Unix timestamp."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email."
+        },
+        "nodeType": {
+          "type": "string",
+          "description": "The value \"user\""
+        }
+      }
+    },
+    "Folder": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific folder."
+        }
+      }
+    },
+    "TemplateElement": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific template element."
+        }
+      }
+    },
+    "TemplateInstance": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific template instance."
+        }
+      }
+    },
+    "Template": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific template."
+        }
+      }
+    }
+  }
 }
