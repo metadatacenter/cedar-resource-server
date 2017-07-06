@@ -17,7 +17,6 @@ import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
-import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
@@ -48,7 +47,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     userMustHaveWriteAccessToFolder(c, folderId);
 
-    String url = folderBase + CedarNodeType.Prefix.FOLDERS;
+    String url = microserviceUrlUtil.getWorkspace().getFolders();
     HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
@@ -86,8 +85,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServerFolder folderServerFolder = userMustHaveReadAccessToFolder(c, id);
 
 
-    String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
-
+    String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
 
@@ -136,7 +134,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     userMustHaveWriteAccessToFolder(c, id);
 
-    String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
+    String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);
 
     HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
@@ -180,7 +178,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   private Response executeFolderPermissionGetByProxy(String folderId, CedarRequestContext context) throws
       CedarException {
     try {
-      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(folderId) + "/permissions";
+      String url = microserviceUrlUtil.getWorkspace().getFolderWithIdPermissions(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
@@ -200,7 +198,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   private Response executeFolderPermissionPutByProxy(String folderId, CedarRequestContext context) throws
       CedarException {
     try {
-      String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(folderId) + "/permissions";
+      String url = microserviceUrlUtil.getWorkspace().getFolderWithIdPermissions(folderId);
 
       HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);

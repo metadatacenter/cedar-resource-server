@@ -63,8 +63,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
 
-  protected static final String MOVE_COMMAND = "command/move-node-to-folder";
-  protected static final String VALIDATE_COMMAND = "command/validate";
+  protected static final String MOVE_COMMAND = "move-node-to-folder";
 
   private static UserService userService;
 
@@ -149,7 +148,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
     String originalDocument = null;
     try {
-      String url = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
+      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
@@ -181,7 +180,7 @@ public class CommandResource extends AbstractResourceServerResource {
     // AbstractResourceServerController.executeResourcePostByProxy
     // refactor, if possible
     try {
-      String url = templateBase + nodeType.getPrefix();
+      String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, c, originalDocument);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -199,7 +198,7 @@ public class CommandResource extends AbstractResourceServerResource {
           JsonNode jsonNode = JsonMapper.MAPPER.readTree(entityContent);
           String createdId = jsonNode.get("@id").asText();
 
-          String resourceUrl = folderBase + PREFIX_RESOURCES;
+          String resourceUrl = microserviceUrlUtil.getWorkspace().getResources();
           //System.out.println(resourceUrl);
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           resourceRequestBody.put("parentId", targetFolder.getId());
@@ -243,7 +242,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/move-node-to-folder")
+  @Path("/" + MOVE_COMMAND)
   public Response moveNodeToFolder() throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
@@ -303,7 +302,7 @@ public class CommandResource extends AbstractResourceServerResource {
     // Check create permission
     c.must(c.user()).have(permission2);
 
-    String folderURL = folderBase + CedarNodeType.Prefix.FOLDERS;
+    String folderURL = microserviceUrlUtil.getWorkspace().getFolders();
 
     // Check if the source node exists
     if (nodeType == CedarNodeType.FOLDER) {
@@ -316,7 +315,7 @@ public class CommandResource extends AbstractResourceServerResource {
             .build();
       }
     } else {
-      String resourceURL = folderBase + "/" + PREFIX_RESOURCES;
+      String resourceURL = microserviceUrlUtil.getWorkspace().getResources();
       FolderServerResource sourceResource = FolderServerProxy.getResource(resourceURL, sourceId, c);
       if (sourceResource == null) {
         return CedarResponse.badRequest()
@@ -348,7 +347,7 @@ public class CommandResource extends AbstractResourceServerResource {
     userMustHaveWriteAccessToFolder(c, folderId);
 
     try {
-      String resourceUrl = folderBase + MOVE_COMMAND;
+      String resourceUrl = microserviceUrlUtil.getWorkspace().getCommand(MOVE_COMMAND);
       ObjectNode folderRequestBody = JsonNodeFactory.instance.objectNode();
 
       folderRequestBody.put("sourceId", sourceId);
@@ -562,7 +561,7 @@ public class CommandResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 //    c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?
 
-    String url = String.format("%s%s?%s=%s", templateBase, VALIDATE_COMMAND, QP_RESOURCE_TYPE, resourceType);
+    String url = microserviceUrlUtil.getTemplate().getValidateCommand(resourceType);
 
     try {
       HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
@@ -649,8 +648,7 @@ public class CommandResource extends AbstractResourceServerResource {
     if (isFolder) {
       return updateFolderNameAndDescriptionOnFolderServer(c, id);
     } else {
-      String templateServerUrl = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
-      String folderServerUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
+      String templateServerUrl = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
 
       HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(templateServerUrl, c);
       int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();

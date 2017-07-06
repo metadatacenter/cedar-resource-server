@@ -32,6 +32,7 @@ import org.metadatacenter.server.search.permission.SearchPermissionEnqueueServic
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
+import org.metadatacenter.server.url.MicroserviceUrlUtil;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -43,7 +44,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
 
-import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.model.ModelPaths.*;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
@@ -51,8 +51,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
 
   private static final String ACCESS_CONTROL_EXPOSE_HEADERS = "Access-Control-Expose-Headers";
-
-  protected static final String PREFIX_RESOURCES = "resources";
 
   protected static NodeIndexingService nodeIndexingService;
   protected static ContentIndexingService contentIndexingService;
@@ -62,19 +60,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static UserPermissionIndexingService userPermissionIndexingService;
   protected static GroupPermissionIndexingService groupPermissionIndexingService;
 
-  protected final String folderBase;
-  protected final String templateBase;
-  protected final String usersBase;
-  protected final String usersURL;
   protected final LinkedDataUtil linkedDataUtil;
+  protected final MicroserviceUrlUtil microserviceUrlUtil;
 
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
     super(cedarConfig);
-    folderBase = cedarConfig.getServers().getFolder().getBase();
-    templateBase = cedarConfig.getServers().getTemplate().getBase();
-    usersBase = cedarConfig.getServers().getUser().getUsersBase();
-    usersURL = cedarConfig.getServers().getFolder().getUsers();
     linkedDataUtil = cedarConfig.getLinkedDataUtil();
+    microserviceUrlUtil = cedarConfig.getMicroserviceUrlUtil();
   }
 
   public static void injectServices(NodeIndexingService nodeIndexingService,
@@ -95,7 +87,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected FolderServerFolder getCedarFolderById(String id, CedarRequestContext context) throws
       CedarProcessingException {
-    String url = folderBase + CedarNodeType.FOLDER.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
+    String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);
 
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
@@ -155,8 +147,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return id;
   }
 
-  private CedarUserSummary getUserSummary(String id, CedarRequestContext context) throws CedarProcessingException {
-    String url = usersBase + id + "/" + "summary";
+  private CedarUserSummary getUserSummary(String uuid, CedarRequestContext context) throws CedarProcessingException {
+    String url = microserviceUrlUtil.getUser().UuidSummary(uuid);
     HttpResponse proxyResponse = null;
     try {
       proxyResponse = ProxyUtil.proxyGet(url, context);
@@ -169,7 +161,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           if (at != null && !at.isMissingNode()) {
             CedarUserSummary summary = new CedarUserSummary();
             summary.setScreenName(at.asText());
-            summary.setUserId(id);
+            summary.setUserId(uuid);
             return summary;
           }
         }
@@ -195,10 +187,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeResourcePostByProxy(CedarRequestContext context, CedarNodeType nodeType, FolderServerFolder
       folder, Optional<Boolean> importMode) throws CedarProcessingException {
     try {
-      String url = templateBase + nodeType.getPrefix();
-      if (importMode != null && importMode.isPresent() && importMode.get()) {
-        url += "?importMode=true";
-      }
+      String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType, importMode);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -215,7 +204,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
           String id = templateJsonNode.get("@id").asText();
 
-          String resourceUrl = folderBase + PREFIX_RESOURCES;
+          String resourceUrl = microserviceUrlUtil.getWorkspace().getResources();
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           resourceRequestBody.put("parentId", folder.getId());
           resourceRequestBody.put("id", id);
@@ -328,10 +317,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id, Optional<String> format,
                                                CedarRequestContext context) throws CedarProcessingException {
     try {
-      String url = templateBase + nodeType.getPrefix() + "/" + new URLCodec().encode(id);
-      if (format.isPresent()) {
-        url += "?" + QP_FORMAT + "=" + format.get();
-      }
+      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id, format);
       // parameter
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
@@ -351,7 +337,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
       throws CedarProcessingException {
     try {
-      String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
+      String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
@@ -375,7 +361,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       content) throws
       CedarProcessingException {
     try {
-      String url = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
+      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
 
       String currentName = null;
 
@@ -426,7 +412,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             wasRename = true;
           }
 
-          String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
+          String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
 
           HttpResponse folderServerUpdateResponse = ProxyUtil.proxyPut(resourceUrl, context,
               resourceRequestBodyAsString);
@@ -492,7 +478,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
       throws CedarProcessingException {
     try {
-      String url = templateBase + nodeType.getPrefix() + "/" + CedarUrlUtil.urlEncode(id);
+      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -500,7 +486,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         // resource was not deleted
         return generateStatusResponse(proxyResponse);
       } else {
-        String resourceUrl = folderBase + PREFIX_RESOURCES + "/" + CedarUrlUtil.urlEncode(id);
+        String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
         HttpResponse resourceDeleteResponse = ProxyUtil.proxyDelete(resourceUrl, context);
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
@@ -518,7 +504,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected FolderServerFolder userMustHaveReadAccessToFolder(CedarRequestContext context, String folderId) throws
       CedarException {
-    String url = folderBase + CedarNodeType.Prefix.FOLDERS;
+    String url = microserviceUrlUtil.getWorkspace().getFolders();
     FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, context);
     if (fsFolder == null) {
       throw new CedarObjectNotFoundException("Folder not found by id")
@@ -537,7 +523,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected FolderServerFolder userMustHaveWriteAccessToFolder(CedarRequestContext context, String folderId)
       throws CedarException {
-    String url = folderBase + CedarNodeType.Prefix.FOLDERS;
+    String url = microserviceUrlUtil.getWorkspace().getFolders();
     FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, context);
     if (fsFolder == null) {
       throw new CedarObjectNotFoundException("Folder not found by id")
@@ -556,7 +542,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected FolderServerResource userMustHaveReadAccessToResource(CedarRequestContext context, String resourceId) throws
       CedarException {
-    String url = folderBase + PREFIX_RESOURCES;
+    String url = microserviceUrlUtil.getWorkspace().getResources();
     FolderServerResource fsResource = FolderServerProxy.getResource(url, resourceId, context);
     if (fsResource == null) {
       throw new CedarObjectNotFoundException("Resource not found by id")
@@ -575,7 +561,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected FolderServerResource userMustHaveWriteAccessToResource(CedarRequestContext context, String resourceId)
       throws CedarException {
-    String url = folderBase + PREFIX_RESOURCES;
+    String url = microserviceUrlUtil.getWorkspace().getResources();
     FolderServerResource fsResource = FolderServerProxy.getResource(url, resourceId, context);
     if (fsResource == null) {
       throw new CedarObjectNotFoundException("Resource not found by id")
@@ -594,7 +580,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected Response executeResourcePermissionGetByProxy(String resourceId, CedarRequestContext context) throws
       CedarProcessingException {
-    String url = folderBase + "resources" + "/" + CedarUrlUtil.urlEncode(resourceId) + "/permissions";
+    String url = microserviceUrlUtil.getWorkspace().getResourceWithIdPermissions(resourceId);
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     return buildResponse(proxyResponse);
@@ -602,7 +588,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected Response executeResourcePermissionPutByProxy(String resourceId, CedarRequestContext context) throws
       CedarProcessingException {
-    String url = folderBase + "resources" + "/" + CedarUrlUtil.urlEncode(resourceId) + "/permissions";
+    String url = microserviceUrlUtil.getWorkspace().getResourceWithIdPermissions(resourceId);
     HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
     if (statusCode == HttpStatus.SC_OK) {
@@ -726,7 +712,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     FolderServerFolder folderServerFolder = userMustHaveWriteAccessToFolder(c, id);
     String oldName = folderServerFolder.getDisplayName();
 
-    String url = folderBase + CedarNodeType.Prefix.FOLDERS + "/" + CedarUrlUtil.urlEncode(id);
+    String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);
 
     HttpResponse proxyResponse = ProxyUtil.proxyPut(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
