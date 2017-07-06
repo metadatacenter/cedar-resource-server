@@ -53,7 +53,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
           .queryParam(QP_OFFSET, offsetParam)
           .queryParam(QP_SHARING, sharing);
 
-      String url = builder.getProxyUrl(folderBase);
+      String url = builder.getProxyUrl(microserviceUrlUtil.getWorkspace().getBase());
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);

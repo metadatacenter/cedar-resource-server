@@ -44,7 +44,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .queryParam(QP_LIMIT, limitParam)
         .queryParam(QP_OFFSET, offsetParam);
 
-    String url = builder.getProxyUrl(folderBase);
+    String url = builder.getProxyUrl(microserviceUrlUtil.getWorkspace().getBase());
 
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
