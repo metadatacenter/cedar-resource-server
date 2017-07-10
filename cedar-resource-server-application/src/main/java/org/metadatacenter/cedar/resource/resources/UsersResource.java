@@ -41,7 +41,7 @@ public class UsersResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 
-    String url = microserviceUrlUtil.getUser().users();
+    String url = microserviceUrlUtil.getWorkspace().getUsers();
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     HttpEntity entity = proxyResponse.getEntity();
