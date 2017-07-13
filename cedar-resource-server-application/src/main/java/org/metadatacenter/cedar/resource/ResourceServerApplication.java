@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource;
 
+import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
@@ -23,6 +24,10 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
   @Override
   protected ServerName getServerName() {
     return ServerName.RESOURCE;
+  }
+
+  @Override
+  protected void initializeWithBootsrap(Bootstrap<ResourceServerConfiguration> bootstrap) {
   }
 
   @Override
