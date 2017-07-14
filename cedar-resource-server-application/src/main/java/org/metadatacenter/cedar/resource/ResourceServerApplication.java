@@ -27,7 +27,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
   }
 
   @Override
-  protected void initializeWithBootsrap(Bootstrap<ResourceServerConfiguration> bootstrap) {
+  protected void initializeWithBootstrap(Bootstrap<ResourceServerConfiguration> bootstrap) {
   }
 
   @Override
