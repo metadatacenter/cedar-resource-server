@@ -60,13 +60,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static UserPermissionIndexingService userPermissionIndexingService;
   protected static GroupPermissionIndexingService groupPermissionIndexingService;
 
-  protected final LinkedDataUtil linkedDataUtil;
-  protected final MicroserviceUrlUtil microserviceUrlUtil;
-
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
     super(cedarConfig);
-    linkedDataUtil = cedarConfig.getLinkedDataUtil();
-    microserviceUrlUtil = cedarConfig.getMicroserviceUrlUtil();
   }
 
   public static void injectServices(NodeIndexingService nodeIndexingService,
@@ -117,9 +112,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   private FolderServerNode addProvenanceDisplayName(FolderServerNode resource, CedarRequestContext context) throws
       CedarProcessingException {
     if (resource != null) {
-      CedarUserSummary creator = getUserSummary(extractUserUUID(resource.getCreatedBy()), context);
-      CedarUserSummary updater = getUserSummary(extractUserUUID(resource.getLastUpdatedBy()), context);
-      CedarUserSummary owner = getUserSummary(extractUserUUID(resource.getOwnedBy()), context);
+      CedarUserSummary creator = getUserSummary(resource.getCreatedBy(), context);
+      CedarUserSummary updater = getUserSummary(resource.getLastUpdatedBy(), context);
+      CedarUserSummary owner = getUserSummary(resource.getOwnedBy(), context);
       if (creator != null) {
         resource.setCreatedByUserName(creator.getScreenName());
       }
@@ -131,45 +126,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
     }
     return resource;
-  }
-
-  protected static String extractUserUUID(String userURL) {
-    String id = userURL;
-    try {
-      int pos = userURL.lastIndexOf('/');
-      if (pos > -1) {
-        id = userURL.substring(pos + 1);
-      }
-      id = new URLCodec().encode(id);
-    } catch (EncoderException e) {
-      log.error("Error while extracting user UUID", e);
-    }
-    return id;
-  }
-
-  private CedarUserSummary getUserSummary(String uuid, CedarRequestContext context) throws CedarProcessingException {
-    String url = microserviceUrlUtil.getUser().UuidSummary(uuid);
-    HttpResponse proxyResponse = null;
-    try {
-      proxyResponse = ProxyUtil.proxyGet(url, context);
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        String userSummaryString = EntityUtils.toString(entity);
-        if (userSummaryString != null && !userSummaryString.isEmpty()) {
-          JsonNode jsonNode = JsonMapper.MAPPER.readTree(userSummaryString);
-          JsonNode at = jsonNode.at("/screenName");
-          if (at != null && !at.isMissingNode()) {
-            CedarUserSummary summary = new CedarUserSummary();
-            summary.setScreenName(at.asText());
-            summary.setUserId(uuid);
-            return summary;
-          }
-        }
-      }
-    } catch (IOException e) {
-      throw new CedarProcessingException(e);
-    }
-    return null;
   }
 
   protected JsonNode resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse, CedarRequestContext context)
