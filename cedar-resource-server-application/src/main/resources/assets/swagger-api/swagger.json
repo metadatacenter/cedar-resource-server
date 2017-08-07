@@ -139,6 +139,13 @@
       "type": "string",
       "required": true
     },
+    "resource_type": {
+      "name": "resource_type",
+      "in": "query",
+      "description": "The type of CEDAR resource.\nThe allowed values are: 'template', 'element', 'instance'\n",
+      "type": "string",
+      "required": true
+    },
     "sort": {
       "name": "sort",
       "in": "query",
@@ -1412,6 +1419,45 @@
           },
           {
             "$ref": "#/parameters/sharing"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/validate": {
+      "post": {
+        "summary": "Validate resources",
+        "description": "Validate resources using the CEDAR meta-model schema. The validation service will return a report in JSON format as follows:\n```\n{ \n  \"validates\": \"\",  # Indicate the validity of the submitted resource (true = valid, false = invalid).\n  \"warnings\": [],   # A list of warning messages, if any.\n  \"errors\": []      # A list of error messages, if any.\n}\n```\n",
+        "tags": [
+          "Validate"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/resource_type"
           }
         ],
         "responses": {
