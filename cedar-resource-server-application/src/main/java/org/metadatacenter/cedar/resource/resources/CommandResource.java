@@ -24,6 +24,7 @@ import org.metadatacenter.model.request.OutputFormatType;
 import org.metadatacenter.model.request.OutputFormatTypeDetector;
 import org.metadatacenter.model.trimmer.JsonLdDocument;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
+import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
@@ -497,9 +498,15 @@ public class CommandResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
 
-    JsonNode jsonBody = c.request().getRequestBody().asJson();
+    boolean force = false;
 
-    boolean force = jsonBody.get("force").asBoolean();
+    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarParameter forceParam = requestBody.get("force");
+    if (!forceParam.isMissing()) {
+      if ("true".equals(forceParam.stringValue())) {
+        force = true;
+      }
+    }
 
     RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
     task.regenerateSearchIndex(force, c);

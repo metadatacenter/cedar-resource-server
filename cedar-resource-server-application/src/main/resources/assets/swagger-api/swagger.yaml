@@ -111,6 +111,14 @@ parameters:
       The allowed values are: 'folder', 'element', 'template', 'instance'
     type: string
     required: true
+  resource_type:
+    name: resource_type
+    in: query
+    description: |
+      The type of CEDAR resource.
+      The allowed values are: 'template', 'element', 'instance'
+    type: string
+    required: true
   sort:
     name: sort
     in: query
@@ -930,6 +938,37 @@ paths:
         - $ref: '#/parameters/limit'
         - $ref: '#/parameters/offset'
         - $ref: '#/parameters/sharing'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /command/validate:
+    post:
+      summary: Validate resources
+      description: |
+        Validate resources using the CEDAR meta-model schema. The validation service will return a report in JSON format as follows:
+        ```
+        {
+          "validates": "",  # Indicate the validity of the submitted resource (true = valid, false = invalid).
+          "warnings": [],   # A list of warning messages, if any.
+          "errors": []      # A list of error messages, if any.
+        }
+        ```
+      tags:
+        - Validate
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/resource_type'
       responses:
         200:
           $ref: '#/responses/ok'

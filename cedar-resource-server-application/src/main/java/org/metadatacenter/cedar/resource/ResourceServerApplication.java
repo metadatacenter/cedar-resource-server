@@ -7,6 +7,7 @@ import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.IndexRegenerator;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
+import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
 import org.metadatacenter.server.cache.util.CacheService;
 import org.metadatacenter.server.search.elasticsearch.service.*;
@@ -27,7 +28,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
   }
 
   @Override
-  protected void initializeWithBootstrap(Bootstrap<ResourceServerConfiguration> bootstrap) {
+  protected void initializeWithBootstrap(Bootstrap<ResourceServerConfiguration> bootstrap, CedarConfig cedarConfig) {
   }
 
   @Override
