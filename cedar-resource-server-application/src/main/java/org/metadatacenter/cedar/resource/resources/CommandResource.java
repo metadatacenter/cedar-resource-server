@@ -36,6 +36,7 @@ import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserExtract;
 import org.metadatacenter.server.security.util.CedarUserUtil;
 import org.metadatacenter.server.service.UserService;
+import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
@@ -158,7 +159,7 @@ public class CommandResource extends AbstractResourceServerResource {
         originalDocument = EntityUtils.toString(entity);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
         ((ObjectNode) jsonNode).remove("@id");
-        String oldTitle = extractNameFromResponseObject(nodeType, jsonNode);
+        String oldTitle = ModelUtil.extractNameFromResource(nodeType, jsonNode).getValue();
         if (oldTitle != null) {
           oldTitle = "";
         }
@@ -205,8 +206,9 @@ public class CommandResource extends AbstractResourceServerResource {
           resourceRequestBody.put("parentId", targetFolder.getId());
           resourceRequestBody.put("id", createdId);
           resourceRequestBody.put("nodeType", nodeType.getValue());
-          resourceRequestBody.put("name", extractNameFromResponseObject(nodeType, jsonNode));
-          resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, jsonNode));
+          resourceRequestBody.put("name", ModelUtil.extractNameFromResource(nodeType, jsonNode).getValue());
+          resourceRequestBody.put("description", ModelUtil.extractDescriptionFromResource(nodeType, jsonNode)
+              .getValue());
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
           HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, c, resourceRequestBodyAsString);
@@ -668,8 +670,9 @@ public class CommandResource extends AbstractResourceServerResource {
           try {
             String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity);
             JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
-            String currentName = extractNameFromResponseObject(nodeType, currentTemplateJsonNode);
-            String currentDescription = extractDescriptionFromResponseObject(nodeType, currentTemplateJsonNode);
+            String currentName = ModelUtil.extractNameFromResource(nodeType, currentTemplateJsonNode).getValue();
+            String currentDescription = ModelUtil.extractDescriptionFromResource(nodeType, currentTemplateJsonNode)
+                .getValue();
             boolean changeName = false;
             boolean changeDescription = false;
             if (name != null && !name.equals(currentName)) {

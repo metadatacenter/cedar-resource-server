@@ -3,8 +3,6 @@ package org.metadatacenter.cedar.resource.resources;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.commons.codec.EncoderException;
-import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -19,20 +17,21 @@ import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.exception.CedarPermissionException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.CreateOrUpdate;
 import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.server.jsonld.LinkedDataUtil;
 import org.metadatacenter.server.search.IndexedDocumentId;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
-import org.metadatacenter.server.url.MicroserviceUrlUtil;
+import org.metadatacenter.util.JsonPointerValuePair;
+import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -44,7 +43,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
 
-import static org.metadatacenter.model.ModelPaths.*;
+import static org.metadatacenter.model.ModelPaths.UI;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
@@ -141,9 +140,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   // Proxy methods for resource types
   protected Response executeResourcePostByProxy(CedarRequestContext context, CedarNodeType nodeType, FolderServerFolder
-      folder, Optional<Boolean> importMode) throws CedarProcessingException {
+      folder) throws CedarProcessingException {
     try {
-      String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType, importMode);
+      String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -160,13 +159,16 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
           String id = templateJsonNode.get("@id").asText();
 
+          JsonPointerValuePair namePair = ModelUtil.extractNameFromResource(nodeType, templateJsonNode);
+          JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode);
+
           String resourceUrl = microserviceUrlUtil.getWorkspace().getResources();
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           resourceRequestBody.put("parentId", folder.getId());
           resourceRequestBody.put("id", id);
           resourceRequestBody.put("nodeType", nodeType.getValue());
-          resourceRequestBody.put("name", extractNameFromResponseObject(nodeType, templateJsonNode));
-          resourceRequestBody.put("description", extractDescriptionFromResponseObject(nodeType, templateJsonNode));
+          resourceRequestBody.put("name", namePair.getValue());
+          resourceRequestBody.put("description", descriptionPair.getValue());
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
           HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, context, resourceRequestBodyAsString);
@@ -215,36 +217,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected static String extractNameFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
-    String title = "";
-    JsonNode titleNode = null;
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
-      titleNode = jsonNode.at(UI_TITLE);
-    } else if (nodeType == CedarNodeType.INSTANCE) {
-      titleNode = jsonNode.at(SCHEMA_NAME);
-    }
-    if (titleNode != null && !titleNode.isMissingNode()) {
-      title = titleNode.textValue();
-    }
-    return title;
-  }
-
-  protected static String extractDescriptionFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
-    String description = "";
-    JsonNode descriptionNode = null;
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
-      descriptionNode = jsonNode.at(UI_DESCRIPTION);
-    } else if (nodeType == CedarNodeType.INSTANCE) {
-      descriptionNode = jsonNode.at(SCHEMA_DESCRIPTION);
-    }
-    if (descriptionNode != null && !descriptionNode.isMissingNode()) {
-      description = descriptionNode.textValue();
-    }
-    return description;
-  }
-
   protected static void updateNameInObject(CedarNodeType nodeType, JsonNode jsonNode, String name) {
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
+    if (nodeType.isFielOrElementOrTemplate()) {
       JsonNode uiNode = jsonNode.at(UI);
       if (uiNode != null && !uiNode.isMissingNode()) {
         ((ObjectNode) uiNode).put(ModelNodeNames.TITLE, name);
@@ -255,7 +229,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected static void updateDescriptionInObject(CedarNodeType nodeType, JsonNode jsonNode, String description) {
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
+    if (nodeType.isFielOrElementOrTemplate()) {
       JsonNode uiNode = jsonNode.at(UI);
       if (uiNode != null && !uiNode.isMissingNode()) {
         ((ObjectNode) uiNode).put(ModelNodeNames.DESCRIPTION, description);
@@ -331,7 +305,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         if (currentTemplateEntity != null) {
           String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity);
           JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
-          currentName = extractNameFromResponseObject(nodeType, currentTemplateJsonNode);
+          currentName = ModelUtil.extractNameFromResource(nodeType, currentTemplateJsonNode).getValue();
         }
       }
 
@@ -343,8 +317,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
       int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
-      if (statusCode != HttpStatus.SC_OK) {
-        // resource was not created
+      CreateOrUpdate createOrUpdate = null;
+      if (statusCode == HttpStatus.SC_OK) {
+        createOrUpdate = CreateOrUpdate.UPDATE;
+      } else if (statusCode == HttpStatus.SC_CREATED) {
+        createOrUpdate = CreateOrUpdate.CREATE;
+      }
+      if (createOrUpdate == null) {
+        // resource was not created or updated
         return generateStatusResponse(templateProxyResponse);
       } else {
         // resource was updated
@@ -354,8 +334,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
 
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
-          String newName = extractNameFromResponseObject(nodeType, templateJsonNode);
-          String newDescription = extractDescriptionFromResponseObject(nodeType, templateJsonNode);
+          String newName = ModelUtil.extractNameFromResource(nodeType, templateJsonNode).getValue();
+          String newDescription = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode).getValue();
           resourceRequestBody.put("name", newName);
           resourceRequestBody.put("description", newDescription);
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);

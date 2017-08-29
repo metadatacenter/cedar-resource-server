@@ -1,14 +1,18 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.CreateOrUpdate;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
+import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.http.CedarResponse;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
@@ -17,8 +21,7 @@ import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
-import static org.metadatacenter.constant.CedarQueryParameters.QP_IMPORT_MODE;
-import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.*;
 
 @Path("/templates")
 @Produces(MediaType.APPLICATION_JSON)
@@ -30,8 +33,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  public Response createTemplate(@QueryParam(QP_FOLDER_ID) Optional<String> folderId, @QueryParam(QP_IMPORT_MODE)
-      Optional<Boolean> importMode) throws CedarException {
+  public Response createTemplate(@QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_CREATE);
@@ -46,7 +48,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     }
 
     FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-    return executeResourcePostByProxy(c, CedarNodeType.TEMPLATE, folder, importMode);
+    return executeResourcePostByProxy(c, CedarNodeType.TEMPLATE, folder);
   }
 
   @GET
@@ -78,13 +80,77 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{id}")
-  public Response updateTemplate(@PathParam(PP_ID) String id) throws CedarException {
+  public Response updateTemplate(@PathParam(PP_ID) String id, @QueryParam(QP_FOLDER_ID) Optional<String> folderId)
+      throws CedarException {
+
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(CedarNodeType.TEMPLATE, id, c);
+
+    CedarRequestBody requestBody = c.request().getRequestBody();
+    c.must(requestBody).be(NonEmpty);
+
+    CedarParameter idInBody = requestBody.get("@id");
+    //c.should(idInBody).be(NonNull).otherwiseBadRequest();
+    c.must(idInBody).be(NonNull);
+
+    if (!idInBody.equals(id)) {
+      return CedarResponse.badRequest()
+          .errorMessage("The id in the URI and the @id in the body must be equal")
+          .parameter(PP_ID, id)
+          .parameter("@id", idInBody)
+          .build();
+    }
+
+    JsonNode templateOnTemplateServer = null;//MicroserviceRequest.templateServer().get(CedarNodeType.TEMPLATE, id);
+    JsonNode templateOnWorkspaceServer = null;//MicroserviceRequest.workspaceServer().get(CedarNodeType.TEMPLATE, id);
+
+    if (templateOnTemplateServer == null ^ templateOnWorkspaceServer == null) {
+      return CedarResponse.internalServerError()
+          .errorMessage("The state of this template is inconsistent on the backend storage! It can not be updated")
+          .parameter("presentOnTemplateServer", templateOnTemplateServer != null)
+          .parameter("presentOnWorkspaceServer", templateOnWorkspaceServer != null)
+          .build();
+    }
+
+    CreateOrUpdate createOrUpdate = null;
+
+    if (templateOnTemplateServer == null && templateOnWorkspaceServer == null) {
+      createOrUpdate = CreateOrUpdate.CREATE;
+    } else {
+      createOrUpdate = CreateOrUpdate.UPDATE;
+    }
+
+    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
+
+    if (createOrUpdate == CreateOrUpdate.UPDATE) {
+      if (!folderIdP.isEmpty()) {
+        return CedarResponse.badRequest()
+            .errorMessage("You are not allowed to specify the folder_id if you are trying to update a template")
+            .parameter(QP_FOLDER_ID, folderIdP.stringValue())
+            .build();
+      } else {
+        // do the update on template
+          // probably will result in a reindex
+        // do the update on workspace
+          // it can result in a rename
+      }
+    } else if (createOrUpdate == CreateOrUpdate.CREATE) {
+      String folderIdS;
+      if (folderIdP.isEmpty()) {
+        folderIdS = c.getCedarUser().getHomeFolderId();
+      } else {
+        folderIdS = folderIdP.stringValue();
+      }
+      FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
+      // create it on template
+      // create it on folder;
+    }
+    // TODO: this was the old code
+    //return executeResourcePutByProxy(CedarNodeType.TEMPLATE, id, c);
+    return null;
   }
 
   @DELETE
