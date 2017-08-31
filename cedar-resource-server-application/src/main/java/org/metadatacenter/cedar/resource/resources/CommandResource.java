@@ -688,7 +688,7 @@ public class CommandResource extends AbstractResourceServerResource {
               if (changeDescription) {
                 updateDescriptionInObject(nodeType, currentTemplateJsonNode, description);
               }
-              return executeResourcePutByProxy(nodeType, id, c, JsonMapper.MAPPER.writeValueAsString
+              return executeResourcePutByProxy(c, nodeType, id, null, JsonMapper.MAPPER.writeValueAsString
                   (currentTemplateJsonNode));
             } else {
               return CedarResponse.badRequest()

@@ -82,7 +82,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(CedarNodeType.INSTANCE, id, c);
+    return executeResourcePutByProxy(c, CedarNodeType.INSTANCE, id);
   }
 
   @DELETE
@@ -94,7 +94,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, id, c);
+    return executeResourceDeleteByProxy(c, CedarNodeType.INSTANCE, id);
   }
 
   @GET

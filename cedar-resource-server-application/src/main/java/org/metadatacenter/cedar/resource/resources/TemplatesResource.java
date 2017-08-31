@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.constant.LinkedData;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.CreateOrUpdate;
@@ -87,20 +88,17 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
 
-    userMustHaveWriteAccessToResource(c, id);
-
     CedarRequestBody requestBody = c.request().getRequestBody();
     c.must(requestBody).be(NonEmpty);
 
-    CedarParameter idInBody = requestBody.get("@id");
-    //c.should(idInBody).be(NonNull).otherwiseBadRequest();
+    CedarParameter idInBody = requestBody.get(LinkedData.ID);
     c.must(idInBody).be(NonNull);
 
-    if (!idInBody.equals(id)) {
+    if (!idInBody.stringValue().equals(id)) {
       return CedarResponse.badRequest()
           .errorMessage("The id in the URI and the @id in the body must be equal")
           .parameter(PP_ID, id)
-          .parameter("@id", idInBody)
+          .parameter(LinkedData.ID, idInBody)
           .build();
     }
 
@@ -132,10 +130,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
             .parameter(QP_FOLDER_ID, folderIdP.stringValue())
             .build();
       } else {
-        // do the update on template
-          // probably will result in a reindex
-        // do the update on workspace
-          // it can result in a rename
+        userMustHaveWriteAccessToResource(c, id);
+        return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id);
       }
     } else if (createOrUpdate == CreateOrUpdate.CREATE) {
       String folderIdS;
@@ -145,11 +141,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
         folderIdS = folderIdP.stringValue();
       }
       FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-      // create it on template
-      // create it on folder;
+      return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folder);
     }
-    // TODO: this was the old code
-    //return executeResourcePutByProxy(CedarNodeType.TEMPLATE, id, c);
     return null;
   }
 
@@ -162,7 +155,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_DELETE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourceDeleteByProxy(CedarNodeType.TEMPLATE, id, c);
+    return executeResourceDeleteByProxy(c, CedarNodeType.TEMPLATE, id);
   }
 
   @GET

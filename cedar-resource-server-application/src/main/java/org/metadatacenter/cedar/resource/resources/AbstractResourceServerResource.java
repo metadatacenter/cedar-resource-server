@@ -12,10 +12,7 @@ import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
-import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.exception.CedarObjectNotFoundException;
-import org.metadatacenter.exception.CedarPermissionException;
-import org.metadatacenter.exception.CedarProcessingException;
+import org.metadatacenter.exception.*;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.CreateOrUpdate;
 import org.metadatacenter.model.ModelNodeNames;
@@ -282,13 +279,18 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourcePutByProxy(CedarNodeType nodeType, String id, CedarRequestContext context) throws
+  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id) throws
       CedarProcessingException {
-    return executeResourcePutByProxy(nodeType, id, context, null);
+    return executeResourcePutByProxy(context, nodeType, id, null, null);
   }
 
-  protected Response executeResourcePutByProxy(CedarNodeType nodeType, String id, CedarRequestContext context, String
-      content) throws
+  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
+                                               FolderServerFolder folder) throws CedarProcessingException {
+    return executeResourcePutByProxy(context, nodeType, id, folder, null);
+  }
+
+  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
+                                               FolderServerFolder folder, String content) throws
       CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
@@ -297,10 +299,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
       HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(url, context);
       int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();
-      if (currentStatusCode != HttpStatus.SC_OK) {
-        // resource was not created
-        return generateStatusResponse(templateCurrentProxyResponse);
-      } else {
+      if (currentStatusCode == HttpStatus.SC_OK) {
         HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
         if (currentTemplateEntity != null) {
           String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity);
@@ -338,6 +337,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           String newDescription = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode).getValue();
           resourceRequestBody.put("name", newName);
           resourceRequestBody.put("description", newDescription);
+          if (folder != null) {
+            resourceRequestBody.put("parentId", folder.getId());
+            resourceRequestBody.put("nodeType", nodeType.getValue());
+          }
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
           // Check if this was a rename.
@@ -411,7 +414,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT);
   }
 
-  protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
+  protected Response executeResourceDeleteByProxy(CedarRequestContext context, CedarNodeType nodeType, String id)
       throws CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
@@ -523,7 +526,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourcePermissionPutByProxy(String resourceId, CedarRequestContext context) throws
-      CedarProcessingException {
+      CedarProcessingException, CedarBadRequestException {
     String url = microserviceUrlUtil.getWorkspace().getResourceWithIdPermissions(resourceId);
     HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
     int statusCode = proxyResponse.getStatusLine().getStatusCode();

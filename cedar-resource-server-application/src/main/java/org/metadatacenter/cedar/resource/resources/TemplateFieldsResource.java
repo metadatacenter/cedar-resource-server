@@ -80,7 +80,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(CedarNodeType.FIELD, id, c);
+    return executeResourcePutByProxy(c, CedarNodeType.FIELD, id);
   }
 
   @DELETE
@@ -92,7 +92,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_DELETE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourceDeleteByProxy(CedarNodeType.FIELD, id, c);
+    return executeResourceDeleteByProxy(c, CedarNodeType.FIELD, id);
   }
 
   @GET
