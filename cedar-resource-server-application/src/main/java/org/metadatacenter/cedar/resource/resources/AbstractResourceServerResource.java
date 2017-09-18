@@ -3,8 +3,6 @@ package org.metadatacenter.cedar.resource.resources;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.commons.codec.EncoderException;
-import org.apache.commons.codec.net.URLCodec;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -25,14 +23,12 @@ import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.server.jsonld.LinkedDataUtil;
 import org.metadatacenter.server.search.IndexedDocumentId;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
-import org.metadatacenter.server.url.MicroserviceUrlUtil;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -44,7 +40,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
 
-import static org.metadatacenter.model.ModelPaths.*;
+import static org.metadatacenter.model.ModelPaths.SCHEMA_DESCRIPTION;
+import static org.metadatacenter.model.ModelPaths.SCHEMA_NAME;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
@@ -217,12 +214,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected static String extractNameFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
     String title = "";
-    JsonNode titleNode = null;
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
-      titleNode = jsonNode.at(UI_TITLE);
-    } else if (nodeType == CedarNodeType.INSTANCE) {
-      titleNode = jsonNode.at(SCHEMA_NAME);
-    }
+    JsonNode titleNode = jsonNode.at(SCHEMA_NAME);
     if (titleNode != null && !titleNode.isMissingNode()) {
       title = titleNode.textValue();
     }
@@ -231,12 +223,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected static String extractDescriptionFromResponseObject(CedarNodeType nodeType, JsonNode jsonNode) {
     String description = "";
-    JsonNode descriptionNode = null;
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
-      descriptionNode = jsonNode.at(UI_DESCRIPTION);
-    } else if (nodeType == CedarNodeType.INSTANCE) {
-      descriptionNode = jsonNode.at(SCHEMA_DESCRIPTION);
-    }
+    JsonNode descriptionNode = jsonNode.at(SCHEMA_DESCRIPTION);
     if (descriptionNode != null && !descriptionNode.isMissingNode()) {
       description = descriptionNode.textValue();
     }
@@ -244,25 +231,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected static void updateNameInObject(CedarNodeType nodeType, JsonNode jsonNode, String name) {
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
-      JsonNode uiNode = jsonNode.at(UI);
-      if (uiNode != null && !uiNode.isMissingNode()) {
-        ((ObjectNode) uiNode).put(ModelNodeNames.TITLE, name);
-      }
-    } else if (nodeType == CedarNodeType.INSTANCE) {
-      ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_NAME, name);
-    }
+    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_NAME, name);
   }
 
   protected static void updateDescriptionInObject(CedarNodeType nodeType, JsonNode jsonNode, String description) {
-    if (nodeType == CedarNodeType.FIELD || nodeType == CedarNodeType.ELEMENT || nodeType == CedarNodeType.TEMPLATE) {
-      JsonNode uiNode = jsonNode.at(UI);
-      if (uiNode != null && !uiNode.isMissingNode()) {
-        ((ObjectNode) uiNode).put(ModelNodeNames.DESCRIPTION, description);
-      }
-    } else if (nodeType == CedarNodeType.INSTANCE) {
-      ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_DESCRIPTION, description);
-    }
+    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_DESCRIPTION, description);
   }
 
   protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id,
