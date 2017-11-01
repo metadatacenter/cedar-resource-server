@@ -1446,7 +1446,7 @@
     "/command/validate": {
       "post": {
         "summary": "Validate resources",
-        "description": "Validate resources using the CEDAR meta-model schema. The validation service will return a report in JSON format as follows:\n```\n{ \n  \"validates\": \"\",  # Indicate the validity of the submitted resource (true = valid, false = invalid).\n  \"warnings\": [],   # A list of warning messages, if any.\n  \"errors\": []      # A list of error messages, if any.\n}\n```\n",
+        "description": "Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model.\n&nbsp;\nTo use this service you will need to append the resource text in the request body as the payload. However, in the case of validating the template instance, you have an additional option to include the template text by organizing them as follows:\n```\n{\n  \"schema\": <template text>,\n  \"instance\": <instance text>\n}\n```\n&nbsp;\nThe validation service will return a report in JSON format as follows:\n```\n{\n  \"validates\": \"\",  # Indicate the validity of the submitted resource (true = valid, false = invalid).\n  \"warnings\": [],   # A list of warning messages, if any.\n  \"errors\": []      # A list of error messages, if any.\n}\n```\n",
         "tags": [
           "Validate"
         ],
