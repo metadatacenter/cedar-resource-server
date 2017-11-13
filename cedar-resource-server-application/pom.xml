@@ -102,6 +102,11 @@
       <artifactId>cedar-model-validation-library</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>com.fasterxml.jackson.module</groupId>
+      <artifactId>jackson-module-afterburner</artifactId>
+    </dependency>
+
   </dependencies>
 
   <build>
