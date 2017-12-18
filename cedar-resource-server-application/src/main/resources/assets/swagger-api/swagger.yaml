@@ -955,7 +955,17 @@ paths:
     post:
       summary: Validate resources
       description: |
-        Validate resources using the CEDAR meta-model schema. The validation service will return a report in JSON format as follows:
+        Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model.
+        &nbsp;
+        To use this service you will need to append the resource text in the request body as the payload. However, in the case of validating the template instance, you have an additional option to include the template text by organizing them as follows:
+        ```
+        {
+          "schema": <template text>,
+          "instance": <instance text>
+        }
+        ```
+        &nbsp;
+        The validation service will return a report in JSON format as follows:
         ```
         {
           "validates": "",  # Indicate the validity of the submitted resource (true = valid, false = invalid).

@@ -40,8 +40,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
 
-import static org.metadatacenter.model.ModelPaths.UI;
-
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
