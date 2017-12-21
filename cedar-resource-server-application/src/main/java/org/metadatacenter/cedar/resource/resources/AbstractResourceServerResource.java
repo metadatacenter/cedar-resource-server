@@ -213,25 +213,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected static void updateNameInObject(CedarNodeType nodeType, JsonNode jsonNode, String name) {
-    if (nodeType.isFielOrElementOrTemplate()) {
-      JsonNode uiNode = jsonNode.at(UI);
-      if (uiNode != null && !uiNode.isMissingNode()) {
-        ((ObjectNode) uiNode).put(ModelNodeNames.TITLE, name);
-      }
-    } else if (nodeType == CedarNodeType.INSTANCE) {
-      ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_NAME, name);
-    }
+    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_NAME, name);
   }
 
   protected static void updateDescriptionInObject(CedarNodeType nodeType, JsonNode jsonNode, String description) {
-    if (nodeType.isFielOrElementOrTemplate()) {
-      JsonNode uiNode = jsonNode.at(UI);
-      if (uiNode != null && !uiNode.isMissingNode()) {
-        ((ObjectNode) uiNode).put(ModelNodeNames.DESCRIPTION, description);
-      }
-    } else if (nodeType == CedarNodeType.INSTANCE) {
-      ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_DESCRIPTION, description);
-    }
+    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_DESCRIPTION, description);
   }
 
   protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id,
