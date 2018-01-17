@@ -33,7 +33,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
   @Override
   public void initializeApp() {
-    CedarDataServices.initializeFolderServices(cedarConfig);
+    CedarDataServices.initializeWorkspaceServices(cedarConfig);
 
     ElasticsearchServiceFactory esServiceFactory = ElasticsearchServiceFactory.getInstance(cedarConfig);
     NodeIndexingService nodeIndexingService = esServiceFactory.nodeIndexingService();
@@ -51,10 +51,10 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
         contentSearchingService, searchPermissionEnqueueService, userPermissionIndexingService,
         groupPermissionIndexingService);
 
-    ExecutorService executor = Executors.newSingleThreadExecutor();
+    /*ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
       IndexRegenerator.regenerate(cedarConfig, userService);
-    });
+    });*/
   }
 
   @Override
