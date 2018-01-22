@@ -386,7 +386,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                                                           Object responseContent) {
     return responseBuilder
         .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(proxyResponse))
-        .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT, getValidationReport(proxyResponse))
         .header(ACCESS_CONTROL_EXPOSE_HEADERS, printCedarValidationHeaderList())
         .entity(responseContent).build();
   }
@@ -395,13 +394,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return response.getFirstHeader(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS).getValue();
   }
 
-  private static String getValidationReport(HttpResponse response) {
-    return response.getFirstHeader(CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT).getValue();
-  }
-
   private static String printCedarValidationHeaderList() {
-    return String.format("%s, %s",
-        CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, CustomHttpConstants.HEADER_CEDAR_VALIDATION_REPORT);
+    return String.format("%s", CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS);
   }
 
   protected Response executeResourceDeleteByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
