@@ -33,7 +33,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
   @Override
   public void initializeApp() {
-    CedarDataServices.initializeFolderServices(cedarConfig);
+    CedarDataServices.initializeWorkspaceServices(cedarConfig);
 
     ElasticsearchServiceFactory esServiceFactory = ElasticsearchServiceFactory.getInstance(cedarConfig);
     NodeIndexingService nodeIndexingService = esServiceFactory.nodeIndexingService();
