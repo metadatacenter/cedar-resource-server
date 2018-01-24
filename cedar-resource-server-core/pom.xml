@@ -101,4 +101,8 @@
       </plugin>
     </plugins>
   </build>
+
+  <scm>
+    <tag>release-1.6.1</tag>
+  </scm>
 </project>
