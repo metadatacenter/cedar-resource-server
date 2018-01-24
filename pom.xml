@@ -20,6 +20,7 @@
     <connection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</connection>
     <developerConnection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</developerConnection>
     <url>https://github.com/metadatacenter/cedar-resource-server</url>
+    <tag>release-1.6.1</tag>
   </scm>
 
   <modules>
