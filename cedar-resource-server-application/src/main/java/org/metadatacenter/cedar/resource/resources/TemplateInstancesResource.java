@@ -18,7 +18,6 @@ import java.util.Optional;
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
-import static org.metadatacenter.constant.CedarQueryParameters.QP_IMPORT_MODE;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/template-instances")
@@ -31,8 +30,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  public Response createTemplateInstance(@QueryParam(QP_FOLDER_ID) Optional<String> folderId, @QueryParam(QP_IMPORT_MODE)
-      Optional<Boolean> importMode) throws CedarException {
+  public Response createTemplateInstance(@QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE);
@@ -47,7 +45,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     }
 
     FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-    return executeResourcePostByProxy(c, CedarNodeType.INSTANCE, folder, importMode);
+    return executeResourcePostByProxy(c, CedarNodeType.INSTANCE, folder);
   }
 
   @GET
@@ -84,7 +82,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(CedarNodeType.INSTANCE, id, c);
+    return executeResourcePutByProxy(c, CedarNodeType.INSTANCE, id);
   }
 
   @DELETE
@@ -96,7 +94,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourceDeleteByProxy(CedarNodeType.INSTANCE, id, c);
+    return executeResourceDeleteByProxy(c, CedarNodeType.INSTANCE, id);
   }
 
   @GET
