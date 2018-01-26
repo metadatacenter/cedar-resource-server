@@ -164,14 +164,7 @@ public class CommandResource extends AbstractResourceServerResource {
           oldTitle = "";
         }
         String newTitle = titleTemplate.replace("{{title}}", oldTitle);
-        if (nodeType != CedarNodeType.INSTANCE) {
-          JsonNode ui = jsonNode.get("_ui");
-          if (ui != null) {
-            ((ObjectNode) ui).put("title", newTitle);
-          }
-        } else {
-          ((ObjectNode) jsonNode).put("schema:name", newTitle);
-        }
+        ((ObjectNode) jsonNode).put("schema:name", newTitle);
         originalDocument = jsonNode.toString();
       }
     } catch (Exception e) {
