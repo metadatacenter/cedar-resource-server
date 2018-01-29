@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-resource-server</artifactId>
-    <version>1.6.1</version>
+    <version>1.6.2</version>
   </parent>
 
   <groupId>org.metadatacenter</groupId>
@@ -150,9 +150,4 @@
     </plugins>
 
   </build>
-
-
-  <scm>
-    <tag>release-1.6.1</tag>
-  </scm>
 </project>

@@ -17,7 +17,6 @@ import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
-import static org.metadatacenter.constant.CedarQueryParameters.QP_IMPORT_MODE;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/template-fields")
@@ -30,8 +29,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  public Response createTemplateField(@QueryParam(QP_FOLDER_ID) Optional<String> folderId, @QueryParam(QP_IMPORT_MODE)
-      Optional<Boolean> importMode) throws CedarException {
+  public Response createTemplateField(@QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_CREATE);
@@ -46,7 +44,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     }
 
     FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-    return executeResourcePostByProxy(c, CedarNodeType.FIELD, folder, importMode);
+    return executeResourcePostByProxy(c, CedarNodeType.FIELD, folder);
   }
 
   @GET
@@ -82,7 +80,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(CedarNodeType.FIELD, id, c);
+    return executeResourcePutByProxy(c, CedarNodeType.FIELD, id);
   }
 
   @DELETE
@@ -94,7 +92,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_DELETE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourceDeleteByProxy(CedarNodeType.FIELD, id, c);
+    return executeResourceDeleteByProxy(c, CedarNodeType.FIELD, id);
   }
 
   @GET

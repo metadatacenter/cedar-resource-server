@@ -121,14 +121,14 @@
     "folder_id": {
       "name": "folder_id",
       "in": "path",
-      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
       "type": "string",
       "required": true
     },
     "qs_folder_id": {
       "name": "folder_id",
       "in": "query",
-      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.net/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
       "type": "string",
       "required": true
     },
@@ -176,21 +176,21 @@
     "template_element_id": {
       "name": "template_element_id",
       "in": "path",
-      "description": "Template Element identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "description": "Template Element identifier. Example&#58; https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
       "type": "string",
       "required": true
     },
     "template_instance_id": {
       "name": "template_instance_id",
       "in": "path",
-      "description": "Template Instance identifier. Example&#58; https://repo.metadatacenter.net/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "description": "Template Instance identifier. Example&#58; https://repo.metadatacenter.org/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e",
       "type": "string",
       "required": true
     },
     "template_id": {
       "name": "template_id",
       "in": "path",
-      "description": "Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "description": "Template identifier. Example&#58; https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
       "type": "string",
       "required": true
     },
@@ -204,7 +204,7 @@
     "derived_from_id": {
       "name": "derived_from_id",
       "in": "query",
-      "description": "Template identifier. Example&#58; https://repo.metadatacenter.net/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e\nAll the instances with this template id will be returned\n",
+      "description": "Template identifier. Example&#58; https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e\nAll the instances with this template id will be returned\n",
       "type": "string",
       "required": false
     },

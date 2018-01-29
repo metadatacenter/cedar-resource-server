@@ -17,7 +17,6 @@ import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
-import static org.metadatacenter.constant.CedarQueryParameters.QP_IMPORT_MODE;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/template-elements")
@@ -30,8 +29,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  public Response createTemplateElement(@QueryParam(QP_FOLDER_ID) Optional<String> folderId, @QueryParam(QP_IMPORT_MODE)
-      Optional<Boolean> importMode) throws CedarException {
+  public Response createTemplateElement(@QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_CREATE);
@@ -46,7 +44,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     }
 
     FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-    return executeResourcePostByProxy(c, CedarNodeType.ELEMENT, folder, importMode);
+    return executeResourcePostByProxy(c, CedarNodeType.ELEMENT, folder);
   }
 
   @GET
@@ -82,7 +80,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(CedarNodeType.ELEMENT, id, c);
+    return executeResourcePutByProxy(c, CedarNodeType.ELEMENT, id);
   }
 
   @DELETE
@@ -94,7 +92,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_DELETE);
 
     userMustHaveWriteAccessToResource(c, id);
-    return executeResourceDeleteByProxy(CedarNodeType.ELEMENT, id, c);
+    return executeResourceDeleteByProxy(c, CedarNodeType.ELEMENT, id);
   }
 
   @GET
