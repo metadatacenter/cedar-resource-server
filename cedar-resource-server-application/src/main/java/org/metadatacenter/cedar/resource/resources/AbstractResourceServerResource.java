@@ -13,9 +13,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
-import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.CreateOrUpdate;
-import org.metadatacenter.model.ModelNodeNames;
+import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
@@ -72,24 +70,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
     AbstractResourceServerResource.userPermissionIndexingService = userPermissionIndexingService;
     AbstractResourceServerResource.groupPermissionIndexingService = groupPermissionIndexingService;
-  }
-
-  protected FolderServerFolder getCedarFolderById(String id, CedarRequestContext context) throws
-      CedarProcessingException {
-    String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);
-
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-
-    HttpEntity entity = proxyResponse.getEntity();
-    if (entity != null) {
-      if (HttpStatus.SC_OK == statusCode) {
-        return (FolderServerFolder) deserializeResource(proxyResponse);
-      }
-    }
-    return null;
   }
 
   protected static FolderServerNode deserializeResource(HttpResponse proxyResponse) throws CedarProcessingException {
@@ -164,6 +144,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           resourceRequestBody.put("nodeType", nodeType.getValue());
           resourceRequestBody.put("name", namePair.getValue());
           resourceRequestBody.put("description", descriptionPair.getValue());
+          if (nodeType == CedarNodeType.TEMPLATE || nodeType == CedarNodeType.ELEMENT) {
+            JsonPointerValuePair versionPair = ModelUtil.extractVersionFromResource(nodeType, templateJsonNode);
+            JsonPointerValuePair statusPair = ModelUtil.extractStatusFromResource(nodeType, templateJsonNode);
+            resourceRequestBody.put("version", versionPair.getValue());
+            resourceRequestBody.put("status", statusPair.getValue());
+          }
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
           HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, context, resourceRequestBodyAsString);
