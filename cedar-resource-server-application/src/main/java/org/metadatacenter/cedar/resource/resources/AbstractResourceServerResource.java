@@ -13,7 +13,9 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
-import org.metadatacenter.model.*;
+import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.CreateOrUpdate;
+import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
@@ -231,6 +233,39 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
+  protected String getResourceFromTemplateServer(CedarNodeType nodeType, String id, CedarRequestContext context) throws
+      CedarProcessingException {
+    try {
+      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      HttpEntity entity = proxyResponse.getEntity();
+      return EntityUtils.toString(entity);
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
+  }
+
+  protected Response putResourceToTemplateServer(CedarNodeType nodeType, String id, CedarRequestContext context, String
+      content) throws
+      CedarProcessingException {
+    try {
+      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
+      HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
+      HttpEntity entity = templateProxyResponse.getEntity();
+      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      if (entity != null) {
+        String responseString = EntityUtils.toString(entity);
+        JsonNode responseNode = JsonMapper.MAPPER.readTree(responseString);
+        return Response.status(statusCode).entity(responseNode).build();
+      } else {
+        return Response.status(statusCode).build();
+      }
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
+  }
+
   protected Response executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
       throws CedarProcessingException {
     try {
@@ -361,7 +396,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse
+  protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse
       proxyResponse,
                                                           Object responseContent) {
     return responseBuilder

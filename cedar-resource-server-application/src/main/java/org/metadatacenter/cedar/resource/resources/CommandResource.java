@@ -17,7 +17,9 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
+import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.ResourceVersion;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.request.OutputFormatType;
@@ -36,6 +38,7 @@ import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserExtract;
 import org.metadatacenter.server.security.util.CedarUserUtil;
 import org.metadatacenter.server.service.UserService;
+import org.metadatacenter.util.CedarNodeTypeUtil;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -57,6 +60,8 @@ import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPE;
+import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
+import static org.metadatacenter.model.ModelNodeNames.PAV_VERSION;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
@@ -200,6 +205,8 @@ public class CommandResource extends AbstractResourceServerResource {
           resourceRequestBody.put("id", createdId);
           resourceRequestBody.put("nodeType", nodeType.getValue());
           resourceRequestBody.put("name", ModelUtil.extractNameFromResource(nodeType, jsonNode).getValue());
+          resourceRequestBody.put("version", ModelUtil.extractVersionFromResource(nodeType, jsonNode).getValue());
+          resourceRequestBody.put("status", ModelUtil.extractStatusFromResource(nodeType, jsonNode).getValue());
           resourceRequestBody.put("description", ModelUtil.extractDescriptionFromResource(nodeType, jsonNode)
               .getValue());
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
@@ -699,5 +706,121 @@ public class CommandResource extends AbstractResourceServerResource {
       }
     }
   }
+
+  @POST
+  @Timed
+  @Path("/publish-resource")
+  public Response publishResource() throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+
+    CedarParameter idParam = c.request().getRequestBody().get("@id");
+    CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
+    CedarParameter nodeTypeParam = c.request().getRequestBody().get("nodeType");
+
+    String id = idParam.stringValue();
+    String nodeTypeString = nodeTypeParam.stringValue();
+
+    ResourceVersion newVersion = null;
+    if (!newVersionParam.isEmpty()) {
+      newVersion = ResourceVersion.forValueWithValidation(newVersionParam.stringValue());
+    }
+    if (newVersion == null || !newVersion.isValid()) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_DATA)
+          .parameter("newVersion", newVersionParam.stringValue())
+          .build();
+    }
+
+    CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
+    if (nodeType == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
+          .parameter("nodeType", nodeTypeString)
+          .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
+          .build();
+    }
+
+    CedarPermission updatePermission = null;
+    switch (nodeType) {
+      case ELEMENT:
+        updatePermission = CedarPermission.TEMPLATE_ELEMENT_UPDATE;
+        break;
+      case TEMPLATE:
+        updatePermission = CedarPermission.TEMPLATE_UPDATE;
+        break;
+      default:
+        return CedarResponse.badRequest()
+            .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
+            .errorMessage("You passed an illegal 'resource_types':'" + nodeTypeString + "'. The allowed values are:" +
+                CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+            .parameter("invalidResourceType", nodeTypeString)
+            .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+            .build();
+    }
+
+    // Check update permission
+    c.must(c.user()).have(updatePermission);
+
+    String getResponse = getResourceFromTemplateServer(nodeType, id, c);
+    if (getResponse != null) {
+      JsonNode getJsonNode = null;
+      try {
+        getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+        if (getJsonNode != null) {
+
+          //TODO: check the old Version is smaller than newVersion
+
+          //publish on template server
+          ((ObjectNode) getJsonNode).put(PAV_VERSION, newVersion.getValue());
+          ((ObjectNode) getJsonNode).put(BIBO_STATUS, BiboStatus.PUBLISHED.getValue());
+          String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);
+          System.out.println(getJsonNode);
+          Response putResponse = putResourceToTemplateServer(nodeType, id, c, content);
+          int putStatus = putResponse.getStatus();
+
+          if (putStatus == HttpStatus.SC_OK) {
+            ObjectNode templateResponseNode = (ObjectNode)putResponse.getEntity();
+            // publish on workspace server
+            String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
+
+            ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
+            workspaceRequestBody.put("version", newVersion.getValue());
+            workspaceRequestBody.put("status", BiboStatus.PUBLISHED.getValue());
+            String workspaceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(workspaceRequestBody);
+
+            HttpResponse workspaceServerUpdateResponse = ProxyUtil.proxyPut(resourceUrl, c,
+                workspaceRequestBodyAsString);
+            int workspaceServerUpdateStatusCode = workspaceServerUpdateResponse.getStatusLine().getStatusCode();
+            HttpEntity workspaceEntity = workspaceServerUpdateResponse.getEntity();
+            if (workspaceEntity != null) {
+              if (HttpStatus.SC_OK == workspaceServerUpdateStatusCode) {
+                if (workspaceEntity != null) {
+                  // update the resource on the index
+                  FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent
+                      (), FolderServerResource.class);
+                  indexRemoveDocument(id);
+                  createIndexResource(folderServerResource, templateResponseNode, c);
+                  return Response.ok(folderServerResource).build();
+                } else {
+                  return Response.ok().build();
+                }
+              } else {
+                log.error("Resource not updated #1, rollback resource and signal error");
+                return Response.status(workspaceServerUpdateStatusCode).entity(workspaceEntity.getContent()).build();
+              }
+            } else {
+              log.error("Resource not updated #2, rollback resource and signal error");
+              return Response.status(workspaceServerUpdateStatusCode).build();
+            }
+          }
+        }
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }
+    return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
+  }
+
 
 }
