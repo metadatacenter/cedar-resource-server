@@ -572,7 +572,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected void createIndexResource(FolderServerResource folderServerResource, JsonNode templateJsonNode,
                                      CedarRequestContext c) throws CedarProcessingException {
     String newId = folderServerResource.getId();
-    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerResource.getDisplayName(),
+    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerResource.getName(),
         folderServerResource.getType());
     IndexedDocumentId indexedContentId = contentIndexingService.indexResource(folderServerResource, templateJsonNode,
         c, parentId);
@@ -589,7 +589,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected void createIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
       CedarProcessingException {
     String newId = folderServerFolder.getId();
-    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerFolder.getDisplayName(),
+    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerFolder.getName(),
         folderServerFolder.getType());
     contentIndexingService.indexFolder(folderServerFolder, c, parentId);
     searchPermissionEnqueueService.folderCreated(newId, parentId);
@@ -627,7 +627,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response updateFolderNameAndDescriptionOnFolderServer(CedarRequestContext c, String id) throws
       CedarException {
     FolderServerFolder folderServerFolder = userMustHaveWriteAccessToFolder(c, id);
-    String oldName = folderServerFolder.getDisplayName();
+    String oldName = folderServerFolder.getName();
 
     String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);
 
@@ -642,7 +642,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           // update the folder on the index
           FolderServerFolder folderServerFolderUpdated = JsonMapper.MAPPER.readValue(entity.getContent(),
               FolderServerFolder.class);
-          String newName = folderServerFolderUpdated.getDisplayName();
+          String newName = folderServerFolderUpdated.getName();
           if (oldName == null || !oldName.equals(newName)) {
             indexRemoveDocument(id);
             createIndexFolder(folderServerFolderUpdated, c);
