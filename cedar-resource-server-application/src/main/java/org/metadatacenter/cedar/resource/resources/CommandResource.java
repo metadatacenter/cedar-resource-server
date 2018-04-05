@@ -61,6 +61,7 @@ import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPE;
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
 import static org.metadatacenter.model.ModelNodeNames.PAV_VERSION;
+import static org.metadatacenter.model.ModelNodeNames.SCHEMA_NAME;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
@@ -170,7 +171,9 @@ public class CommandResource extends AbstractResourceServerResource {
           oldTitle = "";
         }
         String newTitle = titleTemplate.replace("{{title}}", oldTitle);
-        ((ObjectNode) jsonNode).put("schema:name", newTitle);
+        ((ObjectNode) jsonNode).put(SCHEMA_NAME, newTitle);
+        ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
+        ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
         originalDocument = jsonNode.toString();
       }
     } catch (Exception e) {
