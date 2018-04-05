@@ -29,12 +29,14 @@ import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
+import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
@@ -113,6 +115,34 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected static String responseAsJsonString(HttpResponse proxyResponse) throws IOException {
     return EntityUtils.toString(proxyResponse.getEntity());
+  }
+
+  protected Response executeResourcePostToTemplateServer(CedarRequestContext context, CedarNodeType nodeType, String
+      content) throws CedarProcessingException {
+    try {
+      String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType);
+
+      HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
+      ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
+
+      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      if (statusCode != HttpStatus.SC_CREATED) {
+        // resource was not created
+        return generateStatusResponse(templateProxyResponse);
+      } else {
+        HttpEntity entity = templateProxyResponse.getEntity();
+        String mediaType = entity.getContentType().getValue();
+        String location = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION).getValue();
+        URI locationURI = new URI(location);
+        if (entity != null) {
+          return Response.created(locationURI).type(mediaType).entity(entity.getContent()).build();
+        } else {
+          return Response.created(locationURI).type(mediaType).build();
+        }
+      }
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
   }
 
   // Proxy methods for resource types
@@ -249,20 +279,21 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response putResourceToTemplateServer(CedarNodeType nodeType, String id, CedarRequestContext context, String
       content) throws
       CedarProcessingException {
-    try {
-      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
-      HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
-      HttpEntity entity = templateProxyResponse.getEntity();
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
-      if (entity != null) {
+    String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
+    HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
+    HttpEntity entity = templateProxyResponse.getEntity();
+    int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+    if (entity != null) {
+      JsonNode responseNode = null;
+      try {
         String responseString = EntityUtils.toString(entity);
-        JsonNode responseNode = JsonMapper.MAPPER.readTree(responseString);
-        return Response.status(statusCode).entity(responseNode).build();
-      } else {
-        return Response.status(statusCode).build();
+        responseNode = JsonMapper.MAPPER.readTree(responseString);
+      } catch (Exception e) {
+        Response.status(statusCode).build();
       }
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
+      return Response.status(statusCode).entity(responseNode).build();
+    } else {
+      return Response.status(statusCode).build();
     }
   }
 
@@ -398,7 +429,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse
       proxyResponse,
-                                                          Object responseContent) {
+                                                            Object responseContent) {
     return responseBuilder
         .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(proxyResponse))
         .header(ACCESS_CONTROL_EXPOSE_HEADERS, printCedarValidationHeaderList())

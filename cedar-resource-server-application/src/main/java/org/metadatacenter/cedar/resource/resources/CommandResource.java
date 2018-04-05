@@ -17,9 +17,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
-import org.metadatacenter.model.BiboStatus;
-import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.ResourceVersion;
+import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.request.OutputFormatType;
@@ -55,6 +53,7 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.util.Optional;
 
@@ -71,6 +70,8 @@ public class CommandResource extends AbstractResourceServerResource {
   private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
 
   protected static final String MOVE_COMMAND = "move-node-to-folder";
+  protected static final String CREATE_DRAFT_RESOURCE_COMMAND = "create-draft-resource";
+  protected static final String COPY_RESOURCE_TO_FOLDER_COMMAND = "copy-resource-to-folder";
 
   private static UserService userService;
 
@@ -84,7 +85,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/copy-resource-to-folder")
+  @Path("/" + COPY_RESOURCE_TO_FOLDER_COMMAND)
   public Response copyResourceToFolder() throws CedarException {
 
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
@@ -198,15 +199,14 @@ public class CommandResource extends AbstractResourceServerResource {
           JsonNode jsonNode = JsonMapper.MAPPER.readTree(entityContent);
           String createdId = jsonNode.get("@id").asText();
 
-          String resourceUrl = microserviceUrlUtil.getWorkspace().getResources();
+          String resourceUrl = microserviceUrlUtil.getWorkspace().getCommand(COPY_RESOURCE_TO_FOLDER_COMMAND);
           //System.out.println(resourceUrl);
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           resourceRequestBody.put("parentId", targetFolder.getId());
           resourceRequestBody.put("id", createdId);
+          resourceRequestBody.put("oldId", id);
           resourceRequestBody.put("nodeType", nodeType.getValue());
           resourceRequestBody.put("name", ModelUtil.extractNameFromResource(nodeType, jsonNode).getValue());
-          resourceRequestBody.put("version", ModelUtil.extractVersionFromResource(nodeType, jsonNode).getValue());
-          resourceRequestBody.put("status", ModelUtil.extractStatusFromResource(nodeType, jsonNode).getValue());
           resourceRequestBody.put("description", ModelUtil.extractDescriptionFromResource(nodeType, jsonNode)
               .getValue());
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
@@ -769,7 +769,20 @@ public class CommandResource extends AbstractResourceServerResource {
         getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
         if (getJsonNode != null) {
 
-          //TODO: check the old Version is smaller than newVersion
+          ResourceVersion oldVersion = null;
+          JsonNode oldVersionNode = getJsonNode.at(ModelPaths.PAV_VERSION);
+          if (oldVersionNode != null) {
+            oldVersion = ResourceVersion.forValueWithValidation(oldVersionNode.textValue());
+          }
+
+          if (newVersion.isBefore(oldVersion)) {
+            return CedarResponse.badRequest()
+                .errorKey(CedarErrorKey.INVALID_DATA)
+                .errorMessage("The new version should be greater than or equal to the old version")
+                .parameter("oldVersion", oldVersion.getValue())
+                .parameter("newVersion", newVersion.getValue())
+                .build();
+          }
 
           //publish on template server
           ((ObjectNode) getJsonNode).put(PAV_VERSION, newVersion.getValue());
@@ -780,7 +793,7 @@ public class CommandResource extends AbstractResourceServerResource {
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
-            ObjectNode templateResponseNode = (ObjectNode)putResponse.getEntity();
+            ObjectNode templateResponseNode = (ObjectNode) putResponse.getEntity();
             // publish on workspace server
             String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
 
@@ -822,5 +835,175 @@ public class CommandResource extends AbstractResourceServerResource {
     return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
   }
 
+  @POST
+  @Timed
+  @Path("/" + CREATE_DRAFT_RESOURCE_COMMAND)
+  public Response createDraftResource() throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+
+    CedarParameter idParam = c.request().getRequestBody().get("@id");
+    CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
+    CedarParameter nodeTypeParam = c.request().getRequestBody().get("nodeType");
+    CedarParameter folderIdParam = c.request().getRequestBody().get("folderId");
+    CedarParameter propagateSharingParam = c.request().getRequestBody().get("propagateSharing");
+
+    String id = idParam.stringValue();
+    String nodeTypeString = nodeTypeParam.stringValue();
+    String folderId = folderIdParam.stringValue();
+    String propagateSharingString = propagateSharingParam.stringValue();
+
+    ResourceVersion newVersion = null;
+    if (!newVersionParam.isEmpty()) {
+      newVersion = ResourceVersion.forValueWithValidation(newVersionParam.stringValue());
+    }
+    if (newVersion == null || !newVersion.isValid()) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_DATA)
+          .parameter("newVersion", newVersionParam.stringValue())
+          .build();
+    }
+
+    CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
+    if (nodeType == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
+          .parameter("nodeType", nodeTypeString)
+          .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
+          .build();
+    }
+
+    boolean propagateSharing = Boolean.parseBoolean(propagateSharingString);
+
+    CedarPermission updatePermission = null;
+    switch (nodeType) {
+      case ELEMENT:
+        updatePermission = CedarPermission.TEMPLATE_ELEMENT_UPDATE;
+        break;
+      case TEMPLATE:
+        updatePermission = CedarPermission.TEMPLATE_UPDATE;
+        break;
+      default:
+        return CedarResponse.badRequest()
+            .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
+            .errorMessage("You passed an illegal 'resource_types':'" + nodeTypeString + "'. The allowed values are:" +
+                CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+            .parameter("invalidResourceType", nodeTypeString)
+            .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+            .build();
+    }
+
+    // Check update permission
+    c.must(c.user()).have(updatePermission);
+
+    String folderURL = microserviceUrlUtil.getWorkspace().getFolders();
+
+    // Check if the target folder exists
+    FolderServerFolder targetFolder = FolderServerProxy.getFolder(folderURL, folderId, c);
+    if (targetFolder == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.TARGET_FOLDER_NOT_FOUND)
+          .errorMessage("The target folder can not be found:" + folderId)
+          .parameter("folderId", folderId)
+          .build();
+    }
+
+    // Check if the user has write permission to the target folder
+    userMustHaveWriteAccessToFolder(c, folderId);
+
+    String getResponse = getResourceFromTemplateServer(nodeType, id, c);
+    if (getResponse != null) {
+      JsonNode getJsonNode = null;
+      try {
+        getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+        if (getJsonNode != null) {
+
+          ResourceVersion oldVersion = null;
+          JsonNode oldVersionNode = getJsonNode.at(ModelPaths.PAV_VERSION);
+          if (oldVersionNode != null) {
+            oldVersion = ResourceVersion.forValueWithValidation(oldVersionNode.textValue());
+          }
+
+          if (!oldVersion.isBefore(newVersion)) {
+            return CedarResponse.badRequest()
+                .errorKey(CedarErrorKey.INVALID_DATA)
+                .errorMessage("The new version should be greater than the old version")
+                .parameter("oldVersion", oldVersion.getValue())
+                .parameter("newVersion", newVersion.getValue())
+                .build();
+          }
+
+          ObjectNode newDocument = (ObjectNode) getJsonNode;
+          newDocument.put(ModelNodeNames.PAV_VERSION, newVersion.getValue());
+          newDocument.put(ModelNodeNames.BIBO_STATUS, BiboStatus.DRAFT.getValue());
+          newDocument.remove(ModelNodeNames.LD_ID);
+
+          FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderId);
+
+          String templateServerPostRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(newDocument);
+
+          Response templateServerPostResponse = executeResourcePostToTemplateServer(c, nodeType,
+              templateServerPostRequestBodyAsString);
+
+          int templateServerPostStatus = templateServerPostResponse.getStatus();
+          InputStream is = (InputStream) templateServerPostResponse.getEntity();
+          JsonNode templateServerPostResponseNode = JsonMapper.MAPPER.readTree(is);
+          if (templateServerPostStatus == Response.Status.CREATED.getStatusCode()) {
+            JsonNode atId = templateServerPostResponseNode.at(ModelPaths.AT_ID);
+            String newId = atId.asText();
+
+            // Create it on the workspace server
+            // if propagateSharing, then copy the sharing over.
+            String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(CREATE_DRAFT_RESOURCE_COMMAND);
+
+            ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
+            workspaceRequestBody.put("oldId", id);
+            workspaceRequestBody.put("newId", newId);
+            workspaceRequestBody.put("folderId", folderId);
+            workspaceRequestBody.put("nodeType", nodeTypeString);
+            workspaceRequestBody.put("propagateSharing", propagateSharing);
+            workspaceRequestBody.put("version", newVersion.getValue());
+            workspaceRequestBody.put("status", BiboStatus.DRAFT.getValue());
+
+            String workspaceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(workspaceRequestBody);
+
+            HttpResponse workspaceServerUpdateResponse = ProxyUtil.proxyPost(workspaceUrl, c,
+                workspaceRequestBodyAsString);
+            int workspaceServerUpdateStatusCode = workspaceServerUpdateResponse.getStatusLine().getStatusCode();
+            HttpEntity workspaceEntity = workspaceServerUpdateResponse.getEntity();
+            if (workspaceEntity != null) {
+              if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
+                if (workspaceEntity != null) {
+                  // update the resource on the index
+                  FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent
+                      (), FolderServerResource.class);
+                  createIndexResource(folderServerResource, templateServerPostResponseNode, c);
+                  return Response.ok(folderServerResource).build();
+                } else {
+                  return Response.ok().build();
+                }
+              } else {
+                log.error("Resource draft not created #1, rollback resource and signal error");
+                return Response.status(workspaceServerUpdateStatusCode).entity(workspaceEntity.getContent()).build();
+              }
+            } else {
+              log.error("Resource draft not created #2, rollback resource and signal error");
+              return Response.status(workspaceServerUpdateStatusCode).build();
+            }
+            /// this is the end of workspace creation
+          } else {
+            return CedarResponse.internalServerError()
+                .errorMessage("There was an error while creating the resource on the template server")
+                .parameter("responseCode", templateServerPostStatus)
+                .parameter("responseDocument", templateServerPostResponseNode)
+                .build();
+          }
+        }
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }
+    return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
+  }
 
 }
