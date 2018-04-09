@@ -59,9 +59,7 @@ import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPE;
-import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
-import static org.metadatacenter.model.ModelNodeNames.PAV_VERSION;
-import static org.metadatacenter.model.ModelNodeNames.SCHEMA_NAME;
+import static org.metadatacenter.model.ModelNodeNames.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
@@ -174,6 +172,7 @@ public class CommandResource extends AbstractResourceServerResource {
         ((ObjectNode) jsonNode).put(SCHEMA_NAME, newTitle);
         ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
         ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
+        ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
         originalDocument = jsonNode.toString();
       }
     } catch (Exception e) {

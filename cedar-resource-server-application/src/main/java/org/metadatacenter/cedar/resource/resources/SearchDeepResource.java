@@ -27,7 +27,7 @@ public class SearchDeepResource extends AbstractSearchResource {
   @Path("/search-deep")
   public Response searchDeep(@QueryParam(QP_Q) Optional<String> q,
                              @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
-                             @QueryParam(QP_DERIVED_FROM_ID) Optional<String> derivedFromIdParam,
+                             @QueryParam(QP_IS_BASED_ON) Optional<String> derivedFromIdParam,
                              @QueryParam(QP_SORT) Optional<String> sortParam,
                              @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
                              @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,

@@ -31,7 +31,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
   public Response search(@QueryParam(QP_Q) Optional<String> q,
                          @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
-                         @QueryParam(QP_DERIVED_FROM_ID) Optional<String> derivedFromIdParam,
+                         @QueryParam(QP_IS_BASED_ON) Optional<String> derivedFromIdParam,
                          @QueryParam(QP_SORT) Optional<String> sortParam,
                          @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
                          @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
@@ -47,7 +47,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
       CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
           .queryParam(QP_Q, q)
           .queryParam(QP_RESOURCE_TYPES, resourceTypes)
-          .queryParam(QP_DERIVED_FROM_ID, derivedFromIdParam)
+          .queryParam(QP_IS_BASED_ON, derivedFromIdParam)
           .queryParam(QP_SORT, sortParam)
           .queryParam(QP_LIMIT, limitParam)
           .queryParam(QP_OFFSET, offsetParam)
@@ -80,7 +80,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
             .queryParam(QP_Q, q)
             .queryParam(QP_RESOURCE_TYPES, resourceTypes)
-            .queryParam(QP_DERIVED_FROM_ID, derivedFromIdParam)
+            .queryParam(QP_IS_BASED_ON, derivedFromIdParam)
             .queryParam(QP_SORT, sortParam)
             .queryParam(QP_LIMIT, limitParam)
             .queryParam(QP_OFFSET, offsetParam)

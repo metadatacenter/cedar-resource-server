@@ -29,7 +29,6 @@ import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
-import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -113,10 +112,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return JsonMapper.MAPPER.valueToTree(resource);
   }
 
-  protected static String responseAsJsonString(HttpResponse proxyResponse) throws IOException {
-    return EntityUtils.toString(proxyResponse.getEntity());
-  }
-
   protected Response executeResourcePostToTemplateServer(CedarRequestContext context, CedarNodeType nodeType, String
       content) throws CedarProcessingException {
     try {
@@ -181,6 +176,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             JsonPointerValuePair statusPair = ModelUtil.extractStatusFromResource(nodeType, templateJsonNode);
             resourceRequestBody.put("version", versionPair.getValue());
             resourceRequestBody.put("status", statusPair.getValue());
+          } else if (nodeType == CedarNodeType.INSTANCE) {
+            resourceRequestBody.put("isBasedOn", ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
           }
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
@@ -553,6 +550,24 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     return buildResponse(proxyResponse);
+  }
+
+  protected Response executeResourceReportGetByProxy(String resourceId, CedarRequestContext context) throws
+      CedarProcessingException {
+    try {
+      String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(resourceId);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      HttpEntity entity = proxyResponse.getEntity();
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      if (entity != null) {
+        return Response.status(statusCode).entity(resourceWithExpandedProvenanceInfo(proxyResponse, context)).build();
+      } else {
+        return Response.status(statusCode).build();
+      }
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
   }
 
   protected Response executeResourcePermissionPutByProxy(String resourceId, CedarRequestContext context) throws

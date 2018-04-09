@@ -119,4 +119,16 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeResourcePermissionPutByProxy(id, c);
   }
 
+  @GET
+  @Timed
+  @Path("/{id}/report")
+  public Response getTemplateElementInstanceReport(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
+
+    userMustHaveReadAccessToResource(c, id);
+    return executeResourceReportGetByProxy(id, c);
+  }
+
 }
