@@ -801,7 +801,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
             ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
             workspaceRequestBody.put("version", newVersion.getValue());
-            workspaceRequestBody.put("status", BiboStatus.PUBLISHED.getValue());
+            workspaceRequestBody.put("publicationStatus", BiboStatus.PUBLISHED.getValue());
             String workspaceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(workspaceRequestBody);
 
             HttpResponse workspaceServerUpdateResponse = ProxyUtil.proxyPut(resourceUrl, c,
@@ -965,7 +965,7 @@ public class CommandResource extends AbstractResourceServerResource {
             workspaceRequestBody.put("nodeType", nodeTypeString);
             workspaceRequestBody.put("propagateSharing", propagateSharing);
             workspaceRequestBody.put("version", newVersion.getValue());
-            workspaceRequestBody.put("status", BiboStatus.DRAFT.getValue());
+            workspaceRequestBody.put("publicationStatus", BiboStatus.DRAFT.getValue());
 
             String workspaceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(workspaceRequestBody);
 
