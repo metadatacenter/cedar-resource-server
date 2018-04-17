@@ -78,7 +78,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
       pagedSearchQuery.validate();
 
       try {
-        String templateId = pagedSearchQuery.getIsBasedOn();
+        String isBasedOn = pagedSearchQuery.getIsBasedOn();
         List<String> resourceTypeList = pagedSearchQuery.getNodeTypeAsStringList();
         ResourceVersionFilter version = pagedSearchQuery.getVersion();
         ResourcePublicationStatusFilter publicationStatus = pagedSearchQuery.getPublicationStatus();
@@ -103,10 +103,10 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         FolderServerNodeListResponse results = null;
         if (searchDeep) {
           results = contentSearchingService.searchDeep(c, queryString, resourceTypeList, version, publicationStatus,
-              templateId, sortList, limit, offset, absoluteUrl);
+              isBasedOn, sortList, limit, offset, absoluteUrl);
         } else {
           results = contentSearchingService.search(c, queryString, resourceTypeList, version, publicationStatus,
-              templateId, sortList, limit, offset, absoluteUrl);
+              isBasedOn, sortList, limit, offset, absoluteUrl);
         }
         results.setNodeListQueryType(nlqt);
 
