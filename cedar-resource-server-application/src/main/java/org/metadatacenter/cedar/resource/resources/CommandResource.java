@@ -790,7 +790,6 @@ public class CommandResource extends AbstractResourceServerResource {
           ((ObjectNode) getJsonNode).put(PAV_VERSION, newVersion.getValue());
           ((ObjectNode) getJsonNode).put(BIBO_STATUS, BiboStatus.PUBLISHED.getValue());
           String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);
-          System.out.println(getJsonNode);
           Response putResponse = putResourceToTemplateServer(nodeType, id, c, content);
           int putStatus = putResponse.getStatus();
 
@@ -976,7 +975,11 @@ public class CommandResource extends AbstractResourceServerResource {
             if (workspaceEntity != null) {
               if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
                 if (workspaceEntity != null) {
-                  // update the resource on the index
+                  // update the old resource index, remove  latest version
+                  FolderServerResource folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
+                  updateIndexResource(folderServerResourceOld, getJsonNode, c);
+
+                  // update the new resource on the index
                   FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent
                       (), FolderServerResource.class);
                   createIndexResource(folderServerResource, templateServerPostResponseNode, c);

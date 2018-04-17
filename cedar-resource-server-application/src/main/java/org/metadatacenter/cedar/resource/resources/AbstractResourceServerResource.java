@@ -171,11 +171,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           resourceRequestBody.put("nodeType", nodeType.getValue());
           resourceRequestBody.put("name", namePair.getValue());
           resourceRequestBody.put("description", descriptionPair.getValue());
-          if (nodeType == CedarNodeType.TEMPLATE || nodeType == CedarNodeType.ELEMENT) {
+          if (nodeType.isVersioned()) {
             JsonPointerValuePair versionPair = ModelUtil.extractVersionFromResource(nodeType, templateJsonNode);
-            JsonPointerValuePair publicastionStatusPair = ModelUtil.extractPublicationStatusFromResource(nodeType, templateJsonNode);
+            JsonPointerValuePair publicationStatusPair = ModelUtil.extractPublicationStatusFromResource(nodeType,
+                templateJsonNode);
             resourceRequestBody.put("version", versionPair.getValue());
-            resourceRequestBody.put("publicationStatus", publicastionStatusPair.getValue());
+            resourceRequestBody.put("publicationStatus", publicationStatusPair.getValue());
           } else if (nodeType == CedarNodeType.INSTANCE) {
             resourceRequestBody.put("isBasedOn", ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
           }
