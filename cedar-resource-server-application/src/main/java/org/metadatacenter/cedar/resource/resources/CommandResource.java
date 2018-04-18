@@ -675,6 +675,16 @@ public class CommandResource extends AbstractResourceServerResource {
             String currentName = ModelUtil.extractNameFromResource(nodeType, currentTemplateJsonNode).getValue();
             String currentDescription = ModelUtil.extractDescriptionFromResource(nodeType, currentTemplateJsonNode)
                 .getValue();
+            String publicationStatusString = ModelUtil.extractPublicationStatusFromResource(nodeType,
+                currentTemplateJsonNode).getValue();
+            BiboStatus biboStatus = BiboStatus.forValue(publicationStatusString);
+            if (biboStatus == BiboStatus.PUBLISHED) {
+              return CedarResponse.badRequest()
+                  .errorKey(CedarErrorKey.PUBLISHED_RESOURCES_CAN_NOT_BE_CHANGED)
+                  .errorMessage("The resource can not be changed since it is published!")
+                  .parameter("name", currentName)
+                  .build();
+            }
             boolean changeName = false;
             boolean changeDescription = false;
             if (name != null && !name.equals(currentName)) {
@@ -691,7 +701,7 @@ public class CommandResource extends AbstractResourceServerResource {
                 updateDescriptionInObject(nodeType, currentTemplateJsonNode, description);
               }
               return executeResourcePutByProxy(c, nodeType, id, null, JsonMapper.MAPPER.writeValueAsString
-                  (currentTemplateJsonNode));
+                  (currentTemplateJsonNode), null);
             } else {
               return CedarResponse.badRequest()
                   .errorKey(CedarErrorKey.NOTHING_TO_DO)

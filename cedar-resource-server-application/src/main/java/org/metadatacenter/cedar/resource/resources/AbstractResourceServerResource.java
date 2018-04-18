@@ -13,6 +13,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
+import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.CreateOrUpdate;
 import org.metadatacenter.model.ModelNodeNames;
@@ -29,6 +30,7 @@ import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
+import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -313,18 +315,21 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id) throws
+  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
+                                               FolderServerResource folderServerOldResource) throws
       CedarProcessingException {
-    return executeResourcePutByProxy(context, nodeType, id, null, null);
+    return executeResourcePutByProxy(context, nodeType, id, null, null, folderServerOldResource);
   }
 
   protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
-                                               FolderServerFolder folder) throws CedarProcessingException {
-    return executeResourcePutByProxy(context, nodeType, id, folder, null);
+                                               FolderServerFolder folder, FolderServerResource folderServerOldResource)
+      throws CedarProcessingException {
+    return executeResourcePutByProxy(context, nodeType, id, folder, folderServerOldResource);
   }
 
   protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
-                                               FolderServerFolder folder, String content) throws
+                                               FolderServerFolder folder, String content, FolderServerResource
+                                                   folderServerOldResource) throws
       CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
@@ -360,6 +365,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         // resource was not created or updated
         return generateStatusResponse(templateProxyResponse);
       } else {
+        if (createOrUpdate == CreateOrUpdate.UPDATE) {
+          if (folderServerOldResource != null) {
+            if (folderServerOldResource.getPublicationStatus() == BiboStatus.PUBLISHED) {
+              return CedarResponse.badRequest()
+                  .errorKey(CedarErrorKey.PUBLISHED_RESOURCES_CAN_NOT_BE_CHANGED)
+                  .errorMessage("The resource can not be changed since it is published!")
+                  .parameter("name", folderServerOldResource.getName())
+                  .build();
+            }
+          }
+        }
         // resource was updated
         HttpEntity templateEntity = templateProxyResponse.getEntity();
         if (templateEntity != null) {

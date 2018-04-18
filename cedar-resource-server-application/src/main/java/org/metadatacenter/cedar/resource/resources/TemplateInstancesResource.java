@@ -5,6 +5,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
@@ -81,8 +82,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
-    userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(c, CedarNodeType.INSTANCE, id);
+    FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
+    return executeResourcePutByProxy(c, CedarNodeType.INSTANCE, id, folderServerResource);
   }
 
   @DELETE
