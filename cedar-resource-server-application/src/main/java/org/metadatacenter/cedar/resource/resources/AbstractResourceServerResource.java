@@ -561,6 +561,32 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
+  protected FolderServerNode userMustHaveReadAccessToNode(CedarRequestContext context, String nodeId) throws
+      CedarException {
+    CedarObjectNotFoundException notFoundException = null;
+    CedarPermissionException permissionException = null;
+    try {
+      return userMustHaveReadAccessToResource(context, nodeId);
+    } catch (CedarObjectNotFoundException e) {
+      notFoundException = e;
+    } catch (CedarPermissionException e) {
+      permissionException = e;
+    }
+    try {
+      return userMustHaveReadAccessToFolder(context, nodeId);
+    } catch (CedarObjectNotFoundException e) {
+      notFoundException = e;
+    } catch (CedarPermissionException e ) {
+      permissionException = e;
+    }
+    if (notFoundException != null) {
+      throw notFoundException;
+    } else if (permissionException != null) {
+      throw permissionException;
+    }
+    return null;
+  }
+
   protected Response executeResourcePermissionGetByProxy(String resourceId, CedarRequestContext context) throws
       CedarProcessingException {
     String url = microserviceUrlUtil.getWorkspace().getResourceWithIdPermissions(resourceId);

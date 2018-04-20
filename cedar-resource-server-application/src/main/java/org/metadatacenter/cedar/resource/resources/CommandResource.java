@@ -19,6 +19,7 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.request.OutputFormatType;
 import org.metadatacenter.model.request.OutputFormatTypeDetector;
@@ -93,18 +94,11 @@ public class CommandResource extends AbstractResourceServerResource {
     JsonNode jsonBody = c.request().getRequestBody().asJson();
 
     String id = jsonBody.get("@id").asText();
-    String nodeTypeString = jsonBody.get("nodeType").asText();
     String folderId = jsonBody.get("folderId").asText();
     String titleTemplate = jsonBody.get("titleTemplate").asText();
 
-    CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
-    if (nodeType == null) {
-      return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
-          .parameter("nodeType", nodeTypeString)
-          .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
-          .build();
-    }
+    FolderServerResource folderServerResource = userMustHaveReadAccessToResource(c, id);
+    CedarNodeType nodeType = folderServerResource.getType();
 
     if (nodeType == CedarNodeType.FOLDER) {
       return CedarResponse.badRequest()
@@ -137,8 +131,8 @@ public class CommandResource extends AbstractResourceServerResource {
     if (permission1 == null || permission2 == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
-          .errorMessage("Unknown node type:" + nodeTypeString)
-          .parameter("nodeType", nodeTypeString)
+          .errorMessage("Unknown node type:" + nodeType.getValue())
+          .parameter("nodeType", nodeType.getValue())
           .build();
     }
 
@@ -147,8 +141,6 @@ public class CommandResource extends AbstractResourceServerResource {
 
     // Check create permission
     c.must(c.user()).have(permission2);
-
-    userMustHaveReadAccessToResource(c, id);
 
     // Check if the user has write permission to the target folder
     FolderServerFolder targetFolder = userMustHaveWriteAccessToFolder(c, folderId);
@@ -256,17 +248,11 @@ public class CommandResource extends AbstractResourceServerResource {
     JsonNode jsonBody = c.request().getRequestBody().asJson();
 
     String sourceId = jsonBody.get("sourceId").asText();
-    String nodeTypeString = jsonBody.get("nodeType").asText();
     String folderId = jsonBody.get("folderId").asText();
 
-    CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
-    if (nodeType == null) {
-      return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
-          .parameter("nodeType", nodeTypeString)
-          .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
-          .build();
-    }
+    FolderServerNode folderServerNode = userMustHaveReadAccessToNode(c, sourceId);
+
+    CedarNodeType nodeType = folderServerNode.getType();
 
     CedarPermission permission1 = null;
     CedarPermission permission2 = null;
@@ -296,8 +282,8 @@ public class CommandResource extends AbstractResourceServerResource {
     if (permission1 == null || permission2 == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
-          .errorMessage("Unknown node type:" + nodeTypeString)
-          .parameter("nodeType", nodeTypeString)
+          .errorMessage("Unknown node type:" + nodeType.getValue())
+          .parameter("nodeType", nodeType.getValue())
           .build();
     }
 
@@ -356,7 +342,7 @@ public class CommandResource extends AbstractResourceServerResource {
       ObjectNode folderRequestBody = JsonNodeFactory.instance.objectNode();
 
       folderRequestBody.put("sourceId", sourceId);
-      folderRequestBody.put("nodeType", nodeTypeString);
+      folderRequestBody.put("nodeType", nodeType.getValue());
       folderRequestBody.put("folderId", folderId);
 
       String folderRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(folderRequestBody);
@@ -600,11 +586,12 @@ public class CommandResource extends AbstractResourceServerResource {
 
     CedarParameter nameParam = c.request().getRequestBody().get("name");
     CedarParameter descriptionParam = c.request().getRequestBody().get("description");
-    CedarParameter nodeTypeParam = c.request().getRequestBody().get("nodeType");
     CedarParameter idParam = c.request().getRequestBody().get("id");
 
     String id = idParam.stringValue();
-    String nodeTypeString = nodeTypeParam.stringValue();
+
+    FolderServerNode folderServerNode = userMustHaveReadAccessToNode(c, id);
+
     String name = null;
     if (!nameParam.isEmpty()) {
       name = nameParam.stringValue();
@@ -614,12 +601,12 @@ public class CommandResource extends AbstractResourceServerResource {
       description = descriptionParam.stringValue();
     }
 
-    CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
+    CedarNodeType nodeType = folderServerNode.getType();
     if (nodeType == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
-          .parameter("nodeType", nodeTypeString)
-          .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
+          .parameter("nodeType", nodeType.getValue())
+          .errorMessage("Unknown nodeType:" + nodeType.getValue() + ":")
           .build();
     }
 
@@ -648,8 +635,8 @@ public class CommandResource extends AbstractResourceServerResource {
     if (permission == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
-          .errorMessage("Unknown node type:" + nodeTypeString)
-          .parameter("nodeType", nodeTypeString)
+          .errorMessage("Unknown node type:" + nodeType.getValue())
+          .parameter("nodeType", nodeType.getValue())
           .build();
     }
 
