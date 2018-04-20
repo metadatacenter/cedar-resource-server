@@ -728,10 +728,8 @@ public class CommandResource extends AbstractResourceServerResource {
 
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
-    CedarParameter nodeTypeParam = c.request().getRequestBody().get("nodeType");
 
     String id = idParam.stringValue();
-    String nodeTypeString = nodeTypeParam.stringValue();
 
     ResourceVersion newVersion = null;
     if (!newVersionParam.isEmpty()) {
@@ -744,14 +742,26 @@ public class CommandResource extends AbstractResourceServerResource {
           .build();
     }
 
-    CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
-    if (nodeType == null) {
+    FolderServerResource folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
+
+    if (!folderServerResourceOld.isLatestVersion()) {
       return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
-          .parameter("nodeType", nodeTypeString)
-          .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
+          .errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST)
+          .errorMessage("Publish is only possible on the latest version of the given resource")
+          .parameter("id", id)
           .build();
     }
+
+    if (folderServerResourceOld.getPublicationStatus() != BiboStatus.DRAFT) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.PUBLISH_ONLY_DRAFT)
+          .errorMessage("Only a draft resource can be published")
+          .parameter("id", id)
+          .parameter(BIBO_STATUS, folderServerResourceOld.getPublicationStatus().getValue())
+          .build();
+    }
+
+    CedarNodeType nodeType = folderServerResourceOld.getType();
 
     CedarPermission updatePermission = null;
     switch (nodeType) {
@@ -764,9 +774,10 @@ public class CommandResource extends AbstractResourceServerResource {
       default:
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
-            .errorMessage("You passed an illegal 'resource_types':'" + nodeTypeString + "'. The allowed values are:" +
+            .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
+                "allowed values are:" +
                 CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .parameter("invalidResourceType", nodeTypeString)
+            .parameter("invalidResourceType", nodeType.getValue())
             .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
             .build();
     }
@@ -855,12 +866,10 @@ public class CommandResource extends AbstractResourceServerResource {
 
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
-    CedarParameter nodeTypeParam = c.request().getRequestBody().get("nodeType");
     CedarParameter folderIdParam = c.request().getRequestBody().get("folderId");
     CedarParameter propagateSharingParam = c.request().getRequestBody().get("propagateSharing");
 
     String id = idParam.stringValue();
-    String nodeTypeString = nodeTypeParam.stringValue();
     String folderId = folderIdParam.stringValue();
     String propagateSharingString = propagateSharingParam.stringValue();
 
@@ -875,14 +884,26 @@ public class CommandResource extends AbstractResourceServerResource {
           .build();
     }
 
-    CedarNodeType nodeType = CedarNodeType.forValue(nodeTypeString);
-    if (nodeType == null) {
+    FolderServerResource folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
+
+    if (!folderServerResourceOld.isLatestVersion()) {
       return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.UNKNOWN_NODE_TYPE)
-          .parameter("nodeType", nodeTypeString)
-          .errorMessage("Unknown nodeType:" + nodeTypeString + ":")
+          .errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST)
+          .errorMessage("Creating a draft is only possible on the latest version of the given resource")
+          .parameter("id", id)
           .build();
     }
+
+    if (folderServerResourceOld.getPublicationStatus() != BiboStatus.PUBLISHED) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.CREATE_DRAFT_ONLY_FROM_PUBLISHED)
+          .errorMessage("Draft can be created only from a published resource")
+          .parameter("id", id)
+          .parameter(BIBO_STATUS, folderServerResourceOld.getPublicationStatus().getValue())
+          .build();
+    }
+
+    CedarNodeType nodeType = folderServerResourceOld.getType();
 
     boolean propagateSharing = Boolean.parseBoolean(propagateSharingString);
 
@@ -897,9 +918,10 @@ public class CommandResource extends AbstractResourceServerResource {
       default:
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
-            .errorMessage("You passed an illegal 'resource_types':'" + nodeTypeString + "'. The allowed values are:" +
+            .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
+                "allowed values are:" +
                 CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .parameter("invalidResourceType", nodeTypeString)
+            .parameter("invalidResourceType", nodeType.getValue())
             .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
             .build();
     }
@@ -971,7 +993,7 @@ public class CommandResource extends AbstractResourceServerResource {
             workspaceRequestBody.put("oldId", id);
             workspaceRequestBody.put("newId", newId);
             workspaceRequestBody.put("folderId", folderId);
-            workspaceRequestBody.put("nodeType", nodeTypeString);
+            workspaceRequestBody.put("nodeType", nodeType.getValue());
             workspaceRequestBody.put("propagateSharing", propagateSharing);
             workspaceRequestBody.put("version", newVersion.getValue());
             workspaceRequestBody.put("publicationStatus", BiboStatus.DRAFT.getValue());
@@ -986,7 +1008,6 @@ public class CommandResource extends AbstractResourceServerResource {
               if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
                 if (workspaceEntity != null) {
                   // update the old resource index, remove  latest version
-                  FolderServerResource folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
                   updateIndexResource(folderServerResourceOld, getJsonNode, c);
 
                   // update the new resource on the index
