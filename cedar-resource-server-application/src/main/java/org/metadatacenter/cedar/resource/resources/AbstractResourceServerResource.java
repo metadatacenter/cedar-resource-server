@@ -323,7 +323,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
                                                FolderServerFolder folder, FolderServerResource folderServerOldResource)
       throws CedarProcessingException {
-    return executeResourcePutByProxy(context, nodeType, id, folder, folderServerOldResource);
+    return executeResourcePutByProxy(context, nodeType, id, folder, null, folderServerOldResource);
   }
 
   protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
@@ -505,7 +505,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                 if (getJsonNode != null) {
                   updateIndexResource(folderServerPreviousResource, getJsonNode, context);
                 }
-              } catch(Exception e) {
+              } catch (Exception e) {
                 log.error("There was an error while reindexing the new latest version", e);
               }
             }
