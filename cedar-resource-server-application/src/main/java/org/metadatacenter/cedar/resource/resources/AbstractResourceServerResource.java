@@ -13,10 +13,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
-import org.metadatacenter.model.BiboStatus;
-import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.CreateOrUpdate;
-import org.metadatacenter.model.ModelNodeNames;
+import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
@@ -42,6 +39,8 @@ import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
+
+import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
@@ -459,7 +458,21 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceDeleteByProxy(CedarRequestContext context, CedarNodeType nodeType, String id)
-      throws CedarProcessingException {
+      throws CedarException {
+
+    FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(context, id);
+    if (folderServerResource.getType().isVersioned()) {
+      if (folderServerResource.getPublicationStatus() == BiboStatus.PUBLISHED) {
+        return CedarResponse.badRequest()
+            .errorKey(CedarErrorKey.PUBLISHED_RESOURCES_CAN_NOT_BE_DELETED)
+            .errorMessage("Published resources can not be deleted!")
+            .parameter("id", id)
+            .parameter("name", folderServerResource.getName())
+            .parameter(BIBO_STATUS, folderServerResource.getPublicationStatus())
+            .build();
+      }
+    }
+
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, context);
@@ -576,7 +589,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       return userMustHaveReadAccessToFolder(context, nodeId);
     } catch (CedarObjectNotFoundException e) {
       notFoundException = e;
-    } catch (CedarPermissionException e ) {
+    } catch (CedarPermissionException e) {
       permissionException = e;
     }
     if (notFoundException != null) {
