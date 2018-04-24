@@ -201,8 +201,8 @@
       "type": "string",
       "required": false
     },
-    "derived_from_id": {
-      "name": "derived_from_id",
+    "is_based_on": {
+      "name": "is_based_on",
       "in": "query",
       "description": "Template identifier. Example&#58; https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e\nAll the instances with this template id will be returned\n",
       "type": "string",
@@ -1344,7 +1344,7 @@
             "$ref": "#/parameters/resource_types"
           },
           {
-            "$ref": "#/parameters/derived_from_id"
+            "$ref": "#/parameters/is_based_on"
           },
           {
             "$ref": "#/parameters/sort"
@@ -1406,7 +1406,7 @@
             "$ref": "#/parameters/resource_types"
           },
           {
-            "$ref": "#/parameters/derived_from_id"
+            "$ref": "#/parameters/is_based_on"
           },
           {
             "$ref": "#/parameters/sort"

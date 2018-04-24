@@ -31,6 +31,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @Path("/{id}/contents")
   public Response findFolderContentsById(@PathParam(PP_ID) String id,
                                          @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
+                                         @QueryParam(QP_VERSION) Optional<String> versionParam,
+                                         @QueryParam(QP_PUBLICATION_STATUS) Optional<String> publicationStatusParam,
                                          @QueryParam(QP_SORT) Optional<String> sort,
                                          @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
                                          @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws
@@ -40,6 +42,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
         .queryParam(QP_RESOURCE_TYPES, resourceTypes)
+        .queryParam(QP_VERSION, versionParam)
+        .queryParam(QP_PUBLICATION_STATUS, publicationStatusParam)
         .queryParam(QP_SORT, sort)
         .queryParam(QP_LIMIT, limitParam)
         .queryParam(QP_OFFSET, offsetParam);

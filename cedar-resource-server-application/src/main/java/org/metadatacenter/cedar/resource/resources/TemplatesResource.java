@@ -8,6 +8,7 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.CreateOrUpdate;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -130,8 +131,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
             .parameter(QP_FOLDER_ID, folderIdP.stringValue())
             .build();
       } else {
-        userMustHaveWriteAccessToResource(c, id);
-        return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id);
+        FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
+        return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folderServerResource);
       }
     } else if (createOrUpdate == CreateOrUpdate.CREATE) {
       String folderIdS;
@@ -141,7 +142,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
         folderIdS = folderIdP.stringValue();
       }
       FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-      return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folder);
+      return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folder, null);
     }
     return null;
   }
@@ -181,4 +182,17 @@ public class TemplatesResource extends AbstractResourceServerResource {
     userMustHaveWriteAccessToResource(c, id);
     return executeResourcePermissionPutByProxy(id, c);
   }
+
+  @GET
+  @Timed
+  @Path("/{id}/report")
+  public Response getTemplateReport(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
+
+    userMustHaveReadAccessToResource(c, id);
+    return executeResourceReportGetByProxy(id, c);
+  }
+
 }

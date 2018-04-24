@@ -2,13 +2,17 @@ package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.http.CedarResponse;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
@@ -79,8 +83,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
 
-    userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(c, CedarNodeType.ELEMENT, id);
+    FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
+    return executeResourcePutByProxy(c, CedarNodeType.ELEMENT, id, folderServerResource);
   }
 
   @DELETE
@@ -117,6 +121,18 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
     userMustHaveWriteAccessToResource(c, id);
     return executeResourcePermissionPutByProxy(id, c);
+  }
+
+  @GET
+  @Timed
+  @Path("/{id}/report")
+  public Response getTemplateElementInstanceReport(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
+
+    userMustHaveReadAccessToResource(c, id);
+    return executeResourceReportGetByProxy(id, c);
   }
 
 }
