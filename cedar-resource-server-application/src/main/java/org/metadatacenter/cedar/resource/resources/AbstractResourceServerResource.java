@@ -460,6 +460,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeResourceDeleteByProxy(CedarRequestContext context, CedarNodeType nodeType, String id)
       throws CedarException {
 
+    ResourceUri previousVersion = null;
+
     FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(context, id);
     if (folderServerResource.getType().isVersioned()) {
       if (folderServerResource.getPublicationStatus() == BiboStatus.PUBLISHED) {
@@ -471,6 +473,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             .parameter(BIBO_STATUS, folderServerResource.getPublicationStatus())
             .build();
       }
+      previousVersion = folderServerResource.getPreviousVersion();
     }
 
     try {
@@ -488,6 +491,25 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           // remove the resource from the index
           indexRemoveDocument(id);
+          // reindex the previous version, since that just became the latest
+          if (previousVersion != null) {
+            String previousId = previousVersion.getValue();
+            // TODO: what happens if the user does not have read access / and write access to given resource.
+            // This is a system level call, it shoul dbe executed with such a user
+            FolderServerResource folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
+            String getResponse = getResourceFromTemplateServer(nodeType, previousId, context);
+            if (getResponse != null) {
+              JsonNode getJsonNode = null;
+              try {
+                getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+                if (getJsonNode != null) {
+                  updateIndexResource(folderServerPreviousResource, getJsonNode, context);
+                }
+              } catch(Exception e) {
+                log.error("There was an error while reindexing the new latest version", e);
+              }
+            }
+          }
           return Response.noContent().build();
         } else {
           return generateStatusResponse(resourceDeleteResponse);
