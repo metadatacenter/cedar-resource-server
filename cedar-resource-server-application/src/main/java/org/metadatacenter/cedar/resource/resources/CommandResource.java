@@ -956,6 +956,7 @@ public class CommandResource extends AbstractResourceServerResource {
           ObjectNode newDocument = (ObjectNode) getJsonNode;
           newDocument.put(ModelNodeNames.PAV_VERSION, newVersion.getValue());
           newDocument.put(ModelNodeNames.BIBO_STATUS, BiboStatus.DRAFT.getValue());
+          newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, id);
           newDocument.remove(ModelNodeNames.LD_ID);
 
           FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderId);
