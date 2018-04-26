@@ -99,7 +99,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}/permissions")
-  public Response getTemplateElementPermissions(@PathParam(PP_ID) String id) throws CedarException {
+  public Response getTemplateFieldPermissions(@PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
@@ -111,13 +111,25 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{id}/permissions")
-  public Response updateTemplateElementPermissions(@PathParam(PP_ID) String id) throws CedarException {
+  public Response updateTemplateFieldPermissions(@PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
 
     userMustHaveWriteAccessToResource(c, id);
     return executeResourcePermissionPutByProxy(id, c);
+  }
+
+  @GET
+  @Timed
+  @Path("/{id}/report")
+  public Response getTemplateFieldInstanceReport(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
+
+    userMustHaveReadAccessToResource(c, id);
+    return executeResourceReportGetByProxy(id, c);
   }
 
 }
