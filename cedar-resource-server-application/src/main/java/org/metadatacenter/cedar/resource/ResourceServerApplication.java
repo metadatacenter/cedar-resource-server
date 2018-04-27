@@ -76,9 +76,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final SearchDeepResource searchDeep = new SearchDeepResource(cedarConfig);
     environment.jersey().register(searchDeep);
 
-    // TODO: we do not handle fields for now
-    //final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig);
-    //environment.jersey().register(fields);
+    final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig);
+    environment.jersey().register(fields);
 
     final TemplateElementsResource elements = new TemplateElementsResource(cedarConfig);
     environment.jersey().register(elements);
