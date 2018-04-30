@@ -5,16 +5,12 @@ import io.dropwizard.setup.Environment;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
-import org.metadatacenter.cedar.resource.search.IndexRegenerator;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
 import org.metadatacenter.server.cache.util.CacheService;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
-
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class ResourceServerApplication extends CedarMicroserviceApplication<ResourceServerConfiguration> {
 
@@ -80,9 +76,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final SearchDeepResource searchDeep = new SearchDeepResource(cedarConfig);
     environment.jersey().register(searchDeep);
 
-    // TODO: we do not handle fields for now
-    //final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig);
-    //environment.jersey().register(fields);
+    final TemplateFieldsResource fields = new TemplateFieldsResource(cedarConfig);
+    environment.jersey().register(fields);
 
     final TemplateElementsResource elements = new TemplateElementsResource(cedarConfig);
     environment.jersey().register(elements);
