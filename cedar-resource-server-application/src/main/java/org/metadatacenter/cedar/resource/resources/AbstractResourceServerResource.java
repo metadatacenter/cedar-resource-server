@@ -494,19 +494,21 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           // reindex the previous version, since that just became the latest
           if (previousVersion != null) {
             String previousId = previousVersion.getValue();
-            // TODO: what happens if the user does not have read access / and write access to given resource.
-            // This is a system level call, it shoul dbe executed with such a user
-            FolderServerResource folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
-            String getResponse = getResourceFromTemplateServer(nodeType, previousId, context);
-            if (getResponse != null) {
-              JsonNode getJsonNode = null;
-              try {
-                getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-                if (getJsonNode != null) {
-                  updateIndexResource(folderServerPreviousResource, getJsonNode, context);
+            if (previousId != null) {
+              // TODO: what happens if the user does not have read access / and write access to given resource.
+              // This is a system level call, it should be executed with such a user
+              FolderServerResource folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
+              String getResponse = getResourceFromTemplateServer(nodeType, previousId, context);
+              if (getResponse != null) {
+                JsonNode getJsonNode = null;
+                try {
+                  getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+                  if (getJsonNode != null) {
+                    updateIndexResource(folderServerPreviousResource, getJsonNode, context);
+                  }
+                } catch (Exception e) {
+                  log.error("There was an error while reindexing the new latest version", e);
                 }
-              } catch (Exception e) {
-                log.error("There was an error while reindexing the new latest version", e);
               }
             }
           }
