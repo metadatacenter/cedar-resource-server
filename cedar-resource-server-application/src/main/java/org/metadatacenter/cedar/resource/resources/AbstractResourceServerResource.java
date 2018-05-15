@@ -481,10 +481,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      if (statusCode != HttpStatus.SC_NO_CONTENT) {
+      if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
         // resource was not deleted
         return generateStatusResponse(proxyResponse);
       } else {
+        if (statusCode == HttpStatus.SC_NOT_FOUND) {
+          log.warn("Resource not found on template server, but still trying to delete on workspace. Id:" + id);
+        }
         String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
         HttpResponse resourceDeleteResponse = ProxyUtil.proxyDelete(resourceUrl, context);
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
