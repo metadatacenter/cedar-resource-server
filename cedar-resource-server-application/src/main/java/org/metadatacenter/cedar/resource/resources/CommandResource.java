@@ -731,7 +731,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
     FolderServerResource folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
 
-    if (!folderServerResourceOld.isLatestVersion()) {
+    if (folderServerResourceOld.isLatestVersion() == null || !folderServerResourceOld.isLatestVersion()) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST)
           .errorMessage("Publish is only possible on the latest version of the given resource")
