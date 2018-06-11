@@ -5,7 +5,7 @@ swagger: '2.0'
 info:
   title: CEDAR Resource Server API
   description: Better Metadata - Better Science
-  version: "1.0.0"
+  version: "1.8.4"
 schemes:
   - https
 consumes:
@@ -33,6 +33,12 @@ responses:
       type: object
       items:
         $ref: '#/definitions/Folder'
+  ok_template_field: #200
+    description: A template field
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/TemplateField'
   ok_template_element: #200
     description: A template element
     schema:
@@ -57,6 +63,12 @@ responses:
       type: object
       items:
         $ref: '#/definitions/Folder'
+  created_template_field: #201
+    description: A template field
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/TemplateField'
   created_template_element: #201
     description: A template element
     schema:
@@ -146,6 +158,12 @@ parameters:
     required: false
     default: 0
     minimum: 0
+  template_field_id:
+    name: template_field_id
+    in: path
+    description: Template Field identifier. Example&#58; https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e
+    type: string
+    required: true
   template_element_id:
     name: template_element_id
     in: path
@@ -196,11 +214,34 @@ parameters:
     enum: [ "jsonld", "json", "rdf-nquad"]
     required: false
     default: jsonld
+  version:
+    name: version
+    in: query
+    description: |
+      Version selector. It is only handled for template-fields, template-elements and templates.
+      The allowed values are: 'latest', 'all'
+    type: string
+    enum: [ "latest", "all"]
+    required: false
+    default: all
+  publication_status:
+    name: publication_status
+    in: query
+    description: |
+      Publication status selector. It is only handled for template-fields, template-elements and templates.
+      The allowed values are: 'bibo:draft', 'bibo:published', 'all'
+    type: string
+    enum: [ "bibo:draft", "bibo:published", "all"]
+    required: false
+    default: all
 
 ################################################################################
 #                              Paths                                           #
 ################################################################################
 paths:
+################################################################################
+#                              Paths: Users                                    #
+################################################################################
   /users:
     get:
       summary: Users
@@ -223,6 +264,9 @@ paths:
           $ref: '#/responses/unauthorized'
         500:
           $ref: '#/responses/internal_error'
+################################################################################
+#                              Paths: Folders                                  #
+################################################################################
   /folders/{folder_id}:
     get:
       summary: Get a folder
@@ -330,7 +374,6 @@ paths:
       tags:
         - Folders
         - Permissions
-        - Folder Permissions
       security:
         - api_key: []
       parameters:
@@ -355,7 +398,6 @@ paths:
       tags:
         - Folders
         - Permissions
-        - Folder Permissions
       security:
         - api_key: []
       parameters:
@@ -404,12 +446,15 @@ paths:
         Get the contents of a folder.
       tags:
         - Folders
-        - Folder contents
+        - Folder Contents
+        - Versioning
       security:
         - api_key: []
       parameters:
         - $ref: '#/parameters/folder_id'
         - $ref: '#/parameters/resource_types'
+        - $ref: '#/parameters/version'
+        - $ref: '#/parameters/publication_status'
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/limit'
         - $ref: '#/parameters/offset'
@@ -426,6 +471,212 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
+################################################################################
+#                              Paths: Template Fields                          #
+################################################################################
+  /template-fields/{template_field_id}:
+    get:
+      summary: Get a template field
+      description: |
+        Get a template field.
+      tags:
+        - Template Fields
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_field_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_template_field'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update a template field
+      description: |
+        Update a template field.
+      tags:
+        - Template Fields
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_field_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_template_field'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    delete:
+      summary: Delete a template field
+      description: |
+        Delete a template field.
+      tags:
+        - Template Fields
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_field_id'
+      responses:
+        204:
+          $ref: '#/responses/no_content'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template-fields:
+    post:
+      summary: Create a template field
+      description: |
+        Create a template field.
+      tags:
+        - Template Fields
+      security:
+        - api_key: []
+      parameters:
+        - name: template_field
+          in: body
+          description: The template field to be created
+          required: true
+          schema:
+            $ref: '#/definitions/TemplateField'
+        - $ref: '#/parameters/qs_folder_id'
+      responses:
+        201:
+          $ref: '#/responses/created_template_field'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template-fields/{template_field_id}/permissions:
+    get:
+      summary: Get permissions of a template field
+      description: |
+        Get permissions of a template field.
+      tags:
+        - Template Fields
+        - Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_field_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update permissions of a template field
+      description: |
+        Update permissions of a template field.
+      tags:
+        - Template Fields
+        - Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_field_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template-fields/{template_field_id}/details:
+    get:
+      summary: Get details of a template field
+      description: |
+        Get details of a template field.
+      tags:
+        - Template Fields
+        - Resource Details
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_field_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template-fields/{template_field_id}/report:
+    get:
+      summary: Get report of a template field
+      description: |
+        Get report of a template field.
+      tags:
+        - Template Fields
+        - Resource Report
+        - Versioning
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_field_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+################################################################################
+#                              Paths: Template Elements                        #
+################################################################################
   /template-elements/{template_element_id}:
     get:
       summary: Get a template element
@@ -534,7 +785,6 @@ paths:
       tags:
         - Template Elements
         - Permissions
-        - Template Element Permissions
       security:
         - api_key: []
       parameters:
@@ -559,7 +809,6 @@ paths:
       tags:
         - Template Elements
         - Permissions
-        - Template Element Permissions
       security:
         - api_key: []
       parameters:
@@ -577,6 +826,60 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
+  /template-elements/{template_element_id}/details:
+    get:
+      summary: Get details of a template element
+      description: |
+        Get details of a template element.
+      tags:
+        - Template Elements
+        - Resource Details
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_element_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template-elements/{template_element_id}/report:
+    get:
+      summary: Get report of a template element
+      description: |
+        Get report of a template element.
+      tags:
+        - Template Elements
+        - Resource Report
+        - Versioning
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_element_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+################################################################################
+#                              Paths: Template Instances                       #
+################################################################################
   /template-instances/{template_instance_id}:
     get:
       summary: Get a template instance
@@ -686,7 +989,6 @@ paths:
       tags:
         - Template Instances
         - Permissions
-        - Template Instance Permissions
       security:
         - api_key: []
       parameters:
@@ -711,7 +1013,6 @@ paths:
       tags:
         - Template Instances
         - Permissions
-        - Template Instance Permissions
       security:
         - api_key: []
       parameters:
@@ -729,6 +1030,59 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
+  /template-instances/{template_instance_id}/details:
+    get:
+      summary: Get details of a template instance
+      description: |
+        Get details of a template instance.
+      tags:
+        - Template Instances
+        - Resource Details
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_instance_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /template-instances/{template_instance_id}/report:
+    get:
+      summary: Get report of a template instance
+      description: |
+        Get report of a template instance.
+      tags:
+        - Template Instances
+        - Resource Report
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_instance_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+################################################################################
+#                              Paths: Templates                                #
+################################################################################
   /templates/{template_id}:
     get:
       summary: Get a template
@@ -837,7 +1191,6 @@ paths:
       tags:
         - Templates
         - Permissions
-        - Template Permissions
       security:
         - api_key: []
       parameters:
@@ -862,7 +1215,6 @@ paths:
       tags:
         - Templates
         - Permissions
-        - Template Permissions
       security:
         - api_key: []
       parameters:
@@ -880,6 +1232,60 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
+  /templates/{template_id}/details:
+    get:
+      summary: Get details of a template
+      description: |
+        Get details of a template.
+      tags:
+        - Templates
+        - Resource Details
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /templates/{template_id}/report:
+    get:
+      summary: Get report of a template
+      description: |
+        Get report of a template.
+      tags:
+        - Templates
+        - Resource Report
+        - Versioning
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/template_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+################################################################################
+#                              Paths: Search                                   #
+################################################################################
   /search:
     get:
       summary: Search resources
@@ -887,16 +1293,21 @@ paths:
         Search resources using different criteria
       tags:
         - Search
-        - Templates
+        - Template Fields
         - Template Elements
+        - Templates
         - Template Instances
         - Folders
-        - Folder contents
+        - Folder Contents
+        - Shared With Me
+        - Versioning
       security:
         - api_key: []
       parameters:
         - $ref: '#/parameters/q'
         - $ref: '#/parameters/resource_types'
+        - $ref: '#/parameters/version'
+        - $ref: '#/parameters/publication_status'
         - $ref: '#/parameters/is_based_on'
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/limit'
@@ -915,6 +1326,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
+################################################################################
+#                              Paths: Search Depp                              #
+################################################################################
   /search-deep:
     get:
       summary: Search resources
@@ -923,16 +1337,21 @@ paths:
         This call can go further than 10.000 resources. It is not intended for everyday use.
       tags:
         - Search
-        - Templates
+        - Template Fields
         - Template Elements
+        - Templates
         - Template Instances
         - Folders
-        - Folder contents
+        - Folder Contents
+        - Shared With Me
+        - Versioning
       security:
         - api_key: []
       parameters:
         - $ref: '#/parameters/q'
         - $ref: '#/parameters/resource_types'
+        - $ref: '#/parameters/version'
+        - $ref: '#/parameters/publication_status'
         - $ref: '#/parameters/is_based_on'
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/limit'
@@ -951,6 +1370,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
+################################################################################
+#                              Paths: Command                                  #
+################################################################################
   /command/validate:
     post:
       summary: Validate resources
@@ -974,7 +1396,7 @@ paths:
         }
         ```
       tags:
-        - Validate
+        - Validation
       security:
         - api_key: []
       parameters:
@@ -1032,6 +1454,12 @@ definitions:
       id:
         type: string
         description: Unique URL identifier representing a specific folder.
+  TemplateField:
+    type: object
+    properties:
+      '@id':
+        type: string
+        description: Unique URL identifier representing a specific template field.
   TemplateElement:
     type: object
     properties:
