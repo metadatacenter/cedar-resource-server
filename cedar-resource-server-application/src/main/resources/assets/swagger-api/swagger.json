@@ -3,7 +3,7 @@
   "info": {
     "title": "CEDAR Resource Server API",
     "description": "Better Metadata - Better Science",
-    "version": "1.0.0"
+    "version": "1.8.4"
   },
   "schemes": [
     "https"
@@ -32,6 +32,15 @@
         "type": "object",
         "items": {
           "$ref": "#/definitions/Folder"
+        }
+      }
+    },
+    "ok_template_field": {
+      "description": "A template field",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/TemplateField"
         }
       }
     },
@@ -68,6 +77,15 @@
         "type": "object",
         "items": {
           "$ref": "#/definitions/Folder"
+        }
+      }
+    },
+    "created_template_field": {
+      "description": "A template field",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/TemplateField"
         }
       }
     },
@@ -173,6 +191,13 @@
       "default": 0,
       "minimum": 0
     },
+    "template_field_id": {
+      "name": "template_field_id",
+      "in": "path",
+      "description": "Template Field identifier. Example&#58; https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "type": "string",
+      "required": true
+    },
     "template_element_id": {
       "name": "template_element_id",
       "in": "path",
@@ -227,6 +252,31 @@
       ],
       "required": false,
       "default": "jsonld"
+    },
+    "version": {
+      "name": "version",
+      "in": "query",
+      "description": "Version selector. It is only handled for template-fields, template-elements and templates.\nThe allowed values are: 'latest', 'all'\n",
+      "type": "string",
+      "enum": [
+        "latest",
+        "all"
+      ],
+      "required": false,
+      "default": "all"
+    },
+    "publication_status": {
+      "name": "publication_status",
+      "in": "query",
+      "description": "Publication status selector. It is only handled for template-fields, template-elements and templates.\nThe allowed values are: 'bibo:draft', 'bibo:published', 'all'\n",
+      "type": "string",
+      "enum": [
+        "bibo:draft",
+        "bibo:published",
+        "all"
+      ],
+      "required": false,
+      "default": "all"
     }
   },
   "paths": {
@@ -428,8 +478,7 @@
         "description": "Get permissions of a folder.\n",
         "tags": [
           "Folders",
-          "Permissions",
-          "Folder Permissions"
+          "Permissions"
         ],
         "security": [
           {
@@ -467,8 +516,7 @@
         "description": "Update permissions of a folder.\n",
         "tags": [
           "Folders",
-          "Permissions",
-          "Folder Permissions"
+          "Permissions"
         ],
         "security": [
           {
@@ -547,7 +595,8 @@
         "description": "Get the contents of a folder.\n",
         "tags": [
           "Folders",
-          "Folder contents"
+          "Folder Contents",
+          "Versioning"
         ],
         "security": [
           {
@@ -562,6 +611,12 @@
             "$ref": "#/parameters/resource_types"
           },
           {
+            "$ref": "#/parameters/version"
+          },
+          {
+            "$ref": "#/parameters/publication_status"
+          },
+          {
             "$ref": "#/parameters/sort"
           },
           {
@@ -569,6 +624,326 @@
           },
           {
             "$ref": "#/parameters/offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-fields/{template_field_id}": {
+      "get": {
+        "summary": "Get a template field",
+        "description": "Get a template field.\n",
+        "tags": [
+          "Template Fields"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_field_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_template_field"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a template field",
+        "description": "Update a template field.\n",
+        "tags": [
+          "Template Fields"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_field_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_template_field"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a template field",
+        "description": "Delete a template field.\n",
+        "tags": [
+          "Template Fields"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_field_id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "#/responses/no_content"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-fields": {
+      "post": {
+        "summary": "Create a template field",
+        "description": "Create a template field.\n",
+        "tags": [
+          "Template Fields"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_field",
+            "in": "body",
+            "description": "The template field to be created",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TemplateField"
+            }
+          },
+          {
+            "$ref": "#/parameters/qs_folder_id"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/responses/created_template_field"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-fields/{template_field_id}/permissions": {
+      "get": {
+        "summary": "Get permissions of a template field",
+        "description": "Get permissions of a template field.\n",
+        "tags": [
+          "Template Fields",
+          "Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_field_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update permissions of a template field",
+        "description": "Update permissions of a template field.\n",
+        "tags": [
+          "Template Fields",
+          "Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_field_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-fields/{template_field_id}/details": {
+      "get": {
+        "summary": "Get details of a template field",
+        "description": "Get details of a template field.\n",
+        "tags": [
+          "Template Fields",
+          "Resource Details"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_field_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-fields/{template_field_id}/report": {
+      "get": {
+        "summary": "Get report of a template field",
+        "description": "Get report of a template field.\n",
+        "tags": [
+          "Template Fields",
+          "Resource Report",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_field_id"
           }
         ],
         "responses": {
@@ -760,8 +1135,7 @@
         "description": "Get permissions of a template element.\n",
         "tags": [
           "Template Elements",
-          "Permissions",
-          "Template Element Permissions"
+          "Permissions"
         ],
         "security": [
           {
@@ -799,8 +1173,88 @@
         "description": "Update permissions of a template element.\n",
         "tags": [
           "Template Elements",
-          "Permissions",
-          "Template Element Permissions"
+          "Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_element_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-elements/{template_element_id}/details": {
+      "get": {
+        "summary": "Get details of a template element",
+        "description": "Get details of a template element.\n",
+        "tags": [
+          "Template Elements",
+          "Resource Details"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_element_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-elements/{template_element_id}/report": {
+      "get": {
+        "summary": "Get report of a template element",
+        "description": "Get report of a template element.\n",
+        "tags": [
+          "Template Elements",
+          "Resource Report",
+          "Versioning"
         ],
         "security": [
           {
@@ -1004,8 +1458,7 @@
         "description": "Get permissions of a template instance.\n",
         "tags": [
           "Template Instances",
-          "Permissions",
-          "Template Instance Permissions"
+          "Permissions"
         ],
         "security": [
           {
@@ -1043,8 +1496,87 @@
         "description": "Update permissions of a template instance.\n",
         "tags": [
           "Template Instances",
-          "Permissions",
-          "Template Instance Permissions"
+          "Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_instance_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-instances/{template_instance_id}/details": {
+      "get": {
+        "summary": "Get details of a template instance",
+        "description": "Get details of a template instance.\n",
+        "tags": [
+          "Template Instances",
+          "Resource Details"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_instance_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-instances/{template_instance_id}/report": {
+      "get": {
+        "summary": "Get report of a template instance",
+        "description": "Get report of a template instance.\n",
+        "tags": [
+          "Template Instances",
+          "Resource Report"
         ],
         "security": [
           {
@@ -1245,8 +1777,7 @@
         "description": "Get permissions of a template.\n",
         "tags": [
           "Templates",
-          "Permissions",
-          "Template Permissions"
+          "Permissions"
         ],
         "security": [
           {
@@ -1284,8 +1815,88 @@
         "description": "Update permissions of a template.\n",
         "tags": [
           "Templates",
-          "Permissions",
-          "Template Permissions"
+          "Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/templates/{template_id}/details": {
+      "get": {
+        "summary": "Get details of a template",
+        "description": "Get details of a template.\n",
+        "tags": [
+          "Templates",
+          "Resource Details"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/templates/{template_id}/report": {
+      "get": {
+        "summary": "Get report of a template",
+        "description": "Get report of a template.\n",
+        "tags": [
+          "Templates",
+          "Resource Report",
+          "Versioning"
         ],
         "security": [
           {
@@ -1325,11 +1936,14 @@
         "description": "Search resources using different criteria\n",
         "tags": [
           "Search",
-          "Templates",
+          "Template Fields",
           "Template Elements",
+          "Templates",
           "Template Instances",
           "Folders",
-          "Folder contents"
+          "Folder Contents",
+          "Shared With Me",
+          "Versioning"
         ],
         "security": [
           {
@@ -1342,6 +1956,12 @@
           },
           {
             "$ref": "#/parameters/resource_types"
+          },
+          {
+            "$ref": "#/parameters/version"
+          },
+          {
+            "$ref": "#/parameters/publication_status"
           },
           {
             "$ref": "#/parameters/is_based_on"
@@ -1387,11 +2007,14 @@
         "description": "Search resources using different criteria.\nThis call can go further than 10.000 resources. It is not intended for everyday use.\n",
         "tags": [
           "Search",
-          "Templates",
+          "Template Fields",
           "Template Elements",
+          "Templates",
           "Template Instances",
           "Folders",
-          "Folder contents"
+          "Folder Contents",
+          "Shared With Me",
+          "Versioning"
         ],
         "security": [
           {
@@ -1404,6 +2027,12 @@
           },
           {
             "$ref": "#/parameters/resource_types"
+          },
+          {
+            "$ref": "#/parameters/version"
+          },
+          {
+            "$ref": "#/parameters/publication_status"
           },
           {
             "$ref": "#/parameters/is_based_on"
@@ -1448,7 +2077,7 @@
         "summary": "Validate resources",
         "description": "Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model.\n&nbsp;\nTo use this service you will need to append the resource text in the request body as the payload. However, in the case of validating the template instance, you have an additional option to include the template text by organizing them as follows:\n```\n{\n  \"schema\": <template text>,\n  \"instance\": <instance text>\n}\n```\n&nbsp;\nThe validation service will return a report in JSON format as follows:\n```\n{\n  \"validates\": \"\",  # Indicate the validity of the submitted resource (true = valid, false = invalid).\n  \"warnings\": [],   # A list of warning messages, if any.\n  \"errors\": []      # A list of error messages, if any.\n}\n```\n",
         "tags": [
-          "Validate"
+          "Validation"
         ],
         "security": [
           {
@@ -1535,6 +2164,15 @@
         "id": {
           "type": "string",
           "description": "Unique URL identifier representing a specific folder."
+        }
+      }
+    },
+    "TemplateField": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific template field."
         }
       }
     },
