@@ -178,7 +178,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                 templateJsonNode);
             resourceRequestBody.put("version", versionPair.getValue());
             resourceRequestBody.put("publicationStatus", publicationStatusPair.getValue());
-          } else if (nodeType == CedarNodeType.INSTANCE) {
+          }
+          if (nodeType == CedarNodeType.INSTANCE) {
             resourceRequestBody.put("isBasedOn", ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
           }
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
