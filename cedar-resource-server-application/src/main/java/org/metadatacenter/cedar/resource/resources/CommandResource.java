@@ -750,23 +750,16 @@ public class CommandResource extends AbstractResourceServerResource {
 
     CedarNodeType nodeType = folderServerResourceOld.getType();
 
-    CedarPermission updatePermission = null;
-    switch (nodeType) {
-      case ELEMENT:
-        updatePermission = CedarPermission.TEMPLATE_ELEMENT_UPDATE;
-        break;
-      case TEMPLATE:
-        updatePermission = CedarPermission.TEMPLATE_UPDATE;
-        break;
-      default:
-        return CedarResponse.badRequest()
-            .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
-            .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
-                "allowed values are:" +
-                CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .parameter("invalidResourceType", nodeType.getValue())
-            .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .build();
+    CedarPermission updatePermission = CedarPermission.getUpdateForVersionedNodeType(nodeType);
+    if (updatePermission == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
+          .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
+              "allowed values are:" +
+              CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+          .parameter("invalidResourceType", nodeType.getValue())
+          .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+          .build();
     }
 
     // Check update permission
@@ -894,23 +887,17 @@ public class CommandResource extends AbstractResourceServerResource {
 
     boolean propagateSharing = Boolean.parseBoolean(propagateSharingString);
 
-    CedarPermission updatePermission = null;
-    switch (nodeType) {
-      case ELEMENT:
-        updatePermission = CedarPermission.TEMPLATE_ELEMENT_UPDATE;
-        break;
-      case TEMPLATE:
-        updatePermission = CedarPermission.TEMPLATE_UPDATE;
-        break;
-      default:
-        return CedarResponse.badRequest()
-            .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
-            .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
-                "allowed values are:" +
-                CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .parameter("invalidResourceType", nodeType.getValue())
-            .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .build();
+    CedarPermission updatePermission = CedarPermission.getUpdateForVersionedNodeType(nodeType);
+    if (updatePermission == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
+          .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
+              "allowed values are:" +
+              CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+          .parameter("invalidResourceType", nodeType.getValue())
+          .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+          .build();
+
     }
 
     // Check update permission
