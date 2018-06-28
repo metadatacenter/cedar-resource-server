@@ -17,6 +17,7 @@ import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
 import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.model.folderserver.FolderServerResource;
+import org.metadatacenter.model.folderserverreport.FolderServerResourceReport;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.search.IndexedDocumentId;
@@ -76,11 +77,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     AbstractResourceServerResource.groupPermissionIndexingService = groupPermissionIndexingService;
   }
 
-  protected static FolderServerNode deserializeResource(HttpResponse proxyResponse) throws CedarProcessingException {
-    FolderServerNode resource = null;
+  protected static <T extends FolderServerNode> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz)
+      throws CedarProcessingException {
+    T resource = null;
     try {
       String responseString = EntityUtils.toString(proxyResponse.getEntity());
-      resource = JsonMapper.MAPPER.readValue(responseString, FolderServerNode.class);
+      resource = JsonMapper.MAPPER.readValue(responseString, klazz);
     } catch (IOException e) {
       throw new CedarProcessingException(e);
     }
@@ -106,9 +108,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return resource;
   }
 
-  protected JsonNode resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse, CedarRequestContext context)
+  protected <T extends FolderServerNode> JsonNode resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse,
+                                                                                     CedarRequestContext context,
+                                                                                     Class<T> klazz)
       throws CedarProcessingException {
-    FolderServerNode resource = deserializeResource(proxyResponse);
+    T resource = deserializeResource(proxyResponse, klazz);
     addProvenanceDisplayName(resource, context);
     return JsonMapper.MAPPER.valueToTree(resource);
   }
@@ -306,7 +310,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        return Response.status(statusCode).entity(resourceWithExpandedProvenanceInfo(proxyResponse, context)).build();
+        return Response.status(statusCode).entity(resourceWithExpandedProvenanceInfo(proxyResponse, context,
+            FolderServerNode.class)).build();
       } else {
         return Response.status(statusCode).build();
       }
@@ -639,13 +644,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeResourceReportGetByProxy(String resourceId, CedarRequestContext context) throws
       CedarProcessingException {
     try {
-      String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(resourceId);
+      String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithIdReport(resourceId);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        return Response.status(statusCode).entity(resourceWithExpandedProvenanceInfo(proxyResponse, context)).build();
+        return Response.status(statusCode).entity(resourceWithExpandedProvenanceInfo(proxyResponse, context,
+            FolderServerResourceReport.class)).build();
       } else {
         return Response.status(statusCode).build();
       }
@@ -800,7 +806,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           } else {
             updateIndexFolder(folderServerFolderUpdated, c);
           }
-          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
+          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c, FolderServerNode.class))
+              .build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
         }
