@@ -590,7 +590,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
     String id = idParam.stringValue();
 
-    FolderServerNode folderServerNode = userMustHaveReadAccessToNode(c, id);
+    FolderServerNode folderServerNode = userMustHaveWriteAccessToNode(c, id);
 
     String name = null;
     if (!nameParam.isEmpty()) {

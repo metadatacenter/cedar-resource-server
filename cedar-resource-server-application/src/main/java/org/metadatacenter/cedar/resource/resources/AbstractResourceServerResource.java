@@ -610,25 +610,45 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected FolderServerNode userMustHaveReadAccessToNode(CedarRequestContext context, String nodeId) throws
       CedarException {
     CedarObjectNotFoundException notFoundException = null;
-    CedarPermissionException permissionException = null;
     try {
       return userMustHaveReadAccessToResource(context, nodeId);
     } catch (CedarObjectNotFoundException e) {
       notFoundException = e;
     } catch (CedarPermissionException e) {
-      permissionException = e;
+      throw e;
     }
     try {
       return userMustHaveReadAccessToFolder(context, nodeId);
     } catch (CedarObjectNotFoundException e) {
       notFoundException = e;
     } catch (CedarPermissionException e) {
-      permissionException = e;
+      throw e;
     }
     if (notFoundException != null) {
       throw notFoundException;
-    } else if (permissionException != null) {
-      throw permissionException;
+    }
+    return null;
+  }
+
+  protected FolderServerNode userMustHaveWriteAccessToNode(CedarRequestContext context, String nodeId) throws
+      CedarException {
+    CedarObjectNotFoundException notFoundException;
+    try {
+      return userMustHaveWriteAccessToResource(context, nodeId);
+    } catch (CedarObjectNotFoundException e) {
+      notFoundException = e;
+    } catch (CedarPermissionException e) {
+      throw e;
+    }
+    try {
+      return userMustHaveWriteAccessToFolder(context, nodeId);
+    } catch (CedarObjectNotFoundException e) {
+      notFoundException = e;
+    } catch (CedarPermissionException e) {
+      throw e;
+    }
+    if (notFoundException != null) {
+      throw notFoundException;
     }
     return null;
   }
