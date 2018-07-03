@@ -7,8 +7,8 @@ import org.apache.http.HttpStatus;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
-import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.FolderServerNode;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
@@ -60,7 +60,8 @@ public class FoldersResource extends AbstractResourceServerResource {
           // index the folder that has been created
           createIndexFolder(createdFolder, c);
           URI location = CedarUrlUtil.getLocationURI(proxyResponse);
-          return Response.created(location).entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
+          return Response.created(location).entity(resourceWithExpandedProvenanceInfo(proxyResponse, c,
+              FolderServerNode.class)).build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
         }
@@ -93,7 +94,8 @@ public class FoldersResource extends AbstractResourceServerResource {
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
       if (HttpStatus.SC_OK == statusCode) {
-        return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
+        return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c, FolderServerNode.class))
+            .build();
       } else {
         try {
           return Response.status(statusCode).entity(entity.getContent()).build();
