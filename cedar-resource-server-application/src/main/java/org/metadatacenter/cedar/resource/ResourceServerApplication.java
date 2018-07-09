@@ -5,6 +5,7 @@ import io.dropwizard.setup.Environment;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
+import org.metadatacenter.cedar.resource.search.IndexCreator;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
@@ -46,6 +47,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     SearchResource.injectServices(nodeIndexingService, nodeSearchingService, contentIndexingService,
         contentSearchingService, searchPermissionEnqueueService, userPermissionIndexingService,
         groupPermissionIndexingService);
+
+    IndexCreator.ensureSearchIndexExists(cedarConfig);
 
     /*ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
