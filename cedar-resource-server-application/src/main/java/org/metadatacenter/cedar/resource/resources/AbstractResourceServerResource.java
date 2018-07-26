@@ -20,15 +20,20 @@ import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.folderserverreport.FolderServerResourceReport;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.search.IndexedDocumentId;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
+import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
+import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
+import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
+import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -39,8 +44,10 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
+import java.util.List;
 import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarQueryParameters.QP_IS_BASED_ON;
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
@@ -56,6 +63,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
   protected static UserPermissionIndexingService userPermissionIndexingService;
   protected static GroupPermissionIndexingService groupPermissionIndexingService;
+  private static UserService userService;
 
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -67,7 +75,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                                     ContentSearchingService contentSearchingService,
                                     SearchPermissionEnqueueService searchPermissionEnqueueService,
                                     UserPermissionIndexingService userPermissionIndexingService,
-                                    GroupPermissionIndexingService groupPermissionIndexingService) {
+                                    GroupPermissionIndexingService groupPermissionIndexingService,
+                                    UserService userService) {
     AbstractResourceServerResource.nodeIndexingService = nodeIndexingService;
     AbstractResourceServerResource.nodeSearchingService = nodeSearchingService;
     AbstractResourceServerResource.contentIndexingService = contentIndexingService;
@@ -75,6 +84,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
     AbstractResourceServerResource.userPermissionIndexingService = userPermissionIndexingService;
     AbstractResourceServerResource.groupPermissionIndexingService = groupPermissionIndexingService;
+    AbstractResourceServerResource.userService = userService;
   }
 
   protected static <T extends FolderServerNode> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz)
@@ -334,12 +344,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
                                                FolderServerFolder folder, String content, FolderServerResource
-                                                   folderServerOldResource) throws
-      CedarProcessingException {
+                                                   folderServerOldResource) throws CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
 
       String currentName = null;
+      boolean foundOnTemplateServer = false;
 
       HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(url, context);
       int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();
@@ -349,6 +359,18 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity);
           JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
           currentName = ModelUtil.extractNameFromResource(nodeType, currentTemplateJsonNode).getValue();
+          foundOnTemplateServer = true;
+        }
+      }
+
+      if (foundOnTemplateServer && nodeType == CedarNodeType.TEMPLATE) {
+        long countIsBasedOn = getCountBasedOn(id);
+        if (countIsBasedOn > 0) {
+          return CedarResponse.badRequest()
+              .errorKey(CedarErrorKey.TEMPLATE_WITH_INSTANCES_CAN_NOT_BE_MODIFIED)
+              .errorMessage("The template can not be modified since it has instances!")
+              .parameter("count", countIsBasedOn)
+              .build();
         }
       }
 
@@ -444,6 +466,36 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
+  }
+
+  private long getCountBasedOn(String id) {
+    CedarRequestContext context = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+    String isBasedOn = id;
+    String queryString = null;
+    List<String> resourceTypeList = null;
+    ResourceVersionFilter version = ResourceVersionFilter.ALL;
+    ResourcePublicationStatusFilter publicationStatus = ResourcePublicationStatusFilter.ALL;
+    List<String> sortList = null;
+    int limit = 10000;
+    int offset = 0;
+
+    Optional<String> isBasedOnParam = Optional.of(isBasedOn);
+
+    CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
+        .queryParam(QP_IS_BASED_ON, isBasedOnParam);
+
+    String absoluteUrl = builder.build().toString();
+
+    try {
+      FolderServerNodeListResponse results = contentSearchingService.search(context, queryString, resourceTypeList,
+          version, publicationStatus,
+          isBasedOn, sortList, limit, offset, absoluteUrl);
+      return results.getTotalCount();
+    } catch (CedarProcessingException e) {
+      log.error("Error while searching for instances of template", e);
+      return 0;
+    }
+
   }
 
   protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse
