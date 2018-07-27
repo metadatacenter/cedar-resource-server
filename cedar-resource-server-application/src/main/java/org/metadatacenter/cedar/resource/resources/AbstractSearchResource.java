@@ -88,7 +88,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         ResourcePublicationStatusFilter publicationStatus = pagedSearchQuery.getPublicationStatus();
         List<String> sortList = pagedSearchQuery.getSortList();
         String queryString = pagedSearchQuery.getQ();
-        String queryId = pagedSearchQuery.getId();
+        String idString = pagedSearchQuery.getId();
         int limit = pagedSearchQuery.getLimit();
         int offset = pagedSearchQuery.getOffset();
 
@@ -108,10 +108,10 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
         FolderServerNodeListResponse results = null;
         if (searchDeep) {
-          results = contentSearchingService.searchDeep(c, queryString, queryId, resourceTypeList, version,
+          results = contentSearchingService.searchDeep(c, queryString, idString, resourceTypeList, version,
               publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl);
         } else {
-          results = contentSearchingService.search(c, queryString, queryId, resourceTypeList, version,
+          results = contentSearchingService.search(c, queryString, idString, resourceTypeList, version,
               publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl);
         }
         results.setNodeListQueryType(nlqt);
