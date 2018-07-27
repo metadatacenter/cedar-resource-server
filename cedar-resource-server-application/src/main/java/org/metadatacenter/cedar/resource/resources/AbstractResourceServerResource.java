@@ -363,17 +363,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         }
       }
 
-      if (foundOnTemplateServer && nodeType == CedarNodeType.TEMPLATE) {
-        long countIsBasedOn = getCountBasedOn(id);
-        if (countIsBasedOn > 0) {
-          return CedarResponse.badRequest()
-              .errorKey(CedarErrorKey.TEMPLATE_WITH_INSTANCES_CAN_NOT_BE_MODIFIED)
-              .errorMessage("The template can not be modified since it has instances!")
-              .parameter("count", countIsBasedOn)
-              .build();
-        }
-      }
-
       HttpResponse templateProxyResponse = null;
       if (content == null) {
         templateProxyResponse = ProxyUtil.proxyPut(url, context);
@@ -466,36 +455,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
-  }
-
-  private long getCountBasedOn(String id) {
-    CedarRequestContext context = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-    String isBasedOn = id;
-    String queryString = null;
-    List<String> resourceTypeList = null;
-    ResourceVersionFilter version = ResourceVersionFilter.ALL;
-    ResourcePublicationStatusFilter publicationStatus = ResourcePublicationStatusFilter.ALL;
-    List<String> sortList = null;
-    int limit = 10000;
-    int offset = 0;
-
-    Optional<String> isBasedOnParam = Optional.of(isBasedOn);
-
-    CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
-        .queryParam(QP_IS_BASED_ON, isBasedOnParam);
-
-    String absoluteUrl = builder.build().toString();
-
-    try {
-      FolderServerNodeListResponse results = contentSearchingService.search(context, queryString, resourceTypeList,
-          version, publicationStatus,
-          isBasedOn, sortList, limit, offset, absoluteUrl);
-      return results.getTotalCount();
-    } catch (CedarProcessingException e) {
-      log.error("Error while searching for instances of template", e);
-      return 0;
-    }
-
   }
 
   protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse
