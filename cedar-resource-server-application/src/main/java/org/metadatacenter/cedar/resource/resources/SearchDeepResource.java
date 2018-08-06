@@ -26,6 +26,7 @@ public class SearchDeepResource extends AbstractSearchResource {
   @Timed
   @Path("/search-deep")
   public Response searchDeep(@QueryParam(QP_Q) Optional<String> q,
+                             @QueryParam(QP_ID) Optional<String> id,
                              @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
                              @QueryParam(QP_VERSION) Optional<String> versionParam,
                              @QueryParam(QP_PUBLICATION_STATUS) Optional<String> publicationStatusParam,
@@ -35,7 +36,7 @@ public class SearchDeepResource extends AbstractSearchResource {
                              @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
                              @QueryParam(QP_SHARING) Optional<String> sharing) throws CedarException {
 
-    return super.search(q, resourceTypes, versionParam, publicationStatusParam, isBasedOnParam, sortParam,
+    return super.search(q, id, resourceTypes, versionParam, publicationStatusParam, isBasedOnParam, sortParam,
         limitParam, offsetParam, sharing, true);
   }
 }
