@@ -46,7 +46,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     CommandResource.injectUserService(userService);
     SearchResource.injectServices(nodeIndexingService, nodeSearchingService, contentIndexingService,
         contentSearchingService, searchPermissionEnqueueService, userPermissionIndexingService,
-        groupPermissionIndexingService, userService);
+        groupPermissionIndexingService);
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
 

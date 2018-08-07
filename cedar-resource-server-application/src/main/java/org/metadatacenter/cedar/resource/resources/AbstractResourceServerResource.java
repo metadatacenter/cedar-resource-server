@@ -20,20 +20,15 @@ import org.metadatacenter.model.folderserver.FolderServerResource;
 import org.metadatacenter.model.folderserverreport.FolderServerResourceReport;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.search.IndexedDocumentId;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
-import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
-import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
-import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
-import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -44,10 +39,8 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
-import java.util.List;
 import java.util.Optional;
 
-import static org.metadatacenter.constant.CedarQueryParameters.QP_IS_BASED_ON;
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
@@ -63,7 +56,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
   protected static UserPermissionIndexingService userPermissionIndexingService;
   protected static GroupPermissionIndexingService groupPermissionIndexingService;
-  private static UserService userService;
 
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -75,8 +67,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                                     ContentSearchingService contentSearchingService,
                                     SearchPermissionEnqueueService searchPermissionEnqueueService,
                                     UserPermissionIndexingService userPermissionIndexingService,
-                                    GroupPermissionIndexingService groupPermissionIndexingService,
-                                    UserService userService) {
+                                    GroupPermissionIndexingService groupPermissionIndexingService) {
     AbstractResourceServerResource.nodeIndexingService = nodeIndexingService;
     AbstractResourceServerResource.nodeSearchingService = nodeSearchingService;
     AbstractResourceServerResource.contentIndexingService = contentIndexingService;
@@ -84,7 +75,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
     AbstractResourceServerResource.userPermissionIndexingService = userPermissionIndexingService;
     AbstractResourceServerResource.groupPermissionIndexingService = groupPermissionIndexingService;
-    AbstractResourceServerResource.userService = userService;
   }
 
   protected static <T extends FolderServerNode> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz)
@@ -97,6 +87,45 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       throw new CedarProcessingException(e);
     }
     return resource;
+  }
+
+  protected static void updateNameInObject(CedarNodeType nodeType, JsonNode jsonNode, String name) {
+    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_NAME, name);
+  }
+
+  protected static void updateDescriptionInObject(CedarNodeType nodeType, JsonNode jsonNode, String description) {
+    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_DESCRIPTION, description);
+  }
+
+  protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse
+      proxyResponse,
+                                                            Object responseContent) {
+    return responseBuilder
+        .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(proxyResponse))
+        .header(ACCESS_CONTROL_EXPOSE_HEADERS, printCedarValidationHeaderList())
+        .entity(responseContent).build();
+  }
+
+  private static String getValidationStatus(HttpResponse response) {
+    return response.getFirstHeader(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS).getValue();
+  }
+
+  private static String printCedarValidationHeaderList() {
+    return String.format("%s", CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS);
+  }
+
+  private static Response buildResponse(HttpResponse proxyResponse) throws CedarProcessingException {
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    HttpEntity entity = proxyResponse.getEntity();
+    if (entity != null) {
+      try {
+        return Response.status(statusCode).entity(entity.getContent()).build();
+      } catch (IOException e) {
+        throw new CedarProcessingException(e);
+      }
+    } else {
+      return Response.status(statusCode).build();
+    }
   }
 
   private FolderServerNode addProvenanceDisplayName(FolderServerNode resource, CedarRequestContext context) throws
@@ -242,14 +271,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     } else {
       return Response.status(statusCode).build();
     }
-  }
-
-  protected static void updateNameInObject(CedarNodeType nodeType, JsonNode jsonNode, String name) {
-    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_NAME, name);
-  }
-
-  protected static void updateDescriptionInObject(CedarNodeType nodeType, JsonNode jsonNode, String description) {
-    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_DESCRIPTION, description);
   }
 
   protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id,
@@ -455,23 +476,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
-  }
-
-  protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse
-      proxyResponse,
-                                                            Object responseContent) {
-    return responseBuilder
-        .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(proxyResponse))
-        .header(ACCESS_CONTROL_EXPOSE_HEADERS, printCedarValidationHeaderList())
-        .entity(responseContent).build();
-  }
-
-  private static String getValidationStatus(HttpResponse response) {
-    return response.getFirstHeader(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS).getValue();
-  }
-
-  private static String printCedarValidationHeaderList() {
-    return String.format("%s", CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS);
   }
 
   protected Response executeResourceDeleteByProxy(CedarRequestContext context, CedarNodeType nodeType, String id)
@@ -703,20 +707,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return buildResponse(proxyResponse);
   }
 
-  private static Response buildResponse(HttpResponse proxyResponse) throws CedarProcessingException {
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    HttpEntity entity = proxyResponse.getEntity();
-    if (entity != null) {
-      try {
-        return Response.status(statusCode).entity(entity.getContent()).build();
-      } catch (IOException e) {
-        throw new CedarProcessingException(e);
-      }
-    } else {
-      return Response.status(statusCode).build();
-    }
-  }
-
   protected Response deserializeAndConvertFolderNamesIfNecessary(HttpResponse proxyResponse) throws
       CedarProcessingException {
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -847,6 +837,36 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
     } else {
       return Response.status(statusCode).build();
+    }
+  }
+
+  protected Response executeResourceVersionsGetByProxy(CedarRequestContext context, String resourceId) throws CedarProcessingException {
+    try {
+      String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithIdVersions(resourceId);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      HttpEntity entity = proxyResponse.getEntity();
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      if (entity != null) {
+        return Response.status(statusCode).entity(resourceListWithExpandedProvenanceInfo(proxyResponse, context)).build();
+      } else {
+        return Response.status(statusCode).build();
+      }
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
+  }
+
+  private FolderServerNodeListResponse resourceListWithExpandedProvenanceInfo(HttpResponse proxyResponse,
+                                                                              CedarRequestContext context) throws CedarProcessingException {
+    try {
+      FolderServerNodeListResponse nodeList = null;
+      String responseString = EntityUtils.toString(proxyResponse.getEntity());
+      nodeList = JsonMapper.MAPPER.readValue(responseString, FolderServerNodeListResponse.class);
+      //addProvenanceDisplayNames(nodeList, context);
+      return nodeList;
+    } catch (IOException e) {
+      throw new CedarProcessingException(e);
     }
   }
 
