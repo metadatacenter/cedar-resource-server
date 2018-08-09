@@ -22,6 +22,7 @@ import org.metadatacenter.model.folderserverreport.FolderServerInstanceReport;
 import org.metadatacenter.model.folderserverreport.FolderServerResourceReport;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.cache.user.UserSummaryCache;
 import org.metadatacenter.server.search.IndexedDocumentId;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
@@ -130,12 +131,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private void addProvenanceDisplayName(FolderServerNode resource, CedarRequestContext context) throws
+  private void addProvenanceDisplayName(FolderServerNode resource) throws
       CedarProcessingException {
     if (resource != null) {
-      CedarUserSummary creator = getUserSummary(resource.getCreatedBy(), context);
-      CedarUserSummary updater = getUserSummary(resource.getLastUpdatedBy(), context);
-      CedarUserSummary owner = getUserSummary(resource.getOwnedBy(), context);
+      CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
+      CedarUserSummary updater = UserSummaryCache.getInstance().getUser(resource.getLastUpdatedBy());
+      CedarUserSummary owner = UserSummaryCache.getInstance().getUser(resource.getOwnedBy());
       if (creator != null) {
         resource.setCreatedByUserName(creator.getScreenName());
       }
@@ -146,16 +147,16 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         resource.setOwnedByUserName(owner.getScreenName());
       }
       for (FolderServerNodeExtract pi : resource.getPathInfo()) {
-        addProvenanceDisplayName(pi, context);
+        addProvenanceDisplayName(pi);
       }
     }
   }
 
-  private void addProvenanceDisplayName(FolderServerNodeExtract resource, CedarRequestContext context) throws CedarProcessingException {
+  private void addProvenanceDisplayName(FolderServerNodeExtract resource) throws CedarProcessingException {
     if (resource != null) {
-      CedarUserSummary creator = getUserSummary(resource.getCreatedBy(), context);
-      CedarUserSummary updater = getUserSummary(resource.getLastUpdatedBy(), context);
-      CedarUserSummary owner = getUserSummary(resource.getOwnedBy(), context);
+      CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
+      CedarUserSummary updater = UserSummaryCache.getInstance().getUser(resource.getLastUpdatedBy());
+      CedarUserSummary owner = UserSummaryCache.getInstance().getUser(resource.getOwnedBy());
       if (creator != null) {
         resource.setCreatedByUserName(creator.getScreenName());
       }
@@ -168,36 +169,35 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private void addProvenanceDisplayNames(FolderServerResourceReport report, CedarRequestContext context) throws CedarProcessingException {
+  private void addProvenanceDisplayNames(FolderServerResourceReport report) throws CedarProcessingException {
     for (FolderServerNodeExtract v : report.getVersions()) {
-      addProvenanceDisplayName(v, context);
+      addProvenanceDisplayName(v);
     }
     for (FolderServerNodeExtract pi : report.getPathInfo()) {
-      addProvenanceDisplayName(pi, context);
+      addProvenanceDisplayName(pi);
     }
-    addProvenanceDisplayName(report.getDerivedFromExtract(), context);
+    addProvenanceDisplayName(report.getDerivedFromExtract());
     if (report instanceof FolderServerInstanceReport) {
       FolderServerInstanceReport instanceReport = (FolderServerInstanceReport) report;
-      addProvenanceDisplayName(instanceReport.getIsBasedOnExtract(), context);
+      addProvenanceDisplayName(instanceReport.getIsBasedOnExtract());
     }
   }
 
-  protected void addProvenanceDisplayNames(FolderServerNodeListResponse nodeList, CedarRequestContext context) throws CedarProcessingException {
+  protected void addProvenanceDisplayNames(FolderServerNodeListResponse nodeList) throws CedarProcessingException {
     for (FolderServerNodeExtract r : nodeList.getResources()) {
-      addProvenanceDisplayName(r, context);
+      addProvenanceDisplayName(r);
     }
     if (nodeList.getPathInfo() != null) {
       for (FolderServerNodeExtract pi : nodeList.getPathInfo()) {
-        addProvenanceDisplayName(pi, context);
+        addProvenanceDisplayName(pi);
       }
     }
   }
 
   protected <T extends FolderServerNode> T resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse,
-                                                                              CedarRequestContext context,
                                                                               Class<T> klazz) throws CedarProcessingException {
     T resource = deserializeResource(proxyResponse, klazz);
-    addProvenanceDisplayName(resource, context);
+    addProvenanceDisplayName(resource);
     return resource;
   }
 
@@ -386,9 +386,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        FolderServerNode folderServerNode = resourceWithExpandedProvenanceInfo(proxyResponse, context,
-            FolderServerNode.class);
-        addProvenanceDisplayName(folderServerNode, context);
+        FolderServerNode folderServerNode = resourceWithExpandedProvenanceInfo(proxyResponse, FolderServerNode.class);
+        addProvenanceDisplayName(folderServerNode);
         return Response.status(statusCode).entity(folderServerNode).build();
       } else {
         return Response.status(statusCode).build();
@@ -733,9 +732,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
         FolderServerResourceReport folderServerResourceReport = resourceWithExpandedProvenanceInfo(proxyResponse,
-            context,
             FolderServerResourceReport.class);
-        addProvenanceDisplayNames(folderServerResourceReport, context);
+        addProvenanceDisplayNames(folderServerResourceReport);
         return Response.status(statusCode).entity(folderServerResourceReport).build();
       } else {
         return Response.status(statusCode).build();
@@ -767,7 +765,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           FolderServerNodeListResponse response = null;
           String responseString = EntityUtils.toString(proxyResponse.getEntity());
           response = JsonMapper.MAPPER.readValue(responseString, FolderServerNodeListResponse.class);
-          addProvenanceDisplayNames(response, context);
+          addProvenanceDisplayNames(response);
           // it can not be deserialized as RSNodeListResponse
           if (response == null) {
             return Response.status(statusCode).entity(entity.getContent()).build();
@@ -878,7 +876,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           } else {
             updateIndexFolder(folderServerFolderUpdated, c);
           }
-          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c, FolderServerNode.class))
+          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, FolderServerNode.class))
               .build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
@@ -915,7 +913,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       String responseString = EntityUtils.toString(proxyResponse.getEntity());
       nodeList = JsonMapper.MAPPER.readValue(responseString, FolderServerNodeListResponse.class);
       for (FolderServerNodeExtract node : nodeList.getResources()) {
-        addProvenanceDisplayName(node, context);
+        addProvenanceDisplayName(node);
       }
       return nodeList;
     } catch (IOException e) {

@@ -114,7 +114,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         }
         results.setNodeListQueryType(nlqt);
 
-        addProvenanceDisplayNames(results, c);
+        addProvenanceDisplayNames(results);
         return Response.ok().entity(results).build();
       } catch (Exception e) {
         throw new CedarProcessingException(e);

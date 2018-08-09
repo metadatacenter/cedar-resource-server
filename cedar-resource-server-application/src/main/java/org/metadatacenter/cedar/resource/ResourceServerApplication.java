@@ -9,6 +9,7 @@ import org.metadatacenter.cedar.resource.search.IndexCreator;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
+import org.metadatacenter.server.cache.user.UserSummaryCache;
 import org.metadatacenter.server.cache.util.CacheService;
 import org.metadatacenter.server.search.elasticsearch.service.*;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
@@ -32,6 +33,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
   public void initializeApp() {
     CedarDataServices.initializeWorkspaceServices(cedarConfig);
 
+    UserSummaryCache.init(cedarConfig, userService);
+
     ElasticsearchServiceFactory esServiceFactory = ElasticsearchServiceFactory.getInstance(cedarConfig);
     NodeIndexingService nodeIndexingService = esServiceFactory.nodeIndexingService();
     NodeSearchingService nodeSearchingService = esServiceFactory.nodeSearchingService();
@@ -49,6 +52,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
         groupPermissionIndexingService);
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
+
 
     /*ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
