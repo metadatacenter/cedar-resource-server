@@ -1,6 +1,5 @@
 package org.metadatacenter.cedar.resource.resources;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.http.HttpResponse;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -15,7 +14,6 @@ import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
 import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.http.PagedSortedTypedSearchQuery;
 import org.metadatacenter.util.http.ProxyUtil;
-import org.metadatacenter.util.json.JsonMapper;
 
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
@@ -66,7 +64,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
+      return deserializeAndAddProvenanceDisplayNames(proxyResponse, c);
     } else {
       PagedSortedTypedSearchQuery pagedSearchQuery = new PagedSortedTypedSearchQuery(
           cedarConfig.getFolderRESTAPI().getPagination())
@@ -116,8 +114,8 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         }
         results.setNodeListQueryType(nlqt);
 
-        JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
-        return Response.ok().entity(resultsNode).build();
+        addProvenanceDisplayNames(results);
+        return Response.ok().entity(results).build();
       } catch (Exception e) {
         throw new CedarProcessingException(e);
       }

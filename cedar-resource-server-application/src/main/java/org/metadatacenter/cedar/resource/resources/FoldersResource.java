@@ -60,7 +60,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           // index the folder that has been created
           createIndexFolder(createdFolder, c);
           URI location = CedarUrlUtil.getLocationURI(proxyResponse);
-          return Response.created(location).entity(resourceWithExpandedProvenanceInfo(proxyResponse, c,
+          return Response.created(location).entity(resourceWithExpandedProvenanceInfo(proxyResponse,
               FolderServerNode.class)).build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
@@ -94,8 +94,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
       if (HttpStatus.SC_OK == statusCode) {
-        return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c, FolderServerNode.class))
-            .build();
+        return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, FolderServerNode.class)).build();
       } else {
         try {
           return Response.status(statusCode).entity(entity.getContent()).build();

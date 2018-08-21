@@ -132,4 +132,16 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     return executeResourceReportGetByProxy(id, c);
   }
 
+  @GET
+  @Timed
+  @Path("/{id}/versions")
+  public Response getTemplateFieldVersions(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
+
+    userMustHaveReadAccessToResource(c, id);
+    return executeResourceVersionsGetByProxy(c, id);
+  }
+
 }

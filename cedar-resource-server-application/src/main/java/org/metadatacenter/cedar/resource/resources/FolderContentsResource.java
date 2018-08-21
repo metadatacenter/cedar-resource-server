@@ -52,7 +52,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-    return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
+    return deserializeAndAddProvenanceDisplayNames(proxyResponse, c);
   }
 
 }
