@@ -11,7 +11,9 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
 import org.metadatacenter.server.cache.user.UserSummaryCache;
 import org.metadatacenter.server.cache.util.CacheService;
-import org.metadatacenter.server.search.elasticsearch.service.*;
+import org.metadatacenter.server.search.elasticsearch.service.ElasticsearchServiceFactory;
+import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
+import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 
 public class ResourceServerApplication extends CedarMicroserviceApplication<ResourceServerConfiguration> {
@@ -38,18 +40,12 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     ElasticsearchServiceFactory esServiceFactory = ElasticsearchServiceFactory.getInstance(cedarConfig);
     NodeIndexingService nodeIndexingService = esServiceFactory.nodeIndexingService();
     NodeSearchingService nodeSearchingService = esServiceFactory.nodeSearchingService();
-    ContentIndexingService contentIndexingService = esServiceFactory.contentIndexingService();
-    ContentSearchingService contentSearchingService = esServiceFactory.contentSearchingService();
-    UserPermissionIndexingService userPermissionIndexingService = esServiceFactory.userPermissionsIndexingService();
-    GroupPermissionIndexingService groupPermissionIndexingService = esServiceFactory.groupPermissionsIndexingService();
 
     SearchPermissionEnqueueService searchPermissionEnqueueService = new SearchPermissionEnqueueService(
         new CacheService(cedarConfig.getCacheConfig().getPersistent()));
 
     CommandResource.injectUserService(userService);
-    SearchResource.injectServices(nodeIndexingService, nodeSearchingService, contentIndexingService,
-        contentSearchingService, searchPermissionEnqueueService, userPermissionIndexingService,
-        groupPermissionIndexingService);
+    SearchResource.injectServices(nodeIndexingService, nodeSearchingService, searchPermissionEnqueueService);
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
 

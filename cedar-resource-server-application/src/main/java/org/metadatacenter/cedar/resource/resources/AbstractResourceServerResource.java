@@ -23,8 +23,8 @@ import org.metadatacenter.model.folderserverreport.FolderServerResourceReport;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.cache.user.UserSummaryCache;
-import org.metadatacenter.server.search.IndexedDocumentId;
-import org.metadatacenter.server.search.elasticsearch.service.*;
+import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
+import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.NodePermission;
@@ -53,12 +53,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   private static final String ACCESS_CONTROL_EXPOSE_HEADERS = "Access-Control-Expose-Headers";
 
   protected static NodeIndexingService nodeIndexingService;
-  protected static ContentIndexingService contentIndexingService;
-  protected static ContentSearchingService contentSearchingService;
   protected static NodeSearchingService nodeSearchingService;
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
-  protected static UserPermissionIndexingService userPermissionIndexingService;
-  protected static GroupPermissionIndexingService groupPermissionIndexingService;
 
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -66,18 +62,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   public static void injectServices(NodeIndexingService nodeIndexingService,
                                     NodeSearchingService nodeSearchingService,
-                                    ContentIndexingService contentIndexingService,
-                                    ContentSearchingService contentSearchingService,
-                                    SearchPermissionEnqueueService searchPermissionEnqueueService,
-                                    UserPermissionIndexingService userPermissionIndexingService,
-                                    GroupPermissionIndexingService groupPermissionIndexingService) {
+                                    SearchPermissionEnqueueService searchPermissionEnqueueService
+  ) {
     AbstractResourceServerResource.nodeIndexingService = nodeIndexingService;
     AbstractResourceServerResource.nodeSearchingService = nodeSearchingService;
-    AbstractResourceServerResource.contentIndexingService = contentIndexingService;
-    AbstractResourceServerResource.contentSearchingService = contentSearchingService;
     AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
-    AbstractResourceServerResource.userPermissionIndexingService = userPermissionIndexingService;
-    AbstractResourceServerResource.groupPermissionIndexingService = groupPermissionIndexingService;
   }
 
   protected static <T extends FolderServerNode> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz)
@@ -798,56 +787,32 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected void createIndexResource(FolderServerResource folderServerResource, JsonNode templateJsonNode,
                                      CedarRequestContext c) throws CedarProcessingException {
-    String newId = folderServerResource.getId();
-    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerResource.getName(),
-        folderServerResource.getType());
-    IndexedDocumentId indexedContentId = contentIndexingService.indexResource(folderServerResource, templateJsonNode,
-        c, parentId);
-    // The content was not indexed, we should remove the node
-    if (indexedContentId == null) {
-      nodeIndexingService.removeDocumentFromIndex(parentId);
-      // and do not index permissions
-    } else {
-      // othwerwise index permissions
-      searchPermissionEnqueueService.resourceCreated(newId, parentId);
-    }
+
+    nodeIndexingService.indexDocument(folderServerResource, c);
+    // TODO: this is most probably not needed any more;
+    //searchPermissionEnqueueService.resourceCreated(newId, parentId);
   }
 
   protected void createIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
       CedarProcessingException {
-    String newId = folderServerFolder.getId();
-    IndexedDocumentId parentId = nodeIndexingService.indexDocument(newId, folderServerFolder.getName(),
-        folderServerFolder.getType());
-    contentIndexingService.indexFolder(folderServerFolder, c, parentId);
-    searchPermissionEnqueueService.folderCreated(newId, parentId);
+    nodeIndexingService.indexDocument(folderServerFolder, c);
+    // TODO: this is most probably not needed any more;
+    //searchPermissionEnqueueService.folderCreated(newId, parentId);
   }
 
   protected void updateIndexResource(FolderServerResource folderServerResource, JsonNode templateJsonNode,
                                      CedarRequestContext c) throws CedarProcessingException {
-    // get the id old id based on the cid
-    IndexedDocumentId parentId = nodeSearchingService.getByCedarId(folderServerResource.getId());
-    IndexedDocumentId indexedContentId = contentIndexingService.updateResource(folderServerResource,
-        templateJsonNode, c, parentId);
-    // The content was not indexed: remove permissions and parent node
-    if (indexedContentId == null) {
-      userPermissionIndexingService.removeDocumentFromIndex(folderServerResource.getId(), parentId);
-      groupPermissionIndexingService.removeDocumentFromIndex(folderServerResource.getId(), parentId);
-      nodeIndexingService.removeDocumentFromIndex(parentId);
-    }
+    nodeIndexingService.removeDocumentFromIndex(folderServerResource.getId());
+    nodeIndexingService.indexDocument(folderServerResource, c);
   }
 
   protected void updateIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
       CedarProcessingException {
-    // get the id old id based on the cid
-    IndexedDocumentId parentId = nodeSearchingService.getByCedarId(folderServerFolder.getId());
-    contentIndexingService.updateFolder(folderServerFolder, c, parentId);
+    nodeIndexingService.removeDocumentFromIndex(folderServerFolder.getId());
+    nodeIndexingService.indexDocument(folderServerFolder, c);
   }
 
   protected void indexRemoveDocument(String id) throws CedarProcessingException {
-    IndexedDocumentId parent = nodeSearchingService.getByCedarId(id);
-    contentIndexingService.removeDocumentFromIndex(id, parent);
-    userPermissionIndexingService.removeDocumentFromIndex(id, parent);
-    groupPermissionIndexingService.removeDocumentFromIndex(id, parent);
     nodeIndexingService.removeDocumentFromIndex(id);
   }
 
