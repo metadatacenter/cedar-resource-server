@@ -120,7 +120,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private void addProvenanceDisplayName(FolderServerNode resource) throws
+  protected void addProvenanceDisplayName(FolderServerNode resource) throws
       CedarProcessingException {
     if (resource != null) {
       CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
@@ -141,7 +141,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private void addProvenanceDisplayName(FolderServerNodeExtract resource) throws CedarProcessingException {
+  private void addProvenanceDisplayName(FolderServerNodeExtract resource) {
     if (resource != null) {
       CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
       CedarUserSummary updater = UserSummaryCache.getInstance().getUser(resource.getLastUpdatedBy());
@@ -158,7 +158,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private void addProvenanceDisplayNames(FolderServerResourceReport report) throws CedarProcessingException {
+  private void addProvenanceDisplayNames(FolderServerResourceReport report) {
     for (FolderServerNodeExtract v : report.getVersions()) {
       addProvenanceDisplayName(v);
     }
@@ -172,7 +172,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected void addProvenanceDisplayNames(FolderServerNodeListResponse nodeList) throws CedarProcessingException {
+  protected void addProvenanceDisplayNames(FolderServerNodeListResponse nodeList) {
     for (FolderServerNodeExtract r : nodeList.getResources()) {
       addProvenanceDisplayName(r);
     }
@@ -183,7 +183,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected <T extends FolderServerNode> T resourceWithExpandedProvenanceInfo(HttpResponse proxyResponse,
+  protected <T extends FolderServerNode> T resourceWithProvenanceDisplayNames(HttpResponse proxyResponse,
                                                                               Class<T> klazz) throws CedarProcessingException {
     T resource = deserializeResource(proxyResponse, klazz);
     addProvenanceDisplayName(resource);
@@ -375,7 +375,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        FolderServerNode folderServerNode = resourceWithExpandedProvenanceInfo(proxyResponse, FolderServerNode.class);
+        FolderServerNode folderServerNode = resourceWithProvenanceDisplayNames(proxyResponse, FolderServerNode.class);
         addProvenanceDisplayName(folderServerNode);
         return Response.status(statusCode).entity(folderServerNode).build();
       } else {
@@ -720,7 +720,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        FolderServerResourceReport folderServerResourceReport = resourceWithExpandedProvenanceInfo(proxyResponse,
+        FolderServerResourceReport folderServerResourceReport = resourceWithProvenanceDisplayNames(proxyResponse,
             FolderServerResourceReport.class);
         addProvenanceDisplayNames(folderServerResourceReport);
         return Response.status(statusCode).entity(folderServerResourceReport).build();
@@ -789,15 +789,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                                      CedarRequestContext c) throws CedarProcessingException {
 
     nodeIndexingService.indexDocument(folderServerResource, c);
-    // TODO: this is most probably not needed any more;
-    //searchPermissionEnqueueService.resourceCreated(newId, parentId);
   }
 
   protected void createIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
       CedarProcessingException {
     nodeIndexingService.indexDocument(folderServerFolder, c);
-    // TODO: this is most probably not needed any more;
-    //searchPermissionEnqueueService.folderCreated(newId, parentId);
   }
 
   protected void updateIndexResource(FolderServerResource folderServerResource, JsonNode templateJsonNode,
@@ -841,7 +837,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           } else {
             updateIndexFolder(folderServerFolderUpdated, c);
           }
-          return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, FolderServerNode.class))
+          return Response.ok().entity(resourceWithProvenanceDisplayNames(proxyResponse, FolderServerNode.class))
               .build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
