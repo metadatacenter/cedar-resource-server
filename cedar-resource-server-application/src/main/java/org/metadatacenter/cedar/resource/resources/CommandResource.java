@@ -171,9 +171,6 @@ public class CommandResource extends AbstractResourceServerResource {
       throw new CedarProcessingException(e);
     }
 
-    // TODO : from this point, this block is repeated 90% in:
-    // AbstractResourceServerController.executeResourcePostByProxy
-    // refactor, if possible
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType);
 
@@ -449,36 +446,6 @@ public class CommandResource extends AbstractResourceServerResource {
     userSession.ensureUserExists();
     folderSession.ensureUserHomeExists();
   }
-
-  // TODO: Think about this method. What do we want to achieve.
-  // What can we handle, and how.
-  /*
-  @POST
-  @Timed
-  @Path("/auth-admin-callback")
-  public Response authAdminCallback() throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
-    c.must(c.user()).be(LoggedIn);
-
-    // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
-
-    JsonNode jsonBody = c.request().getRequestBody().asJson();
-
-    if (jsonBody != null) {
-      try {
-        AdminEvent event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), AdminEvent.class);
-        CedarUserExtract eventUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
-
-        //TODO: read KK user, update enabled status in CEDAR - mongo and NEO
-      } catch (JsonProcessingException e) {
-        throw new CedarProcessingException(e);
-      }
-    }
-
-    //TODO: handle this. this is probably an error, having the null body here
-    return Response.noContent().build();
-  }
-  */
 
   @POST
   @Timed
