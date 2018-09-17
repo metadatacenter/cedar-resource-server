@@ -87,62 +87,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
-    c.must(requestBody).be(NonEmpty);
-
-    CedarParameter idInBody = requestBody.get(LinkedData.ID);
-    c.must(idInBody).be(NonNull);
-
-    if (!idInBody.stringValue().equals(id)) {
-      return CedarResponse.badRequest()
-          .errorMessage("The id in the URI and the @id in the body must be equal")
-          .parameter(PP_ID, id)
-          .parameter(LinkedData.ID, idInBody)
-          .build();
-    }
-
-    JsonNode templateOnTemplateServer = null;//MicroserviceRequest.templateServer().get(CedarNodeType.TEMPLATE, id);
-    JsonNode templateOnWorkspaceServer = null;//MicroserviceRequest.workspaceServer().get(CedarNodeType.TEMPLATE, id);
-
-    if (templateOnTemplateServer == null ^ templateOnWorkspaceServer == null) {
-      return CedarResponse.internalServerError()
-          .errorMessage("The state of this template is inconsistent on the backend storage! It can not be updated")
-          .parameter("presentOnTemplateServer", templateOnTemplateServer != null)
-          .parameter("presentOnWorkspaceServer", templateOnWorkspaceServer != null)
-          .build();
-    }
-
-    CreateOrUpdate createOrUpdate = null;
-
-    if (templateOnTemplateServer == null && templateOnWorkspaceServer == null) {
-      createOrUpdate = CreateOrUpdate.CREATE;
-    } else {
-      createOrUpdate = CreateOrUpdate.UPDATE;
-    }
-
-    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
-
-    if (createOrUpdate == CreateOrUpdate.UPDATE) {
-      if (!folderIdP.isEmpty()) {
-        return CedarResponse.badRequest()
-            .errorMessage("You are not allowed to specify the folder_id if you are trying to update a template")
-            .parameter(QP_FOLDER_ID, folderIdP.stringValue())
-            .build();
-      } else {
-        FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
-        return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folderServerResource);
-      }
-    } else if (createOrUpdate == CreateOrUpdate.CREATE) {
-      String folderIdS;
-      if (folderIdP.isEmpty()) {
-        folderIdS = c.getCedarUser().getHomeFolderId();
-      } else {
-        folderIdS = folderIdP.stringValue();
-      }
-      FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-      return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folder, null);
-    }
-    return null;
+    FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
+    return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folderServerResource);
   }
 
   @DELETE

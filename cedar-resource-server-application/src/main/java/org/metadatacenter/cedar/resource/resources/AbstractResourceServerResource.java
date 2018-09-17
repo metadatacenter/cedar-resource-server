@@ -237,10 +237,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         if (templateProxyResponseEntity != null) {
           String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
-          String id = templateJsonNode.get("@id").asText();
+          String id = ModelUtil.extractAtIdFromResource(nodeType, templateJsonNode).getValue();
 
           JsonPointerValuePair namePair = ModelUtil.extractNameFromResource(nodeType, templateJsonNode);
           JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode);
+          JsonPointerValuePair identifierPair = ModelUtil.extractIdentifierFromResource(nodeType, templateJsonNode);
 
           String resourceUrl = microserviceUrlUtil.getWorkspace().getResources();
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
@@ -249,6 +250,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           resourceRequestBody.put("nodeType", nodeType.getValue());
           resourceRequestBody.put("name", namePair.getValue());
           resourceRequestBody.put("description", descriptionPair.getValue());
+          resourceRequestBody.put("identifier", identifierPair.getValue());
           if (nodeType.isVersioned()) {
             JsonPointerValuePair versionPair = ModelUtil.extractVersionFromResource(nodeType, templateJsonNode);
             JsonPointerValuePair publicationStatusPair = ModelUtil.extractPublicationStatusFromResource(nodeType,
@@ -457,8 +459,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           String newName = ModelUtil.extractNameFromResource(nodeType, templateJsonNode).getValue();
           String newDescription = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode).getValue();
+          String newIdentifier = ModelUtil.extractIdentifierFromResource(nodeType, templateJsonNode).getValue();
           resourceRequestBody.put("name", newName);
           resourceRequestBody.put("description", newDescription);
+          resourceRequestBody.put("identifier", newIdentifier);
           if (folder != null) {
             resourceRequestBody.put("parentId", folder.getId());
             resourceRequestBody.put("nodeType", nodeType.getValue());

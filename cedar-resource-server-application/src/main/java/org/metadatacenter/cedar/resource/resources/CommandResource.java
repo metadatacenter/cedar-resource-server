@@ -200,6 +200,8 @@ public class CommandResource extends AbstractResourceServerResource {
           resourceRequestBody.put("name", ModelUtil.extractNameFromResource(nodeType, jsonNode).getValue());
           resourceRequestBody.put("description", ModelUtil.extractDescriptionFromResource(nodeType, jsonNode)
               .getValue());
+          resourceRequestBody.put("identifier", ModelUtil.extractIdentifierFromResource(nodeType, jsonNode)
+              .getValue());
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
           HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, c, resourceRequestBodyAsString);
