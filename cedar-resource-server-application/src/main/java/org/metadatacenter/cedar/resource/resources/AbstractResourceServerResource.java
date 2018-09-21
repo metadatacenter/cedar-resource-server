@@ -272,7 +272,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                 // index the resource that has been created
                 FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(resourceCreateResponse
                     .getEntity().getContent(), FolderServerResource.class);
-                createIndexResource(folderServerResource, templateJsonNode, context);
+                createIndexResource(folderServerResource, context);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return newResponseWithValidationHeader(Response.created(location), templateProxyResponse,
                     templateEntityContent);
@@ -491,9 +491,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                     .getEntity().getContent(), FolderServerResource.class);
                 if (wasRename) {
                   indexRemoveDocument(id);
-                  createIndexResource(folderServerResource, templateJsonNode, context);
+                  createIndexResource(folderServerResource, context);
                 } else {
-                  updateIndexResource(folderServerResource, templateJsonNode, context);
+                  updateIndexResource(folderServerResource, context);
                 }
                 return newResponseWithValidationHeader(Response.ok(), templateProxyResponse, templateEntityContent);
               } else {
@@ -567,7 +567,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                 try {
                   getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
                   if (getJsonNode != null) {
-                    updateIndexResource(folderServerPreviousResource, getJsonNode, context);
+                    updateIndexResource(folderServerPreviousResource, context);
                   }
                 } catch (Exception e) {
                   log.error("There was an error while reindexing the new latest version", e);
@@ -789,9 +789,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * Private methods: move these into a separate service
    */
 
-  protected void createIndexResource(FolderServerResource folderServerResource, JsonNode templateJsonNode,
-                                     CedarRequestContext c) throws CedarProcessingException {
-
+  protected void createIndexResource(FolderServerResource folderServerResource, CedarRequestContext c) throws CedarProcessingException {
     nodeIndexingService.indexDocument(folderServerResource, c);
   }
 
@@ -800,8 +798,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     nodeIndexingService.indexDocument(folderServerFolder, c);
   }
 
-  protected void updateIndexResource(FolderServerResource folderServerResource, JsonNode templateJsonNode,
-                                     CedarRequestContext c) throws CedarProcessingException {
+  protected void updateIndexResource(FolderServerResource folderServerResource, CedarRequestContext c) throws CedarProcessingException {
     nodeIndexingService.removeDocumentFromIndex(folderServerResource.getId());
     nodeIndexingService.indexDocument(folderServerResource, c);
   }

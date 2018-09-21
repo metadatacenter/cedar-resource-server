@@ -215,7 +215,7 @@ public class CommandResource extends AbstractResourceServerResource {
               if (templateProxyResponse.getEntity() != null) {
                 // index the resource that has been created
                 createIndexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
-                    (), FolderServerResource.class), jsonNode, c);
+                    (), FolderServerResource.class), c);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
               } else {
@@ -764,7 +764,6 @@ public class CommandResource extends AbstractResourceServerResource {
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
-            ObjectNode templateResponseNode = (ObjectNode) putResponse.getEntity();
             // publish on workspace server
             String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
 
@@ -784,7 +783,7 @@ public class CommandResource extends AbstractResourceServerResource {
                   FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent
                       (), FolderServerResource.class);
                   indexRemoveDocument(id);
-                  createIndexResource(folderServerResource, templateResponseNode, c);
+                  createIndexResource(folderServerResource, c);
                   return Response.ok(folderServerResource).build();
                 } else {
                   return Response.ok().build();
@@ -952,12 +951,12 @@ public class CommandResource extends AbstractResourceServerResource {
               if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
                 if (workspaceEntity != null) {
                   // update the old resource index, remove  latest version
-                  updateIndexResource(folderServerResourceOld, getJsonNode, c);
+                  updateIndexResource(folderServerResourceOld, c);
 
                   // update the new resource on the index
                   FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent
                       (), FolderServerResource.class);
-                  createIndexResource(folderServerResource, templateServerPostResponseNode, c);
+                  createIndexResource(folderServerResource, c);
                   return Response.ok(folderServerResource).build();
                 } else {
                   return Response.ok().build();
