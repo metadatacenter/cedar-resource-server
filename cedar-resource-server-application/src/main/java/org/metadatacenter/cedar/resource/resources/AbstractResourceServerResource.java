@@ -594,8 +594,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
           .parameter("folderId", folderId);
     }
-    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsFolder.currentUserCan(NodePermission
-        .READ)) {
+    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsFolder.getCurrentUserPermissions().isCanRead()) {
       return fsFolder;
     } else {
       throw new CedarPermissionException("You do not have read access to the folder")
@@ -613,8 +612,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
           .parameter("folderId", folderId);
     }
-    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsFolder.currentUserCan(NodePermission
-        .WRITE)) {
+    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsFolder.getCurrentUserPermissions().isCanWrite()) {
       return fsFolder;
     } else {
       throw new CedarPermissionException("You do not have write access to the folder")
@@ -632,8 +630,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
           .parameter("resourceId", resourceId);
     }
-    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsResource.currentUserCan
-        (NodePermission.READ)) {
+    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsResource.getCurrentUserPermissions().isCanRead()) {
       return fsResource;
     } else {
       throw new CedarPermissionException("You do not have read access to the resource")
@@ -651,8 +648,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
           .parameter("resourceId", resourceId);
     }
-    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsResource.currentUserCan
-        (NodePermission.WRITE)) {
+    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsResource.getCurrentUserPermissions().isCanWrite()) {
       return fsResource;
     } else {
       throw new CedarPermissionException("You do not have write access to the resource")

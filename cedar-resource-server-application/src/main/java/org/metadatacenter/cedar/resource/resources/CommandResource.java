@@ -950,6 +950,9 @@ public class CommandResource extends AbstractResourceServerResource {
             if (workspaceEntity != null) {
               if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
                 if (workspaceEntity != null) {
+                  // re-read the old resource
+                  String url = microserviceUrlUtil.getWorkspace().getResources();
+                  folderServerResourceOld = FolderServerProxy.getResource(url, id, c);
                   // update the old resource index, remove  latest version
                   updateIndexResource(folderServerResourceOld, c);
 

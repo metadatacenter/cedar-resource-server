@@ -107,14 +107,15 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         FolderServerNodeListResponse results = null;
         if (searchDeep) {
           results = nodeSearchingService.searchDeep(c, queryString, idString, resourceTypeList, version,
-              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl);
+              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
         } else {
           results = nodeSearchingService.search(c, queryString, idString, resourceTypeList, version,
-              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl);
+              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
         }
         results.setNodeListQueryType(nlqt);
 
         addProvenanceDisplayNames(results);
+
         return Response.ok().entity(results).build();
       } catch (Exception e) {
         throw new CedarProcessingException(e);
