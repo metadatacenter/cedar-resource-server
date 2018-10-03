@@ -46,8 +46,8 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
     NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharing);
 
-    if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_ME || nlqt == NodeListQueryType.VIEW_ALL || nlqt ==
-        NodeListQueryType.SEARCH_ID) {
+    if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_ME || nlqt == NodeListQueryType.VIEW_ALL
+        || nlqt == NodeListQueryType.SEARCH_ID || nlqt == NodeListQueryType.SEARCH_IS_BASED_ON) {
       CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
           .queryParam(QP_Q, q)
           .queryParam(QP_ID, id)
@@ -107,14 +107,15 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         FolderServerNodeListResponse results = null;
         if (searchDeep) {
           results = nodeSearchingService.searchDeep(c, queryString, idString, resourceTypeList, version,
-              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl);
+              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
         } else {
           results = nodeSearchingService.search(c, queryString, idString, resourceTypeList, version,
-              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl);
+              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
         }
         results.setNodeListQueryType(nlqt);
 
         addProvenanceDisplayNames(results);
+
         return Response.ok().entity(results).build();
       } catch (Exception e) {
         throw new CedarProcessingException(e);
