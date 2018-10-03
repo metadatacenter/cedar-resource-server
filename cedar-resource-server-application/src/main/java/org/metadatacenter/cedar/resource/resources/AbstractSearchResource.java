@@ -46,8 +46,8 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
     NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharing);
 
-    if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_ME || nlqt == NodeListQueryType.VIEW_ALL || nlqt ==
-        NodeListQueryType.SEARCH_ID) {
+    if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_ME || nlqt == NodeListQueryType.VIEW_ALL
+        || nlqt == NodeListQueryType.SEARCH_ID || nlqt == NodeListQueryType.SEARCH_IS_BASED_ON) {
       CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
           .queryParam(QP_Q, q)
           .queryParam(QP_ID, id)
