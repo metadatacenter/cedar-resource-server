@@ -14,12 +14,15 @@ import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.model.*;
-import org.metadatacenter.model.folderserver.FolderServerFolder;
-import org.metadatacenter.model.folderserver.FolderServerNode;
-import org.metadatacenter.model.folderserver.FolderServerResource;
-import org.metadatacenter.model.folderserverextract.FolderServerNodeExtract;
-import org.metadatacenter.model.folderserverreport.FolderServerInstanceReport;
-import org.metadatacenter.model.folderserverreport.FolderServerResourceReport;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.basic.FolderServerNode;
+import org.metadatacenter.model.folderserver.basic.FolderServerResource;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
+import org.metadatacenter.model.folderserver.extract.FolderServerNodeExtract;
+import org.metadatacenter.model.folderserver.report.FolderServerFolderReport;
+import org.metadatacenter.model.folderserver.report.FolderServerInstanceReport;
+import org.metadatacenter.model.folderserver.report.FolderServerResourceReport;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.cache.user.UserSummaryCache;
@@ -27,7 +30,6 @@ import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingServic
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.server.security.model.auth.NodePermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
@@ -158,6 +160,23 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
+  private void addProvenanceDisplayNames(FolderServerFolderReport report) {
+    if (report != null) {
+      CedarUserSummary creator = UserSummaryCache.getInstance().getUser(report.getCreatedBy());
+      CedarUserSummary updater = UserSummaryCache.getInstance().getUser(report.getLastUpdatedBy());
+      CedarUserSummary owner = UserSummaryCache.getInstance().getUser(report.getOwnedBy());
+      if (creator != null) {
+        report.setCreatedByUserName(creator.getScreenName());
+      }
+      if (updater != null) {
+        report.setLastUpdatedByUserName(updater.getScreenName());
+      }
+      if (owner != null) {
+        report.setOwnedByUserName(owner.getScreenName());
+      }
+    }
+  }
+
   private void addProvenanceDisplayNames(FolderServerResourceReport report) {
     for (FolderServerNodeExtract v : report.getVersions()) {
       addProvenanceDisplayName(v);
@@ -184,7 +203,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected <T extends FolderServerNode> T resourceWithProvenanceDisplayNames(HttpResponse proxyResponse,
-                                                                              Class<T> klazz) throws CedarProcessingException {
+                                                                              Class<T> klazz)
+      throws CedarProcessingException {
     T resource = deserializeResource(proxyResponse, klazz);
     addProvenanceDisplayName(resource);
     return resource;
@@ -585,16 +605,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected FolderServerFolder userMustHaveReadAccessToFolder(CedarRequestContext context, String folderId) throws
-      CedarException {
+  protected FolderServerFolderCurrentUserReport userMustHaveReadAccessToFolder(CedarRequestContext context,
+                                                              String folderId) throws CedarException {
     String url = microserviceUrlUtil.getWorkspace().getFolders();
-    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, context);
+    FolderServerFolderCurrentUserReport fsFolder = FolderServerProxy.getFolderCurrentUserReport(url, folderId, context);
     if (fsFolder == null) {
       throw new CedarObjectNotFoundException("Folder not found by id")
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
           .parameter("folderId", folderId);
     }
-    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsFolder.getCurrentUserPermissions().isCanRead()) {
+    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) ||
+        fsFolder.getCurrentUserPermissions().isCanRead()) {
       return fsFolder;
     } else {
       throw new CedarPermissionException("You do not have read access to the folder")
@@ -603,17 +624,18 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected FolderServerFolder userMustHaveWriteAccessToFolder(CedarRequestContext context, String folderId)
-      throws CedarException {
+  protected FolderServerFolder userMustHaveWriteAccessToFolder(CedarRequestContext context,
+                                                               String folderId) throws CedarException {
     String url = microserviceUrlUtil.getWorkspace().getFolders();
-    FolderServerFolder fsFolder = FolderServerProxy.getFolder(url, folderId, context);
+    FolderServerFolderCurrentUserReport fsFolder = FolderServerProxy.getFolderCurrentUserReport(url, folderId, context);
     if (fsFolder == null) {
       throw new CedarObjectNotFoundException("Folder not found by id")
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
           .parameter("folderId", folderId);
     }
-    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsFolder.getCurrentUserPermissions().isCanWrite()) {
-      return fsFolder;
+    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) ||
+        fsFolder.getCurrentUserPermissions().isCanWrite()) {
+      return FolderServerFolder.fromFolderServerFolderCurrentUserReport(fsFolder);
     } else {
       throw new CedarPermissionException("You do not have write access to the folder")
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
@@ -621,17 +643,19 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected FolderServerResource userMustHaveReadAccessToResource(CedarRequestContext context, String resourceId) throws
-      CedarException {
+  protected FolderServerResource userMustHaveReadAccessToResource(CedarRequestContext context,
+                                                                  String resourceId) throws CedarException {
     String url = microserviceUrlUtil.getWorkspace().getResources();
-    FolderServerResource fsResource = FolderServerProxy.getResource(url, resourceId, context);
+    FolderServerResourceCurrentUserReport
+        fsResource = FolderServerProxy.getResourceCurrentUserReport(url, resourceId, context);
     if (fsResource == null) {
       throw new CedarObjectNotFoundException("Resource not found by id")
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
           .parameter("resourceId", resourceId);
     }
-    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) || fsResource.getCurrentUserPermissions().isCanRead()) {
-      return fsResource;
+    if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) ||
+        fsResource.getCurrentUserPermissions().isCanRead()) {
+      return FolderServerResource.fromFolderServerResourceCurrentUserReport(fsResource);
     } else {
       throw new CedarPermissionException("You do not have read access to the resource")
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_RESOURCE)
@@ -639,17 +663,19 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected FolderServerResource userMustHaveWriteAccessToResource(CedarRequestContext context, String resourceId)
-      throws CedarException {
+  protected FolderServerResource userMustHaveWriteAccessToResource(CedarRequestContext context,
+                                                                   String resourceId) throws CedarException {
     String url = microserviceUrlUtil.getWorkspace().getResources();
-    FolderServerResource fsResource = FolderServerProxy.getResource(url, resourceId, context);
+    FolderServerResourceCurrentUserReport
+        fsResource = FolderServerProxy.getResourceCurrentUserReport(url, resourceId, context);
     if (fsResource == null) {
       throw new CedarObjectNotFoundException("Resource not found by id")
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
           .parameter("resourceId", resourceId);
     }
-    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) || fsResource.getCurrentUserPermissions().isCanWrite()) {
-      return fsResource;
+    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) ||
+        fsResource.getCurrentUserPermissions().isCanWrite()) {
+      return FolderServerResource.fromFolderServerResourceCurrentUserReport(fsResource);
     } else {
       throw new CedarPermissionException("You do not have write access to the resource")
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
@@ -744,8 +770,30 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return buildResponse(proxyResponse);
   }
 
+  protected Response executeFolderReportGetByProxy(String folderId, CedarRequestContext context) throws
+      CedarProcessingException {
+    try {
+      String resourceUrl = microserviceUrlUtil.getWorkspace().getFolderWithIdReport(folderId);
+      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      HttpEntity entity = proxyResponse.getEntity();
+      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      if (entity != null) {
+        FolderServerFolderReport folderServerFolderReport = resourceWithProvenanceDisplayNames(proxyResponse,
+            FolderServerFolderReport.class);
+        addProvenanceDisplayNames(folderServerFolderReport);
+        return Response.status(statusCode).entity(folderServerFolderReport).build();
+      } else {
+        return Response.status(statusCode).build();
+      }
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
+  }
 
-  protected Response deserializeAndAddProvenanceDisplayNames(HttpResponse proxyResponse, CedarRequestContext context) throws CedarProcessingException {
+
+  protected Response deserializeAndAddProvenanceDisplayNames(HttpResponse proxyResponse, CedarRequestContext context)
+      throws CedarProcessingException {
     int statusCode = proxyResponse.getStatusLine().getStatusCode();
     if (statusCode == HttpStatus.SC_OK) {
       HttpEntity entity = proxyResponse.getEntity();
@@ -785,7 +833,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * Private methods: move these into a separate service
    */
 
-  protected void createIndexResource(FolderServerResource folderServerResource, CedarRequestContext c) throws CedarProcessingException {
+  protected void createIndexResource(FolderServerResource folderServerResource, CedarRequestContext c)
+      throws CedarProcessingException {
     nodeIndexingService.indexDocument(folderServerResource, c);
   }
 
@@ -794,7 +843,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     nodeIndexingService.indexDocument(folderServerFolder, c);
   }
 
-  protected void updateIndexResource(FolderServerResource folderServerResource, CedarRequestContext c) throws CedarProcessingException {
+  protected void updateIndexResource(FolderServerResource folderServerResource, CedarRequestContext c)
+      throws CedarProcessingException {
     nodeIndexingService.removeDocumentFromIndex(folderServerResource.getId());
     nodeIndexingService.indexDocument(folderServerResource, c);
   }
@@ -847,7 +897,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourceVersionsGetByProxy(CedarRequestContext context, String resourceId) throws CedarProcessingException {
+  protected Response executeResourceVersionsGetByProxy(CedarRequestContext context, String resourceId)
+      throws CedarProcessingException {
     try {
       String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithIdVersions(resourceId);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
@@ -855,7 +906,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        return Response.status(statusCode).entity(resourceListWithExpandedProvenanceInfo(proxyResponse, context)).build();
+        return Response.status(statusCode).entity(resourceListWithExpandedProvenanceInfo(proxyResponse, context))
+            .build();
       } else {
         return Response.status(statusCode).build();
       }
@@ -865,7 +917,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   private FolderServerNodeListResponse resourceListWithExpandedProvenanceInfo(HttpResponse proxyResponse,
-                                                                              CedarRequestContext context) throws CedarProcessingException {
+                                                                              CedarRequestContext context)
+      throws CedarProcessingException {
     try {
       FolderServerNodeListResponse nodeList = null;
       String responseString = EntityUtils.toString(proxyResponse.getEntity());
