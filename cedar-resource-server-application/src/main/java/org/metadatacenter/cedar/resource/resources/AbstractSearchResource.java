@@ -1,6 +1,5 @@
 package org.metadatacenter.cedar.resource.resources;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.http.HttpResponse;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -15,7 +14,6 @@ import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
 import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.http.PagedSortedTypedSearchQuery;
 import org.metadatacenter.util.http.ProxyUtil;
-import org.metadatacenter.util.json.JsonMapper;
 
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
@@ -32,6 +30,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
   }
 
   public Response search(@QueryParam(QP_Q) Optional<String> q,
+                         @QueryParam(QP_ID) Optional<String> id,
                          @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
                          @QueryParam(QP_VERSION) Optional<String> versionParam,
                          @QueryParam(QP_PUBLICATION_STATUS) Optional<String> publicationStatusParam,
@@ -45,11 +44,13 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
 
-    NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, isBasedOnParam, sharing);
+    NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharing);
 
-    if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_ME || nlqt == NodeListQueryType.VIEW_ALL) {
+    if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_ME || nlqt == NodeListQueryType.VIEW_ALL
+        || nlqt == NodeListQueryType.SEARCH_ID || nlqt == NodeListQueryType.SEARCH_IS_BASED_ON) {
       CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
           .queryParam(QP_Q, q)
+          .queryParam(QP_ID, id)
           .queryParam(QP_RESOURCE_TYPES, resourceTypes)
           .queryParam(QP_VERSION, versionParam)
           .queryParam(QP_PUBLICATION_STATUS, publicationStatusParam)
@@ -63,11 +64,12 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      return deserializeAndConvertFolderNamesIfNecessary(proxyResponse);
+      return deserializeAndAddProvenanceDisplayNames(proxyResponse, c);
     } else {
       PagedSortedTypedSearchQuery pagedSearchQuery = new PagedSortedTypedSearchQuery(
           cedarConfig.getFolderRESTAPI().getPagination())
           .q(q)
+          .id(id)
           .resourceTypes(resourceTypes)
           .version(versionParam)
           .publicationStatus(publicationStatusParam)
@@ -84,11 +86,13 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         ResourcePublicationStatusFilter publicationStatus = pagedSearchQuery.getPublicationStatus();
         List<String> sortList = pagedSearchQuery.getSortList();
         String queryString = pagedSearchQuery.getQ();
+        String idString = pagedSearchQuery.getId();
         int limit = pagedSearchQuery.getLimit();
         int offset = pagedSearchQuery.getOffset();
 
         CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
             .queryParam(QP_Q, q)
+            .queryParam(QP_ID, id)
             .queryParam(QP_RESOURCE_TYPES, resourceTypes)
             .queryParam(QP_VERSION, versionParam)
             .queryParam(QP_PUBLICATION_STATUS, publicationStatusParam)
@@ -102,16 +106,17 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
         FolderServerNodeListResponse results = null;
         if (searchDeep) {
-          results = contentSearchingService.searchDeep(c, queryString, resourceTypeList, version, publicationStatus,
-              isBasedOn, sortList, limit, offset, absoluteUrl);
+          results = nodeSearchingService.searchDeep(c, queryString, idString, resourceTypeList, version,
+              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
         } else {
-          results = contentSearchingService.search(c, queryString, resourceTypeList, version, publicationStatus,
-              isBasedOn, sortList, limit, offset, absoluteUrl);
+          results = nodeSearchingService.search(c, queryString, idString, resourceTypeList, version,
+              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
         }
         results.setNodeListQueryType(nlqt);
 
-        JsonNode resultsNode = JsonMapper.MAPPER.valueToTree(results);
-        return Response.ok().entity(resultsNode).build();
+        addProvenanceDisplayNames(results);
+
+        return Response.ok().entity(results).build();
       } catch (Exception e) {
         throw new CedarProcessingException(e);
       }

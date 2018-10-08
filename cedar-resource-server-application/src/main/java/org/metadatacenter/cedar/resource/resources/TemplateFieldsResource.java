@@ -4,8 +4,8 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.FolderServerFolder;
-import org.metadatacenter.model.folderserver.FolderServerResource;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.basic.FolderServerResource;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
@@ -130,6 +130,18 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
     userMustHaveReadAccessToResource(c, id);
     return executeResourceReportGetByProxy(id, c);
+  }
+
+  @GET
+  @Timed
+  @Path("/{id}/versions")
+  public Response getTemplateFieldVersions(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
+
+    userMustHaveReadAccessToResource(c, id);
+    return executeResourceVersionsGetByProxy(c, id);
   }
 
 }

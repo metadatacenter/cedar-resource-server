@@ -18,9 +18,9 @@ import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.*;
-import org.metadatacenter.model.folderserver.FolderServerFolder;
-import org.metadatacenter.model.folderserver.FolderServerNode;
-import org.metadatacenter.model.folderserver.FolderServerResource;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.basic.FolderServerNode;
+import org.metadatacenter.model.folderserver.basic.FolderServerResource;
 import org.metadatacenter.model.request.OutputFormatType;
 import org.metadatacenter.model.request.OutputFormatTypeDetector;
 import org.metadatacenter.model.trimmer.JsonLdDocument;
@@ -171,9 +171,6 @@ public class CommandResource extends AbstractResourceServerResource {
       throw new CedarProcessingException(e);
     }
 
-    // TODO : from this point, this block is repeated 90% in:
-    // AbstractResourceServerController.executeResourcePostByProxy
-    // refactor, if possible
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType);
 
@@ -203,6 +200,8 @@ public class CommandResource extends AbstractResourceServerResource {
           resourceRequestBody.put("name", ModelUtil.extractNameFromResource(nodeType, jsonNode).getValue());
           resourceRequestBody.put("description", ModelUtil.extractDescriptionFromResource(nodeType, jsonNode)
               .getValue());
+          resourceRequestBody.put("identifier", ModelUtil.extractIdentifierFromResource(nodeType, jsonNode)
+              .getValue());
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
           HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, c, resourceRequestBodyAsString);
@@ -216,7 +215,7 @@ public class CommandResource extends AbstractResourceServerResource {
               if (templateProxyResponse.getEntity() != null) {
                 // index the resource that has been created
                 createIndexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
-                    (), FolderServerResource.class), jsonNode, c);
+                    (), FolderServerResource.class), c);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
               } else {
@@ -450,36 +449,6 @@ public class CommandResource extends AbstractResourceServerResource {
     folderSession.ensureUserHomeExists();
   }
 
-  // TODO: Think about this method. What do we want to achieve.
-  // What can we handle, and how.
-  /*
-  @POST
-  @Timed
-  @Path("/auth-admin-callback")
-  public Response authAdminCallback() throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
-    c.must(c.user()).be(LoggedIn);
-
-    // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
-
-    JsonNode jsonBody = c.request().getRequestBody().asJson();
-
-    if (jsonBody != null) {
-      try {
-        AdminEvent event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), AdminEvent.class);
-        CedarUserExtract eventUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
-
-        //TODO: read KK user, update enabled status in CEDAR - mongo and NEO
-      } catch (JsonProcessingException e) {
-        throw new CedarProcessingException(e);
-      }
-    }
-
-    //TODO: handle this. this is probably an error, having the null body here
-    return Response.noContent().build();
-  }
-  */
-
   @POST
   @Timed
   @Path("/regenerate-search-index")
@@ -617,7 +586,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
     String id = idParam.stringValue();
 
-    FolderServerNode folderServerNode = userMustHaveReadAccessToNode(c, id);
+    FolderServerNode folderServerNode = userMustHaveWriteAccessToNode(c, id);
 
     String name = null;
     if (!nameParam.isEmpty()) {
@@ -758,7 +727,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
     FolderServerResource folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
 
-    if (!folderServerResourceOld.isLatestVersion()) {
+    if (folderServerResourceOld.isLatestVersion() == null || !folderServerResourceOld.isLatestVersion()) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST)
           .errorMessage("Publish is only possible on the latest version of the given resource")
@@ -777,23 +746,16 @@ public class CommandResource extends AbstractResourceServerResource {
 
     CedarNodeType nodeType = folderServerResourceOld.getType();
 
-    CedarPermission updatePermission = null;
-    switch (nodeType) {
-      case ELEMENT:
-        updatePermission = CedarPermission.TEMPLATE_ELEMENT_UPDATE;
-        break;
-      case TEMPLATE:
-        updatePermission = CedarPermission.TEMPLATE_UPDATE;
-        break;
-      default:
-        return CedarResponse.badRequest()
-            .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
-            .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
-                "allowed values are:" +
-                CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .parameter("invalidResourceType", nodeType.getValue())
-            .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .build();
+    CedarPermission updatePermission = CedarPermission.getUpdateForVersionedNodeType(nodeType);
+    if (updatePermission == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
+          .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
+              "allowed values are:" +
+              CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+          .parameter("invalidResourceType", nodeType.getValue())
+          .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+          .build();
     }
 
     // Check update permission
@@ -829,7 +791,6 @@ public class CommandResource extends AbstractResourceServerResource {
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
-            ObjectNode templateResponseNode = (ObjectNode) putResponse.getEntity();
             // publish on workspace server
             String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
 
@@ -849,7 +810,7 @@ public class CommandResource extends AbstractResourceServerResource {
                   FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent
                       (), FolderServerResource.class);
                   indexRemoveDocument(id);
-                  createIndexResource(folderServerResource, templateResponseNode, c);
+                  createIndexResource(folderServerResource, c);
                   return Response.ok(folderServerResource).build();
                 } else {
                   return Response.ok().build();
@@ -921,23 +882,17 @@ public class CommandResource extends AbstractResourceServerResource {
 
     boolean propagateSharing = Boolean.parseBoolean(propagateSharingString);
 
-    CedarPermission updatePermission = null;
-    switch (nodeType) {
-      case ELEMENT:
-        updatePermission = CedarPermission.TEMPLATE_ELEMENT_UPDATE;
-        break;
-      case TEMPLATE:
-        updatePermission = CedarPermission.TEMPLATE_UPDATE;
-        break;
-      default:
-        return CedarResponse.badRequest()
-            .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
-            .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
-                "allowed values are:" +
-                CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .parameter("invalidResourceType", nodeType.getValue())
-            .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
-            .build();
+    CedarPermission updatePermission = CedarPermission.getUpdateForVersionedNodeType(nodeType);
+    if (updatePermission == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
+          .errorMessage("You passed an illegal resource type for versioning:'" + nodeType.getValue() + "'. The " +
+              "allowed values are:" +
+              CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+          .parameter("invalidResourceType", nodeType.getValue())
+          .parameter("allowedResourceTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForVersioning())
+          .build();
+
     }
 
     // Check update permission
@@ -1022,13 +977,16 @@ public class CommandResource extends AbstractResourceServerResource {
             if (workspaceEntity != null) {
               if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
                 if (workspaceEntity != null) {
+                  // re-read the old resource
+                  String url = microserviceUrlUtil.getWorkspace().getResources();
+                  folderServerResourceOld = FolderServerProxy.getResource(url, id, c);
                   // update the old resource index, remove  latest version
-                  updateIndexResource(folderServerResourceOld, getJsonNode, c);
+                  updateIndexResource(folderServerResourceOld, c);
 
                   // update the new resource on the index
                   FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent
                       (), FolderServerResource.class);
-                  createIndexResource(folderServerResource, templateServerPostResponseNode, c);
+                  createIndexResource(folderServerResource, c);
                   return Response.ok(folderServerResource).build();
                 } else {
                   return Response.ok().build();

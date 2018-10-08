@@ -1,20 +1,15 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import com.fasterxml.jackson.databind.JsonNode;
 import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.constant.LinkedData;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.CreateOrUpdate;
-import org.metadatacenter.model.folderserver.FolderServerFolder;
-import org.metadatacenter.model.folderserver.FolderServerResource;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.basic.FolderServerResource;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
-import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.util.http.CedarResponse;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
@@ -61,8 +56,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
-    //TODO: maybe the returned resource is the same as we read here
-    // Check this
     userMustHaveReadAccessToResource(c, id);
     return executeResourceGetByProxy(CedarNodeType.TEMPLATE, id, c);
   }
@@ -89,62 +82,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
-    c.must(requestBody).be(NonEmpty);
-
-    CedarParameter idInBody = requestBody.get(LinkedData.ID);
-    c.must(idInBody).be(NonNull);
-
-    if (!idInBody.stringValue().equals(id)) {
-      return CedarResponse.badRequest()
-          .errorMessage("The id in the URI and the @id in the body must be equal")
-          .parameter(PP_ID, id)
-          .parameter(LinkedData.ID, idInBody)
-          .build();
-    }
-
-    JsonNode templateOnTemplateServer = null;//MicroserviceRequest.templateServer().get(CedarNodeType.TEMPLATE, id);
-    JsonNode templateOnWorkspaceServer = null;//MicroserviceRequest.workspaceServer().get(CedarNodeType.TEMPLATE, id);
-
-    if (templateOnTemplateServer == null ^ templateOnWorkspaceServer == null) {
-      return CedarResponse.internalServerError()
-          .errorMessage("The state of this template is inconsistent on the backend storage! It can not be updated")
-          .parameter("presentOnTemplateServer", templateOnTemplateServer != null)
-          .parameter("presentOnWorkspaceServer", templateOnWorkspaceServer != null)
-          .build();
-    }
-
-    CreateOrUpdate createOrUpdate = null;
-
-    if (templateOnTemplateServer == null && templateOnWorkspaceServer == null) {
-      createOrUpdate = CreateOrUpdate.CREATE;
-    } else {
-      createOrUpdate = CreateOrUpdate.UPDATE;
-    }
-
-    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
-
-    if (createOrUpdate == CreateOrUpdate.UPDATE) {
-      if (!folderIdP.isEmpty()) {
-        return CedarResponse.badRequest()
-            .errorMessage("You are not allowed to specify the folder_id if you are trying to update a template")
-            .parameter(QP_FOLDER_ID, folderIdP.stringValue())
-            .build();
-      } else {
-        FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
-        return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folderServerResource);
-      }
-    } else if (createOrUpdate == CreateOrUpdate.CREATE) {
-      String folderIdS;
-      if (folderIdP.isEmpty()) {
-        folderIdS = c.getCedarUser().getHomeFolderId();
-      } else {
-        folderIdS = folderIdP.stringValue();
-      }
-      FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-      return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folder, null);
-    }
-    return null;
+    FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
+    return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folderServerResource);
   }
 
   @DELETE
@@ -193,6 +132,18 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
     userMustHaveReadAccessToResource(c, id);
     return executeResourceReportGetByProxy(id, c);
+  }
+
+  @GET
+  @Timed
+  @Path("/{id}/versions")
+  public Response getTemplateVersions(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
+
+    userMustHaveReadAccessToResource(c, id);
+    return executeResourceVersionsGetByProxy(c, id);
   }
 
 }

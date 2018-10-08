@@ -7,8 +7,9 @@ import org.apache.http.HttpStatus;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
-import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.FolderServerFolder;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.basic.FolderServerNode;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
@@ -60,7 +61,8 @@ public class FoldersResource extends AbstractResourceServerResource {
           // index the folder that has been created
           createIndexFolder(createdFolder, c);
           URI location = CedarUrlUtil.getLocationURI(proxyResponse);
-          return Response.created(location).entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
+          return Response.created(location).entity(resourceWithProvenanceDisplayNames(proxyResponse,
+              FolderServerNode.class)).build();
         } else {
           return Response.status(statusCode).entity(entity.getContent()).build();
         }
@@ -80,30 +82,8 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
-    // TODO: the folder returned by this may be that is exactly what
-    // we read below. Check this
-    FolderServerFolder folderServerFolder = userMustHaveReadAccessToFolder(c, id);
-
-
-    String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    HttpEntity entity = proxyResponse.getEntity();
-    if (entity != null) {
-      if (HttpStatus.SC_OK == statusCode) {
-        return Response.ok().entity(resourceWithExpandedProvenanceInfo(proxyResponse, c)).build();
-      } else {
-        try {
-          return Response.status(statusCode).entity(entity.getContent()).build();
-        } catch (IOException e) {
-          throw new CedarProcessingException(e);
-        }
-      }
-    } else {
-      return Response.status(statusCode).build();
-    }
+    FolderServerFolderCurrentUserReport folderServerFolder = userMustHaveReadAccessToFolder(c, id);
+    return Response.ok().entity(folderServerFolder).build();
   }
 
   @GET
