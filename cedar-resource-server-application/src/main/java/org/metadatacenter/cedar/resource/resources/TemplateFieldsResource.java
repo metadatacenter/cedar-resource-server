@@ -19,6 +19,7 @@ import java.util.Optional;
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.ValidField;
 
 @Path("/template-fields")
 @Produces(MediaType.APPLICATION_JSON)
@@ -34,6 +35,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_CREATE);
+    c.must(c.request()).be(ValidField);
 
     String folderIdS;
 
@@ -79,6 +81,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
+    c.must(c.request()).be(ValidField);
 
     FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
     return executeResourcePutByProxy(c, CedarNodeType.FIELD, id, folderServerResource);

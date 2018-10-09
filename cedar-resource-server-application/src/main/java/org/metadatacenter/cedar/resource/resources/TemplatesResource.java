@@ -18,7 +18,8 @@ import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
-import static org.metadatacenter.rest.assertion.GenericAssertions.*;
+import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.ValidTemplate;
 
 @Path("/templates")
 @Produces(MediaType.APPLICATION_JSON)
@@ -34,16 +35,15 @@ public class TemplatesResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_CREATE);
+    c.must(c.request()).be(ValidTemplate);
 
     String folderIdS;
-
     CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
     if (folderIdP.isEmpty()) {
       folderIdS = c.getCedarUser().getHomeFolderId();
     } else {
       folderIdS = folderIdP.stringValue();
     }
-
     FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
     return executeResourcePostByProxy(c, CedarNodeType.TEMPLATE, folder);
   }
@@ -81,6 +81,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
+    c.must(c.request()).be(ValidTemplate);
 
     FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
     return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id, folderServerResource);

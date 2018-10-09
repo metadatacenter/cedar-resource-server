@@ -19,6 +19,7 @@ import java.util.Optional;
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.ValidElement;
 
 @Path("/template-elements")
 @Produces(MediaType.APPLICATION_JSON)
@@ -34,6 +35,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_CREATE);
+    c.must(c.request()).be(ValidElement);
 
     String folderIdS;
 
@@ -79,6 +81,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
+    c.must(c.request()).be(ValidElement);
 
     FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
     return executeResourcePutByProxy(c, CedarNodeType.ELEMENT, id, folderServerResource);
