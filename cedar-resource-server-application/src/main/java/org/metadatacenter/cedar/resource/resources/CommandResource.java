@@ -67,12 +67,10 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 @Produces(MediaType.APPLICATION_JSON)
 public class CommandResource extends AbstractResourceServerResource {
 
-  private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
-
   protected static final String MOVE_COMMAND = "move-node-to-folder";
   protected static final String CREATE_DRAFT_RESOURCE_COMMAND = "create-draft-resource";
   protected static final String COPY_RESOURCE_TO_FOLDER_COMMAND = "copy-resource-to-folder";
-
+  private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
   private static UserService userService;
 
   public CommandResource(CedarConfig cedarConfig) {
@@ -83,12 +81,49 @@ public class CommandResource extends AbstractResourceServerResource {
     userService = us;
   }
 
+  private static void createHomeFolderAndUser(CedarRequestContext cedarRequestContext) {
+    UserServiceSession userSession = CedarDataServices.getUserServiceSession(cedarRequestContext);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
+    userSession.ensureUserExists();
+    folderSession.ensureUserHomeExists();
+  }
+
+  private static Response doConvert(JsonNode resourceNode, OutputFormatType formatType) throws CedarException {
+    Object responseObject = null;
+    String mediaType = null;
+    if (formatType == OutputFormatType.JSONLD) {
+      responseObject = resourceNode;
+      mediaType = MediaType.APPLICATION_JSON;
+    } else if (formatType == OutputFormatType.JSON) {
+      responseObject = getJsonString(resourceNode);
+      mediaType = MediaType.APPLICATION_JSON;
+    } else if (formatType == OutputFormatType.RDF_NQUAD) {
+      responseObject = getRdfString(resourceNode);
+      mediaType = "application/n-quads";
+    } else {
+      throw new CedarException("Programming error: no handler is programmed for format type: " + formatType) {
+      };
+    }
+    return Response.ok(responseObject, mediaType).build();
+  }
+
+  private static JsonNode getJsonString(JsonNode resourceNode) {
+    return new JsonLdDocument(resourceNode).asJson();
+  }
+
+  private static String getRdfString(JsonNode resourceNode) throws CedarException {
+    try {
+      return new JsonLdDocument(resourceNode).asRdf();
+    } catch (JsonLdError e) {
+      throw new CedarProcessingException("Error while converting the instance to RDF", e);
+    }
+  }
+
   @POST
   @Timed
   @Path("/" + COPY_RESOURCE_TO_FOLDER_COMMAND)
   public Response copyResourceToFolder() throws CedarException {
-
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
     JsonNode jsonBody = c.request().getRequestBody().asJson();
@@ -240,8 +275,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @Timed
   @Path("/" + MOVE_COMMAND)
   public Response moveNodeToFolder() throws CedarException {
-
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
     JsonNode jsonBody = c.request().getRequestBody().asJson();
@@ -378,7 +412,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @Timed
   @Path("/auth-user-callback")
   public Response authUserCallback() throws CedarException {
-    CedarRequestContext adminContext = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext adminContext = buildRequestContext();
     adminContext.must(adminContext.user()).be(LoggedIn);
 
     // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
@@ -442,18 +476,11 @@ public class CommandResource extends AbstractResourceServerResource {
     }
   }
 
-  private static void createHomeFolderAndUser(CedarRequestContext cedarRequestContext) {
-    UserServiceSession userSession = CedarDataServices.getUserServiceSession(cedarRequestContext);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
-    userSession.ensureUserExists();
-    folderSession.ensureUserHomeExists();
-  }
-
   @POST
   @Timed
   @Path("/regenerate-search-index")
   public Response regenerateSearchIndex() throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
 
@@ -477,7 +504,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @Timed
   @Path("/convert")
   public Response convertResource(@QueryParam(QP_FORMAT) Optional<String> format) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 //    c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ); // XXX Need a permission to convert?
 
@@ -488,42 +515,11 @@ public class CommandResource extends AbstractResourceServerResource {
     return response;
   }
 
-  private static Response doConvert(JsonNode resourceNode, OutputFormatType formatType) throws CedarException {
-    Object responseObject = null;
-    String mediaType = null;
-    if (formatType == OutputFormatType.JSONLD) {
-      responseObject = resourceNode;
-      mediaType = MediaType.APPLICATION_JSON;
-    } else if (formatType == OutputFormatType.JSON) {
-      responseObject = getJsonString(resourceNode);
-      mediaType = MediaType.APPLICATION_JSON;
-    } else if (formatType == OutputFormatType.RDF_NQUAD) {
-      responseObject = getRdfString(resourceNode);
-      mediaType = "application/n-quads";
-    } else {
-      throw new CedarException("Programming error: no handler is programmed for format type: " + formatType) {
-      };
-    }
-    return Response.ok(responseObject, mediaType).build();
-  }
-
-  private static JsonNode getJsonString(JsonNode resourceNode) {
-    return new JsonLdDocument(resourceNode).asJson();
-  }
-
-  private static String getRdfString(JsonNode resourceNode) throws CedarException {
-    try {
-      return new JsonLdDocument(resourceNode).asRdf();
-    } catch (JsonLdError e) {
-      throw new CedarProcessingException("Error while converting the instance to RDF", e);
-    }
-  }
-
   @POST
   @Timed
   @Path("/validate")
   public Response validateResource(@QueryParam(QP_RESOURCE_TYPE) String resourceType) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 //    c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?
 
@@ -550,7 +546,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @Timed
   @Path("/rename-node")
   public Response renameResource() throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
     CedarParameter nameParam = c.request().getRequestBody().get("name");
@@ -679,7 +675,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @Timed
   @Path("/publish-resource")
   public Response publishResource() throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
     CedarParameter idParam = c.request().getRequestBody().get("@id");
@@ -809,7 +805,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @Timed
   @Path("/" + CREATE_DRAFT_RESOURCE_COMMAND)
   public Response createDraftResource() throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
     CedarParameter idParam = c.request().getRequestBody().get("@id");

@@ -8,7 +8,6 @@ import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerResource;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
 import javax.ws.rs.*;
@@ -32,7 +31,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   public Response createTemplateInstance(@QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE);
 
@@ -54,7 +53,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Path("/{id}")
   public Response findTemplateInstance(@PathParam(PP_ID) String id, @QueryParam(QP_FORMAT) Optional<String> format)
       throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
@@ -66,7 +65,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/details")
   public Response findTemplateInstanceDetails(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
@@ -78,7 +77,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}")
   public Response updateTemplateInstance(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
@@ -90,7 +89,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}")
   public Response deleteTemplateInstance(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
 
@@ -102,7 +101,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/permissions")
   public Response getTemplateInstancePermissions(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
@@ -114,7 +113,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/permissions")
   public Response updateTemplateInstancePermissions(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
@@ -126,7 +125,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/report")
   public Response getTemplateInstanceReport(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
