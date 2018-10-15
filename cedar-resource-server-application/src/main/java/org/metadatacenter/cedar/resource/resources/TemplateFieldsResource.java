@@ -25,6 +25,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.ValidField;
 @Produces(MediaType.APPLICATION_JSON)
 public class TemplateFieldsResource extends AbstractResourceServerResource {
 
+  private static final boolean ENABLE_VALIDATION = false;
+
   public TemplateFieldsResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
@@ -35,7 +37,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_CREATE);
-    c.must(c.request()).be(ValidField);
+    if (ENABLE_VALIDATION) {
+      c.must(c.request()).be(ValidField);
+    }
 
     String folderIdS;
 
@@ -81,7 +85,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
-    c.must(c.request()).be(ValidField);
+    if (ENABLE_VALIDATION) {
+      c.must(c.request()).be(ValidField);
+    }
 
     FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
     return executeResourcePutByProxy(c, CedarNodeType.FIELD, id, folderServerResource);
