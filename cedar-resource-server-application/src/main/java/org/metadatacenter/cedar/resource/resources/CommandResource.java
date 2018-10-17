@@ -30,6 +30,7 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
+import org.metadatacenter.server.search.util.RegenerateRulesIndexTask;
 import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarSuperRole;
@@ -475,8 +476,8 @@ public class CommandResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/regenerate-value-recommender-index")
-  public Response regenerateValueRecommenderIndex() throws CedarException {
+  @Path("/regenerate-rules-index")
+  public Response regenerateRulesIndex() throws CedarException {
     CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
     c.must(c.user()).be(LoggedIn);
     // TODO: Update permission. Options:
@@ -494,8 +495,8 @@ public class CommandResource extends AbstractResourceServerResource {
       }
     }
 
-    RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
-    task.regenerateSearchIndex(force, c);
+    RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
+    task.regenerateRulesIndex(force, c);
 
     return Response.ok().build();
   }
