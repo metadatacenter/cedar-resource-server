@@ -2,6 +2,7 @@ package org.metadatacenter.cedar.resource.search;
 
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.server.search.util.RegenerateRulesIndexTask;
 import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,15 @@ public class IndexCreator {
       task.ensureSearchIndexExists();
     } catch (CedarException e) {
       log.error("There was an error while creating the search index", e);
+    }
+  }
+
+  public static void ensureRulesIndexExists(CedarConfig cedarConfig) {
+    RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
+    try {
+      task.ensureRulesIndexExists();
+    } catch (CedarException e) {
+      log.error("There was an error while creating the rules index", e);
     }
   }
 
