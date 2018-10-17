@@ -30,6 +30,7 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
+import org.metadatacenter.server.search.util.RegenerateRulesIndexTask;
 import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarSuperRole;
@@ -496,6 +497,33 @@ public class CommandResource extends AbstractResourceServerResource {
 
     RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
     task.regenerateSearchIndex(force, c);
+
+    return Response.ok().build();
+  }
+
+  @POST
+  @Timed
+  @Path("/regenerate-rules-index")
+  public Response regenerateRulesIndex() throws CedarException {
+    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    c.must(c.user()).be(LoggedIn);
+    // TODO: Update permission. Options:
+    // 1) SEARCH_INDEX_REINDEX + VALUE_RECOMMENDER_INDEX_REINDEX
+    // 2) INDEXES_REINDEX
+    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
+
+    boolean force = false;
+
+    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarParameter forceParam = requestBody.get("force");
+    if (!forceParam.isMissing()) {
+      if ("true".equals(forceParam.stringValue())) {
+        force = true;
+      }
+    }
+
+    RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
+    task.regenerateRulesIndex(force, c);
 
     return Response.ok().build();
   }

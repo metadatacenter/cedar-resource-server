@@ -46,6 +46,14 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     SearchResource.injectServices(nodeIndexingService, nodeSearchingService, searchPermissionEnqueueService);
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
+    // TODO: uncomment the following line
+    //IndexCreator.ensureRulesIndexExists(cedarConfig);
+
+
+    /*ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.submit(() -> {
+      IndexRegenerator.regenerate(cedarConfig, userService);
+    });*/
   }
 
   @Override
