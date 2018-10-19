@@ -505,7 +505,7 @@ public class CommandResource extends AbstractResourceServerResource {
   @Timed
   @Path("/regenerate-rules-index")
   public Response regenerateRulesIndex() throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     // TODO: Update permission. Options:
     // 1) SEARCH_INDEX_REINDEX + VALUE_RECOMMENDER_INDEX_REINDEX
