@@ -12,7 +12,6 @@ import org.metadatacenter.model.folderserver.basic.FolderServerNode;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
@@ -37,7 +36,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   @POST
   @Timed
   public Response createFolder() throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_CREATE);
 
@@ -78,7 +77,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}")
   public Response findFolder(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
@@ -97,7 +96,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}")
   public Response updateFolder(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 
@@ -108,7 +107,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}")
   public Response deleteFolder(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
 
@@ -134,7 +133,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/permissions")
   public Response getFolderPermissions(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
@@ -146,7 +145,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/permissions")
   public Response updateFolderPermissions(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 

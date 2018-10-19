@@ -8,7 +8,6 @@ import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListQueryTypeDetector;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
 import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
 import org.metadatacenter.util.http.CedarURIBuilder;
@@ -41,7 +40,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
                          @QueryParam(QP_SHARING) Optional<String> sharing,
                          boolean searchDeep) throws CedarException {
 
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
     NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharing);

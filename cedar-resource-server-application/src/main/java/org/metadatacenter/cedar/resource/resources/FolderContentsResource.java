@@ -5,7 +5,6 @@ import org.apache.http.HttpResponse;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.http.ProxyUtil;
 
@@ -37,7 +36,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
                                          @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
                                          @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws
       CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)

@@ -122,8 +122,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected void addProvenanceDisplayName(FolderServerNode resource) throws
-      CedarProcessingException {
+  protected void addProvenanceDisplayName(FolderServerNode resource) throws CedarProcessingException {
     if (resource != null) {
       CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
       CedarUserSummary updater = UserSummaryCache.getInstance().getUser(resource.getLastUpdatedBy());
@@ -606,7 +605,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected FolderServerFolderCurrentUserReport userMustHaveReadAccessToFolder(CedarRequestContext context,
-                                                              String folderId) throws CedarException {
+                                                                               String folderId) throws CedarException {
     String url = microserviceUrlUtil.getWorkspace().getFolders();
     FolderServerFolderCurrentUserReport fsFolder = FolderServerProxy.getFolderCurrentUserReport(url, folderId, context);
     if (fsFolder == null) {

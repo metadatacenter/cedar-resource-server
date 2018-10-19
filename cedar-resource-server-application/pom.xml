@@ -33,6 +33,11 @@
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-queue-operations</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-project-config</artifactId>
     </dependency>
 
@@ -69,6 +74,11 @@
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-search-operations</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-logging-operations</artifactId>
     </dependency>
 
     <dependency>
