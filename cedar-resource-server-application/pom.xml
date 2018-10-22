@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-resource-server</artifactId>
-    <version>2.1.7</version>
+    <version>2.1.8</version>
   </parent>
 
   <groupId>org.metadatacenter</groupId>
@@ -29,6 +29,11 @@
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-cache-operations</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-queue-operations</artifactId>
     </dependency>
 
     <dependency>
@@ -69,6 +74,11 @@
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-search-operations</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-logging-operations</artifactId>
     </dependency>
 
     <dependency>

@@ -8,7 +8,6 @@ import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerResource;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
 import javax.ws.rs.*;
@@ -34,7 +33,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @POST
   @Timed
   public Response createTemplateElement(@QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_CREATE);
     if (ENABLE_VALIDATION) {
@@ -58,7 +57,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}")
   public Response findTemplateElement(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
@@ -70,7 +69,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/details")
   public Response findTemplateElementDetails(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
@@ -82,7 +81,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}")
   public Response updateTemplateElement(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
     if (ENABLE_VALIDATION) {
@@ -97,7 +96,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}")
   public Response deleteTemplateElement(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_DELETE);
 
@@ -109,7 +108,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/permissions")
   public Response getTemplateElementPermissions(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
@@ -121,7 +120,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/permissions")
   public Response updateTemplateElementPermissions(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
 
@@ -133,7 +132,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/report")
   public Response getTemplateElementInstanceReport(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
@@ -145,7 +144,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/versions")
   public Response getTemplateElementVersions(@PathParam(PP_ID) String id) throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 

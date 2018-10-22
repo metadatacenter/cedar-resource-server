@@ -9,7 +9,6 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.folderserver.basic.FolderServerUser;
 import org.metadatacenter.model.response.FolderServerUserListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.util.http.CedarEntityUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -38,7 +37,7 @@ public class UsersResource extends AbstractResourceServerResource {
   @GET
   @Timed
   public Response findUsers() throws CedarException {
-    CedarRequestContext c = CedarRequestContextFactory.fromRequest(request);
+    CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
     String url = microserviceUrlUtil.getWorkspace().getUsers();
