@@ -541,7 +541,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     ResourceUri previousVersion = null;
 
-    FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(context, id);
+    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(context, id);
     if (folderServerResource.getType().isVersioned()) {
       if (folderServerResource.getPublicationStatus() == BiboStatus.PUBLISHED) {
         return CedarResponse.badRequest()
@@ -579,14 +579,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             if (previousId != null) {
               // TODO: what happens if the user does not have read access / and write access to given resource.
               // This is a system level call, it should be executed with such a user
-              FolderServerResource folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
+              FolderServerResourceCurrentUserReport
+                  folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
               String getResponse = getResourceFromTemplateServer(nodeType, previousId, context);
               if (getResponse != null) {
                 JsonNode getJsonNode = null;
                 try {
                   getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
                   if (getJsonNode != null) {
-                    updateIndexResource(folderServerPreviousResource, context);
+                    updateIndexResource(
+                        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource),
+                        context);
                   }
                 } catch (Exception e) {
                   log.error("There was an error while reindexing the new latest version", e);
@@ -623,8 +626,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected FolderServerFolder userMustHaveWriteAccessToFolder(CedarRequestContext context,
-                                                               String folderId) throws CedarException {
+  protected FolderServerFolderCurrentUserReport userMustHaveWriteAccessToFolder(CedarRequestContext context,
+                                                                                String folderId) throws CedarException {
     String url = microserviceUrlUtil.getWorkspace().getFolders();
     FolderServerFolderCurrentUserReport fsFolder = FolderServerProxy.getFolderCurrentUserReport(url, folderId, context);
     if (fsFolder == null) {
@@ -634,7 +637,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
     if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) ||
         fsFolder.getCurrentUserPermissions().isCanWrite()) {
-      return FolderServerFolder.fromFolderServerFolderCurrentUserReport(fsFolder);
+      return fsFolder;
     } else {
       throw new CedarPermissionException("You do not have write access to the folder")
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
@@ -642,8 +645,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected FolderServerResource userMustHaveReadAccessToResource(CedarRequestContext context,
-                                                                  String resourceId) throws CedarException {
+  protected FolderServerResourceCurrentUserReport userMustHaveReadAccessToResource(CedarRequestContext context,
+                                                                                   String resourceId)
+      throws CedarException {
     String url = microserviceUrlUtil.getWorkspace().getResources();
     FolderServerResourceCurrentUserReport
         fsResource = FolderServerProxy.getResourceCurrentUserReport(url, resourceId, context);
@@ -654,7 +658,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
     if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) ||
         fsResource.getCurrentUserPermissions().isCanRead()) {
-      return FolderServerResource.fromFolderServerResourceCurrentUserReport(fsResource);
+      return fsResource;
     } else {
       throw new CedarPermissionException("You do not have read access to the resource")
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_RESOURCE)
@@ -662,8 +666,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected FolderServerResource userMustHaveWriteAccessToResource(CedarRequestContext context,
-                                                                   String resourceId) throws CedarException {
+  protected FolderServerResourceCurrentUserReport userMustHaveWriteAccessToResource(CedarRequestContext context,
+                                                                                    String resourceId)
+      throws CedarException {
     String url = microserviceUrlUtil.getWorkspace().getResources();
     FolderServerResourceCurrentUserReport
         fsResource = FolderServerProxy.getResourceCurrentUserReport(url, resourceId, context);
@@ -674,7 +679,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
     if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) ||
         fsResource.getCurrentUserPermissions().isCanWrite()) {
-      return FolderServerResource.fromFolderServerResourceCurrentUserReport(fsResource);
+      return fsResource;
     } else {
       throw new CedarPermissionException("You do not have write access to the resource")
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
@@ -860,7 +865,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected Response updateFolderNameAndDescriptionOnFolderServer(CedarRequestContext c, String id) throws
       CedarException {
-    FolderServerFolder folderServerFolder = userMustHaveWriteAccessToFolder(c, id);
+    FolderServerFolderCurrentUserReport folderServerFolder = userMustHaveWriteAccessToFolder(c, id);
     String oldName = folderServerFolder.getName();
 
     String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);

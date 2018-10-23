@@ -6,6 +6,8 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerResource;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -49,8 +51,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       folderIdS = folderIdP.stringValue();
     }
 
-    FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-    return executeResourcePostByProxy(c, CedarNodeType.FIELD, folder);
+    FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, folderIdS);
+    return executeResourcePostByProxy(c, CedarNodeType.FIELD,
+        FolderServerFolder.fromFolderServerFolderCurrentUserReport(folder));
   }
 
   @GET
@@ -88,8 +91,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidField);
     }
 
-    FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(c, CedarNodeType.FIELD, id, folderServerResource);
+    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
+    return executeResourcePutByProxy(c, CedarNodeType.FIELD, id,
+        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResource));
   }
 
   @DELETE
