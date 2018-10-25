@@ -3,7 +3,6 @@ package org.metadatacenter.cedar.resource.resources;
 import org.apache.http.HttpResponse;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListQueryTypeDetector;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
@@ -78,47 +77,43 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
           .offset(offsetParam);
       pagedSearchQuery.validate();
 
-      try {
-        String isBasedOn = pagedSearchQuery.getIsBasedOn();
-        List<String> resourceTypeList = pagedSearchQuery.getNodeTypeAsStringList();
-        ResourceVersionFilter version = pagedSearchQuery.getVersion();
-        ResourcePublicationStatusFilter publicationStatus = pagedSearchQuery.getPublicationStatus();
-        List<String> sortList = pagedSearchQuery.getSortList();
-        String queryString = pagedSearchQuery.getQ();
-        String idString = pagedSearchQuery.getId();
-        int limit = pagedSearchQuery.getLimit();
-        int offset = pagedSearchQuery.getOffset();
+      String isBasedOn = pagedSearchQuery.getIsBasedOn();
+      List<String> resourceTypeList = pagedSearchQuery.getNodeTypeAsStringList();
+      ResourceVersionFilter version = pagedSearchQuery.getVersion();
+      ResourcePublicationStatusFilter publicationStatus = pagedSearchQuery.getPublicationStatus();
+      List<String> sortList = pagedSearchQuery.getSortList();
+      String queryString = pagedSearchQuery.getQ();
+      String idString = pagedSearchQuery.getId();
+      int limit = pagedSearchQuery.getLimit();
+      int offset = pagedSearchQuery.getOffset();
 
-        CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
-            .queryParam(QP_Q, q)
-            .queryParam(QP_ID, id)
-            .queryParam(QP_RESOURCE_TYPES, resourceTypes)
-            .queryParam(QP_VERSION, versionParam)
-            .queryParam(QP_PUBLICATION_STATUS, publicationStatusParam)
-            .queryParam(QP_IS_BASED_ON, isBasedOnParam)
-            .queryParam(QP_SORT, sortParam)
-            .queryParam(QP_LIMIT, limitParam)
-            .queryParam(QP_OFFSET, offsetParam)
-            .queryParam(QP_SHARING, sharing);
+      CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
+          .queryParam(QP_Q, q)
+          .queryParam(QP_ID, id)
+          .queryParam(QP_RESOURCE_TYPES, resourceTypes)
+          .queryParam(QP_VERSION, versionParam)
+          .queryParam(QP_PUBLICATION_STATUS, publicationStatusParam)
+          .queryParam(QP_IS_BASED_ON, isBasedOnParam)
+          .queryParam(QP_SORT, sortParam)
+          .queryParam(QP_LIMIT, limitParam)
+          .queryParam(QP_OFFSET, offsetParam)
+          .queryParam(QP_SHARING, sharing);
 
-        String absoluteUrl = builder.build().toString();
+      String absoluteUrl = builder.build().toString();
 
-        FolderServerNodeListResponse results = null;
-        if (searchDeep) {
-          results = nodeSearchingService.searchDeep(c, queryString, idString, resourceTypeList, version,
-              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
-        } else {
-          results = nodeSearchingService.search(c, queryString, idString, resourceTypeList, version,
-              publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
-        }
-        results.setNodeListQueryType(nlqt);
-
-        addProvenanceDisplayNames(results);
-
-        return Response.ok().entity(results).build();
-      } catch (Exception e) {
-        throw new CedarProcessingException(e);
+      FolderServerNodeListResponse results = null;
+      if (searchDeep) {
+        results = nodeSearchingService.searchDeep(c, queryString, idString, resourceTypeList, version,
+            publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
+      } else {
+        results = nodeSearchingService.search(c, queryString, idString, resourceTypeList, version,
+            publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
       }
+      results.setNodeListQueryType(nlqt);
+
+      addProvenanceDisplayNames(results);
+
+      return Response.ok().entity(results).build();
     }
   }
 }

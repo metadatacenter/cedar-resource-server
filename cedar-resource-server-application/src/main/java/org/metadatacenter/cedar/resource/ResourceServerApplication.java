@@ -48,12 +48,6 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     IndexCreator.ensureSearchIndexExists(cedarConfig);
     // TODO: uncomment the following line
     //IndexCreator.ensureRulesIndexExists(cedarConfig);
-
-
-    /*ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> {
-      IndexRegenerator.regenerate(cedarConfig, userService);
-    });*/
   }
 
   @Override

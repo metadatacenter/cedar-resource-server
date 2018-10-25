@@ -61,6 +61,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPE;
@@ -488,18 +490,20 @@ public class CommandResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
 
-    boolean force = false;
-
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
-    if (!forceParam.isMissing()) {
-      if ("true".equals(forceParam.stringValue())) {
-        force = true;
+    final boolean force = forceParam.booleanValue();
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.submit(() -> {
+      RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
+      try {
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        task.regenerateSearchIndex(force, cedarAdminRequestContext);
+      } catch (CedarProcessingException e) {
+        //TODO: handle this, log it separately
+        log.error("Error in index regeneration executor", e);
       }
-    }
-
-    RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
-    task.regenerateSearchIndex(force, c);
+    });
 
     return Response.ok().build();
   }
@@ -510,23 +514,22 @@ public class CommandResource extends AbstractResourceServerResource {
   public Response regenerateRulesIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
-    // TODO: Update permission. Options:
-    // 1) SEARCH_INDEX_REINDEX + VALUE_RECOMMENDER_INDEX_REINDEX
-    // 2) INDEXES_REINDEX
-    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
-
-    boolean force = false;
+    c.must(c.user()).have(CedarPermission.RULES_INDEX_REINDEX);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
-    if (!forceParam.isMissing()) {
-      if ("true".equals(forceParam.stringValue())) {
-        force = true;
+    final boolean force = forceParam.booleanValue();
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.submit(() -> {
+      RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
+      try {
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        task.regenerateRulesIndex(force, cedarAdminRequestContext);
+      } catch (CedarProcessingException e) {
+        //TODO: handle this, log it separately
+        log.error("Error in index regeneration executor", e);
       }
-    }
-
-    RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
-    task.regenerateRulesIndex(force, c);
+    });
 
     return Response.ok().build();
   }
