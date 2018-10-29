@@ -21,6 +21,8 @@ import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerNode;
 import org.metadatacenter.model.folderserver.basic.FolderServerResource;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
 import org.metadatacenter.model.request.OutputFormatType;
 import org.metadatacenter.model.request.OutputFormatTypeDetector;
 import org.metadatacenter.model.trimmer.JsonLdDocument;
@@ -33,6 +35,7 @@ import org.metadatacenter.server.UserServiceSession;
 import org.metadatacenter.server.search.util.RegenerateRulesIndexTask;
 import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.auth.CurrentUserPermissions;
 import org.metadatacenter.server.security.model.user.CedarSuperRole;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.server.security.model.user.CedarUserExtract;
@@ -58,6 +61,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPE;
@@ -133,7 +138,7 @@ public class CommandResource extends AbstractResourceServerResource {
     String folderId = jsonBody.get("folderId").asText();
     String titleTemplate = jsonBody.get("titleTemplate").asText();
 
-    FolderServerResource folderServerResource = userMustHaveReadAccessToResource(c, id);
+    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveReadAccessToResource(c, id);
     CedarNodeType nodeType = folderServerResource.getType();
 
     if (nodeType == CedarNodeType.FOLDER) {
@@ -179,7 +184,7 @@ public class CommandResource extends AbstractResourceServerResource {
     c.must(c.user()).have(permission2);
 
     // Check if the user has write permission to the target folder
-    FolderServerFolder targetFolder = userMustHaveWriteAccessToFolder(c, folderId);
+    FolderServerFolderCurrentUserReport targetFolder = userMustHaveWriteAccessToFolder(c, folderId);
 
     String originalDocument = null;
     try {
@@ -485,18 +490,20 @@ public class CommandResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
 
-    boolean force = false;
-
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
-    if (!forceParam.isMissing()) {
-      if ("true".equals(forceParam.stringValue())) {
-        force = true;
+    final boolean force = forceParam.booleanValue();
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.submit(() -> {
+      RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
+      try {
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        task.regenerateSearchIndex(force, cedarAdminRequestContext);
+      } catch (CedarProcessingException e) {
+        //TODO: handle this, log it separately
+        log.error("Error in index regeneration executor", e);
       }
-    }
-
-    RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
-    task.regenerateSearchIndex(force, c);
+    });
 
     return Response.ok().build();
   }
@@ -507,23 +514,22 @@ public class CommandResource extends AbstractResourceServerResource {
   public Response regenerateRulesIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
-    // TODO: Update permission. Options:
-    // 1) SEARCH_INDEX_REINDEX + VALUE_RECOMMENDER_INDEX_REINDEX
-    // 2) INDEXES_REINDEX
-    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
-
-    boolean force = false;
+    c.must(c.user()).have(CedarPermission.RULES_INDEX_REINDEX);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
-    if (!forceParam.isMissing()) {
-      if ("true".equals(forceParam.stringValue())) {
-        force = true;
+    final boolean force = forceParam.booleanValue();
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.submit(() -> {
+      RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
+      try {
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        task.regenerateRulesIndex(force, cedarAdminRequestContext);
+      } catch (CedarProcessingException e) {
+        //TODO: handle this, log it separately
+        log.error("Error in index regeneration executor", e);
       }
-    }
-
-    RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
-    task.regenerateRulesIndex(force, c);
+    });
 
     return Response.ok().build();
   }
@@ -722,22 +728,12 @@ public class CommandResource extends AbstractResourceServerResource {
           .build();
     }
 
-    FolderServerResource folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
-
-    if (folderServerResourceOld.isLatestVersion() == null || !folderServerResourceOld.isLatestVersion()) {
+    FolderServerResourceCurrentUserReport folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
+    CurrentUserPermissions currentUserPermissions = folderServerResourceOld.getCurrentUserPermissions();
+    if (!currentUserPermissions.isCanPublish()) {
       return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST)
-          .errorMessage("Publish is only possible on the latest version of the given resource")
+          .errorKey(currentUserPermissions.getPublishErrorKey())
           .parameter("id", id)
-          .build();
-    }
-
-    if (folderServerResourceOld.getPublicationStatus() != BiboStatus.DRAFT) {
-      return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.PUBLISH_ONLY_DRAFT)
-          .errorMessage("Only a draft resource can be published")
-          .parameter("id", id)
-          .parameter(BIBO_STATUS, folderServerResourceOld.getPublicationStatus().getValue())
           .build();
     }
 
@@ -856,22 +852,12 @@ public class CommandResource extends AbstractResourceServerResource {
           .build();
     }
 
-    FolderServerResource folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
-
-    if (!folderServerResourceOld.isLatestVersion()) {
+    FolderServerResourceCurrentUserReport folderServerResourceOld = userMustHaveReadAccessToResource(c, id);
+    CurrentUserPermissions currentUserPermissions = folderServerResourceOld.getCurrentUserPermissions();
+    if (!currentUserPermissions.isCanCreateDraft()) {
       return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST)
-          .errorMessage("Creating a draft is only possible on the latest version of the given resource")
+          .errorKey(currentUserPermissions.getCreateDraftErrorKey())
           .parameter("id", id)
-          .build();
-    }
-
-    if (folderServerResourceOld.getPublicationStatus() != BiboStatus.PUBLISHED) {
-      return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.CREATE_DRAFT_ONLY_FROM_PUBLISHED)
-          .errorMessage("Draft can be created only from a published resource")
-          .parameter("id", id)
-          .parameter(BIBO_STATUS, folderServerResourceOld.getPublicationStatus().getValue())
           .build();
     }
 
@@ -938,7 +924,7 @@ public class CommandResource extends AbstractResourceServerResource {
           newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, id);
           newDocument.remove(ModelNodeNames.LD_ID);
 
-          FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderId);
+          FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, folderId);
 
           String templateServerPostRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(newDocument);
 
@@ -976,9 +962,9 @@ public class CommandResource extends AbstractResourceServerResource {
                 if (workspaceEntity != null) {
                   // re-read the old resource
                   String url = microserviceUrlUtil.getWorkspace().getResources();
-                  folderServerResourceOld = FolderServerProxy.getResource(url, id, c);
+                  FolderServerResource folderServerResourceNow = FolderServerProxy.getResource(url, id, c);
                   // update the old resource index, remove  latest version
-                  updateIndexResource(folderServerResourceOld, c);
+                  updateIndexResource(folderServerResourceNow, c);
 
                   // update the new resource on the index
                   FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent

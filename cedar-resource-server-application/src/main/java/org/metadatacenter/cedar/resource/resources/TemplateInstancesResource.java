@@ -6,6 +6,8 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerResource;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -44,8 +46,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       folderIdS = folderIdP.stringValue();
     }
 
-    FolderServerFolder folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-    return executeResourcePostByProxy(c, CedarNodeType.INSTANCE, folder);
+    FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, folderIdS);
+    return executeResourcePostByProxy(c, CedarNodeType.INSTANCE,
+        FolderServerFolder.fromFolderServerFolderCurrentUserReport(folder));
   }
 
   @GET
@@ -81,8 +84,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
-    FolderServerResource folderServerResource = userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(c, CedarNodeType.INSTANCE, id, folderServerResource);
+    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
+    return executeResourcePutByProxy(c, CedarNodeType.INSTANCE, id,
+        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResource));
   }
 
   @DELETE
