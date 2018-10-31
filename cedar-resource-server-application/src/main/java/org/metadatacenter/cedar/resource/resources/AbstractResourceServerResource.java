@@ -289,8 +289,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             if (HttpStatus.SC_CREATED == resourceCreateStatusCode) {
               if (templateEntityContent != null) {
                 // index the resource that has been created
-                FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(resourceCreateResponse
-                    .getEntity().getContent(), FolderServerResource.class);
+                FolderServerResource folderServerResource =
+                    WorkspaceObjectBuilder.artifact(resourceCreateResponse.getEntity().getContent());
                 createIndexResource(folderServerResource, context);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return newResponseWithValidationHeader(Response.created(location), templateProxyResponse,
@@ -506,8 +506,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             if (HttpStatus.SC_OK == folderServerUpdateStatusCode) {
               if (templateEntityContent != null) {
                 // update the resource on the index
-                FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(folderServerUpdateResponse
-                    .getEntity().getContent(), FolderServerResource.class);
+                FolderServerResource folderServerResource =
+                    WorkspaceObjectBuilder.artifact(folderServerUpdateResponse.getEntity().getContent());
                 if (wasRename) {
                   indexRemoveDocument(id);
                   createIndexResource(folderServerResource, context);
@@ -539,8 +539,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeResourceDeleteByProxy(CedarRequestContext context, CedarNodeType nodeType, String id)
       throws CedarException {
 
-    ResourceUri previousVersion = null;
-
     FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(context, id);
     if (folderServerResource.getType().isVersioned()) {
       if (folderServerResource.getPublicationStatus() == BiboStatus.PUBLISHED) {
@@ -552,7 +550,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             .parameter(BIBO_STATUS, folderServerResource.getPublicationStatus())
             .build();
       }
-      previousVersion = folderServerResource.getPreviousVersion();
     }
 
     try {
@@ -574,26 +571,24 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           // remove the resource from the index
           indexRemoveDocument(id);
           // reindex the previous version, since that just became the latest
-          if (previousVersion != null) {
-            String previousId = previousVersion.getValue();
-            if (previousId != null) {
-              // TODO: what happens if the user does not have read access / and write access to given resource.
-              // This is a system level call, it should be executed with such a user
-              FolderServerResourceCurrentUserReport
-                  folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
-              String getResponse = getResourceFromTemplateServer(nodeType, previousId, context);
-              if (getResponse != null) {
-                JsonNode getJsonNode = null;
-                try {
-                  getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-                  if (getJsonNode != null) {
-                    updateIndexResource(
-                        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource),
-                        context);
-                  }
-                } catch (Exception e) {
-                  log.error("There was an error while reindexing the new latest version", e);
+          if (folderServerResource.hasPreviousVersion()) {
+            String previousId = folderServerResource.getPreviousVersion().getValue();
+            // TODO: what happens if the user does not have read access / and write access to given resource.
+            // This is a system level call, it should be executed with such a user
+            FolderServerResourceCurrentUserReport
+                folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
+            String getResponse = getResourceFromTemplateServer(nodeType, previousId, context);
+            if (getResponse != null) {
+              JsonNode getJsonNode = null;
+              try {
+                getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+                if (getJsonNode != null) {
+                  updateIndexResource(
+                      FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource),
+                      context);
                 }
+              } catch (Exception e) {
+                log.error("There was an error while reindexing the new latest version", e);
               }
             }
           }
