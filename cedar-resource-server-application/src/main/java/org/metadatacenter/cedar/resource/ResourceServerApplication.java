@@ -14,6 +14,7 @@ import org.metadatacenter.server.search.elasticsearch.service.ElasticsearchServi
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 
 public class ResourceServerApplication extends CedarMicroserviceApplication<ResourceServerConfiguration> {
 
@@ -42,8 +43,12 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     SearchPermissionEnqueueService searchPermissionEnqueueService = new SearchPermissionEnqueueService(cedarConfig);
 
+    ValuerecommenderReindexQueueService valuerecommenderReindexQueueService =
+        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent());
+
     CommandResource.injectUserService(userService);
-    SearchResource.injectServices(nodeIndexingService, nodeSearchingService, searchPermissionEnqueueService);
+    SearchResource.injectServices(nodeIndexingService, nodeSearchingService, searchPermissionEnqueueService,
+        valuerecommenderReindexQueueService);
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
     // TODO: uncomment the following line
