@@ -26,7 +26,7 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.ValidTemplate;
 @Produces(MediaType.APPLICATION_JSON)
 public class TemplatesResource extends AbstractResourceServerResource {
 
-  private static final boolean ENABLE_VALIDATION = true;
+  private static final boolean ENABLE_VALIDATION = false;
 
   public TemplatesResource(CedarConfig cedarConfig) {
     super(cedarConfig);
