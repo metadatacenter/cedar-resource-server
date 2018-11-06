@@ -26,8 +26,6 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.ValidField;
 @Produces(MediaType.APPLICATION_JSON)
 public class TemplateFieldsResource extends AbstractResourceServerResource {
 
-  private static final boolean ENABLE_VALIDATION = false;
-
   public TemplateFieldsResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
@@ -38,7 +36,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_CREATE);
-    if (ENABLE_VALIDATION) {
+    if (cedarConfig.getValidationConfig().isEnabled()) {
       c.must(c.request()).be(ValidField);
     }
 
@@ -87,7 +85,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
-    if (ENABLE_VALIDATION) {
+    if (cedarConfig.getValidationConfig().isEnabled()) {
       c.must(c.request()).be(ValidField);
     }
 
