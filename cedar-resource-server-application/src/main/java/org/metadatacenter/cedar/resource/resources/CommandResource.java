@@ -75,6 +75,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
   protected static final String MOVE_COMMAND = "move-node-to-folder";
   protected static final String CREATE_DRAFT_RESOURCE_COMMAND = "create-draft-resource";
+  protected static final String PUBLISH_RESOURCE_COMMAND = "publish-resource";
   protected static final String COPY_RESOURCE_TO_FOLDER_COMMAND = "copy-resource-to-folder";
   private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
   private static UserService userService;
@@ -255,8 +256,8 @@ public class CommandResource extends AbstractResourceServerResource {
               }
               if (templateProxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                createIndexResource(JsonMapper.MAPPER.readValue(resourceCreateResponse.getEntity().getContent
-                    (), FolderServerResource.class), c);
+                createIndexResource(WorkspaceObjectBuilder.artifact(resourceCreateResponse.getEntity().getContent()),
+                    c);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
               } else {
@@ -497,7 +498,8 @@ public class CommandResource extends AbstractResourceServerResource {
     executor.submit(() -> {
       RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        CedarRequestContext cedarAdminRequestContext =
+            CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.regenerateSearchIndex(force, cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
@@ -523,7 +525,8 @@ public class CommandResource extends AbstractResourceServerResource {
     executor.submit(() -> {
       RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        CedarRequestContext cedarAdminRequestContext =
+            CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.regenerateRulesIndex(force, cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
@@ -707,7 +710,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/publish-resource")
+  @Path("/" + PUBLISH_RESOURCE_COMMAND)
   public Response publishResource() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -785,35 +788,45 @@ public class CommandResource extends AbstractResourceServerResource {
 
           if (putStatus == HttpStatus.SC_OK) {
             // publish on workspace server
-            String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
+
+            String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(PUBLISH_RESOURCE_COMMAND);
 
             ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
+            workspaceRequestBody.put("id", id);
+            workspaceRequestBody.put("nodeType", nodeType.getValue());
             workspaceRequestBody.put("version", newVersion.getValue());
-            workspaceRequestBody.put("publicationStatus", BiboStatus.PUBLISHED.getValue());
+
             String workspaceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(workspaceRequestBody);
 
-            HttpResponse workspaceServerUpdateResponse = ProxyUtil.proxyPut(resourceUrl, c,
+            HttpResponse workspaceServerUpdateResponse = ProxyUtil.proxyPost(workspaceUrl, c,
                 workspaceRequestBodyAsString);
             int workspaceServerUpdateStatusCode = workspaceServerUpdateResponse.getStatusLine().getStatusCode();
             HttpEntity workspaceEntity = workspaceServerUpdateResponse.getEntity();
             if (workspaceEntity != null) {
-              if (HttpStatus.SC_OK == workspaceServerUpdateStatusCode) {
+              if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
                 if (workspaceEntity != null) {
-                  // update the resource on the index
-                  FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent
-                      (), FolderServerResource.class);
-                  indexRemoveDocument(id);
-                  createIndexResource(folderServerResource, c);
-                  return Response.ok(folderServerResource).build();
+                  // read the updated resource
+                  FolderServerResource folderServerResourceNow =
+                      WorkspaceObjectBuilder.artifact(workspaceEntity.getContent());
+                  updateIndexResource(folderServerResourceNow, c);
+
+                  // read the updated previous version
+                  if (folderServerResourceOld.hasPreviousVersion()) {
+                    String url = microserviceUrlUtil.getWorkspace().getResources();
+                    String prevId = folderServerResourceOld.getPreviousVersion().getValue();
+                    FolderServerResource folderServerResourcePrev = FolderServerProxy.getResource(url, prevId, c);
+                    updateIndexResource(folderServerResourcePrev, c);
+                  }
+                  return Response.ok(folderServerResourceNow).build();
                 } else {
                   return Response.ok().build();
                 }
               } else {
-                log.error("Resource not updated #1, rollback resource and signal error");
+                log.error("Resource draft not created #1, rollback resource and signal error");
                 return Response.status(workspaceServerUpdateStatusCode).entity(workspaceEntity.getContent()).build();
               }
             } else {
-              log.error("Resource not updated #2, rollback resource and signal error");
+              log.error("Resource draft not created #2, rollback resource and signal error");
               return Response.status(workspaceServerUpdateStatusCode).build();
             }
           }
@@ -967,8 +980,8 @@ public class CommandResource extends AbstractResourceServerResource {
                   updateIndexResource(folderServerResourceNow, c);
 
                   // update the new resource on the index
-                  FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(workspaceEntity.getContent
-                      (), FolderServerResource.class);
+                  FolderServerResource folderServerResource =
+                      WorkspaceObjectBuilder.artifact(workspaceEntity.getContent());
                   createIndexResource(folderServerResource, c);
                   return Response.ok(folderServerResource).build();
                 } else {

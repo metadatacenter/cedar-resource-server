@@ -15,6 +15,7 @@ import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
 import org.metadatacenter.model.folderserver.basic.FolderServerNode;
 import org.metadatacenter.model.folderserver.basic.FolderServerResource;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
@@ -31,6 +32,10 @@ import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingServi
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
+import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
+import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessage;
+import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
+import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageResourceType;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
@@ -57,6 +62,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static NodeIndexingService nodeIndexingService;
   protected static NodeSearchingService nodeSearchingService;
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
+  protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
 
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -64,11 +70,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   public static void injectServices(NodeIndexingService nodeIndexingService,
                                     NodeSearchingService nodeSearchingService,
-                                    SearchPermissionEnqueueService searchPermissionEnqueueService
+                                    SearchPermissionEnqueueService searchPermissionEnqueueService,
+                                    ValuerecommenderReindexQueueService valuerecommenderReindexQueueService
   ) {
     AbstractResourceServerResource.nodeIndexingService = nodeIndexingService;
     AbstractResourceServerResource.nodeSearchingService = nodeSearchingService;
     AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
+    AbstractResourceServerResource.valuerecommenderReindexQueueService = valuerecommenderReindexQueueService;
   }
 
   protected static <T extends FolderServerNode> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz)
@@ -289,9 +297,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             if (HttpStatus.SC_CREATED == resourceCreateStatusCode) {
               if (templateEntityContent != null) {
                 // index the resource that has been created
-                FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(resourceCreateResponse
-                    .getEntity().getContent(), FolderServerResource.class);
+                FolderServerResource folderServerResource =
+                    WorkspaceObjectBuilder.artifact(resourceCreateResponse.getEntity().getContent());
                 createIndexResource(folderServerResource, context);
+                createValuerecommenderResource(folderServerResource);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return newResponseWithValidationHeader(Response.created(location), templateProxyResponse,
                     templateEntityContent);
@@ -488,14 +497,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           }
           String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
-          // Check if this was a rename.
-          // If it was, we need to reindex the node and the children
-          // Otherwise we just reindex the content child
-          boolean wasRename = false;
-          if (currentName == null || !currentName.equals(newName)) {
-            wasRename = true;
-          }
-
           String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
 
           HttpResponse folderServerUpdateResponse = ProxyUtil.proxyPut(resourceUrl, context,
@@ -506,14 +507,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             if (HttpStatus.SC_OK == folderServerUpdateStatusCode) {
               if (templateEntityContent != null) {
                 // update the resource on the index
-                FolderServerResource folderServerResource = JsonMapper.MAPPER.readValue(folderServerUpdateResponse
-                    .getEntity().getContent(), FolderServerResource.class);
-                if (wasRename) {
-                  indexRemoveDocument(id);
-                  createIndexResource(folderServerResource, context);
-                } else {
-                  updateIndexResource(folderServerResource, context);
-                }
+                FolderServerResource folderServerResource =
+                    WorkspaceObjectBuilder.artifact(folderServerUpdateResponse.getEntity().getContent());
+                updateIndexResource(folderServerResource, context);
+                updateValuerecommenderResource(folderServerResource);
                 return newResponseWithValidationHeader(Response.ok(), templateProxyResponse, templateEntityContent);
               } else {
                 return Response.ok().build();
@@ -539,8 +536,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeResourceDeleteByProxy(CedarRequestContext context, CedarNodeType nodeType, String id)
       throws CedarException {
 
-    ResourceUri previousVersion = null;
-
     FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(context, id);
     if (folderServerResource.getType().isVersioned()) {
       if (folderServerResource.getPublicationStatus() == BiboStatus.PUBLISHED) {
@@ -552,7 +547,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             .parameter(BIBO_STATUS, folderServerResource.getPublicationStatus())
             .build();
       }
-      previousVersion = folderServerResource.getPreviousVersion();
     }
 
     try {
@@ -572,28 +566,28 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
         if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
           // remove the resource from the index
-          indexRemoveDocument(id);
+          removeIndexDocument(id);
+          removeValuerecommenderResource(
+              FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResource));
           // reindex the previous version, since that just became the latest
-          if (previousVersion != null) {
-            String previousId = previousVersion.getValue();
-            if (previousId != null) {
-              // TODO: what happens if the user does not have read access / and write access to given resource.
-              // This is a system level call, it should be executed with such a user
-              FolderServerResourceCurrentUserReport
-                  folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
-              String getResponse = getResourceFromTemplateServer(nodeType, previousId, context);
-              if (getResponse != null) {
-                JsonNode getJsonNode = null;
-                try {
-                  getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-                  if (getJsonNode != null) {
-                    updateIndexResource(
-                        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource),
-                        context);
-                  }
-                } catch (Exception e) {
-                  log.error("There was an error while reindexing the new latest version", e);
+          if (folderServerResource.hasPreviousVersion()) {
+            String previousId = folderServerResource.getPreviousVersion().getValue();
+            // TODO: what happens if the user does not have read access / and write access to given resource.
+            // This is a system level call, it should be executed with such a user
+            FolderServerResourceCurrentUserReport
+                folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
+            String getResponse = getResourceFromTemplateServer(nodeType, previousId, context);
+            if (getResponse != null) {
+              JsonNode getJsonNode = null;
+              try {
+                getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+                if (getJsonNode != null) {
+                  FolderServerResource folderServerPreviousR =
+                      FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource);
+                  updateIndexResource(folderServerPreviousR, context);
                 }
+              } catch (Exception e) {
+                log.error("There was an error while reindexing the new latest version", e);
               }
             }
           }
@@ -837,6 +831,20 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * Private methods: move these into a separate service
    */
 
+  private ValuerecommenderReindexMessage buildValuerecommenderEvent(FolderServerResource folderServerResource,
+                                                                    ValuerecommenderReindexMessageActionType actionType) {
+    ValuerecommenderReindexMessage event = null;
+    if (folderServerResource.getType() == CedarNodeType.TEMPLATE) {
+      event = new ValuerecommenderReindexMessage(folderServerResource.getId(), null,
+          ValuerecommenderReindexMessageResourceType.TEMPLATE, actionType);
+    } else if (folderServerResource.getType() == CedarNodeType.INSTANCE) {
+      FolderServerInstance instance = (FolderServerInstance) folderServerResource;
+      event = new ValuerecommenderReindexMessage(instance.getIsBasedOn().getValue(), instance.getId(),
+          ValuerecommenderReindexMessageResourceType.INSTANCE, actionType);
+    }
+    return event;
+  }
+
   protected void createIndexResource(FolderServerResource folderServerResource, CedarRequestContext c)
       throws CedarProcessingException {
     nodeIndexingService.indexDocument(folderServerResource, c);
@@ -845,6 +853,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected void createIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
       CedarProcessingException {
     nodeIndexingService.indexDocument(folderServerFolder, c);
+  }
+
+  protected void createValuerecommenderResource(FolderServerResource folderServerResource) {
+    ValuerecommenderReindexMessage event =
+        buildValuerecommenderEvent(folderServerResource, ValuerecommenderReindexMessageActionType.CREATED);
+    if (event != null) {
+      valuerecommenderReindexQueueService.enqueueEvent(event);
+    }
   }
 
   protected void updateIndexResource(FolderServerResource folderServerResource, CedarRequestContext c)
@@ -859,8 +875,24 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     nodeIndexingService.indexDocument(folderServerFolder, c);
   }
 
-  protected void indexRemoveDocument(String id) throws CedarProcessingException {
+  protected void updateValuerecommenderResource(FolderServerResource folderServerResource) {
+    ValuerecommenderReindexMessage event =
+        buildValuerecommenderEvent(folderServerResource, ValuerecommenderReindexMessageActionType.UPDATED);
+    if (event != null) {
+      valuerecommenderReindexQueueService.enqueueEvent(event);
+    }
+  }
+
+  protected void removeIndexDocument(String id) throws CedarProcessingException {
     nodeIndexingService.removeDocumentFromIndex(id);
+  }
+
+  protected void removeValuerecommenderResource(FolderServerResource folderServerResource) {
+    ValuerecommenderReindexMessage event =
+        buildValuerecommenderEvent(folderServerResource, ValuerecommenderReindexMessageActionType.DELETED);
+    if (event != null) {
+      valuerecommenderReindexQueueService.enqueueEvent(event);
+    }
   }
 
   protected Response updateFolderNameAndDescriptionOnFolderServer(CedarRequestContext c, String id) throws
@@ -883,7 +915,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
               FolderServerFolder.class);
           String newName = folderServerFolderUpdated.getName();
           if (oldName == null || !oldName.equals(newName)) {
-            indexRemoveDocument(id);
+            removeIndexDocument(id);
             createIndexFolder(folderServerFolderUpdated, c);
           } else {
             updateIndexFolder(folderServerFolderUpdated, c);

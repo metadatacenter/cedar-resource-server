@@ -26,8 +26,6 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.ValidTemplate;
 @Produces(MediaType.APPLICATION_JSON)
 public class TemplatesResource extends AbstractResourceServerResource {
 
-  private static final boolean ENABLE_VALIDATION = false;
-
   public TemplatesResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
@@ -38,7 +36,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_CREATE);
-    if (ENABLE_VALIDATION) {
+    if (cedarConfig.getValidationConfig().isEnabled()) {
       c.must(c.request()).be(ValidTemplate);
     }
 
@@ -87,7 +85,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
-    if (ENABLE_VALIDATION) {
+    if (cedarConfig.getValidationConfig().isEnabled()) {
       c.must(c.request()).be(ValidTemplate);
     }
 

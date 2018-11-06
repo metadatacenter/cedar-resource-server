@@ -121,7 +121,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     int folderDeleteStatusCode = proxyResponse.getStatusLine().getStatusCode();
     if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
       // remove the folder from the index
-      indexRemoveDocument(id);
+      removeIndexDocument(id);
       return Response.noContent().build();
     } else {
       return generateStatusResponse(proxyResponse);
