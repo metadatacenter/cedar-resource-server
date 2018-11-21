@@ -77,6 +77,8 @@ public class CommandResource extends AbstractResourceServerResource {
   protected static final String CREATE_DRAFT_RESOURCE_COMMAND = "create-draft-resource";
   protected static final String PUBLISH_RESOURCE_COMMAND = "publish-resource";
   protected static final String COPY_RESOURCE_TO_FOLDER_COMMAND = "copy-resource-to-folder";
+  protected static final String MAKE_RESOURCE_PUBLIC_COMMAND = "make-resource-public";
+  protected static final String MAKE_RESOURCE_NOT_PUBLIC_COMMAND = "make-resource-not-public";
   private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
   private static UserService userService;
 
@@ -1009,6 +1011,32 @@ public class CommandResource extends AbstractResourceServerResource {
       }
     }
     return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
+  }
+  
+  @POST
+  @Timed
+  @Path("/" + MAKE_RESOURCE_PUBLIC_COMMAND)
+  public Response makeResourcePublic() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+
+    CedarParameter idParam = c.request().getRequestBody().get("@id");
+    String id = idParam.stringValue();
+
+    return Response.status(HttpStatus.SC_OK).build();
+  }
+
+  @POST
+  @Timed
+  @Path("/" + MAKE_RESOURCE_NOT_PUBLIC_COMMAND)
+  public Response makeResourceNotPublic() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+
+    CedarParameter idParam = c.request().getRequestBody().get("@id");
+    String id = idParam.stringValue();
+
+    return Response.status(HttpStatus.SC_OK).build();
   }
 
 }
