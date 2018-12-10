@@ -1012,7 +1012,7 @@ public class CommandResource extends AbstractResourceServerResource {
     }
     return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
   }
-  
+
   @POST
   @Timed
   @Path("/" + MAKE_RESOURCE_PUBLIC_COMMAND)
@@ -1023,7 +1023,41 @@ public class CommandResource extends AbstractResourceServerResource {
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     String id = idParam.stringValue();
 
-    return Response.status(HttpStatus.SC_OK).build();
+    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
+
+    String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(MAKE_RESOURCE_PUBLIC_COMMAND);
+
+    ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
+    workspaceRequestBody.put("id", id);
+    workspaceRequestBody.put("nodeType", folderServerResource.getType().getValue());
+
+    try {
+      String workspaceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(workspaceRequestBody);
+      HttpResponse workspaceServerUpdateResponse = ProxyUtil.proxyPost(workspaceUrl, c, workspaceRequestBodyAsString);
+      int workspaceServerUpdateStatusCode = workspaceServerUpdateResponse.getStatusLine().getStatusCode();
+      HttpEntity workspaceEntity = workspaceServerUpdateResponse.getEntity();
+      if (workspaceEntity != null) {
+        if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
+          if (workspaceEntity != null) {
+            FolderServerResource folderServerResourceUpdated =
+                WorkspaceObjectBuilder.artifact(workspaceEntity.getContent());
+            // update the resource index
+            updateIndexResource(folderServerResourceUpdated, c);
+            return Response.ok(folderServerResourceUpdated).build();
+          } else {
+            return Response.ok().build();
+          }
+        } else {
+          log.error("Resource not made public #1, rollback resource and signal error");
+          return Response.status(workspaceServerUpdateStatusCode).entity(workspaceEntity.getContent()).build();
+        }
+      } else {
+        log.error("Resource not made public #2, rollback resource and signal error");
+        return Response.status(workspaceServerUpdateStatusCode).build();
+      }
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
   }
 
   @POST
@@ -1036,7 +1070,41 @@ public class CommandResource extends AbstractResourceServerResource {
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     String id = idParam.stringValue();
 
-    return Response.status(HttpStatus.SC_OK).build();
+    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
+
+    String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(MAKE_RESOURCE_NOT_PUBLIC_COMMAND);
+
+    ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
+    workspaceRequestBody.put("id", id);
+    workspaceRequestBody.put("nodeType", folderServerResource.getType().getValue());
+
+    try {
+      String workspaceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(workspaceRequestBody);
+      HttpResponse workspaceServerUpdateResponse = ProxyUtil.proxyPost(workspaceUrl, c, workspaceRequestBodyAsString);
+      int workspaceServerUpdateStatusCode = workspaceServerUpdateResponse.getStatusLine().getStatusCode();
+      HttpEntity workspaceEntity = workspaceServerUpdateResponse.getEntity();
+      if (workspaceEntity != null) {
+        if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
+          if (workspaceEntity != null) {
+            FolderServerResource folderServerResourceUpdated =
+                WorkspaceObjectBuilder.artifact(workspaceEntity.getContent());
+            // update the resource index
+            updateIndexResource(folderServerResourceUpdated, c);
+            return Response.ok(folderServerResourceUpdated).build();
+          } else {
+            return Response.ok().build();
+          }
+        } else {
+          log.error("Resource not made not public #1, rollback resource and signal error");
+          return Response.status(workspaceServerUpdateStatusCode).entity(workspaceEntity.getContent()).build();
+        }
+      } else {
+        log.error("Resource not made not public #2, rollback resource and signal error");
+        return Response.status(workspaceServerUpdateStatusCode).build();
+      }
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
   }
 
 }
