@@ -77,8 +77,8 @@ public class CommandResource extends AbstractResourceServerResource {
   protected static final String CREATE_DRAFT_RESOURCE_COMMAND = "create-draft-resource";
   protected static final String PUBLISH_RESOURCE_COMMAND = "publish-resource";
   protected static final String COPY_RESOURCE_TO_FOLDER_COMMAND = "copy-resource-to-folder";
-  protected static final String MAKE_RESOURCE_PUBLIC_COMMAND = "make-resource-public";
-  protected static final String MAKE_RESOURCE_NOT_PUBLIC_COMMAND = "make-resource-not-public";
+  protected static final String MAKE_ARTIFACT_OPEN_COMMAND = "make-artifact-open";
+  protected static final String MAKE_ARTIFACT_NOT_OPEN_COMMAND = "make-artifact-not-open";
   private static final Logger log = LoggerFactory.getLogger(CommandResource.class);
   private static UserService userService;
 
@@ -1015,8 +1015,8 @@ public class CommandResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/" + MAKE_RESOURCE_PUBLIC_COMMAND)
-  public Response makeResourcePublic() throws CedarException {
+  @Path("/" + MAKE_ARTIFACT_OPEN_COMMAND)
+  public Response makeArtifactOpen() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
@@ -1025,7 +1025,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
     FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
 
-    String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(MAKE_RESOURCE_PUBLIC_COMMAND);
+    String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(MAKE_ARTIFACT_OPEN_COMMAND);
 
     ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
     workspaceRequestBody.put("id", id);
@@ -1037,7 +1037,7 @@ public class CommandResource extends AbstractResourceServerResource {
       int workspaceServerUpdateStatusCode = workspaceServerUpdateResponse.getStatusLine().getStatusCode();
       HttpEntity workspaceEntity = workspaceServerUpdateResponse.getEntity();
       if (workspaceEntity != null) {
-        if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
+        if (HttpStatus.SC_OK == workspaceServerUpdateStatusCode) {
           if (workspaceEntity != null) {
             FolderServerResource folderServerResourceUpdated =
                 WorkspaceObjectBuilder.artifact(workspaceEntity.getContent());
@@ -1048,11 +1048,11 @@ public class CommandResource extends AbstractResourceServerResource {
             return Response.ok().build();
           }
         } else {
-          log.error("Resource not made public #1, rollback resource and signal error");
+          log.error("Artifact not made open #1, rollback resource and signal error");
           return Response.status(workspaceServerUpdateStatusCode).entity(workspaceEntity.getContent()).build();
         }
       } else {
-        log.error("Resource not made public #2, rollback resource and signal error");
+        log.error("Artifact not made open #2, rollback resource and signal error");
         return Response.status(workspaceServerUpdateStatusCode).build();
       }
     } catch (Exception e) {
@@ -1062,8 +1062,8 @@ public class CommandResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/" + MAKE_RESOURCE_NOT_PUBLIC_COMMAND)
-  public Response makeResourceNotPublic() throws CedarException {
+  @Path("/" + MAKE_ARTIFACT_NOT_OPEN_COMMAND)
+  public Response makeArtifactNotOpen() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
@@ -1072,7 +1072,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
     FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
 
-    String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(MAKE_RESOURCE_NOT_PUBLIC_COMMAND);
+    String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(MAKE_ARTIFACT_NOT_OPEN_COMMAND);
 
     ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
     workspaceRequestBody.put("id", id);
@@ -1084,7 +1084,7 @@ public class CommandResource extends AbstractResourceServerResource {
       int workspaceServerUpdateStatusCode = workspaceServerUpdateResponse.getStatusLine().getStatusCode();
       HttpEntity workspaceEntity = workspaceServerUpdateResponse.getEntity();
       if (workspaceEntity != null) {
-        if (HttpStatus.SC_CREATED == workspaceServerUpdateStatusCode) {
+        if (HttpStatus.SC_OK == workspaceServerUpdateStatusCode) {
           if (workspaceEntity != null) {
             FolderServerResource folderServerResourceUpdated =
                 WorkspaceObjectBuilder.artifact(workspaceEntity.getContent());
@@ -1095,11 +1095,11 @@ public class CommandResource extends AbstractResourceServerResource {
             return Response.ok().build();
           }
         } else {
-          log.error("Resource not made not public #1, rollback resource and signal error");
+          log.error("Artifact not made not open #1, rollback resource and signal error");
           return Response.status(workspaceServerUpdateStatusCode).entity(workspaceEntity.getContent()).build();
         }
       } else {
-        log.error("Resource not made not public #2, rollback resource and signal error");
+        log.error("Artifact not made not open #2, rollback resource and signal error");
         return Response.status(workspaceServerUpdateStatusCode).build();
       }
     } catch (Exception e) {
