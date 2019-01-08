@@ -258,8 +258,10 @@ public class CommandResource extends AbstractResourceServerResource {
               }
               if (templateProxyResponse.getEntity() != null) {
                 // index the resource that has been created
-                createIndexResource(WorkspaceObjectBuilder.artifact(resourceCreateResponse.getEntity().getContent()),
-                    c);
+                FolderServerResource newFolderServerResource =
+                    WorkspaceObjectBuilder.artifact(resourceCreateResponse.getEntity().getContent());
+                createIndexResource(newFolderServerResource, c);
+                createValuerecommenderResource(newFolderServerResource);
                 URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
                 return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
               } else {
