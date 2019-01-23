@@ -103,11 +103,13 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
       FolderServerNodeListResponse results = null;
       if (searchDeep) {
-        results = nodeSearchingService.searchDeep(c, queryString, idString, resourceTypeList, version,
-            publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
+        results = nodeSearchingService
+            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, sortList, limit, offset,
+                absoluteUrl);
       } else {
-        results = nodeSearchingService.search(c, queryString, idString, resourceTypeList, version,
-            publicationStatus, isBasedOn, sortList, limit, offset, absoluteUrl, cedarConfig);
+        results = nodeSearchingService
+            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, sortList, limit, offset,
+                absoluteUrl);
       }
       results.setNodeListQueryType(nlqt);
 
