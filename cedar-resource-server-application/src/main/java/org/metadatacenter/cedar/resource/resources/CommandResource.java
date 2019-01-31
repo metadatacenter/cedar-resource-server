@@ -32,6 +32,7 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
+import org.metadatacenter.server.search.util.GenerateEmptySearchIndexTask;
 import org.metadatacenter.server.search.util.RegenerateRulesIndexTask;
 import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -505,6 +506,30 @@ public class CommandResource extends AbstractResourceServerResource {
         CedarRequestContext cedarAdminRequestContext =
             CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.regenerateSearchIndex(force, cedarAdminRequestContext);
+      } catch (CedarProcessingException e) {
+        //TODO: handle this, log it separately
+        log.error("Error in index regeneration executor", e);
+      }
+    });
+
+    return Response.ok().build();
+  }
+
+  @POST
+  @Timed
+  @Path("/generate-empty-search-index")
+  public Response generateEmptySearchIndex() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.submit(() -> {
+      GenerateEmptySearchIndexTask task = new GenerateEmptySearchIndexTask(cedarConfig);
+      try {
+        CedarRequestContext cedarAdminRequestContext =
+            CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        task.generateEmptySearchIndex(cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
         log.error("Error in index regeneration executor", e);

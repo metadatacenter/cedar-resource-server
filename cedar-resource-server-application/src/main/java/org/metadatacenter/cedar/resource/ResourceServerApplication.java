@@ -10,10 +10,10 @@ import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
 import org.metadatacenter.server.cache.user.UserSummaryCache;
-import org.metadatacenter.server.search.elasticsearch.service.ElasticsearchServiceFactory;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 
 public class ResourceServerApplication extends CedarMicroserviceApplication<ResourceServerConfiguration> {
@@ -37,9 +37,9 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     UserSummaryCache.init(cedarConfig, userService);
 
-    ElasticsearchServiceFactory esServiceFactory = ElasticsearchServiceFactory.getInstance(cedarConfig);
-    NodeIndexingService nodeIndexingService = esServiceFactory.nodeIndexingService();
-    NodeSearchingService nodeSearchingService = esServiceFactory.nodeSearchingService();
+    IndexUtils indexUtils = new IndexUtils(cedarConfig);
+    NodeIndexingService nodeIndexingService = indexUtils.getNodeIndexingService();
+    NodeSearchingService nodeSearchingService = indexUtils.getNodeSearchingService();
 
     SearchPermissionEnqueueService searchPermissionEnqueueService = new SearchPermissionEnqueueService(cedarConfig);
 
