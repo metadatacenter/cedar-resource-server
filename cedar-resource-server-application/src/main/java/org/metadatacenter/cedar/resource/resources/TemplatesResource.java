@@ -114,8 +114,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourcePermissionGetByProxy(id, c);
+    return generatePermissionReport(c, id);
   }
 
   @PUT

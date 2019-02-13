@@ -41,6 +41,7 @@ import org.metadatacenter.server.permissions.CurrentUserPermissionUpdaterForWork
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.security.model.auth.CedarNodePermissions;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.ResourceWithCurrentUserPermissions;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
@@ -739,12 +740,25 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return null;
   }
 
-  protected Response executeResourcePermissionGetByProxy(String resourceId, CedarRequestContext context) throws
-      CedarProcessingException {
-    String url = microserviceUrlUtil.getWorkspace().getResourceWithIdPermissions(resourceId);
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-    return buildResponse(proxyResponse);
+  protected Response generatePermissionReport(CedarRequestContext c, String id) throws
+      CedarException {
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+
+    FolderServerNode node = folderSession.findNodeById(id);
+    if (node == null) {
+      return CedarResponse.notFound()
+          .errorKey(CedarErrorKey.NODE_NOT_FOUND)
+          .errorMessage("Node not found")
+          .parameter("id", id)
+          .build();
+    }
+
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
+
+    userMustHaveReadAccess(permissionSession, id);
+
+    CedarNodePermissions permissions = permissionSession.getNodePermissions(id);
+    return Response.ok().entity(permissions).build();
   }
 
   protected Response executeResourceReportGetByProxy(String resourceId, CedarRequestContext context) throws
