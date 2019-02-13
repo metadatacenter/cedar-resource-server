@@ -7,6 +7,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
+import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
@@ -21,16 +22,25 @@ import org.metadatacenter.model.folderserver.basic.FolderServerResource;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
 import org.metadatacenter.model.folderserver.extract.FolderServerNodeExtract;
+import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
+import org.metadatacenter.model.folderserver.extract.FolderServerTemplateExtract;
 import org.metadatacenter.model.folderserver.report.FolderServerFolderReport;
 import org.metadatacenter.model.folderserver.report.FolderServerInstanceReport;
 import org.metadatacenter.model.folderserver.report.FolderServerResourceReport;
+import org.metadatacenter.model.folderserver.report.FolderServerTemplateReport;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
+import org.metadatacenter.permission.currentuserpermission.CurrentUserPermissionUpdater;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.PermissionServiceSession;
+import org.metadatacenter.server.VersionServiceSession;
 import org.metadatacenter.server.cache.user.UserSummaryCache;
+import org.metadatacenter.server.permissions.CurrentUserPermissionUpdaterForWorkspaceResource;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.auth.ResourceWithCurrentUserPermissions;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessage;
@@ -49,7 +59,7 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
-import java.util.Optional;
+import java.util.*;
 
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
 
@@ -184,7 +194,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private void addProvenanceDisplayNames(FolderServerResourceReport report) {
+  protected void addProvenanceDisplayNames(FolderServerResourceReport report) {
     for (FolderServerNodeExtract v : report.getVersions()) {
       addProvenanceDisplayName(v);
     }
@@ -967,5 +977,126 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       throw new CedarProcessingException(e);
     }
   }
+
+  protected void userMustHaveReadAccess(PermissionServiceSession permissionServiceSession, String id)
+      throws CedarException {
+    boolean b = permissionServiceSession.userHasReadAccessToNode(id);
+    if (!b) {
+      throw new CedarPermissionException("You do not have read access to the node")
+          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_NODE)
+          .parameter("nodeId", id);
+    }
+  }
+
+  protected void decorateResourceWithNumberOfInstances(CedarRequestContext c, FolderServiceSession folderSession,
+                                                       FolderServerTemplateReport templateReport) {
+    templateReport.setNumberOfInstances(folderSession.getNumberOfInstances(templateReport.getId()));
+  }
+
+  protected void decorateResourceWithVersionHistory(CedarRequestContext c, FolderServiceSession folderSession,
+                                                    FolderServerResourceReport resourceReport) {
+    List<FolderServerResourceExtract> allVersions = folderSession.getVersionHistory(resourceReport.getId());
+    List<FolderServerResourceExtract> allVersionsWithPermission =
+        folderSession.getVersionHistoryWithPermission(resourceReport.getId());
+    Map<String, FolderServerResourceExtract> accessibleMap = new HashMap<>();
+    for (FolderServerResourceExtract e : allVersionsWithPermission) {
+      accessibleMap.put(e.getId(), e);
+    }
+
+    List<FolderServerResourceExtract> visibleVersions = new ArrayList<>();
+    for (FolderServerResourceExtract v : allVersions) {
+      if (accessibleMap.containsKey(v.getId())) {
+        visibleVersions.add(v);
+      } else {
+        visibleVersions.add(FolderServerNodeExtract.anonymous(v));
+      }
+    }
+    resourceReport.setVersions(visibleVersions);
+  }
+
+  protected void decorateResourceWithIsBasedOn(FolderServiceSession folderSession,
+                                               PermissionServiceSession permissionServiceSession,
+                                               FolderServerInstanceReport instanceReport) {
+    if (instanceReport.getIsBasedOn() != null) {
+      FolderServerTemplateExtract resourceExtract =
+          (FolderServerTemplateExtract) folderSession.findResourceExtractById(instanceReport.getIsBasedOn());
+      if (resourceExtract != null) {
+        boolean hasReadAccess = permissionServiceSession.userHasReadAccessToNode(resourceExtract.getId());
+        if (hasReadAccess) {
+          instanceReport.setIsBasedOnExtract(resourceExtract);
+        } else {
+          instanceReport.setIsBasedOnExtract(FolderServerNodeExtract.anonymous(resourceExtract));
+        }
+      }
+    }
+  }
+
+  protected void decorateResourceWithDerivedFrom(FolderServiceSession folderSession,
+                                                 PermissionServiceSession permissionServiceSession,
+                                                 FolderServerResourceReport resourceReport) {
+    if (resourceReport.getDerivedFrom() != null && resourceReport.getDerivedFrom().getValue() != null) {
+      FolderServerResourceExtract resourceExtract =
+          folderSession.findResourceExtractById(resourceReport.getDerivedFrom());
+      if (resourceExtract != null) {
+        boolean hasReadAccess = permissionServiceSession.userHasReadAccessToNode(resourceExtract.getId());
+        if (hasReadAccess) {
+          resourceReport.setDerivedFromExtract(resourceExtract);
+        } else {
+          resourceReport.setDerivedFromExtract(FolderServerNodeExtract.anonymous(resourceExtract));
+        }
+      }
+    }
+  }
+
+  protected void decorateResourceWithCurrentUserPermissions(CedarRequestContext c,
+                                                            ResourceWithCurrentUserPermissions resource) {
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
+    VersionServiceSession versionSession = CedarDataServices.getVersionServiceSession(c);
+    CurrentUserPermissionUpdater cupu = CurrentUserPermissionUpdaterForWorkspaceResource.get(permissionSession,
+        versionSession, cedarConfig, resource);
+    cupu.update(resource.getCurrentUserPermissions());
+  }
+
+  protected FolderServerResourceReport generateResourceReport(CedarRequestContext c, String id) throws CedarException {
+
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+
+    FolderServerResource resource = folderSession.findResourceById(id);
+    if (resource == null) {
+      throw new CedarObjectNotFoundException("Resource not found").errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
+          .parameter("id", id);
+    }
+
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
+
+    userMustHaveReadAccess(permissionSession, resource.getId());
+
+    folderSession.addPathAndParentId(resource);
+
+    List<FolderServerNodeExtract> pathInfo = folderSession.findNodePathExtract(resource);
+    resource.setPathInfo(pathInfo);
+
+    FolderServerResourceReport resourceReport = FolderServerResourceReport.fromResource(resource);
+
+    decorateResourceWithDerivedFrom(folderSession, permissionSession, resourceReport);
+    decorateResourceWithCurrentUserPermissions(c, resourceReport);
+
+    if (resource.getType() == CedarNodeType.INSTANCE) {
+      decorateResourceWithIsBasedOn(folderSession, permissionSession,
+          (FolderServerInstanceReport) resourceReport);
+    } else if (resource.getType() == CedarNodeType.FIELD) {
+      decorateResourceWithVersionHistory(c, folderSession, resourceReport);
+    } else if (resource.getType() == CedarNodeType.ELEMENT) {
+      decorateResourceWithVersionHistory(c, folderSession, resourceReport);
+    } else if (resource.getType() == CedarNodeType.TEMPLATE) {
+      decorateResourceWithNumberOfInstances(c, folderSession, (FolderServerTemplateReport) resourceReport);
+      decorateResourceWithVersionHistory(c, folderSession, resourceReport);
+    }
+
+    addProvenanceDisplayName(resourceReport);
+    addProvenanceDisplayNames(resourceReport);
+    return resourceReport;
+  }
+
 
 }
