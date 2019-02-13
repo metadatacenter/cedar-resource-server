@@ -134,9 +134,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    FolderServerResourceReport resourceReport = generateResourceReport(c, id);
-
-    return Response.ok(resourceReport).build();
+    return generateResourceReport(c, id);
   }
 
 }

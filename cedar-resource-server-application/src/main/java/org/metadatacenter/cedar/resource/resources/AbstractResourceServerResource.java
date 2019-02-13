@@ -28,6 +28,8 @@ import org.metadatacenter.model.folderserver.report.FolderServerFolderReport;
 import org.metadatacenter.model.folderserver.report.FolderServerInstanceReport;
 import org.metadatacenter.model.folderserver.report.FolderServerResourceReport;
 import org.metadatacenter.model.folderserver.report.FolderServerTemplateReport;
+import org.metadatacenter.model.request.NodeListQueryType;
+import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.permission.currentuserpermission.CurrentUserPermissionUpdater;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -943,39 +945,51 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourceVersionsGetByProxy(CedarRequestContext context, String resourceId)
-      throws CedarProcessingException {
-    try {
-      String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithIdVersions(resourceId);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      HttpEntity entity = proxyResponse.getEntity();
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      if (entity != null) {
-        return Response.status(statusCode).entity(resourceListWithExpandedProvenanceInfo(proxyResponse, context))
-            .build();
-      } else {
-        return Response.status(statusCode).build();
-      }
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
-    }
-  }
+  protected Response generateVersionsResponse(CedarRequestContext c, String id)
+      throws CedarException {
 
-  private FolderServerNodeListResponse resourceListWithExpandedProvenanceInfo(HttpResponse proxyResponse,
-                                                                              CedarRequestContext context)
-      throws CedarProcessingException {
-    try {
-      FolderServerNodeListResponse nodeList = null;
-      String responseString = EntityUtils.toString(proxyResponse.getEntity());
-      nodeList = JsonMapper.MAPPER.readValue(responseString, FolderServerNodeListResponse.class);
-      for (FolderServerNodeExtract node : nodeList.getResources()) {
-        addProvenanceDisplayName(node);
-      }
-      return nodeList;
-    } catch (IOException e) {
-      throw new CedarProcessingException(e);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+
+    FolderServerResource resource = folderSession.findResourceById(id);
+    if (resource == null) {
+      return CedarResponse.notFound()
+          .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
+          .errorMessage("Resource not found")
+          .parameter("id", id)
+          .build();
     }
+
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
+
+    userMustHaveReadAccess(permissionSession, id);
+
+    if (!resource.getType().isVersioned()) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_DATA)
+          .errorMessage("Invalid resource type")
+          .parameter("nodeType", resource.getType().getValue())
+          .build();
+    }
+
+    FolderServerNodeListResponse r = new FolderServerNodeListResponse();
+    NodeListRequest req = new NodeListRequest();
+    req.setId(id);
+    r.setRequest(req);
+
+    NodeListQueryType nlqt = NodeListQueryType.ALL_VERSIONS;
+    r.setNodeListQueryType(nlqt);
+
+    List<FolderServerResourceExtract> resources = folderSession.getVersionHistory(id);
+    r.setResources(resources);
+
+    r.setCurrentOffset(0);
+    r.setTotalCount(resources.size());
+
+    for (FolderServerNodeExtract node : r.getResources()) {
+      addProvenanceDisplayName(node);
+    }
+
+    return Response.ok().entity(r).build();
   }
 
   protected void userMustHaveReadAccess(PermissionServiceSession permissionServiceSession, String id)
@@ -1057,14 +1071,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     cupu.update(resource.getCurrentUserPermissions());
   }
 
-  protected FolderServerResourceReport generateResourceReport(CedarRequestContext c, String id) throws CedarException {
+  protected Response generateResourceReport(CedarRequestContext c, String id) throws CedarException {
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
     FolderServerResource resource = folderSession.findResourceById(id);
     if (resource == null) {
-      throw new CedarObjectNotFoundException("Resource not found").errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
-          .parameter("id", id);
+      return CedarResponse.notFound()
+          .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
+          .errorMessage("Resource not found")
+          .parameter("id", id)
+          .build();
     }
 
     PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
@@ -1095,7 +1112,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     addProvenanceDisplayName(resourceReport);
     addProvenanceDisplayNames(resourceReport);
-    return resourceReport;
+    return Response.ok(resourceReport).build();
   }
 
 

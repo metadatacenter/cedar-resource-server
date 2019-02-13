@@ -1,30 +1,20 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerResource;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
-import org.metadatacenter.model.folderserver.extract.FolderServerNodeExtract;
-import org.metadatacenter.model.folderserver.report.FolderServerInstanceReport;
-import org.metadatacenter.model.folderserver.report.FolderServerResourceReport;
-import org.metadatacenter.model.folderserver.report.FolderServerTemplateReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.server.FolderServiceSession;
-import org.metadatacenter.server.PermissionServiceSession;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.util.http.CedarResponse;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.util.List;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
@@ -148,9 +138,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
-    FolderServerResourceReport resourceReport = generateResourceReport(c,id);
-
-    return Response.ok(resourceReport).build();
+    return generateResourceReport(c,id);
   }
 
   @GET
@@ -161,8 +149,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourceVersionsGetByProxy(c, id);
+    return generateVersionsResponse(c, id);
   }
 
 }
