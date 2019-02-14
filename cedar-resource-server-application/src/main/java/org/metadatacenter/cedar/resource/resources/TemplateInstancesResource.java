@@ -109,8 +109,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourcePermissionGetByProxy(id, c);
+    return generatePermissionReport(c, id);
   }
 
   @PUT
@@ -133,8 +132,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourceReportGetByProxy(id, c);
+    return generateResourceReport(c, id);
   }
 
 }

@@ -114,8 +114,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourcePermissionGetByProxy(id, c);
+    return generatePermissionReport(c, id);
   }
 
   @PUT
@@ -138,8 +137,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourceReportGetByProxy(id, c);
+    return generateResourceReport(c, id);
   }
 
   @GET
@@ -150,8 +148,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourceVersionsGetByProxy(c, id);
+    return generateVersionsResponse(c, id);
   }
 
 }

@@ -137,8 +137,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
-    userMustHaveReadAccessToFolder(c, id);
-    return executeFolderPermissionGetByProxy(id, c);
+    return generatePermissionReport(c, id);
   }
 
   @PUT
@@ -152,26 +151,6 @@ public class FoldersResource extends AbstractResourceServerResource {
     userMustHaveWriteAccessToFolder(c, id);
 
     return executeFolderPermissionPutByProxy(id, c);
-  }
-
-  private Response executeFolderPermissionGetByProxy(String folderId, CedarRequestContext context) throws
-      CedarException {
-    try {
-      String url = microserviceUrlUtil.getWorkspace().getFolderWithIdPermissions(folderId);
-
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        return Response.status(statusCode).entity(entity.getContent()).build();
-      } else {
-        return Response.status(statusCode).build();
-      }
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
-    }
   }
 
   private Response executeFolderPermissionPutByProxy(String folderId, CedarRequestContext context) throws
