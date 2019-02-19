@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -38,10 +39,12 @@ import org.metadatacenter.server.PermissionServiceSession;
 import org.metadatacenter.server.VersionServiceSession;
 import org.metadatacenter.server.cache.user.UserSummaryCache;
 import org.metadatacenter.server.permissions.CurrentUserPermissionUpdaterForWorkspaceResource;
+import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.security.model.auth.CedarNodePermissions;
+import org.metadatacenter.server.security.model.auth.CedarNodePermissionsRequest;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.ResourceWithCurrentUserPermissions;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
@@ -65,6 +68,7 @@ import java.net.URI;
 import java.util.*;
 
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
@@ -546,25 +550,30 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourceDeleteByProxy(CedarRequestContext context, CedarNodeType nodeType, String id)
+  protected Response executeResourceDelete(CedarRequestContext c, CedarNodeType nodeType, String id)
       throws CedarException {
 
-    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(context, id);
-    if (folderServerResource.getType().isVersioned()) {
-      if (folderServerResource.getPublicationStatus() == BiboStatus.PUBLISHED) {
+    // Check delete preconditions
+
+    FolderServerResourceCurrentUserReport resourceReport = userMustHaveWriteAccessToResource(c, id);
+
+    if (resourceReport.getType().isVersioned()) {
+      if (resourceReport.getPublicationStatus() == BiboStatus.PUBLISHED) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.PUBLISHED_RESOURCES_CAN_NOT_BE_DELETED)
             .errorMessage("Published resources can not be deleted!")
             .parameter("id", id)
-            .parameter("name", folderServerResource.getName())
-            .parameter(BIBO_STATUS, folderServerResource.getPublicationStatus())
+            .parameter("name", resourceReport.getName())
+            .parameter(BIBO_STATUS, resourceReport.getPublicationStatus())
             .build();
       }
     }
 
+    // Delete from template server
+
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
-      HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, context);
+      HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
@@ -574,44 +583,57 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         if (statusCode == HttpStatus.SC_NOT_FOUND) {
           log.warn("Resource not found on template server, but still trying to delete on workspace. Id:" + id);
         }
-        String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
-        HttpResponse resourceDeleteResponse = ProxyUtil.proxyDelete(resourceUrl, context);
-        int resourceDeleteStatusCode = resourceDeleteResponse.getStatusLine().getStatusCode();
-        if (HttpStatus.SC_NO_CONTENT == resourceDeleteStatusCode) {
-          // remove the resource from the index
-          removeIndexDocument(id);
-          removeValuerecommenderResource(
-              FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResource));
-          // reindex the previous version, since that just became the latest
-          if (folderServerResource.hasPreviousVersion()) {
-            String previousId = folderServerResource.getPreviousVersion().getValue();
-            // TODO: what happens if the user does not have read access / and write access to given resource.
-            // This is a system level call, it should be executed with such a user
-            FolderServerResourceCurrentUserReport
-                folderServerPreviousResource = userMustHaveReadAccessToResource(context, previousId);
-            String getResponse = getResourceFromTemplateServer(nodeType, previousId, context);
-            if (getResponse != null) {
-              JsonNode getJsonNode = null;
-              try {
-                getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-                if (getJsonNode != null) {
-                  FolderServerResource folderServerPreviousR =
-                      FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource);
-                  updateIndexResource(folderServerPreviousR, context);
-                }
-              } catch (Exception e) {
-                log.error("There was an error while reindexing the new latest version", e);
-              }
-            }
-          }
-          return Response.noContent().build();
-        } else {
-          return generateStatusResponse(resourceDeleteResponse);
-        }
       }
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
+
+    ResourceUri previousVersion = null;
+    if (resourceReport.getType().isVersioned() && resourceReport.isLatestVersion() != null &&
+        resourceReport.isLatestVersion()) {
+      previousVersion = resourceReport.getPreviousVersion();
+    }
+
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+
+    boolean deleted = folderSession.deleteResourceById(id);
+    if (deleted) {
+      if (previousVersion != null) {
+        folderSession.setLatestVersion(previousVersion.getValue());
+        folderSession.setLatestPublishedVersion(previousVersion.getValue());
+      }
+    } else {
+      return CedarResponse.internalServerError()
+          .id(id)
+          .errorKey(CedarErrorKey.RESOURCE_NOT_DELETED)
+          .errorMessage("The resource can not be delete by id")
+          .build();
+    }
+
+    removeIndexDocument(id);
+    removeValuerecommenderResource(FolderServerResource.fromFolderServerResourceCurrentUserReport(resourceReport));
+    // reindex the previous version, since that just became the latest
+    if (resourceReport.hasPreviousVersion()) {
+      String previousId = resourceReport.getPreviousVersion().getValue();
+      FolderServerResourceCurrentUserReport folderServerPreviousResource =
+          userMustHaveReadAccessToResource(c, previousId);
+      String getResponse = getResourceFromTemplateServer(nodeType, previousId, c);
+      if (getResponse != null) {
+        JsonNode getJsonNode = null;
+        try {
+          getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+          if (getJsonNode != null) {
+            FolderServerResource folderServerPreviousR =
+                FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource);
+            updateIndexResource(folderServerPreviousR, c);
+          }
+        } catch (Exception e) {
+          log.error("There was an error while reindexing the new latest version", e);
+        }
+      }
+    }
+
+    return Response.noContent().build();
   }
 
   protected FolderServerFolderCurrentUserReport userMustHaveReadAccessToFolder(CedarRequestContext context,
@@ -740,7 +762,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return null;
   }
 
-  protected Response generatePermissionReport(CedarRequestContext c, String id) throws
+  protected Response generateNodePermissionsResponse(CedarRequestContext c, String id) throws
       CedarException {
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
@@ -761,37 +783,43 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return Response.ok().entity(permissions).build();
   }
 
-  protected Response executeResourceReportGetByProxy(String resourceId, CedarRequestContext context) throws
-      CedarProcessingException {
-    try {
-      String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithIdReport(resourceId);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      HttpEntity entity = proxyResponse.getEntity();
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      if (entity != null) {
-        FolderServerResourceReport folderServerResourceReport = resourceWithProvenanceDisplayNames(proxyResponse,
-            FolderServerResourceReport.class);
-        addProvenanceDisplayNames(folderServerResourceReport);
-        return Response.status(statusCode).entity(folderServerResourceReport).build();
-      } else {
-        return Response.status(statusCode).build();
-      }
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
-    }
-  }
+  protected Response updateNodePermissions(CedarRequestContext c, String id) throws CedarException {
 
-  protected Response executeResourcePermissionPutByProxy(String resourceId, CedarRequestContext context) throws
-      CedarProcessingException, CedarBadRequestException {
-    String url = microserviceUrlUtil.getWorkspace().getResourceWithIdPermissions(resourceId);
-    HttpResponse proxyResponse = ProxyUtil.proxyPut(url, context);
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    if (statusCode == HttpStatus.SC_OK) {
-      searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
+    c.must(c.request().getRequestBody()).be(NonEmpty);
+    JsonNode permissionUpdateRequest = c.request().getRequestBody().asJson();
+
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
+
+    CedarNodePermissionsRequest permissionsRequest = null;
+    try {
+      permissionsRequest = JsonMapper.MAPPER.treeToValue(permissionUpdateRequest, CedarNodePermissionsRequest.class);
+    } catch (JsonProcessingException e) {
+      log.error("Error while reading permission update request", e);
     }
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-    return buildResponse(proxyResponse);
+
+    FolderServerNode node = folderSession.findNodeById(id);
+    if (node == null) {
+      return CedarResponse.notFound()
+          .id(id)
+          .errorKey(CedarErrorKey.NODE_NOT_FOUND)
+          .errorMessage("The node can not be found by id")
+          .build();
+    } else {
+      BackendCallResult backendCallResult = permissionSession.updateNodePermissions(id, permissionsRequest);
+      if (backendCallResult.isError()) {
+        throw new CedarBackendException(backendCallResult);
+      }
+
+      if (node.getType() == CedarNodeType.FOLDER) {
+        searchPermissionEnqueueService.folderPermissionsChanged(id);
+      } else {
+        searchPermissionEnqueueService.resourcePermissionsChanged(id);
+      }
+
+      CedarNodePermissions permissions = permissionSession.getNodePermissions(id);
+      return Response.ok().entity(permissions).build();
+    }
   }
 
   protected Response executeFolderReportGetByProxy(String folderId, CedarRequestContext context) throws
@@ -959,7 +987,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response generateVersionsResponse(CedarRequestContext c, String id)
+  protected Response generateNodeVersionsResponse(CedarRequestContext c, String id)
       throws CedarException {
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
@@ -1085,7 +1113,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     cupu.update(resource.getCurrentUserPermissions());
   }
 
-  protected Response generateResourceReport(CedarRequestContext c, String id) throws CedarException {
+  protected Response generateNodeReportResponse(CedarRequestContext c, String id) throws CedarException {
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 

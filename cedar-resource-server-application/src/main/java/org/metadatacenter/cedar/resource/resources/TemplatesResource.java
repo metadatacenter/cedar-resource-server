@@ -102,8 +102,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_DELETE);
 
-    userMustHaveWriteAccessToResource(c, id);
-    return executeResourceDeleteByProxy(c, CedarNodeType.TEMPLATE, id);
+    return executeResourceDelete(c, CedarNodeType.TEMPLATE, id);
   }
 
   @GET
@@ -114,7 +113,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
-    return generatePermissionReport(c, id);
+    return generateNodePermissionsResponse(c, id);
   }
 
   @PUT
@@ -125,8 +124,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
 
-    userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePermissionPutByProxy(id, c);
+    return updateNodePermissions(c, id);
   }
 
   @GET
@@ -137,7 +135,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
-    return generateResourceReport(c, id);
+    return generateNodeReportResponse(c, id);
   }
 
   @GET
@@ -148,7 +146,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
-    return generateVersionsResponse(c, id);
+    return generateNodeVersionsResponse(c, id);
   }
 
 }
