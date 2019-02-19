@@ -4,8 +4,6 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.basic.FolderServerResource;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
@@ -49,7 +47,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxy(CedarNodeType.ELEMENT, id, c);
+    return executeResourceGetByProxyFromTemplateServer(CedarNodeType.ELEMENT, id, c);
   }
 
   @GET
@@ -75,9 +73,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidElement);
     }
 
-    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(c, CedarNodeType.ELEMENT, id,
-        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResource));
+    return executeResourcePutByProxy(c, CedarNodeType.ELEMENT, id);
   }
 
   @DELETE

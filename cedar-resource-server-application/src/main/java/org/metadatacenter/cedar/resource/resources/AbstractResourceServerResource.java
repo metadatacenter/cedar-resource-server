@@ -40,6 +40,7 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.PermissionServiceSession;
 import org.metadatacenter.server.VersionServiceSession;
 import org.metadatacenter.server.cache.user.UserSummaryCache;
+import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.permissions.CurrentUserPermissionUpdaterForWorkspaceResource;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
@@ -399,13 +400,15 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id,
-                                               CedarRequestContext context) throws CedarProcessingException {
-    return executeResourceGetByProxy(nodeType, id, Optional.empty(), context);
+  protected Response executeResourceGetByProxyFromTemplateServer(CedarNodeType nodeType, String id,
+                                                                 CedarRequestContext context)
+      throws CedarProcessingException {
+    return executeResourceGetByProxyFromTemplateServer(nodeType, id, Optional.empty(), context);
   }
 
-  protected Response executeResourceGetByProxy(CedarNodeType nodeType, String id, Optional<String> format,
-                                               CedarRequestContext context) throws CedarProcessingException {
+  protected Response executeResourceGetByProxyFromTemplateServer(CedarNodeType nodeType, String id,
+                                                                 Optional<String> format, CedarRequestContext context)
+      throws CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id, format);
       // parameter
@@ -478,38 +481,20 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
-                                               FolderServerResource folderServerOldResource) throws
-      CedarProcessingException {
-    return executeResourcePutByProxy(context, nodeType, id, null, null, folderServerOldResource);
+  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id) throws
+      CedarException {
+    return executeResourcePutByProxy(context, nodeType, id, null, null);
   }
 
   protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
-                                               FolderServerFolder folder, FolderServerResource folderServerOldResource)
-      throws CedarProcessingException {
-    return executeResourcePutByProxy(context, nodeType, id, folder, null, folderServerOldResource);
-  }
+                                               FolderServerFolder folder, String content) throws CedarException {
 
-  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
-                                               FolderServerFolder folder, String content, FolderServerResource
-                                                   folderServerOldResource) throws CedarProcessingException {
+    FolderServerResourceCurrentUserReport folderServerResourceReport = userMustHaveWriteAccessToResource(context, id);
+    FolderServerResource folderServerOldResource =
+        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResourceReport);
+
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
-
-      String currentName = null;
-      boolean foundOnTemplateServer = false;
-
-      HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(url, context);
-      int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();
-      if (currentStatusCode == HttpStatus.SC_OK) {
-        HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
-        if (currentTemplateEntity != null) {
-          String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity);
-          JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
-          currentName = ModelUtil.extractNameFromResource(nodeType, currentTemplateJsonNode).getValue();
-          foundOnTemplateServer = true;
-        }
-      }
 
       HttpResponse templateProxyResponse = null;
       if (content == null) {
@@ -529,6 +514,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         // resource was not created or updated
         return generateStatusResponse(templateProxyResponse);
       } else {
+
         if (createOrUpdate == CreateOrUpdate.UPDATE) {
           if (folderServerOldResource != null) {
             if (folderServerOldResource.getPublicationStatus() == BiboStatus.PUBLISHED) {
@@ -550,42 +536,31 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           String newName = ModelUtil.extractNameFromResource(nodeType, templateJsonNode).getValue();
           String newDescription = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode).getValue();
           String newIdentifier = ModelUtil.extractIdentifierFromResource(nodeType, templateJsonNode).getValue();
-          resourceRequestBody.put("name", newName);
-          resourceRequestBody.put("description", newDescription);
-          resourceRequestBody.put("identifier", newIdentifier);
-          if (folder != null) {
-            resourceRequestBody.put("parentId", folder.getId());
-            resourceRequestBody.put("nodeType", nodeType.getValue());
-          }
-          String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
-          String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
+          FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+          FolderServerResource resource = folderSession.findResourceById(id);
 
-          HttpResponse folderServerUpdateResponse = ProxyUtil.proxyPut(resourceUrl, context,
-              resourceRequestBodyAsString);
-          int folderServerUpdateStatusCode = folderServerUpdateResponse.getStatusLine().getStatusCode();
-          HttpEntity resourceEntity = folderServerUpdateResponse.getEntity();
-          if (resourceEntity != null) {
-            if (HttpStatus.SC_OK == folderServerUpdateStatusCode) {
-              if (templateEntityContent != null) {
-                // update the resource on the index
-                FolderServerResource folderServerResource =
-                    WorkspaceObjectBuilder.artifact(folderServerUpdateResponse.getEntity().getContent());
-                updateIndexResource(folderServerResource, context);
-                updateValuerecommenderResource(folderServerResource);
-                return newResponseWithValidationHeader(Response.ok(), templateProxyResponse, templateEntityContent);
-              } else {
-                return Response.ok().build();
-              }
-            } else {
-              log.error("Resource not updated #1, rollback resource and signal error");
-              return Response.status(folderServerUpdateStatusCode).entity(resourceEntity.getContent()).build();
-            }
+          if (resource == null) {
+            return CedarResponse.notFound()
+                .id(id)
+                .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
+                .errorMessage("The resource can not be found by id")
+                .build();
           } else {
-            log.error("Resource not updated #2, rollback resource and signal error");
-            return Response.status(folderServerUpdateStatusCode).build();
+            Map<NodeProperty, String> updateFields = new HashMap<>();
+            updateFields.put(NodeProperty.DESCRIPTION, newDescription);
+            updateFields.put(NodeProperty.NAME, newName);
+            updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
+            FolderServerResource updatedResource =
+                folderSession.updateResourceById(id, resource.getType(), updateFields);
+            if (updatedResource == null) {
+              return CedarResponse.internalServerError().build();
+            } else {
+              updateIndexResource(updatedResource, context);
+              updateValuerecommenderResource(updatedResource);
+              return Response.ok().entity(updatedResource).build();
+            }
           }
-
         } else {
           return Response.ok().build();
         }

@@ -4,8 +4,6 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.basic.FolderServerResource;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
@@ -49,7 +47,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxy(CedarNodeType.TEMPLATE, id, c);
+    return executeResourceGetByProxyFromTemplateServer(CedarNodeType.TEMPLATE, id, c);
   }
 
   @GET
@@ -67,8 +65,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{id}")
-  public Response updateTemplate(@PathParam(PP_ID) String id, @QueryParam(QP_FOLDER_ID) Optional<String> folderId)
-      throws CedarException {
+  public Response updateTemplate(@PathParam(PP_ID) String id) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -77,9 +74,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidTemplate);
     }
 
-    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id,
-        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResource));
+    return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id);
   }
 
   @DELETE
