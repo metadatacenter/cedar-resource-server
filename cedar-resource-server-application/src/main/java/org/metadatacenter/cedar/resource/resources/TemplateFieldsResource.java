@@ -4,11 +4,8 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerResource;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
-import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
@@ -40,18 +37,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidField);
     }
 
-    String folderIdS;
-
-    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
-    if (folderIdP.isEmpty()) {
-      folderIdS = c.getCedarUser().getHomeFolderId();
-    } else {
-      folderIdS = folderIdP.stringValue();
-    }
-
-    FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-    return executeResourcePostByProxy(c, CedarNodeType.FIELD,
-        FolderServerFolder.fromFolderServerFolderCurrentUserReport(folder));
+    return executeResourceCreationOnTemplateServerAndGraphDb(c, CedarNodeType.FIELD, folderId);
   }
 
   @GET

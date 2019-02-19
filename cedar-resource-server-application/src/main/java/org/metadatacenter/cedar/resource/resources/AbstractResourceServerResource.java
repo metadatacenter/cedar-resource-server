@@ -33,6 +33,8 @@ import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.permission.currentuserpermission.CurrentUserPermissionUpdater;
+import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
+import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.PermissionServiceSession;
@@ -52,6 +54,7 @@ import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueSe
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessage;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageResourceType;
+import org.metadatacenter.util.CedarNodeTypeUtil;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
@@ -63,10 +66,12 @@ import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
 
+import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
@@ -263,8 +268,23 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   // Proxy methods for resource types
-  protected Response executeResourcePostByProxy(CedarRequestContext context, CedarNodeType nodeType, FolderServerFolder
-      folder) throws CedarProcessingException {
+  protected Response executeResourceCreationOnTemplateServerAndGraphDb(CedarRequestContext context,
+                                                                       CedarNodeType nodeType,
+                                                                       Optional<String> folderId)
+      throws CedarException {
+
+    String folderIdS;
+
+    CedarParameter folderIdP = context.request().wrapQueryParam(QP_FOLDER_ID, folderId);
+    if (folderIdP.isEmpty()) {
+      folderIdS = context.getCedarUser().getHomeFolderId();
+    } else {
+      folderIdS = folderIdP.stringValue();
+    }
+    FolderServerFolderCurrentUserReport folderReport = userMustHaveWriteAccessToFolder(context, folderIdS);
+
+    FolderServerFolder folder = FolderServerFolder.fromFolderServerFolderCurrentUserReport(folderReport);
+
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType);
 
@@ -287,52 +307,77 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode);
           JsonPointerValuePair identifierPair = ModelUtil.extractIdentifierFromResource(nodeType, templateJsonNode);
 
-          String resourceUrl = microserviceUrlUtil.getWorkspace().getResources();
-          ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
-          resourceRequestBody.put("parentId", folder.getId());
-          resourceRequestBody.put("id", id);
-          resourceRequestBody.put("nodeType", nodeType.getValue());
-          resourceRequestBody.put("name", namePair.getValue());
-          resourceRequestBody.put("description", descriptionPair.getValue());
-          resourceRequestBody.put("identifier", identifierPair.getValue());
+          FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+
+          CedarParameter name = new CedarInPlaceParameter("name", namePair.getValue());
+          context.must(name).be(NonEmpty);
+
+          CedarParameter versionP = new CedarInPlaceParameter("version",
+              ModelUtil.extractVersionFromResource(nodeType, templateJsonNode).getValue());
+          CedarParameter publicationStatusP = new CedarInPlaceParameter("publicationStatus",
+              ModelUtil.extractPublicationStatusFromResource(nodeType, templateJsonNode).getValue());
+          CedarParameter isBasedOnP = new CedarInPlaceParameter("isBasedOn",
+              ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
+
           if (nodeType.isVersioned()) {
-            JsonPointerValuePair versionPair = ModelUtil.extractVersionFromResource(nodeType, templateJsonNode);
-            JsonPointerValuePair publicationStatusPair = ModelUtil.extractPublicationStatusFromResource(nodeType,
-                templateJsonNode);
-            resourceRequestBody.put("version", versionPair.getValue());
-            resourceRequestBody.put("publicationStatus", publicationStatusPair.getValue());
+            context.must(versionP).be(NonEmpty);
+            context.must(publicationStatusP).be(NonEmpty);
           }
           if (nodeType == CedarNodeType.INSTANCE) {
-            resourceRequestBody.put("isBasedOn", ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
+            context.must(isBasedOnP).be(NonEmpty);
           }
-          String resourceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(resourceRequestBody);
 
-          HttpResponse resourceCreateResponse = ProxyUtil.proxyPost(resourceUrl, context, resourceRequestBodyAsString);
-          int resourceCreateStatusCode = resourceCreateResponse.getStatusLine().getStatusCode();
-          HttpEntity resourceEntity = resourceCreateResponse.getEntity();
-          if (resourceEntity != null) {
-            if (HttpStatus.SC_CREATED == resourceCreateStatusCode) {
-              if (templateEntityContent != null) {
-                // index the resource that has been created
-                FolderServerResource folderServerResource =
-                    WorkspaceObjectBuilder.artifact(resourceCreateResponse.getEntity().getContent());
-                createIndexResource(folderServerResource, context);
-                createValuerecommenderResource(folderServerResource);
-                URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
-                return newResponseWithValidationHeader(Response.created(location), templateProxyResponse,
-                    templateEntityContent);
-              } else {
-                return Response.ok().build();
-              }
-            } else {
-              return newResponseWithValidationHeader(Response.status(resourceCreateStatusCode), templateProxyResponse,
-                  resourceEntity.getContent());
-            }
-          } else {
-            return Response.status(resourceCreateStatusCode).build();
+          if (CedarNodeTypeUtil.isNotValidForRestCall(nodeType)) {
+            return CedarResponse.badRequest()
+                .errorMessage("You passed an illegal nodeType:'" + nodeType +
+                    "'. The allowed values are:" + CedarNodeTypeUtil.getValidNodeTypesForRestCalls())
+                .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
+                .parameter("invalidNodeTypes", nodeType)
+                .parameter("allowedNodeTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForRestCalls())
+                .build();
           }
+
+          String versionString = versionP.stringValue();
+          ResourceVersion version = ResourceVersion.forValue(versionString);
+
+          String publicationStatusString = publicationStatusP.stringValue();
+          BiboStatus publicationStatus = BiboStatus.forValue(publicationStatusString);
+
+          String isBasedOnString = isBasedOnP.stringValue();
+
+          CedarParameter description = new CedarInPlaceParameter("description", descriptionPair.getValue());
+          CedarParameter identifier = new CedarInPlaceParameter("identifier", identifierPair.getValue());
+
+          // Later we will guarantee some kind of uniqueness for the resource names
+          // Currently we allow duplicate names, the id is the PK
+          FolderServerResource brandNewResource = WorkspaceObjectBuilder.forNodeType(nodeType, id,
+              name.stringValue(), description.stringValue(), identifier.stringValue(), version, publicationStatus);
+          if (nodeType.isVersioned()) {
+            brandNewResource.setLatestVersion(true);
+            brandNewResource.setLatestDraftVersion(publicationStatus == BiboStatus.DRAFT);
+            brandNewResource.setLatestPublishedVersion(publicationStatus == BiboStatus.PUBLISHED);
+          }
+          if (nodeType == CedarNodeType.INSTANCE) {
+            FolderServerInstance brandNewInstance = (FolderServerInstance) brandNewResource;
+            brandNewInstance.setIsBasedOn(isBasedOnString);
+          }
+          FolderServerResource newResource = folderSession.createResourceAsChildOfId(brandNewResource, folder.getId());
+
+          if (newResource == null) {
+            return CedarResponse.badRequest()
+                .parameter("id", id)
+                .parameter("parentId", folder.getId())
+                .parameter("resourceType", nodeType.getValue())
+                .errorKey(CedarErrorKey.RESOURCE_NOT_CREATED)
+                .errorMessage("The resource was not created!")
+                .build();
+          }
+          UriBuilder builder = uriInfo.getAbsolutePathBuilder();
+          URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
+
+          return Response.created(uri).entity(templateJsonNode).build();
         } else {
-          return Response.ok().build();
+          return CedarResponse.internalServerError().errorKey(CedarErrorKey.RESOURCE_NOT_CREATED).build();
         }
       }
     } catch (Exception e) {
@@ -1156,6 +1201,5 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     addProvenanceDisplayNames(resourceReport);
     return Response.ok(resourceReport).build();
   }
-
 
 }
