@@ -829,65 +829,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeFolderReportGetByProxy(String folderId, CedarRequestContext context) throws
-      CedarProcessingException {
-    try {
-      String resourceUrl = microserviceUrlUtil.getWorkspace().getFolderWithIdReport(folderId);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      HttpEntity entity = proxyResponse.getEntity();
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      if (entity != null) {
-        FolderServerFolderReport folderServerFolderReport = resourceWithProvenanceDisplayNames(proxyResponse,
-            FolderServerFolderReport.class);
-        addProvenanceDisplayNames(folderServerFolderReport);
-        return Response.status(statusCode).entity(folderServerFolderReport).build();
-      } else {
-        return Response.status(statusCode).build();
-      }
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
-    }
-  }
-
-
-  protected Response deserializeAndAddProvenanceDisplayNames(HttpResponse proxyResponse, CedarRequestContext context)
-      throws CedarProcessingException {
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    if (statusCode == HttpStatus.SC_OK) {
-      HttpEntity entity = proxyResponse.getEntity();
-      if (entity != null) {
-        try {
-          FolderServerNodeListResponse response = null;
-          String responseString = EntityUtils.toString(proxyResponse.getEntity());
-          response = JsonMapper.MAPPER.readValue(responseString, FolderServerNodeListResponse.class);
-          addProvenanceDisplayNames(response);
-          // it can not be deserialized as RSNodeListResponse
-          if (response == null) {
-            return Response.status(statusCode).entity(entity.getContent()).build();
-          } else {
-            return Response.status(statusCode).entity(response).build();
-          }
-        } catch (IOException e) {
-          throw new CedarProcessingException(e);
-        }
-      } else {
-        return Response.status(statusCode).build();
-      }
-    } else {
-      HttpEntity entity = proxyResponse.getEntity();
-      try {
-        if (entity != null) {
-          return Response.status(statusCode).entity(entity.getContent()).build();
-        } else {
-          return Response.status(statusCode).build();
-        }
-      } catch (IOException e) {
-        throw new CedarProcessingException(e);
-      }
-    }
-  }
-
   /**
    * Private methods: move these into a separate service
    */
