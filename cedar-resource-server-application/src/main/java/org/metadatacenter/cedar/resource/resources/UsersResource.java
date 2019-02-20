@@ -1,17 +1,13 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
+import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.folderserver.basic.FolderServerUser;
 import org.metadatacenter.model.response.FolderServerUserListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.util.http.CedarEntityUtil;
-import org.metadatacenter.util.http.ProxyUtil;
-import org.metadatacenter.util.json.JsonMapper;
+import org.metadatacenter.server.UserServiceSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,7 +16,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.io.IOException;
+import java.util.List;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
@@ -40,32 +36,14 @@ public class UsersResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    String url = microserviceUrlUtil.getWorkspace().getUsers();
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-    HttpEntity entity = proxyResponse.getEntity();
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    if (statusCode == HttpStatus.SC_OK) {
-      if (entity != null) {
-        FolderServerUserListResponse folderServerUserListResponse = null;
-        try {
-          folderServerUserListResponse = JsonMapper.MAPPER.readValue(entity.getContent(),
-              FolderServerUserListResponse.class);
-        } catch (IOException e) {
-          log.error("There was an error deserializing the user list", e);
-        }
-        if (folderServerUserListResponse != null) {
-          for (FolderServerUser u : folderServerUserListResponse.getUsers()) {
-            u.setEmail(null);
-          }
-          return Response.status(statusCode).entity(folderServerUserListResponse).build();
-        }
-      }
-    }
-    if (entity != null) {
-      return Response.status(statusCode).entity(CedarEntityUtil.toString(entity)).build();
-    } else {
-      return Response.status(statusCode).build();
-    }
+    UserServiceSession userSession = CedarDataServices.getUserServiceSession(c);
+
+    List<FolderServerUser> users = userSession.findUsers();
+
+    FolderServerUserListResponse r = new FolderServerUserListResponse();
+
+    r.setUsers(users);
+
+    return Response.ok().entity(r).build();
   }
 }
