@@ -56,8 +56,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetDetailsByProxy(CedarNodeType.INSTANCE, id, c);
+    return getDetails(c, id);
   }
 
   @PUT

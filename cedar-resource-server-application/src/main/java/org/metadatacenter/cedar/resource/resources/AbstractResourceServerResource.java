@@ -457,24 +457,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourceGetDetailsByProxy(CedarNodeType nodeType, String id, CedarRequestContext context)
-      throws CedarProcessingException {
-    try {
-      String resourceUrl = microserviceUrlUtil.getWorkspace().getResourceWithId(id);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(resourceUrl, context);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      HttpEntity entity = proxyResponse.getEntity();
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      if (entity != null) {
-        FolderServerNode folderServerNode = resourceWithProvenanceDisplayNames(proxyResponse, FolderServerNode.class);
-        addProvenanceDisplayName(folderServerNode);
-        return Response.status(statusCode).entity(folderServerNode).build();
-      } else {
-        return Response.status(statusCode).build();
-      }
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
-    }
+  protected Response getDetails(CedarRequestContext context, String id) throws CedarException {
+
+    FolderServerResourceCurrentUserReport resourceReport = userMustHaveReadAccessToResource(context, id);
+
+    FolderServerResource resource = FolderServerResource.fromFolderServerResourceCurrentUserReport(resourceReport);
+
+    addProvenanceDisplayName(resource);
+    return CedarResponse.ok().entity(resource).build();
   }
 
   protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id) throws
