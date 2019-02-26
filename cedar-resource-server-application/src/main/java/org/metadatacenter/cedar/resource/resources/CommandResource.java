@@ -1073,43 +1073,18 @@ public class CommandResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    CedarParameter idParam = c.request().getRequestBody().get("@id");
-    String id = idParam.stringValue();
+    CedarRequestBody requestBody = c.request().getRequestBody();
+    String id = requestBody.get("@id").stringValue();
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
+    FolderServerResourceCurrentUserReport resourceReport = userMustHaveWriteAccessToResource(c, id);
 
-    String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(MAKE_ARTIFACT_OPEN_COMMAND);
-
-    ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
-    workspaceRequestBody.put("id", id);
-    workspaceRequestBody.put("nodeType", folderServerResource.getType().getValue());
-
-    try {
-      String workspaceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(workspaceRequestBody);
-      HttpResponse workspaceServerUpdateResponse = ProxyUtil.proxyPost(workspaceUrl, c, workspaceRequestBodyAsString);
-      int workspaceServerUpdateStatusCode = workspaceServerUpdateResponse.getStatusLine().getStatusCode();
-      HttpEntity workspaceEntity = workspaceServerUpdateResponse.getEntity();
-      if (workspaceEntity != null) {
-        if (HttpStatus.SC_OK == workspaceServerUpdateStatusCode) {
-          if (workspaceEntity != null) {
-            FolderServerResource folderServerResourceUpdated =
-                WorkspaceObjectBuilder.artifact(workspaceEntity.getContent());
-            // update the resource index
-            updateIndexResource(folderServerResourceUpdated, c);
-            return Response.ok(folderServerResourceUpdated).build();
-          } else {
-            return Response.ok().build();
-          }
-        } else {
-          log.error("Artifact not made open #1, rollback resource and signal error");
-          return Response.status(workspaceServerUpdateStatusCode).entity(workspaceEntity.getContent()).build();
-        }
-      } else {
-        log.error("Artifact not made open #2, rollback resource and signal error");
-        return Response.status(workspaceServerUpdateStatusCode).build();
-      }
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
+    if (resourceReport != null) {
+      folderSession.setOpen(id);
+      FolderServerResource updatedResource = folderSession.findResourceById(id);
+      return Response.ok().entity(updatedResource).build();
+    } else {
+      return CedarResponse.notFound().build();
     }
   }
 
@@ -1120,44 +1095,19 @@ public class CommandResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    CedarParameter idParam = c.request().getRequestBody().get("@id");
-    String id = idParam.stringValue();
+    CedarRequestBody requestBody = c.request().getRequestBody();
+    String id = requestBody.get("@id").stringValue();
 
-    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServerResourceCurrentUserReport resourceReport = userMustHaveWriteAccessToResource(c, id);
 
-    String workspaceUrl = microserviceUrlUtil.getWorkspace().getCommand(MAKE_ARTIFACT_NOT_OPEN_COMMAND);
-
-    ObjectNode workspaceRequestBody = JsonNodeFactory.instance.objectNode();
-    workspaceRequestBody.put("id", id);
-    workspaceRequestBody.put("nodeType", folderServerResource.getType().getValue());
-
-    try {
-      String workspaceRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(workspaceRequestBody);
-      HttpResponse workspaceServerUpdateResponse = ProxyUtil.proxyPost(workspaceUrl, c, workspaceRequestBodyAsString);
-      int workspaceServerUpdateStatusCode = workspaceServerUpdateResponse.getStatusLine().getStatusCode();
-      HttpEntity workspaceEntity = workspaceServerUpdateResponse.getEntity();
-      if (workspaceEntity != null) {
-        if (HttpStatus.SC_OK == workspaceServerUpdateStatusCode) {
-          if (workspaceEntity != null) {
-            FolderServerResource folderServerResourceUpdated =
-                WorkspaceObjectBuilder.artifact(workspaceEntity.getContent());
-            // update the resource index
-            updateIndexResource(folderServerResourceUpdated, c);
-            return Response.ok(folderServerResourceUpdated).build();
-          } else {
-            return Response.ok().build();
-          }
-        } else {
-          log.error("Artifact not made not open #1, rollback resource and signal error");
-          return Response.status(workspaceServerUpdateStatusCode).entity(workspaceEntity.getContent()).build();
-        }
-      } else {
-        log.error("Artifact not made not open #2, rollback resource and signal error");
-        return Response.status(workspaceServerUpdateStatusCode).build();
-      }
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
+    if (resourceReport != null) {
+      folderSession.setNotOpen(id);
+      FolderServerResource updatedResource = folderSession.findResourceById(id);
+      return Response.ok().entity(updatedResource).build();
+    } else {
+      return CedarResponse.notFound().build();
     }
-  }
 
+  }
 }
