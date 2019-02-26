@@ -15,6 +15,8 @@ import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorType;
+import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.*;
@@ -32,6 +34,7 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.UserServiceSession;
+import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.util.GenerateEmptyRulesIndexTask;
 import org.metadatacenter.server.search.util.GenerateEmptySearchIndexTask;
 import org.metadatacenter.server.search.util.RegenerateRulesIndexTask;
@@ -59,6 +62,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -339,11 +343,13 @@ public class CommandResource extends AbstractResourceServerResource {
     // Check create permission
     c.must(c.user()).have(permission2);
 
-    String folderURL = microserviceUrlUtil.getWorkspace().getFolders();
 
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServerFolder sourceFolder = null;
+    FolderServerResource sourceResource = null;
     // Check if the source node exists
     if (nodeType == CedarNodeType.FOLDER) {
-      FolderServerFolder sourceFolder = FolderServerProxy.getFolder(folderURL, sourceId, c);
+      sourceFolder = folderSession.findFolderById(sourceId);
       if (sourceFolder == null) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.SOURCE_FOLDER_NOT_FOUND)
@@ -352,8 +358,7 @@ public class CommandResource extends AbstractResourceServerResource {
             .build();
       }
     } else {
-      String resourceURL = microserviceUrlUtil.getWorkspace().getResources();
-      FolderServerResource sourceResource = FolderServerProxy.getResource(resourceURL, sourceId, c);
+      sourceResource = folderSession.findResourceById(sourceId);
       if (sourceResource == null) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.SOURCE_RESOURCE_NOT_FOUND)
@@ -364,7 +369,7 @@ public class CommandResource extends AbstractResourceServerResource {
     }
 
     // Check if the target folder exists
-    FolderServerFolder targetFolder = FolderServerProxy.getFolder(folderURL, folderId, c);
+    FolderServerFolder targetFolder = folderSession.findFolderById(folderId);
     if (targetFolder == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.TARGET_FOLDER_NOT_FOUND)
@@ -383,42 +388,28 @@ public class CommandResource extends AbstractResourceServerResource {
     // Check if the user has write permission to the target folder
     userMustHaveWriteAccessToFolder(c, folderId);
 
-    try {
-      String resourceUrl = microserviceUrlUtil.getWorkspace().getCommand(MOVE_COMMAND);
-      ObjectNode folderRequestBody = JsonNodeFactory.instance.objectNode();
 
-      folderRequestBody.put("sourceId", sourceId);
-      folderRequestBody.put("nodeType", nodeType.getValue());
-      folderRequestBody.put("folderId", folderId);
-
-      String folderRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(folderRequestBody);
-
-      HttpResponse nodeMoveResponse = ProxyUtil.proxyPost(resourceUrl, c, folderRequestBodyAsString);
-      int nodeMoveStatusCode = nodeMoveResponse.getStatusLine().getStatusCode();
-      HttpEntity folderEntity = nodeMoveResponse.getEntity();
-      if (folderEntity != null) {
-        if (HttpStatus.SC_CREATED == nodeMoveStatusCode) {
-          URI location = CedarUrlUtil.getLocationURI(nodeMoveResponse);
-          if (folderEntity.getContent() != null) {
-            // there is no need to index the resource itself, since the content and meta is unchanged
-            if (nodeType == CedarNodeType.FOLDER) {
-              searchPermissionEnqueueService.folderMoved(sourceId);
-            } else {
-              searchPermissionEnqueueService.resourceMoved(sourceId);
-            }
-            return Response.created(location).entity(folderEntity.getContent()).build();
-          } else {
-            return Response.created(location).build();
-          }
-        } else {
-          return Response.status(nodeMoveStatusCode).entity(folderEntity.getContent()).build();
-        }
-      } else {
-        return Response.status(nodeMoveStatusCode).build();
-      }
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
+    boolean moved;
+    if (nodeType == CedarNodeType.FOLDER) {
+      moved = folderSession.moveFolder(sourceFolder, targetFolder);
+      searchPermissionEnqueueService.folderMoved(sourceId);
+    } else {
+      moved = folderSession.moveResource(sourceResource, targetFolder);
+      searchPermissionEnqueueService.resourceMoved(sourceId);
     }
+    if (!moved) {
+      BackendCallResult backendCallResult = new BackendCallResult();
+      backendCallResult.addError(CedarErrorType.SERVER_ERROR)
+          .errorKey(CedarErrorKey.NODE_NOT_MOVED)
+          .message("There was an error while moving the node");
+      throw new CedarBackendException(backendCallResult);
+    } else {
+      FolderServerNode movedNode = folderSession.findNodeById(sourceId);
+      UriBuilder builder = uriInfo.getAbsolutePathBuilder();
+      URI uri = builder.build();
+      return Response.created(uri).entity(movedNode).build();
+    }
+
   }
 
   @POST
@@ -1097,8 +1088,8 @@ public class CommandResource extends AbstractResourceServerResource {
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     String id = requestBody.get("@id").stringValue();
-
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+
     FolderServerResourceCurrentUserReport resourceReport = userMustHaveWriteAccessToResource(c, id);
 
     if (resourceReport != null) {
