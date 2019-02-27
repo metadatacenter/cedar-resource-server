@@ -4,7 +4,10 @@ import com.codahale.metrics.annotation.Timed;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
+import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
@@ -12,7 +15,9 @@ import org.metadatacenter.model.folderserver.basic.FolderServerNode;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -111,23 +116,53 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
 
-    userMustHaveWriteAccessToFolder(c, id);
+    FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, id);
 
-    String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-
-    int folderDeleteStatusCode = proxyResponse.getStatusLine().getStatusCode();
-    if (HttpStatus.SC_NO_CONTENT == folderDeleteStatusCode) {
-      // remove the folder from the index
-      removeIndexDocument(id);
-      return Response.noContent().build();
+    if (folder == null) {
+      return CedarResponse.notFound()
+          .id(id)
+          .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+          .errorMessage("The folder can not be found by id")
+          .build();
     } else {
-      return generateStatusResponse(proxyResponse);
+      long contentCount = folderSession.findFolderContentsUnfilteredCount(id);
+      if (contentCount > 0) {
+        return CedarResponse.badRequest()
+            .id(id)
+            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
+            .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_FOLDER)
+            .errorMessage("Non-empty folders can not be deleted")
+            .build();
+      } else if (folder.isUserHome()) {
+        return CedarResponse.badRequest()
+            .id(id)
+            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
+            .errorReasonKey(CedarErrorReasonKey.USER_HOME_FOLDER)
+            .errorMessage("User home folders can not be deleted")
+            .build();
+      } else if (folder.isSystem()) {
+        return CedarResponse.badRequest()
+            .id(id)
+            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
+            .errorReasonKey(CedarErrorReasonKey.SYSTEM_FOLDER)
+            .errorMessage("System folders can not be deleted")
+            .build();
+      } else {
+        boolean deleted = folderSession.deleteFolderById(id);
+        if (deleted) {
+          return CedarResponse.noContent().build();
+        } else {
+          return CedarResponse.internalServerError()
+              .id(id)
+              .errorKey(CedarErrorKey.FOLDER_NOT_DELETED)
+              .errorMessage("The folder can not be delete by id")
+              .build();
+        }
+      }
     }
   }
-
 
   @GET
   @Timed
