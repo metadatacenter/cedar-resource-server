@@ -735,7 +735,7 @@ public class CommandResource extends AbstractResourceServerResource {
     c.must(c.user()).have(permission);
 
     if (isFolder) {
-      return updateFolderNameAndDescriptionOnFolderServer(c, id);
+      return updateFolderNameAndDescriptionInGraphDb(c, id);
     } else {
       String templateServerUrl = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
 

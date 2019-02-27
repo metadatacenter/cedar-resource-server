@@ -1,15 +1,11 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerNode;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
@@ -19,12 +15,10 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
-import org.metadatacenter.util.http.ProxyUtil;
-import org.metadatacenter.util.json.JsonMapper;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.Response;
-import java.io.IOException;
+import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
@@ -44,38 +38,117 @@ public class FoldersResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_CREATE);
+    c.must(c.request().getRequestBody()).be(NonEmpty);
 
     CedarParameter folderIdP = c.request().getRequestBody().get("folderId");
     c.must(folderIdP).be(NonEmpty);
-
     String folderId = folderIdP.stringValue();
 
     userMustHaveWriteAccessToFolder(c, folderId);
 
-    String url = microserviceUrlUtil.getWorkspace().getFolders();
-    HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+    CedarParameter path = c.request().getRequestBody().get("path");
 
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    HttpEntity entity = proxyResponse.getEntity();
-    if (entity != null) {
-      try {
-        if (HttpStatus.SC_CREATED == statusCode) {
-          FolderServerFolder createdFolder = JsonMapper.MAPPER.readValue(entity.getContent(), FolderServerFolder.class);
-          // index the folder that has been created
-          createIndexFolder(createdFolder, c);
-          URI location = CedarUrlUtil.getLocationURI(proxyResponse);
-          return Response.created(location).entity(resourceWithProvenanceDisplayNames(proxyResponse,
-              FolderServerNode.class)).build();
-        } else {
-          return Response.status(statusCode).entity(entity.getContent()).build();
-        }
-      } catch (IOException e) {
-        throw new CedarProcessingException(e);
-      }
-    } else {
-      return Response.status(statusCode).build();
+    if (folderIdP.isMissing() && path.isEmpty()) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.PARENT_FOLDER_NOT_SPECIFIED)
+          .errorMessage("You need to supply either path or folderId parameter identifying the parent folder")
+          .build();
     }
+
+    if (!folderIdP.isEmpty() && !path.isEmpty()) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.PARENT_FOLDER_SPECIFIED_TWICE)
+          .errorMessage("You need to supply either path or folderId parameter (not both) identifying the parent folder")
+          .build();
+    }
+
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServerFolder parentFolder = null;
+
+    String pathV = null;
+    String folderIdV;
+
+    String normalizedPath = null;
+    if (!path.isEmpty()) {
+      pathV = path.stringValue();
+      normalizedPath = folderSession.normalizePath(pathV);
+      if (!normalizedPath.equals(pathV)) {
+        return CedarResponse.badRequest()
+            .errorKey(CedarErrorKey.PATH_NOT_NORMALIZED)
+            .errorMessage("You must supply the path of the new folder in normalized form!")
+            .build();
+      }
+      parentFolder = folderSession.findFolderByPath(pathV);
+    }
+
+    if (!folderId.isEmpty()) {
+      folderIdV = folderIdP.stringValue();
+      parentFolder = folderSession.findFolderById(folderIdV);
+    }
+
+    if (parentFolder == null) {
+      return CedarResponse.badRequest()
+          .parameter("path", path)
+          .parameter("folderId", folderId)
+          .errorKey(CedarErrorKey.PARENT_FOLDER_NOT_FOUND)
+          .errorMessage("The parent folder is not present!")
+          .build();
+    }
+
+
+    // get name parameter
+    CedarParameter name = c.request().getRequestBody().get("name");
+    c.must(name).be(NonEmpty);
+
+    String nameV = name.stringValue();
+    // test new folder name syntax
+    String normalizedName = folderSession.sanitizeName(nameV);
+    if (!normalizedName.equals(nameV)) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.CREATE_INVALID_FOLDER_NAME)
+          .errorMessage("The new folder name contains invalid characters!")
+          .parameter("name", name.stringValue())
+          .build();
+    }
+
+    CedarParameter description = c.request().getRequestBody().get("description");
+    c.must(description).be(NonEmpty);
+
+    // check existence of parent folder
+    FolderServerFolder newFolder = null;
+    FolderServerNode newFolderCandidate = folderSession.findNodeByParentIdAndName(parentFolder, nameV);
+    if (newFolderCandidate != null) {
+      return CedarResponse.badRequest()
+          .parameter("parentFolderId", parentFolder.getId())
+          .parameter("name", name)
+          .errorKey(CedarErrorKey.NODE_ALREADY_PRESENT)
+          .errorMessage("There is already a node with the same name at the requested location!")
+          .parameter("conflictingNodeType", newFolderCandidate.getType().getValue())
+          .parameter("conflictingNodeId", newFolderCandidate.getId())
+          .build();
+    }
+
+    String descriptionV = description.stringValue();
+
+    FolderServerFolder brandNewFolder = new FolderServerFolder();
+    brandNewFolder.setName(nameV);
+    brandNewFolder.setDescription(descriptionV);
+    newFolder = folderSession.createFolderAsChildOfId(brandNewFolder, parentFolder.getId());
+
+    if (newFolder == null) {
+      return CedarResponse.badRequest()
+          .parameter("path", pathV)
+          .parameter("parentFolderId", parentFolder.getId())
+          .parameter("name", nameV)
+          .errorKey(CedarErrorKey.FOLDER_NOT_CREATED)
+          .errorMessage("The folder was not created!")
+          .build();
+    }
+
+    UriBuilder builder = uriInfo.getAbsolutePathBuilder();
+    URI uri = builder.path(CedarUrlUtil.urlEncode(newFolder.getId())).build();
+    createIndexFolder(newFolder, c);
+    return Response.created(uri).entity(newFolder).build();
   }
 
   @GET
@@ -104,8 +177,9 @@ public class FoldersResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
+    c.must(c.request().getRequestBody()).be(NonEmpty);
 
-    return updateFolderNameAndDescriptionOnFolderServer(c, id);
+    return updateFolderNameAndDescriptionInGraphDb(c, id);
   }
 
   @DELETE
