@@ -897,41 +897,72 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response updateFolderNameAndDescriptionOnFolderServer(CedarRequestContext c, String id) throws
+  protected Response updateFolderNameAndDescriptionInGraphDb(CedarRequestContext c, String id) throws
       CedarException {
     FolderServerFolderCurrentUserReport folderServerFolder = userMustHaveWriteAccessToFolder(c, id);
     String oldName = folderServerFolder.getName();
 
-    String url = microserviceUrlUtil.getWorkspace().getFolderWithId(id);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    HttpResponse proxyResponse = ProxyUtil.proxyPut(url, c);
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+    CedarParameter name = c.request().getRequestBody().get("name");
 
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    HttpEntity entity = proxyResponse.getEntity();
-    if (entity != null) {
-      try {
-        if (HttpStatus.SC_OK == statusCode) {
-          // update the folder on the index
-          FolderServerFolder folderServerFolderUpdated = JsonMapper.MAPPER.readValue(entity.getContent(),
-              FolderServerFolder.class);
-          String newName = folderServerFolderUpdated.getName();
-          if (oldName == null || !oldName.equals(newName)) {
-            removeIndexDocument(id);
-            createIndexFolder(folderServerFolderUpdated, c);
-          } else {
-            updateIndexFolder(folderServerFolderUpdated, c);
-          }
-          return Response.ok().entity(resourceWithProvenanceDisplayNames(proxyResponse, FolderServerNode.class))
-              .build();
-        } else {
-          return Response.status(statusCode).entity(entity.getContent()).build();
-        }
-      } catch (IOException e) {
-        throw new CedarProcessingException(e);
+    String nameV = null;
+    if (!name.isEmpty()) {
+      nameV = name.stringValue();
+      nameV = nameV.trim();
+      String normalizedName = folderSession.sanitizeName(nameV);
+      if (!normalizedName.equals(nameV)) {
+        return CedarResponse.badRequest()
+            .errorKey(CedarErrorKey.UPDATE_INVALID_FOLDER_NAME)
+            .errorMessage("The folder name contains invalid characters!")
+            .parameter("name", name.stringValue())
+            .build();
       }
+    }
+
+    CedarParameter description = c.request().getRequestBody().get("description");
+
+    String descriptionV = null;
+    if (!description.isEmpty()) {
+      descriptionV = description.stringValue();
+      descriptionV = descriptionV.trim();
+    }
+
+    if ((name == null || name.isEmpty()) && (description == null || description.isEmpty())) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.MISSING_NAME_AND_DESCRIPTION)
+          .errorMessage("You must supply the new description or the new name of the folder!")
+          .build();
+    }
+
+    FolderServerFolder folder = folderSession.findFolderById(id);
+    if (folder == null) {
+      return CedarResponse.notFound()
+          .id(id)
+          .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+          .errorMessage("The folder can not be found by id")
+          .build();
     } else {
-      return Response.status(statusCode).build();
+      Map<NodeProperty, String> updateFields = new HashMap<>();
+      if (descriptionV != null) {
+        updateFields.put(NodeProperty.DESCRIPTION, descriptionV);
+      }
+      if (nameV != null) {
+        updateFields.put(NodeProperty.NAME, nameV);
+      }
+      FolderServerFolder folderServerFolderUpdated = folderSession.updateFolderById(id, updateFields);
+
+      String newName = folderServerFolderUpdated.getName();
+      if (oldName == null || !oldName.equals(newName)) {
+        removeIndexDocument(id);
+        createIndexFolder(folderServerFolderUpdated, c);
+      } else {
+        updateIndexFolder(folderServerFolderUpdated, c);
+      }
+
+
+      addProvenanceDisplayName(folderServerFolderUpdated);
+      return Response.ok().entity(folderServerFolderUpdated).build();
     }
   }
 
