@@ -11,7 +11,6 @@ import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.keycloak.events.Event;
 import org.metadatacenter.bridge.CedarDataServices;
-import org.metadatacenter.bridge.FolderServerProxy;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorType;
@@ -305,7 +304,7 @@ public class CommandResource extends AbstractResourceServerResource {
             .parameter("resourceType", nodeType.getValue())
             .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND);
       } else {
-        FolderServerResource brandNewResource = WorkspaceObjectBuilder.forNodeType(nodeType, newId,
+        FolderServerResource brandNewResource = GraphDbObjectBuilder.forNodeType(nodeType, newId,
             name, description, identifier, version, publicationStatus);
         if (nodeType.isVersioned()) {
           brandNewResource.setLatestVersion(true);
@@ -876,7 +875,7 @@ public class CommandResource extends AbstractResourceServerResource {
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
-            // publish on workspace server
+            // publish in Neo4j server
             FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
             folderServerResourceOld.setLatestPublishedVersion(true);
@@ -972,10 +971,10 @@ public class CommandResource extends AbstractResourceServerResource {
     // Check update permission
     c.must(c.user()).have(updatePermission);
 
-    String folderURL = microserviceUrlUtil.getWorkspace().getFolders();
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    // Check if the target folder exists
-    FolderServerFolder targetFolder = FolderServerProxy.getFolder(folderURL, folderId, c);
+    FolderServerResourceCurrentUserReport targetFolder = userMustHaveWriteAccessToResource(c, folderId);
+
     if (targetFolder == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.TARGET_FOLDER_NOT_FOUND)
@@ -1030,13 +1029,11 @@ public class CommandResource extends AbstractResourceServerResource {
             String newId = atId.asText();
 
 
-            FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-
             FolderServerResource sourceResource = folderSession.findResourceById(id);
 
             BiboStatus status = BiboStatus.DRAFT;
 
-            FolderServerResource brandNewResource = WorkspaceObjectBuilder.forNodeType(nodeType, newId,
+            FolderServerResource brandNewResource = GraphDbObjectBuilder.forNodeType(nodeType, newId,
                 sourceResource.getName(), sourceResource.getDescription(), sourceResource.getIdentifier(), newVersion,
                 status);
             if (nodeType.isVersioned()) {
@@ -1079,7 +1076,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
             return Response.created(uri).entity(createdNewResource).build();
 
-            /// this is the end of workspace creation
+            /// this is the end of Neo4j creation
           } else {
             return CedarResponse.internalServerError()
                 .errorMessage("There was an error while creating the resource on the template server")

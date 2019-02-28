@@ -33,7 +33,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
   @Override
   public void initializeApp() {
-    CedarDataServices.initializeWorkspaceServices(cedarConfig);
+    CedarDataServices.initializeNeo4jServices(cedarConfig);
 
     UserSummaryCache.init(cedarConfig, userService);
 

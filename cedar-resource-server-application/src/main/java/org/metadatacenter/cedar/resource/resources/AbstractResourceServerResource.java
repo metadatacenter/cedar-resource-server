@@ -9,7 +9,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
-import org.metadatacenter.bridge.FolderServerProxy;
+import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.CustomHttpConstants;
@@ -347,7 +347,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
           // Later we will guarantee some kind of uniqueness for the resource names
           // Currently we allow duplicate names, the id is the PK
-          FolderServerResource brandNewResource = WorkspaceObjectBuilder.forNodeType(nodeType, id,
+          FolderServerResource brandNewResource = GraphDbObjectBuilder.forNodeType(nodeType, id,
               name.stringValue(), description.stringValue(), identifier.stringValue(), version, publicationStatus);
           if (nodeType.isVersioned()) {
             brandNewResource.setLatestVersion(true);
@@ -587,7 +587,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         return generateStatusResponse(proxyResponse);
       } else {
         if (statusCode == HttpStatus.SC_NOT_FOUND) {
-          log.warn("Resource not found on template server, but still trying to delete on workspace. Id:" + id);
+          log.warn("Resource not found on template server, but still trying to delete from Neo4j. Id:" + id);
         }
       }
     } catch (Exception e) {
@@ -644,7 +644,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected FolderServerFolderCurrentUserReport userMustHaveReadAccessToFolder(CedarRequestContext context,
                                                                                String folderId) throws CedarException {
-    FolderServerFolderCurrentUserReport fsFolder = FolderServerProxy.getFolderCurrentUserReport(context, folderId);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(context);
+    FolderServerFolderCurrentUserReport fsFolder =
+        GraphDbPermissionReader.getFolderCurrentUserReport(context, folderSession, permissionSession, folderId);
     if (fsFolder == null) {
       throw new CedarObjectNotFoundException("Folder not found by id")
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
@@ -662,7 +665,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected FolderServerFolderCurrentUserReport userMustHaveWriteAccessToFolder(CedarRequestContext context,
                                                                                 String folderId) throws CedarException {
-    FolderServerFolderCurrentUserReport fsFolder = FolderServerProxy.getFolderCurrentUserReport(context, folderId);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(context);
+    FolderServerFolderCurrentUserReport fsFolder =
+        GraphDbPermissionReader.getFolderCurrentUserReport(context, folderSession, permissionSession, folderId);
     if (fsFolder == null) {
       throw new CedarObjectNotFoundException("Folder not found by id")
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
@@ -681,8 +687,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected FolderServerResourceCurrentUserReport userMustHaveReadAccessToResource(CedarRequestContext context,
                                                                                    String resourceId)
       throws CedarException {
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(context);
     FolderServerResourceCurrentUserReport
-        fsResource = FolderServerProxy.getResourceCurrentUserReport(context, cedarConfig, resourceId);
+        fsResource = GraphDbPermissionReader
+        .getResourceCurrentUserReport(context, folderSession, permissionSession, cedarConfig, resourceId);
     if (fsResource == null) {
       throw new CedarObjectNotFoundException("Resource not found by id")
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
@@ -701,9 +710,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected FolderServerResourceCurrentUserReport userMustHaveWriteAccessToResource(CedarRequestContext context,
                                                                                     String resourceId)
       throws CedarException {
-    String url = microserviceUrlUtil.getWorkspace().getResources();
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(context);
     FolderServerResourceCurrentUserReport
-        fsResource = FolderServerProxy.getResourceCurrentUserReport(context, cedarConfig, resourceId);
+        fsResource = GraphDbPermissionReader
+        .getResourceCurrentUserReport(context, folderSession, permissionSession, cedarConfig, resourceId);
     if (fsResource == null) {
       throw new CedarObjectNotFoundException("Resource not found by id")
           .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
@@ -1108,7 +1119,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     FolderServerResourceReport resourceReport = FolderServerResourceReport.fromResource(resource);
 
     decorateResourceWithDerivedFrom(folderSession, permissionSession, resourceReport);
-    FolderServerProxy.decorateResourceWithCurrentUserPermissions(c, cedarConfig, resourceReport);
+    GraphDbPermissionReader
+        .decorateResourceWithCurrentUserPermissions(c, permissionSession, cedarConfig, resourceReport);
 
     if (resource.getType() == CedarNodeType.INSTANCE) {
       decorateResourceWithIsBasedOn(folderSession, permissionSession,
