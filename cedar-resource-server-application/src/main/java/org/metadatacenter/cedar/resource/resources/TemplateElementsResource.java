@@ -72,7 +72,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidElement);
     }
 
-    return executeResourcePutByProxy(c, CedarNodeType.ELEMENT, id);
+    return executeResourceCreateOrUpdateViaPut(c, CedarNodeType.ELEMENT, id);
   }
 
   @DELETE

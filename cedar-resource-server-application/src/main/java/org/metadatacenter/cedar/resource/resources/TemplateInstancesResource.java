@@ -76,7 +76,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
-    return executeResourcePutByProxy(c, CedarNodeType.INSTANCE, id);
+    return executeResourceCreateOrUpdateViaPut(c, CedarNodeType.INSTANCE, id);
   }
 
   @DELETE

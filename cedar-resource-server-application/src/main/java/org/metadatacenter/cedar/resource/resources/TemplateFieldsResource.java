@@ -72,7 +72,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidField);
     }
 
-    return executeResourcePutByProxy(c, CedarNodeType.FIELD, id);
+    return executeResourceCreateOrUpdateViaPut(c, CedarNodeType.FIELD, id);
   }
 
   @DELETE

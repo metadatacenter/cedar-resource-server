@@ -2,7 +2,6 @@ package org.metadatacenter.cedar.resource.resources;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -372,6 +371,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
           URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
 
+          createIndexResource(newResource, context);
+          createValuerecommenderResource(newResource);
           return Response.created(uri).entity(templateJsonNode).build();
         } else {
           return CedarResponse.internalServerError().errorKey(CedarErrorKey.RESOURCE_NOT_CREATED).build();
@@ -467,13 +468,15 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return CedarResponse.ok().entity(resource).build();
   }
 
-  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id) throws
-      CedarException {
-    return executeResourcePutByProxy(context, nodeType, id, null, null);
+  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarNodeType nodeType, String id)
+      throws CedarException {
+    return executeResourceCreateOrUpdateViaPut(context, nodeType, id,
+        context.request().getRequestBody().asJsonString());
   }
 
-  protected Response executeResourcePutByProxy(CedarRequestContext context, CedarNodeType nodeType, String id,
-                                               FolderServerFolder folder, String content) throws CedarException {
+  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarNodeType nodeType, String id,
+                                                         String content)
+      throws CedarException {
 
     FolderServerResourceCurrentUserReport folderServerResourceReport = userMustHaveWriteAccessToResource(context, id);
     FolderServerResource folderServerOldResource =
@@ -482,12 +485,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     try {
       String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
 
-      HttpResponse templateProxyResponse = null;
-      if (content == null) {
-        templateProxyResponse = ProxyUtil.proxyPut(url, context);
-      } else {
-        templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
-      }
+      HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
       int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
       CreateOrUpdate createOrUpdate = null;
@@ -518,7 +516,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           String templateEntityContent = EntityUtils.toString(templateEntity);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
 
-          ObjectNode resourceRequestBody = JsonNodeFactory.instance.objectNode();
           String newName = ModelUtil.extractNameFromResource(nodeType, templateJsonNode).getValue();
           String newDescription = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode).getValue();
           String newIdentifier = ModelUtil.extractIdentifierFromResource(nodeType, templateJsonNode).getValue();
@@ -533,19 +530,35 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                 .errorMessage("The resource can not be found by id")
                 .build();
           } else {
-            Map<NodeProperty, String> updateFields = new HashMap<>();
-            updateFields.put(NodeProperty.DESCRIPTION, newDescription);
-            updateFields.put(NodeProperty.NAME, newName);
-            updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
-            FolderServerResource updatedResource =
-                folderSession.updateResourceById(id, resource.getType(), updateFields);
-            if (updatedResource == null) {
+
+            if (statusCode == HttpStatus.SC_OK) {
+              Map<NodeProperty, String> updateFields = new HashMap<>();
+              updateFields.put(NodeProperty.DESCRIPTION, newDescription);
+              updateFields.put(NodeProperty.NAME, newName);
+              updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
+              FolderServerResource updatedResource =
+                  folderSession.updateResourceById(id, resource.getType(), updateFields);
+              if (updatedResource == null) {
+                return CedarResponse.internalServerError().build();
+              } else {
+                updateIndexResource(updatedResource, context);
+                updateValuerecommenderResource(updatedResource);
+                return Response.ok().entity(updatedResource).build();
+              }
+            } else if (statusCode == HttpStatus.SC_CREATED) {
+              //TODO : Handle creation via PUT
+              /*FolderServerResource updatedResource =
+                  folderSession.updateResourceById(id, resource.getType(), updateFields);
+              if (updatedResource == null) {
+                return CedarResponse.internalServerError().build();
+              } else {
+                updateIndexResource(updatedResource, context);
+                updateValuerecommenderResource(updatedResource);
+                return Response.ok().entity(updatedResource).build();
+              }*/
               return CedarResponse.internalServerError().build();
-            } else {
-              updateIndexResource(updatedResource, context);
-              updateValuerecommenderResource(updatedResource);
-              return Response.ok().entity(updatedResource).build();
             }
+            return CedarResponse.internalServerError().build();
           }
         } else {
           return Response.ok().build();
