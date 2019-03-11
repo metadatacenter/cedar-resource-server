@@ -4,11 +4,6 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
-import org.metadatacenter.model.folderserver.basic.FolderServerResource;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
-import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
@@ -40,18 +35,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidField);
     }
 
-    String folderIdS;
-
-    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
-    if (folderIdP.isEmpty()) {
-      folderIdS = c.getCedarUser().getHomeFolderId();
-    } else {
-      folderIdS = folderIdP.stringValue();
-    }
-
-    FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-    return executeResourcePostByProxy(c, CedarNodeType.FIELD,
-        FolderServerFolder.fromFolderServerFolderCurrentUserReport(folder));
+    return executeResourceCreationOnTemplateServerAndGraphDb(c, CedarNodeType.FIELD, folderId);
   }
 
   @GET
@@ -63,7 +47,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxy(CedarNodeType.FIELD, id, c);
+    return executeResourceGetByProxyFromTemplateServer(CedarNodeType.FIELD, id, c);
   }
 
   @GET
@@ -74,8 +58,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetDetailsByProxy(CedarNodeType.FIELD, id, c);
+    return getDetails(c, id);
   }
 
   @PUT
@@ -89,9 +72,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidField);
     }
 
-    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(c, CedarNodeType.FIELD, id,
-        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResource));
+    return executeResourceCreateOrUpdateViaPut(c, CedarNodeType.FIELD, id);
   }
 
   @DELETE
@@ -102,8 +83,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_DELETE);
 
-    userMustHaveWriteAccessToResource(c, id);
-    return executeResourceDeleteByProxy(c, CedarNodeType.FIELD, id);
+    return executeResourceDelete(c, CedarNodeType.FIELD, id);
   }
 
   @GET
@@ -114,7 +94,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    return generatePermissionReport(c, id);
+    return generateNodePermissionsResponse(c, id);
   }
 
   @PUT
@@ -125,8 +105,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
 
-    userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePermissionPutByProxy(id, c);
+    return updateNodePermissions(c, id);
   }
 
   @GET
@@ -137,7 +116,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    return generateResourceReport(c, id);
+    return generateNodeReportResponse(c, id);
   }
 
   @GET
@@ -148,7 +127,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
-    return generateVersionsResponse(c, id);
+    return generateNodeVersionsResponse(c, id);
   }
 
 }

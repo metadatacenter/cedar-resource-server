@@ -4,11 +4,6 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
-import org.metadatacenter.model.folderserver.basic.FolderServerResource;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
-import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
@@ -40,16 +35,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidTemplate);
     }
 
-    String folderIdS;
-    CedarParameter folderIdP = c.request().wrapQueryParam(QP_FOLDER_ID, folderId);
-    if (folderIdP.isEmpty()) {
-      folderIdS = c.getCedarUser().getHomeFolderId();
-    } else {
-      folderIdS = folderIdP.stringValue();
-    }
-    FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, folderIdS);
-    return executeResourcePostByProxy(c, CedarNodeType.TEMPLATE,
-        FolderServerFolder.fromFolderServerFolderCurrentUserReport(folder));
+    return executeResourceCreationOnTemplateServerAndGraphDb(c, CedarNodeType.TEMPLATE, folderId);
   }
 
   @GET
@@ -61,7 +47,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxy(CedarNodeType.TEMPLATE, id, c);
+    return executeResourceGetByProxyFromTemplateServer(CedarNodeType.TEMPLATE, id, c);
   }
 
   @GET
@@ -72,15 +58,13 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetDetailsByProxy(CedarNodeType.TEMPLATE, id, c);
+    return getDetails(c, id);
   }
 
   @PUT
   @Timed
   @Path("/{id}")
-  public Response updateTemplate(@PathParam(PP_ID) String id, @QueryParam(QP_FOLDER_ID) Optional<String> folderId)
-      throws CedarException {
+  public Response updateTemplate(@PathParam(PP_ID) String id) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -89,9 +73,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidTemplate);
     }
 
-    FolderServerResourceCurrentUserReport folderServerResource = userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePutByProxy(c, CedarNodeType.TEMPLATE, id,
-        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResource));
+    return executeResourceCreateOrUpdateViaPut(c, CedarNodeType.TEMPLATE, id);
   }
 
   @DELETE
@@ -102,8 +84,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_DELETE);
 
-    userMustHaveWriteAccessToResource(c, id);
-    return executeResourceDeleteByProxy(c, CedarNodeType.TEMPLATE, id);
+    return executeResourceDelete(c, CedarNodeType.TEMPLATE, id);
   }
 
   @GET
@@ -114,7 +95,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
-    return generatePermissionReport(c, id);
+    return generateNodePermissionsResponse(c, id);
   }
 
   @PUT
@@ -125,8 +106,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
 
-    userMustHaveWriteAccessToResource(c, id);
-    return executeResourcePermissionPutByProxy(id, c);
+    return updateNodePermissions(c, id);
   }
 
   @GET
@@ -137,7 +117,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
-    return generateResourceReport(c, id);
+    return generateNodeReportResponse(c, id);
   }
 
   @GET
@@ -148,7 +128,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
 
-    return generateVersionsResponse(c, id);
+    return generateNodeVersionsResponse(c, id);
   }
 
 }
