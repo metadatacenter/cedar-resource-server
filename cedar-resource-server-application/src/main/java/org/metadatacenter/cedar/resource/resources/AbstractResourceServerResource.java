@@ -9,6 +9,7 @@ import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
+import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.CustomHttpConstants;
@@ -1126,8 +1127,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     folderSession.addPathAndParentId(resource);
 
-    List<FolderServerNodeExtract> pathInfo = folderSession.findNodePathExtract(resource);
-    resource.setPathInfo(pathInfo);
+    resource.setPathInfo(PathInfoBuilder.getNodePathExtract(c, folderSession, permissionSession, resource));
 
     FolderServerResourceReport resourceReport = FolderServerResourceReport.fromResource(resource);
 
