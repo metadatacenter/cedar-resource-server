@@ -37,11 +37,11 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     if (cedarConfig.getValidationConfig().isEnabled()) {
       CedarParameter templateIdParam = c.request().getRequestBody().get(ModelNodeNames.SCHEMA_IS_BASED_ON);
       String templateId = templateIdParam.stringValue();
-      String templateString = getResourceFromTemplateServer(CedarNodeType.TEMPLATE, templateId, c);
+      String templateString = getResourceFromArtifactServer(CedarNodeType.TEMPLATE, templateId, c);
       c.must(c.request()).be(new ValidInstanceAssertion(templateString));
     }
 
-    return executeResourceCreationOnTemplateServerAndGraphDb(c, CedarNodeType.INSTANCE, folderId);
+    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarNodeType.INSTANCE, folderId);
   }
 
   @GET
@@ -54,7 +54,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxyFromTemplateServer(CedarNodeType.INSTANCE, id, format, c);
+    return executeResourceGetByProxyFromArtifactServer(CedarNodeType.INSTANCE, id, format, c);
   }
 
   @GET

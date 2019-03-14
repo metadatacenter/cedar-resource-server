@@ -2,6 +2,7 @@ package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
@@ -65,7 +66,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     }
 
     PagedSortedTypedQuery pagedSortedTypedQuery = new PagedSortedTypedQuery(
-        cedarConfig.getFolderRESTAPI().getPagination())
+        cedarConfig.getResourceRESTAPI().getPagination())
         .resourceTypes(resourceTypes)
         .version(versionParam)
         .publicationStatus(publicationStatusParam)
@@ -103,7 +104,10 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .queryParam(QP_SORT, pagedSortedTypedQuery.getSortListAsString())
         .build();
 
-    List<FolderServerNodeExtract> pathInfo = folderSession.findNodePathExtract(folder);
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
+    
+    List<FolderServerNodeExtract> pathInfo =
+        PathInfoBuilder.getNodePathExtract(c, folderSession, permissionSession, folder);
 
     FolderServerNodeListResponse r =
         findFolderContents(c, folderSession, folder, absoluteURI.toString(), pathInfo, pagedSortedTypedQuery);
