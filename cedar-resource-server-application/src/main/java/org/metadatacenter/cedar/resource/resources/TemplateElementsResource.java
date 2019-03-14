@@ -35,7 +35,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidElement);
     }
 
-    return executeResourceCreationOnTemplateServerAndGraphDb(c, CedarNodeType.ELEMENT, folderId);
+    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarNodeType.ELEMENT, folderId);
   }
 
   @GET
@@ -47,7 +47,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxyFromTemplateServer(CedarNodeType.ELEMENT, id, c);
+    return executeResourceGetByProxyFromArtifactServer(CedarNodeType.ELEMENT, id, c);
   }
 
   @GET

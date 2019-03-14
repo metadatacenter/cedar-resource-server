@@ -65,7 +65,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         .queryParam(QP_SHARING, sharingParam);
 
     PagedSortedTypedSearchQuery pagedSearchQuery = new PagedSortedTypedSearchQuery(
-        cedarConfig.getFolderRESTAPI().getPagination())
+        cedarConfig.getResourceRESTAPI().getPagination())
         .q(q)
         .id(id)
         .resourceTypes(resourceTypes)

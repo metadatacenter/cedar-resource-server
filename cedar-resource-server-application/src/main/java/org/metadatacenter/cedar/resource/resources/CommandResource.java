@@ -200,7 +200,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
     String originalDocument = null;
     try {
-      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
+      String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
@@ -225,7 +225,7 @@ public class CommandResource extends AbstractResourceServerResource {
     }
 
     try {
-      String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType);
+      String url = microserviceUrlUtil.getArtifact().getNodeType(nodeType);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, c, originalDocument);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -648,7 +648,7 @@ public class CommandResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 //    c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?
 
-    String url = microserviceUrlUtil.getTemplate().getValidateCommand(resourceType);
+    String url = microserviceUrlUtil.getArtifact().getValidateCommand(resourceType);
 
     try {
       HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
@@ -736,9 +736,9 @@ public class CommandResource extends AbstractResourceServerResource {
     if (isFolder) {
       return updateFolderNameAndDescriptionInGraphDb(c, id);
     } else {
-      String templateServerUrl = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
+      String artifactServerUrl = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
 
-      HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(templateServerUrl, c);
+      HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(artifactServerUrl, c);
       int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();
       if (currentStatusCode != HttpStatus.SC_OK) {
         // resource was not created
@@ -845,7 +845,7 @@ public class CommandResource extends AbstractResourceServerResource {
     // Check update permission
     c.must(c.user()).have(updatePermission);
 
-    String getResponse = getResourceFromTemplateServer(nodeType, id, c);
+    String getResponse = getResourceFromArtifactServer(nodeType, id, c);
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
@@ -867,11 +867,11 @@ public class CommandResource extends AbstractResourceServerResource {
                 .build();
           }
 
-          //publish on template server
+          //publish on artifact server
           ((ObjectNode) getJsonNode).put(PAV_VERSION, newVersion.getValue());
           ((ObjectNode) getJsonNode).put(BIBO_STATUS, BiboStatus.PUBLISHED.getValue());
           String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);
-          Response putResponse = putResourceToTemplateServer(nodeType, id, c, content);
+          Response putResponse = putResourceToArtifactServer(nodeType, id, c, content);
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
@@ -986,7 +986,7 @@ public class CommandResource extends AbstractResourceServerResource {
     // Check if the user has write permission to the target folder
     userMustHaveWriteAccessToFolder(c, folderId);
 
-    String getResponse = getResourceFromTemplateServer(nodeType, id, c);
+    String getResponse = getResourceFromArtifactServer(nodeType, id, c);
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
@@ -1016,16 +1016,16 @@ public class CommandResource extends AbstractResourceServerResource {
 
           FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, folderId);
 
-          String templateServerPostRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(newDocument);
+          String artifactServerPostRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(newDocument);
 
-          Response templateServerPostResponse = executeResourcePostToTemplateServer(c, nodeType,
-              templateServerPostRequestBodyAsString);
+          Response artifactServerPostResponse = executeResourcePostToArtifactServer(c, nodeType,
+              artifactServerPostRequestBodyAsString);
 
-          int templateServerPostStatus = templateServerPostResponse.getStatus();
-          InputStream is = (InputStream) templateServerPostResponse.getEntity();
-          JsonNode templateServerPostResponseNode = JsonMapper.MAPPER.readTree(is);
-          if (templateServerPostStatus == Response.Status.CREATED.getStatusCode()) {
-            JsonNode atId = templateServerPostResponseNode.at(ModelPaths.AT_ID);
+          int artifactServerPostStatus = artifactServerPostResponse.getStatus();
+          InputStream is = (InputStream) artifactServerPostResponse.getEntity();
+          JsonNode artifactServerPostResponseNode = JsonMapper.MAPPER.readTree(is);
+          if (artifactServerPostStatus == Response.Status.CREATED.getStatusCode()) {
+            JsonNode atId = artifactServerPostResponseNode.at(ModelPaths.AT_ID);
             String newId = atId.asText();
 
 
@@ -1079,9 +1079,9 @@ public class CommandResource extends AbstractResourceServerResource {
             /// this is the end of Neo4j creation
           } else {
             return CedarResponse.internalServerError()
-                .errorMessage("There was an error while creating the resource on the template server")
-                .parameter("responseCode", templateServerPostStatus)
-                .parameter("responseDocument", templateServerPostResponseNode)
+                .errorMessage("There was an error while creating the resource on the artifact server")
+                .parameter("responseCode", artifactServerPostStatus)
+                .parameter("responseDocument", artifactServerPostResponseNode)
                 .build();
           }
         }

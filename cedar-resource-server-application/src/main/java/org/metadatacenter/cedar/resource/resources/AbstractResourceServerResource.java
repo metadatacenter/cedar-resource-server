@@ -236,10 +236,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return resource;
   }
 
-  protected Response executeResourcePostToTemplateServer(CedarRequestContext context, CedarNodeType nodeType, String
+  protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarNodeType nodeType, String
       content) throws CedarProcessingException {
     try {
-      String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType);
+      String url = microserviceUrlUtil.getArtifact().getNodeType(nodeType);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -265,7 +265,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   // Proxy methods for resource types
-  protected Response executeResourceCreationOnTemplateServerAndGraphDb(CedarRequestContext context,
+  protected Response executeResourceCreationOnArtifactServerAndGraphDb(CedarRequestContext context,
                                                                        CedarNodeType nodeType,
                                                                        Optional<String> folderId)
       throws CedarException {
@@ -283,7 +283,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     FolderServerFolder folder = FolderServerFolder.fromFolderServerFolderCurrentUserReport(folderReport);
 
     try {
-      String url = microserviceUrlUtil.getTemplate().getNodeType(nodeType);
+      String url = microserviceUrlUtil.getArtifact().getNodeType(nodeType);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -398,17 +398,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourceGetByProxyFromTemplateServer(CedarNodeType nodeType, String id,
+  protected Response executeResourceGetByProxyFromArtifactServer(CedarNodeType nodeType, String id,
                                                                  CedarRequestContext context)
       throws CedarProcessingException {
-    return executeResourceGetByProxyFromTemplateServer(nodeType, id, Optional.empty(), context);
+    return executeResourceGetByProxyFromArtifactServer(nodeType, id, Optional.empty(), context);
   }
 
-  protected Response executeResourceGetByProxyFromTemplateServer(CedarNodeType nodeType, String id,
+  protected Response executeResourceGetByProxyFromArtifactServer(CedarNodeType nodeType, String id,
                                                                  Optional<String> format, CedarRequestContext context)
       throws CedarProcessingException {
     try {
-      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id, format);
+      String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id, format);
       // parameter
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
@@ -425,10 +425,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected String getResourceFromTemplateServer(CedarNodeType nodeType, String id, CedarRequestContext context) throws
+  protected String getResourceFromArtifactServer(CedarNodeType nodeType, String id, CedarRequestContext context) throws
       CedarProcessingException {
     try {
-      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
+      String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
@@ -438,10 +438,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response putResourceToTemplateServer(CedarNodeType nodeType, String id, CedarRequestContext context, String
+  protected Response putResourceToArtifactServer(CedarNodeType nodeType, String id, CedarRequestContext context, String
       content) throws
       CedarProcessingException {
-    String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
+    String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
     HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
     HttpEntity entity = templateProxyResponse.getEntity();
     int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
@@ -484,7 +484,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResourceReport);
 
     try {
-      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
+      String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -589,10 +589,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
     }
 
-    // Delete from template server
+    // Delete from artifact server
 
     try {
-      String url = microserviceUrlUtil.getTemplate().getNodeTypeWithId(nodeType, id);
+      String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
@@ -601,7 +601,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         return generateStatusResponse(proxyResponse);
       } else {
         if (statusCode == HttpStatus.SC_NOT_FOUND) {
-          log.warn("Resource not found on template server, but still trying to delete from Neo4j. Id:" + id);
+          log.warn("Resource not found on artifact server, but still trying to delete from Neo4j. Id:" + id);
         }
       }
     } catch (Exception e) {
@@ -637,7 +637,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       String previousId = resourceReport.getPreviousVersion().getValue();
       FolderServerResourceCurrentUserReport folderServerPreviousResource =
           userMustHaveReadAccessToResource(c, previousId);
-      String getResponse = getResourceFromTemplateServer(nodeType, previousId, c);
+      String getResponse = getResourceFromArtifactServer(nodeType, previousId, c);
       if (getResponse != null) {
         JsonNode getJsonNode = null;
         try {

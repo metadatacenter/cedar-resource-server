@@ -35,7 +35,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidField);
     }
 
-    return executeResourceCreationOnTemplateServerAndGraphDb(c, CedarNodeType.FIELD, folderId);
+    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarNodeType.FIELD, folderId);
   }
 
   @GET
@@ -47,7 +47,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxyFromTemplateServer(CedarNodeType.FIELD, id, c);
+    return executeResourceGetByProxyFromArtifactServer(CedarNodeType.FIELD, id, c);
   }
 
   @GET

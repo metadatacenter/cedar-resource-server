@@ -66,7 +66,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     }
 
     PagedSortedTypedQuery pagedSortedTypedQuery = new PagedSortedTypedQuery(
-        cedarConfig.getFolderRESTAPI().getPagination())
+        cedarConfig.getResourceRESTAPI().getPagination())
         .resourceTypes(resourceTypes)
         .version(versionParam)
         .publicationStatus(publicationStatusParam)
