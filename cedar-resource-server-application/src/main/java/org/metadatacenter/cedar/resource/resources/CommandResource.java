@@ -19,10 +19,7 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.*;
-import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
-import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
-import org.metadatacenter.model.folderserver.basic.FolderServerNode;
-import org.metadatacenter.model.folderserver.basic.FolderServerResource;
+import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
 import org.metadatacenter.model.request.OutputFormatType;
@@ -35,6 +32,7 @@ import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.PermissionServiceSession;
 import org.metadatacenter.server.UserServiceSession;
+import org.metadatacenter.server.neo4j.Neo4JFieldValues;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.util.GenerateEmptyRulesIndexTask;
@@ -97,13 +95,6 @@ public class CommandResource extends AbstractResourceServerResource {
 
   public static void injectUserService(UserService us) {
     userService = us;
-  }
-
-  private static void createHomeFolderAndUser(CedarRequestContext cedarRequestContext) {
-    UserServiceSession userSession = CedarDataServices.getUserServiceSession(cedarRequestContext);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
-    userSession.ensureUserExists();
-    folderSession.ensureUserHomeExists();
   }
 
   private static Response doConvert(JsonNode resourceNode, OutputFormatType formatType) throws CedarException {
@@ -473,7 +464,13 @@ public class CommandResource extends AbstractResourceServerResource {
         if (cedarConfig.getKeycloakConfig().getResource().equals(clientId)) {
           CedarUser user = createUserRelatedObjects(userService, targetUser);
           CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
-          createHomeFolderAndUser(userContext);
+
+          UserServiceSession userSession = CedarDataServices.getUserServiceSession(userContext);
+          userSession.addUserToEverybodyGroup(user);
+
+          FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(userContext);
+          folderSession.ensureUserHomeExists();
+
           updateHomeFolderId(userContext, userService, user);
         }
       } catch (Exception e) {
@@ -515,7 +512,7 @@ public class CommandResource extends AbstractResourceServerResource {
     if (userHomeFolder != null) {
       user.setHomeFolderId(userHomeFolder.getId());
       try {
-        userService.updateUser(user.getId(), user);
+        userService.updateUser(user);
       } catch (Exception e) {
         log.error("Error while updating user: " + user.getEmail(), e);
       }
