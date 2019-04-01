@@ -160,6 +160,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
     FolderServerFolderCurrentUserReport folderServerFolder = userMustHaveReadAccessToFolder(c, id);
+    addProvenanceDisplayName(folderServerFolder);
     return Response.ok().entity(folderServerFolder).build();
   }
 
