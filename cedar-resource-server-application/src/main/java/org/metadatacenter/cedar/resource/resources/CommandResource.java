@@ -19,7 +19,10 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.*;
-import org.metadatacenter.model.folderserver.basic.*;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
+import org.metadatacenter.model.folderserver.basic.FolderServerNode;
+import org.metadatacenter.model.folderserver.basic.FolderServerResource;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
 import org.metadatacenter.model.request.OutputFormatType;
@@ -32,7 +35,6 @@ import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.PermissionServiceSession;
 import org.metadatacenter.server.UserServiceSession;
-import org.metadatacenter.server.neo4j.Neo4JFieldValues;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.util.GenerateEmptyRulesIndexTask;
@@ -497,11 +499,7 @@ public class CommandResource extends AbstractResourceServerResource {
 
     CedarUser user = CedarUserUtil.createUserFromBlueprint(cedarConfig.getBlueprintUserProfile(), eventUser,
         CedarSuperRole.NORMAL, cedarConfig, null);
-    try {
-      return userService.createUser(user);
-    } catch (IOException e) {
-      throw new CedarProcessingException(e);
-    }
+    return userService.createUser(user);
   }
 
   private void updateHomeFolderId(CedarRequestContext cedarRequestContext, UserService userService, CedarUser user) {
