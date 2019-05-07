@@ -66,6 +66,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.*;
 
+import static org.keycloak.adapters.CorsHeaders.ACCESS_CONTROL_EXPOSE_HEADERS;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
@@ -73,8 +74,6 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
-
-  private static final String ACCESS_CONTROL_EXPOSE_HEADERS = "Access-Control-Expose-Headers";
 
   protected static NodeIndexingService nodeIndexingService;
   protected static NodeSearchingService nodeSearchingService;

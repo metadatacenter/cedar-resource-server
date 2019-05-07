@@ -15,7 +15,6 @@ import java.util.Optional;
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
-import static org.metadatacenter.rest.assertion.GenericAssertions.ValidTemplate;
 
 @Path("/templates")
 @Produces(MediaType.APPLICATION_JSON)
@@ -31,9 +30,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_CREATE);
-    if (cedarConfig.getValidationConfig().isEnabled()) {
-      c.must(c.request()).be(ValidTemplate);
-    }
 
     return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, folderId);
   }
@@ -69,9 +65,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
-    if (cedarConfig.getValidationConfig().isEnabled()) {
-      c.must(c.request()).be(ValidTemplate);
-    }
 
     return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.TEMPLATE, id);
   }
