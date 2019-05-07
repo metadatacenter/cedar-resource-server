@@ -3,7 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.rest.assertion.ValidInstanceAssertion;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
@@ -37,11 +37,11 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     if (cedarConfig.getValidationConfig().isEnabled()) {
       CedarParameter templateIdParam = c.request().getRequestBody().get(ModelNodeNames.SCHEMA_IS_BASED_ON);
       String templateId = templateIdParam.stringValue();
-      String templateString = getResourceFromArtifactServer(CedarNodeType.TEMPLATE, templateId, c);
+      String templateString = getResourceFromArtifactServer(CedarResourceType.TEMPLATE, templateId, c);
       c.must(c.request()).be(new ValidInstanceAssertion(templateString));
     }
 
-    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarNodeType.INSTANCE, folderId);
+    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.INSTANCE, folderId);
   }
 
   @GET
@@ -54,7 +54,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxyFromArtifactServer(CedarNodeType.INSTANCE, id, format, c);
+    return executeResourceGetByProxyFromArtifactServer(CedarResourceType.INSTANCE, id, format, c);
   }
 
   @GET
@@ -76,7 +76,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
-    return executeResourceCreateOrUpdateViaPut(c, CedarNodeType.INSTANCE, id);
+    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.INSTANCE, id);
   }
 
   @DELETE
@@ -87,7 +87,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
 
-    return executeResourceDelete(c, CedarNodeType.INSTANCE, id);
+    return executeResourceDelete(c, CedarResourceType.INSTANCE, id);
   }
 
   @GET

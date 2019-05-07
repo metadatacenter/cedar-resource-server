@@ -1445,7 +1445,7 @@ definitions:
       email:
         type: string
         description: Email.
-      nodeType:
+      resourceType:
         type: string
         description: The value "user"
   Folder:

@@ -7,7 +7,7 @@ import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
-import org.metadatacenter.model.folderserver.basic.FolderServerNode;
+import org.metadatacenter.model.folderserver.basic.FileSystemResource;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -116,15 +116,15 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     // check existence of parent folder
     FolderServerFolder newFolder = null;
-    FolderServerNode newFolderCandidate = folderSession.findNodeByParentIdAndName(parentFolder, nameV);
+    FileSystemResource newFolderCandidate = folderSession.findNodeByParentIdAndName(parentFolder, nameV);
     if (newFolderCandidate != null) {
       return CedarResponse.badRequest()
           .parameter("parentFolderId", parentFolder.getId())
           .parameter("name", name)
           .errorKey(CedarErrorKey.NODE_ALREADY_PRESENT)
           .errorMessage("There is already a node with the same name at the requested location!")
-          .parameter("conflictingNodeType", newFolderCandidate.getType().getValue())
-          .parameter("conflictingNodeId", newFolderCandidate.getId())
+          .parameter("conflictingResourceType", newFolderCandidate.getType().getValue())
+          .parameter("conflictingResourceId", newFolderCandidate.getId())
           .build();
     }
 

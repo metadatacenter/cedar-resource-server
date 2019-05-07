@@ -7,9 +7,9 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
-import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
-import org.metadatacenter.model.folderserver.extract.FolderServerNodeExtract;
+import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
@@ -98,7 +98,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
     URI absoluteURI = builder
-        .queryParam(QP_RESOURCE_TYPES, pagedSortedTypedQuery.getNodeTypesAsString())
+        .queryParam(QP_RESOURCE_TYPES, pagedSortedTypedQuery.getResourceTypesAsString())
         .queryParam(QP_VERSION, pagedSortedTypedQuery.getVersionAsString())
         .queryParam(QP_PUBLICATION_STATUS, pagedSortedTypedQuery.getPublicationStatusAsString())
         .queryParam(QP_SORT, pagedSortedTypedQuery.getSortListAsString())
@@ -106,7 +106,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
     
-    List<FolderServerNodeExtract> pathInfo =
+    List<FolderServerResourceExtract> pathInfo =
         PathInfoBuilder.getNodePathExtract(c, folderSession, permissionSession, folder);
 
     FolderServerNodeListResponse r =
@@ -118,13 +118,13 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
   private FolderServerNodeListResponse findFolderContents(CedarRequestContext c, FolderServiceSession folderSession,
                                                           FolderServerFolder folder, String absoluteUrl,
-                                                          List<FolderServerNodeExtract> pathInfo,
+                                                          List<FolderServerResourceExtract> pathInfo,
                                                           PagedSortedTypedQuery pagedSortedTypedQuery) {
 
     int limit = pagedSortedTypedQuery.getLimit();
     int offset = pagedSortedTypedQuery.getOffset();
     List<String> sortList = pagedSortedTypedQuery.getSortList();
-    List<CedarNodeType> nodeTypeList = pagedSortedTypedQuery.getNodeTypeList();
+    List<CedarResourceType> resourceTypeList = pagedSortedTypedQuery.getResourceTypeList();
     ResourceVersionFilter version = pagedSortedTypedQuery.getVersion();
     ResourcePublicationStatusFilter publicationStatus = pagedSortedTypedQuery.getPublicationStatus();
 
@@ -132,7 +132,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     r.setNodeListQueryType(NodeListQueryType.FOLDER_CONTENT);
 
     NodeListRequest req = new NodeListRequest();
-    req.setNodeTypes(nodeTypeList);
+    req.setResourceTypes(resourceTypeList);
     req.setVersion(version);
     req.setPublicationStatus(publicationStatus);
     req.setLimit(limit);
@@ -141,10 +141,10 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     r.setRequest(req);
 
-    List<FolderServerNodeExtract> resources = folderSession.findFolderContentsExtract(folder.getId(),
-        nodeTypeList, version, publicationStatus, limit, offset, sortList);
+    List<FolderServerResourceExtract> resources = folderSession.findFolderContentsExtract(folder.getId(),
+        resourceTypeList, version, publicationStatus, limit, offset, sortList);
 
-    long total = folderSession.findFolderContentsCount(folder.getId(), nodeTypeList, version,
+    long total = folderSession.findFolderContentsCount(folder.getId(), resourceTypeList, version,
         publicationStatus);
 
     r.setTotalCount(total);

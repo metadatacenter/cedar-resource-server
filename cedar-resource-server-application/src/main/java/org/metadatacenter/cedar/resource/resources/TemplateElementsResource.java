@@ -3,7 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.model.CedarNodeType;
+import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
@@ -35,7 +35,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidElement);
     }
 
-    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarNodeType.ELEMENT, folderId);
+    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.ELEMENT, folderId);
   }
 
   @GET
@@ -47,7 +47,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
 
     userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxyFromArtifactServer(CedarNodeType.ELEMENT, id, c);
+    return executeResourceGetByProxyFromArtifactServer(CedarResourceType.ELEMENT, id, c);
   }
 
   @GET
@@ -72,7 +72,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       c.must(c.request()).be(ValidElement);
     }
 
-    return executeResourceCreateOrUpdateViaPut(c, CedarNodeType.ELEMENT, id);
+    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.ELEMENT, id);
   }
 
   @DELETE
@@ -83,7 +83,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_DELETE);
 
-    return executeResourceDelete(c, CedarNodeType.ELEMENT, id);
+    return executeResourceDelete(c, CedarResourceType.ELEMENT, id);
   }
 
   @GET
