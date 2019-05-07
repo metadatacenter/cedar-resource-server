@@ -12,7 +12,6 @@ import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.model.*;
@@ -25,7 +24,6 @@ import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServer
 import org.metadatacenter.model.folderserver.extract.FolderServerNodeExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerTemplateExtract;
-import org.metadatacenter.model.folderserver.report.FolderServerFolderReport;
 import org.metadatacenter.model.folderserver.report.FolderServerInstanceReport;
 import org.metadatacenter.model.folderserver.report.FolderServerResourceReport;
 import org.metadatacenter.model.folderserver.report.FolderServerTemplateReport;
@@ -76,8 +74,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
 
-  private static final String ACCESS_CONTROL_EXPOSE_HEADERS = "Access-Control-Expose-Headers";
-
   protected static NodeIndexingService nodeIndexingService;
   protected static NodeSearchingService nodeSearchingService;
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
@@ -118,37 +114,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_DESCRIPTION, description);
   }
 
-  protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse
-      proxyResponse,
-                                                            Object responseContent) {
-    return responseBuilder
-        .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(proxyResponse))
-        .header(ACCESS_CONTROL_EXPOSE_HEADERS, printCedarValidationHeaderList())
-        .entity(responseContent).build();
-  }
-
-  private static String getValidationStatus(HttpResponse response) {
-    return response.getFirstHeader(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS).getValue();
-  }
-
-  private static String printCedarValidationHeaderList() {
-    return String.format("%s", CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS);
-  }
-
-  private static Response buildResponse(HttpResponse proxyResponse) throws CedarProcessingException {
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    HttpEntity entity = proxyResponse.getEntity();
-    if (entity != null) {
-      try {
-        return Response.status(statusCode).entity(entity.getContent()).build();
-      } catch (IOException e) {
-        throw new CedarProcessingException(e);
-      }
-    } else {
-      return Response.status(statusCode).build();
-    }
-  }
-
   protected void addProvenanceDisplayName(FolderServerNode resource) throws CedarProcessingException {
     if (resource != null) {
       CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
@@ -186,23 +151,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private void addProvenanceDisplayNames(FolderServerFolderReport report) {
-    if (report != null) {
-      CedarUserSummary creator = UserSummaryCache.getInstance().getUser(report.getCreatedBy());
-      CedarUserSummary updater = UserSummaryCache.getInstance().getUser(report.getLastUpdatedBy());
-      CedarUserSummary owner = UserSummaryCache.getInstance().getUser(report.getOwnedBy());
-      if (creator != null) {
-        report.setCreatedByUserName(creator.getScreenName());
-      }
-      if (updater != null) {
-        report.setLastUpdatedByUserName(updater.getScreenName());
-      }
-      if (owner != null) {
-        report.setOwnedByUserName(owner.getScreenName());
-      }
-    }
-  }
-
   protected void addProvenanceDisplayNames(FolderServerResourceReport report) {
     for (FolderServerNodeExtract v : report.getVersions()) {
       addProvenanceDisplayName(v);
@@ -226,14 +174,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         addProvenanceDisplayName(pi);
       }
     }
-  }
-
-  protected <T extends FolderServerNode> T resourceWithProvenanceDisplayNames(HttpResponse proxyResponse,
-                                                                              Class<T> klazz)
-      throws CedarProcessingException {
-    T resource = deserializeResource(proxyResponse, klazz);
-    addProvenanceDisplayName(resource);
-    return resource;
   }
 
   protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarNodeType nodeType, String

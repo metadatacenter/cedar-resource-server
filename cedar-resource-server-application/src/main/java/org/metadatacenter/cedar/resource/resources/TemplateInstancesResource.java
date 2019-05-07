@@ -4,9 +4,6 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.ModelNodeNames;
-import org.metadatacenter.rest.assertion.ValidInstanceAssertion;
-import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
@@ -34,12 +31,6 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE);
-    if (cedarConfig.getValidationConfig().isEnabled()) {
-      CedarParameter templateIdParam = c.request().getRequestBody().get(ModelNodeNames.SCHEMA_IS_BASED_ON);
-      String templateId = templateIdParam.stringValue();
-      String templateString = getResourceFromArtifactServer(CedarNodeType.TEMPLATE, templateId, c);
-      c.must(c.request()).be(new ValidInstanceAssertion(templateString));
-    }
 
     return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarNodeType.INSTANCE, folderId);
   }
