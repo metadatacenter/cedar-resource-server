@@ -206,9 +206,11 @@ public class CommandResource extends AbstractResourceServerResource {
         }
         String newTitle = titleTemplate.replace("{{title}}", oldTitle);
         ((ObjectNode) jsonNode).put(SCHEMA_NAME, newTitle);
-        ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
-        ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
         ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
+        if (resourceType.isVersioned()) {
+          ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
+          ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
+        }
         originalDocument = jsonNode.toString();
       }
     } catch (Exception e) {
