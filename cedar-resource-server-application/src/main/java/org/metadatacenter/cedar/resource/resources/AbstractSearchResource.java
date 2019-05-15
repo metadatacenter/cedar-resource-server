@@ -166,7 +166,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
       total = folderSession.searchIsBasedOnCount(resourceTypeList, req.getIsBasedOn());
     } else if (nlqt == NodeListQueryType.SEARCH_ID) {
       resources = new ArrayList<>();
-      FolderServerArtifact resourceById = folderSession.findResourceById(id);
+      FolderServerArtifact resourceById = folderSession.findArtifactById(id);
       if (resourceById != null) {
         resources.add(FolderServerResourceExtract.fromNode(resourceById));
       } else {

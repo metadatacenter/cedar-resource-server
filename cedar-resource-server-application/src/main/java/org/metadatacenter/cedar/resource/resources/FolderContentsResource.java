@@ -107,7 +107,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
     
     List<FolderServerResourceExtract> pathInfo =
-        PathInfoBuilder.getNodePathExtract(c, folderSession, permissionSession, folder);
+        PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, folder);
 
     FolderServerNodeListResponse r =
         findFolderContents(c, folderSession, folder, absoluteURI.toString(), pathInfo, pagedSortedTypedQuery);

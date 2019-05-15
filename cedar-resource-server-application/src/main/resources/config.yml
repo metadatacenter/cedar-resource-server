@@ -17,9 +17,9 @@ logging:
       timeZone: UTC
       target: stdout
     - type: file
-      currentLogFilename: ${CEDAR_HOME}/log/cedar-resource-server/dropwizard.log
+      currentLogFilename: ${CEDAR_HOME}/log/cedar-artifact-server/dropwizard.log
       threshold: ALL
       archive: true
-      archivedLogFilenamePattern: ${CEDAR_HOME}/log/cedar-resource-server/dropwizard-%d.log
+      archivedLogFilenamePattern: ${CEDAR_HOME}/log/cedar-artifact-server/dropwizard-%d.log
       archivedFileCount: 30
       timeZone: UTC
