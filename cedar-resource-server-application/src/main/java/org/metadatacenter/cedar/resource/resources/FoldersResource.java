@@ -122,7 +122,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           .parameter("parentFolderId", parentFolder.getId())
           .parameter("name", name)
           .errorKey(CedarErrorKey.NODE_ALREADY_PRESENT)
-          .errorMessage("There is already a node with the same name at the requested location!")
+          .errorMessage("There is already a resource with the same name at the requested location!")
           .parameter("conflictingResourceType", newFolderCandidate.getType().getValue())
           .parameter("conflictingResourceId", newFolderCandidate.getId())
           .build();
@@ -247,7 +247,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
-    return generateNodePermissionsResponse(c, id);
+    return generateResourcePermissionsResponse(c, id);
   }
 
   @PUT
@@ -258,6 +258,6 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 
-    return updateNodePermissions(c, id);
+    return updateResourcePermissions(c, id);
   }
 }

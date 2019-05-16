@@ -185,7 +185,7 @@ parameters:
   q:
     name: q
     in: query
-    description: Search term. It will be looked up in the resource names
+    description: Search term. It will be looked up in the artifact names
     type: string
     required: false
   is_based_on:
