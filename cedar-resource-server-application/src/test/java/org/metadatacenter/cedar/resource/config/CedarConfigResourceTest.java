@@ -39,8 +39,6 @@ public class CedarConfigResourceTest {
 
     env.put(CedarEnvironmentVariable.CEDAR_SALT_API_KEY.getName(), "saltme");
 
-    env.put(CedarEnvironmentVariable.CEDAR_VALIDATION_ENABLED.getName(), "false");
-
     env.put(CedarEnvironmentVariable.CEDAR_SUBMISSION_TEMPLATE_ID_1.getName(), "http://template-id-1");
 
     env.put(CedarEnvironmentVariable.CEDAR_ELASTICSEARCH_HOST.getName(), "127.0.0.1");

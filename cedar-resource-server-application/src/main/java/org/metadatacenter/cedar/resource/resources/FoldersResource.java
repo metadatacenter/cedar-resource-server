@@ -7,7 +7,7 @@ import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
-import org.metadatacenter.model.folderserver.basic.FolderServerNode;
+import org.metadatacenter.model.folderserver.basic.FileSystemResource;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -116,15 +116,15 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     // check existence of parent folder
     FolderServerFolder newFolder = null;
-    FolderServerNode newFolderCandidate = folderSession.findNodeByParentIdAndName(parentFolder, nameV);
+    FileSystemResource newFolderCandidate = folderSession.findNodeByParentIdAndName(parentFolder, nameV);
     if (newFolderCandidate != null) {
       return CedarResponse.badRequest()
           .parameter("parentFolderId", parentFolder.getId())
           .parameter("name", name)
           .errorKey(CedarErrorKey.NODE_ALREADY_PRESENT)
-          .errorMessage("There is already a node with the same name at the requested location!")
-          .parameter("conflictingNodeType", newFolderCandidate.getType().getValue())
-          .parameter("conflictingNodeId", newFolderCandidate.getId())
+          .errorMessage("There is already a resource with the same name at the requested location!")
+          .parameter("conflictingResourceType", newFolderCandidate.getType().getValue())
+          .parameter("conflictingResourceId", newFolderCandidate.getId())
           .build();
     }
 
@@ -247,7 +247,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
 
-    return generateNodePermissionsResponse(c, id);
+    return generateResourcePermissionsResponse(c, id);
   }
 
   @PUT
@@ -258,6 +258,6 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
 
-    return updateNodePermissions(c, id);
+    return updateResourcePermissions(c, id);
   }
 }

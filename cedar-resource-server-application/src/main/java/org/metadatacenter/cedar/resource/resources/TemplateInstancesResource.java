@@ -3,10 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.model.CedarNodeType;
-import org.metadatacenter.model.ModelNodeNames;
-import org.metadatacenter.rest.assertion.ValidInstanceAssertion;
-import org.metadatacenter.rest.assertion.noun.CedarParameter;
+import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
@@ -34,14 +31,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE);
-    if (cedarConfig.getValidationConfig().isEnabled()) {
-      CedarParameter templateIdParam = c.request().getRequestBody().get(ModelNodeNames.SCHEMA_IS_BASED_ON);
-      String templateId = templateIdParam.stringValue();
-      String templateString = getResourceFromArtifactServer(CedarNodeType.TEMPLATE, templateId, c);
-      c.must(c.request()).be(new ValidInstanceAssertion(templateString));
-    }
-
-    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarNodeType.INSTANCE, folderId);
+    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.INSTANCE, folderId);
   }
 
   @GET
@@ -53,8 +43,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    userMustHaveReadAccessToResource(c, id);
-    return executeResourceGetByProxyFromArtifactServer(CedarNodeType.INSTANCE, id, format, c);
+    userMustHaveReadAccessToArtifact(c, id);
+    return executeResourceGetByProxyFromArtifactServer(CedarResourceType.INSTANCE, id, format, c);
   }
 
   @GET
@@ -76,7 +66,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
-    return executeResourceCreateOrUpdateViaPut(c, CedarNodeType.INSTANCE, id);
+    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.INSTANCE, id);
   }
 
   @DELETE
@@ -87,7 +77,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
 
-    return executeResourceDelete(c, CedarNodeType.INSTANCE, id);
+    return executeResourceDelete(c, CedarResourceType.INSTANCE, id);
   }
 
   @GET
@@ -98,7 +88,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    return generateNodePermissionsResponse(c, id);
+    return generateResourcePermissionsResponse(c, id);
   }
 
   @PUT
@@ -109,7 +99,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
 
-    return updateNodePermissions(c, id);
+    return updateResourcePermissions(c, id);
   }
 
   @GET
@@ -120,7 +110,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
 
-    return generateNodeReportResponse(c, id);
+    return generateArtifactReportResponse(c, id);
   }
 
 }

@@ -16,18 +16,16 @@ import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.model.*;
-import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
-import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
-import org.metadatacenter.model.folderserver.basic.FolderServerNode;
-import org.metadatacenter.model.folderserver.basic.FolderServerResource;
+import org.metadatacenter.model.folderserver.basic.*;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerResourceCurrentUserReport;
-import org.metadatacenter.model.folderserver.extract.FolderServerNodeExtract;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerSchemaArtifactCurrentUserReport;
+import org.metadatacenter.model.folderserver.extract.FolderServerArtifactExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerTemplateExtract;
+import org.metadatacenter.model.folderserver.report.FolderServerArtifactReport;
 import org.metadatacenter.model.folderserver.report.FolderServerFolderReport;
 import org.metadatacenter.model.folderserver.report.FolderServerInstanceReport;
-import org.metadatacenter.model.folderserver.report.FolderServerResourceReport;
 import org.metadatacenter.model.folderserver.report.FolderServerTemplateReport;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
@@ -51,7 +49,7 @@ import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueSe
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessage;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageResourceType;
-import org.metadatacenter.util.CedarNodeTypeUtil;
+import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
@@ -68,6 +66,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.*;
 
+import static org.keycloak.adapters.CorsHeaders.ACCESS_CONTROL_EXPOSE_HEADERS;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
@@ -75,8 +74,6 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
-
-  private static final String ACCESS_CONTROL_EXPOSE_HEADERS = "Access-Control-Expose-Headers";
 
   protected static NodeIndexingService nodeIndexingService;
   protected static NodeSearchingService nodeSearchingService;
@@ -98,7 +95,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     AbstractResourceServerResource.valuerecommenderReindexQueueService = valuerecommenderReindexQueueService;
   }
 
-  protected static <T extends FolderServerNode> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz)
+  protected static <T extends FileSystemResource> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz)
       throws CedarProcessingException {
     T resource = null;
     try {
@@ -110,17 +107,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return resource;
   }
 
-  protected static void updateNameInObject(CedarNodeType nodeType, JsonNode jsonNode, String name) {
+  protected static void updateNameInObject(CedarResourceType resourceType, JsonNode jsonNode, String name) {
     ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_NAME, name);
   }
 
-  protected static void updateDescriptionInObject(CedarNodeType nodeType, JsonNode jsonNode, String description) {
+  protected static void updateDescriptionInObject(CedarResourceType resourceType, JsonNode jsonNode,
+                                                  String description) {
     ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_DESCRIPTION, description);
   }
 
-  protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder, HttpResponse
-      proxyResponse,
-                                                            Object responseContent) {
+  protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder,
+                                                            HttpResponse proxyResponse, Object responseContent) {
     return responseBuilder
         .header(CustomHttpConstants.HEADER_CEDAR_VALIDATION_STATUS, getValidationStatus(proxyResponse))
         .header(ACCESS_CONTROL_EXPOSE_HEADERS, printCedarValidationHeaderList())
@@ -149,7 +146,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected void addProvenanceDisplayName(FolderServerNode resource) throws CedarProcessingException {
+  protected void addProvenanceDisplayName(FileSystemResource resource) throws CedarProcessingException {
     if (resource != null) {
       CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
       CedarUserSummary updater = UserSummaryCache.getInstance().getUser(resource.getLastUpdatedBy());
@@ -163,13 +160,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       if (owner != null) {
         resource.setOwnedByUserName(owner.getScreenName());
       }
-      for (FolderServerNodeExtract pi : resource.getPathInfo()) {
+      for (FolderServerResourceExtract pi : resource.getPathInfo()) {
         addProvenanceDisplayName(pi);
       }
     }
   }
 
-  private void addProvenanceDisplayName(FolderServerNodeExtract resource) {
+  private void addProvenanceDisplayName(FolderServerResourceExtract resource) {
     if (resource != null) {
       CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
       CedarUserSummary updater = UserSummaryCache.getInstance().getUser(resource.getLastUpdatedBy());
@@ -203,11 +200,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected void addProvenanceDisplayNames(FolderServerResourceReport report) {
-    for (FolderServerNodeExtract v : report.getVersions()) {
+  protected void addProvenanceDisplayNames(FolderServerArtifactReport report) {
+    for (FolderServerResourceExtract v : report.getVersions()) {
       addProvenanceDisplayName(v);
     }
-    for (FolderServerNodeExtract pi : report.getPathInfo()) {
+    for (FolderServerResourceExtract pi : report.getPathInfo()) {
       addProvenanceDisplayName(pi);
     }
     addProvenanceDisplayName(report.getDerivedFromExtract());
@@ -218,35 +215,35 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected void addProvenanceDisplayNames(FolderServerNodeListResponse nodeList) {
-    for (FolderServerNodeExtract r : nodeList.getResources()) {
+    for (FolderServerResourceExtract r : nodeList.getResources()) {
       addProvenanceDisplayName(r);
     }
     if (nodeList.getPathInfo() != null) {
-      for (FolderServerNodeExtract pi : nodeList.getPathInfo()) {
+      for (FolderServerResourceExtract pi : nodeList.getPathInfo()) {
         addProvenanceDisplayName(pi);
       }
     }
   }
 
-  protected <T extends FolderServerNode> T resourceWithProvenanceDisplayNames(HttpResponse proxyResponse,
-                                                                              Class<T> klazz)
+  protected <T extends FileSystemResource> T resourceWithProvenanceDisplayNames(HttpResponse proxyResponse,
+                                                                                Class<T> klazz)
       throws CedarProcessingException {
     T resource = deserializeResource(proxyResponse, klazz);
     addProvenanceDisplayName(resource);
     return resource;
   }
 
-  protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarNodeType nodeType, String
-      content) throws CedarProcessingException {
+  protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarResourceType resourceType,
+                                                         String content) throws CedarProcessingException {
     try {
-      String url = microserviceUrlUtil.getArtifact().getNodeType(nodeType);
+      String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
       int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_CREATED) {
-        // resource was not created
+        // artifact was not created
         return generateStatusResponse(templateProxyResponse);
       } else {
         HttpEntity entity = templateProxyResponse.getEntity();
@@ -264,9 +261,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  // Proxy methods for resource types
+  // Proxy methods for artifact types
   protected Response executeResourceCreationOnArtifactServerAndGraphDb(CedarRequestContext context,
-                                                                       CedarNodeType nodeType,
+                                                                       CedarResourceType resourceType,
                                                                        Optional<String> folderId)
       throws CedarException {
 
@@ -283,26 +280,27 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     FolderServerFolder folder = FolderServerFolder.fromFolderServerFolderCurrentUserReport(folderReport);
 
     try {
-      String url = microserviceUrlUtil.getArtifact().getNodeType(nodeType);
+      String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
       int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_CREATED) {
-        // resource was not created
+        // artifact was not created
         return generateStatusResponse(templateProxyResponse);
       } else {
-        // resource was created
+        // artifact was created
         HttpEntity templateProxyResponseEntity = templateProxyResponse.getEntity();
         if (templateProxyResponseEntity != null) {
           String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
-          String id = ModelUtil.extractAtIdFromResource(nodeType, templateJsonNode).getValue();
+          String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
 
-          JsonPointerValuePair namePair = ModelUtil.extractNameFromResource(nodeType, templateJsonNode);
-          JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode);
-          JsonPointerValuePair identifierPair = ModelUtil.extractIdentifierFromResource(nodeType, templateJsonNode);
+          JsonPointerValuePair namePair = ModelUtil.extractNameFromResource(resourceType, templateJsonNode);
+          JsonPointerValuePair descriptionPair =
+              ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode);
+          JsonPointerValuePair identifierPair = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode);
 
           FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
 
@@ -310,27 +308,27 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           context.must(name).be(NonEmpty);
 
           CedarParameter versionP = new CedarInPlaceParameter("version",
-              ModelUtil.extractVersionFromResource(nodeType, templateJsonNode).getValue());
+              ModelUtil.extractVersionFromResource(resourceType, templateJsonNode).getValue());
           CedarParameter publicationStatusP = new CedarInPlaceParameter("publicationStatus",
-              ModelUtil.extractPublicationStatusFromResource(nodeType, templateJsonNode).getValue());
+              ModelUtil.extractPublicationStatusFromResource(resourceType, templateJsonNode).getValue());
           CedarParameter isBasedOnP = new CedarInPlaceParameter("isBasedOn",
               ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
 
-          if (nodeType.isVersioned()) {
+          if (resourceType.isVersioned()) {
             context.must(versionP).be(NonEmpty);
             context.must(publicationStatusP).be(NonEmpty);
           }
-          if (nodeType == CedarNodeType.INSTANCE) {
+          if (resourceType == CedarResourceType.INSTANCE) {
             context.must(isBasedOnP).be(NonEmpty);
           }
 
-          if (CedarNodeTypeUtil.isNotValidForRestCall(nodeType)) {
+          if (CedarResourceTypeUtil.isNotValidForRestCall(resourceType)) {
             return CedarResponse.badRequest()
-                .errorMessage("You passed an illegal nodeType:'" + nodeType +
-                    "'. The allowed values are:" + CedarNodeTypeUtil.getValidNodeTypesForRestCalls())
-                .errorKey(CedarErrorKey.INVALID_NODE_TYPE)
-                .parameter("invalidNodeTypes", nodeType)
-                .parameter("allowedNodeTypes", CedarNodeTypeUtil.getValidNodeTypeValuesForRestCalls())
+                .errorMessage("You passed an illegal resourceType:'" + resourceType +
+                    "'. The allowed values are:" + CedarResourceTypeUtil.getValidResourceTypesForRestCalls())
+                .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
+                .parameter("invalidResourceTypes", resourceType)
+                .parameter("allowedResourceTypes", CedarResourceTypeUtil.getValidResourceTypeValuesForRestCalls())
                 .build();
           }
 
@@ -345,34 +343,35 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           CedarParameter description = new CedarInPlaceParameter("description", descriptionPair.getValue());
           CedarParameter identifier = new CedarInPlaceParameter("identifier", identifierPair.getValue());
 
-          // Later we will guarantee some kind of uniqueness for the resource names
+          // Later we will guarantee some kind of uniqueness for the artifact names
           // Currently we allow duplicate names, the id is the PK
-          FolderServerResource brandNewResource = GraphDbObjectBuilder.forNodeType(nodeType, id,
+          FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(resourceType, id,
               name.stringValue(), description.stringValue(), identifier.stringValue(), version, publicationStatus);
-          if (nodeType.isVersioned()) {
-            brandNewResource.setLatestVersion(true);
-            brandNewResource.setLatestDraftVersion(publicationStatus == BiboStatus.DRAFT);
-            brandNewResource.setLatestPublishedVersion(publicationStatus == BiboStatus.PUBLISHED);
+          if (brandNewResource instanceof FolderServerSchemaArtifact) {
+            FolderServerSchemaArtifact schemaArtifact = (FolderServerSchemaArtifact) brandNewResource;
+            schemaArtifact.setLatestVersion(true);
+            schemaArtifact.setLatestDraftVersion(publicationStatus == BiboStatus.DRAFT);
+            schemaArtifact.setLatestPublishedVersion(publicationStatus == BiboStatus.PUBLISHED);
           }
-          if (nodeType == CedarNodeType.INSTANCE) {
-            FolderServerInstance brandNewInstance = (FolderServerInstance) brandNewResource;
+          if (brandNewResource instanceof FolderServerInstanceArtifact) {
+            FolderServerInstanceArtifact brandNewInstance = (FolderServerInstanceArtifact) brandNewResource;
             brandNewInstance.setIsBasedOn(isBasedOnString);
           }
-          FolderServerResource newResource = folderSession.createResourceAsChildOfId(brandNewResource, folder.getId());
+          FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, folder.getId());
 
           if (newResource == null) {
             return CedarResponse.badRequest()
                 .parameter("id", id)
                 .parameter("parentId", folder.getId())
-                .parameter("resourceType", nodeType.getValue())
+                .parameter("resourceType", resourceType.getValue())
                 .errorKey(CedarErrorKey.RESOURCE_NOT_CREATED)
-                .errorMessage("The resource was not created!")
+                .errorMessage("The artifact was not created!")
                 .build();
           }
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
           URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
 
-          createIndexResource(newResource, context);
+          createIndexArtifact(newResource, context);
           createValuerecommenderResource(newResource);
           return Response.created(uri).entity(templateJsonNode).build();
         } else {
@@ -398,17 +397,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourceGetByProxyFromArtifactServer(CedarNodeType nodeType, String id,
+  protected Response executeResourceGetByProxyFromArtifactServer(CedarResourceType resourceType, String id,
                                                                  CedarRequestContext context)
       throws CedarProcessingException {
-    return executeResourceGetByProxyFromArtifactServer(nodeType, id, Optional.empty(), context);
+    return executeResourceGetByProxyFromArtifactServer(resourceType, id, Optional.empty(), context);
   }
 
-  protected Response executeResourceGetByProxyFromArtifactServer(CedarNodeType nodeType, String id,
+  protected Response executeResourceGetByProxyFromArtifactServer(CedarResourceType resourceType, String id,
                                                                  Optional<String> format, CedarRequestContext context)
       throws CedarProcessingException {
     try {
-      String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id, format);
+      String url = microserviceUrlUtil.getArtifact().getResourceTypeWithId(resourceType, id, format);
       // parameter
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
@@ -425,10 +424,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected String getResourceFromArtifactServer(CedarNodeType nodeType, String id, CedarRequestContext context) throws
+  protected String getResourceFromArtifactServer(CedarResourceType resourceType, String id, CedarRequestContext context)
+      throws
       CedarProcessingException {
     try {
-      String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
+      String url = microserviceUrlUtil.getArtifact().getResourceTypeWithId(resourceType, id);
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
@@ -438,10 +438,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response putResourceToArtifactServer(CedarNodeType nodeType, String id, CedarRequestContext context, String
-      content) throws
+  protected Response putResourceToArtifactServer(CedarResourceType resourceType, String id, CedarRequestContext context,
+                                                 String
+                                                     content) throws
       CedarProcessingException {
-    String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
+    String url = microserviceUrlUtil.getArtifact().getResourceTypeWithId(resourceType, id);
     HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
     HttpEntity entity = templateProxyResponse.getEntity();
     int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
@@ -461,30 +462,32 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected Response getDetails(CedarRequestContext context, String id) throws CedarException {
 
-    FolderServerResourceCurrentUserReport resourceReport = userMustHaveReadAccessToResource(context, id);
+    FolderServerArtifactCurrentUserReport resourceReport = userMustHaveReadAccessToArtifact(context, id);
 
-    FolderServerResource resource = FolderServerResource.fromFolderServerResourceCurrentUserReport(resourceReport);
+    FolderServerArtifact resource = FolderServerArtifact.fromFolderServerResourceCurrentUserReport(resourceReport);
 
     addProvenanceDisplayName(resource);
     return CedarResponse.ok().entity(resource).build();
   }
 
-  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarNodeType nodeType, String id)
+  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType,
+                                                         String id)
       throws CedarException {
-    return executeResourceCreateOrUpdateViaPut(context, nodeType, id,
+    return executeResourceCreateOrUpdateViaPut(context, resourceType, id,
         context.request().getRequestBody().asJsonString());
   }
 
-  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarNodeType nodeType, String id,
+  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType,
+                                                         String id,
                                                          String content)
       throws CedarException {
 
-    FolderServerResourceCurrentUserReport folderServerResourceReport = userMustHaveWriteAccessToResource(context, id);
-    FolderServerResource folderServerOldResource =
-        FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerResourceReport);
+    FolderServerArtifactCurrentUserReport folderServerResourceReport = userMustHaveWriteAccessToArtifact(context, id);
+    FolderServerArtifact folderServerOldResource =
+        FolderServerArtifact.fromFolderServerResourceCurrentUserReport(folderServerResourceReport);
 
     try {
-      String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
+      String url = microserviceUrlUtil.getArtifact().getResourceTypeWithId(resourceType, id);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -496,39 +499,42 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         createOrUpdate = CreateOrUpdate.CREATE;
       }
       if (createOrUpdate == null) {
-        // resource was not created or updated
+        // artifact was not created or updated
         return generateStatusResponse(templateProxyResponse);
       } else {
 
         if (createOrUpdate == CreateOrUpdate.UPDATE) {
           if (folderServerOldResource != null) {
-            if (folderServerOldResource.getPublicationStatus() == BiboStatus.PUBLISHED) {
-              return CedarResponse.badRequest()
-                  .errorKey(CedarErrorKey.PUBLISHED_RESOURCES_CAN_NOT_BE_CHANGED)
-                  .errorMessage("The resource can not be changed since it is published!")
-                  .parameter("name", folderServerOldResource.getName())
-                  .build();
+            if (folderServerOldResource instanceof FolderServerSchemaArtifact) {
+              FolderServerSchemaArtifact artifact = (FolderServerSchemaArtifact) folderServerOldResource;
+              if (artifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
+                return CedarResponse.badRequest()
+                    .errorKey(CedarErrorKey.PUBLISHED_RESOURCES_CAN_NOT_BE_CHANGED)
+                    .errorMessage("The artifact can not be changed since it is published!")
+                    .parameter("name", folderServerOldResource.getName())
+                    .build();
+              }
             }
           }
         }
-        // resource was updated
+        // artifact was updated
         HttpEntity templateEntity = templateProxyResponse.getEntity();
         if (templateEntity != null) {
           String templateEntityContent = EntityUtils.toString(templateEntity);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
 
-          String newName = ModelUtil.extractNameFromResource(nodeType, templateJsonNode).getValue();
-          String newDescription = ModelUtil.extractDescriptionFromResource(nodeType, templateJsonNode).getValue();
-          String newIdentifier = ModelUtil.extractIdentifierFromResource(nodeType, templateJsonNode).getValue();
+          String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue();
+          String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue();
+          String newIdentifier = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue();
 
           FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
-          FolderServerResource resource = folderSession.findResourceById(id);
+          FolderServerArtifact resource = folderSession.findArtifactById(id);
 
           if (resource == null) {
             return CedarResponse.notFound()
                 .id(id)
-                .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
-                .errorMessage("The resource can not be found by id")
+                .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+                .errorMessage("The artifact can not be found by id")
                 .build();
           } else {
 
@@ -537,7 +543,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
               updateFields.put(NodeProperty.DESCRIPTION, newDescription);
               updateFields.put(NodeProperty.NAME, newName);
               updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
-              FolderServerResource updatedResource =
+              FolderServerArtifact updatedResource =
                   folderSession.updateResourceById(id, resource.getType(), updateFields);
               if (updatedResource == null) {
                 return CedarResponse.internalServerError().build();
@@ -549,7 +555,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             } else if (statusCode == HttpStatus.SC_CREATED) {
               //TODO : Handle creation via PUT
               /*FolderServerResource updatedResource =
-                  folderSession.updateResourceById(id, resource.getType(), updateFields);
+                  folderSession.updateResourceById(id, artifact.getType(), updateFields);
               if (updatedResource == null) {
                 return CedarResponse.internalServerError().build();
               } else {
@@ -570,21 +576,23 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response executeResourceDelete(CedarRequestContext c, CedarNodeType nodeType, String id)
+  protected Response executeResourceDelete(CedarRequestContext c, CedarResourceType resourceType, String id)
       throws CedarException {
 
     // Check delete preconditions
 
-    FolderServerResourceCurrentUserReport resourceReport = userMustHaveWriteAccessToResource(c, id);
+    FolderServerArtifactCurrentUserReport resourceReport = userMustHaveWriteAccessToArtifact(c, id);
 
-    if (resourceReport.getType().isVersioned()) {
-      if (resourceReport.getPublicationStatus() == BiboStatus.PUBLISHED) {
+    if (resourceReport instanceof FolderServerSchemaArtifactCurrentUserReport) {
+      FolderServerSchemaArtifactCurrentUserReport schemaArtifact =
+          (FolderServerSchemaArtifactCurrentUserReport) resourceReport;
+      if (schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.PUBLISHED_RESOURCES_CAN_NOT_BE_DELETED)
             .errorMessage("Published resources can not be deleted!")
             .parameter("id", id)
             .parameter("name", resourceReport.getName())
-            .parameter(BIBO_STATUS, resourceReport.getPublicationStatus())
+            .parameter(BIBO_STATUS, schemaArtifact.getPublicationStatus())
             .build();
       }
     }
@@ -592,12 +600,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     // Delete from artifact server
 
     try {
-      String url = microserviceUrlUtil.getArtifact().getNodeTypeWithId(nodeType, id);
+      String url = microserviceUrlUtil.getArtifact().getResourceTypeWithId(resourceType, id);
       HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
-        // resource was not deleted
+        // artifact was not deleted
         return generateStatusResponse(proxyResponse);
       } else {
         if (statusCode == HttpStatus.SC_NOT_FOUND) {
@@ -609,11 +617,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
 
     ResourceUri previousVersion = null;
-    if (resourceReport.getType().isVersioned() && resourceReport.isLatestVersion() != null &&
-        resourceReport.isLatestVersion()) {
-      previousVersion = resourceReport.getPreviousVersion();
+    if (resourceReport instanceof FolderServerSchemaArtifactCurrentUserReport) {
+      FolderServerSchemaArtifactCurrentUserReport schemaArtifact =
+          (FolderServerSchemaArtifactCurrentUserReport) resourceReport;
+      if (schemaArtifact.isLatestVersion() != null && schemaArtifact.isLatestVersion()) {
+        previousVersion = schemaArtifact.getPreviousVersion();
+      }
     }
-
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
     boolean deleted = folderSession.deleteResourceById(id);
@@ -626,25 +636,27 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       return CedarResponse.internalServerError()
           .id(id)
           .errorKey(CedarErrorKey.RESOURCE_NOT_DELETED)
-          .errorMessage("The resource can not be delete by id")
+          .errorMessage("The artifact can not be delete by id")
           .build();
     }
 
     removeIndexDocument(id);
-    removeValuerecommenderResource(FolderServerResource.fromFolderServerResourceCurrentUserReport(resourceReport));
+    removeValuerecommenderResource(FolderServerArtifact.fromFolderServerResourceCurrentUserReport(resourceReport));
     // reindex the previous version, since that just became the latest
-    if (resourceReport.hasPreviousVersion()) {
-      String previousId = resourceReport.getPreviousVersion().getValue();
-      FolderServerResourceCurrentUserReport folderServerPreviousResource =
-          userMustHaveReadAccessToResource(c, previousId);
-      String getResponse = getResourceFromArtifactServer(nodeType, previousId, c);
+    if (resourceReport instanceof FolderServerSchemaArtifactCurrentUserReport) {
+      FolderServerSchemaArtifactCurrentUserReport schemaArtifact =
+          (FolderServerSchemaArtifactCurrentUserReport) resourceReport;
+      String previousId = schemaArtifact.getPreviousVersion().getValue();
+      FolderServerArtifactCurrentUserReport folderServerPreviousResource =
+          userMustHaveReadAccessToArtifact(c, previousId);
+      String getResponse = getResourceFromArtifactServer(resourceType, previousId, c);
       if (getResponse != null) {
         JsonNode getJsonNode = null;
         try {
           getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
           if (getJsonNode != null) {
-            FolderServerResource folderServerPreviousR =
-                FolderServerResource.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource);
+            FolderServerArtifact folderServerPreviousR =
+                FolderServerArtifact.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource);
             updateIndexResource(folderServerPreviousR, c);
           }
         } catch (Exception e) {
@@ -698,64 +710,64 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected FolderServerResourceCurrentUserReport userMustHaveReadAccessToResource(CedarRequestContext context,
-                                                                                   String resourceId)
+  protected FolderServerArtifactCurrentUserReport userMustHaveReadAccessToArtifact(CedarRequestContext context,
+                                                                                   String artifactId)
       throws CedarException {
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
     PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(context);
-    FolderServerResourceCurrentUserReport
-        fsResource = GraphDbPermissionReader
-        .getResourceCurrentUserReport(context, folderSession, permissionSession, cedarConfig, resourceId);
-    if (fsResource == null) {
+    FolderServerArtifactCurrentUserReport
+        fsArtifact = GraphDbPermissionReader
+        .getArtifactCurrentUserReport(context, folderSession, permissionSession, cedarConfig, artifactId);
+    if (fsArtifact == null) {
       throw new CedarObjectNotFoundException("Resource not found by id")
-          .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
-          .parameter("resourceId", resourceId);
+          .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+          .parameter("resourceId", artifactId);
     }
     if (context.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE) ||
-        fsResource.getCurrentUserPermissions().isCanRead()) {
-      return fsResource;
+        fsArtifact.getCurrentUserPermissions().isCanRead()) {
+      return fsArtifact;
     } else {
-      throw new CedarPermissionException("You do not have read access to the resource")
+      throw new CedarPermissionException("You do not have read access to the artifact")
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_RESOURCE)
-          .parameter("resourceId", resourceId);
+          .parameter("resourceId", artifactId);
     }
   }
 
-  protected FolderServerResourceCurrentUserReport userMustHaveWriteAccessToResource(CedarRequestContext context,
-                                                                                    String resourceId)
+  protected FolderServerArtifactCurrentUserReport userMustHaveWriteAccessToArtifact(CedarRequestContext context,
+                                                                                    String artifactId)
       throws CedarException {
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
     PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(context);
-    FolderServerResourceCurrentUserReport
+    FolderServerArtifactCurrentUserReport
         fsResource = GraphDbPermissionReader
-        .getResourceCurrentUserReport(context, folderSession, permissionSession, cedarConfig, resourceId);
+        .getArtifactCurrentUserReport(context, folderSession, permissionSession, cedarConfig, artifactId);
     if (fsResource == null) {
       throw new CedarObjectNotFoundException("Resource not found by id")
-          .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
-          .parameter("resourceId", resourceId);
+          .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+          .parameter("resourceId", artifactId);
     }
     if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE) ||
         fsResource.getCurrentUserPermissions().isCanWrite()) {
       return fsResource;
     } else {
-      throw new CedarPermissionException("You do not have write access to the resource")
+      throw new CedarPermissionException("You do not have write access to the artifact")
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
-          .parameter("resourceId", resourceId);
+          .parameter("resourceId", artifactId);
     }
   }
 
-  protected FolderServerNode userMustHaveReadAccessToNode(CedarRequestContext context, String nodeId) throws
+  protected FileSystemResource userMustHaveReadAccessToResource(CedarRequestContext context, String resourceId) throws
       CedarException {
     Exception genericException;
     try {
-      return userMustHaveReadAccessToResource(context, nodeId);
+      return userMustHaveReadAccessToArtifact(context, resourceId);
     } catch (CedarPermissionException e) {
       throw e;
     } catch (Exception e) {
       genericException = e;
     }
     try {
-      return userMustHaveReadAccessToFolder(context, nodeId);
+      return userMustHaveReadAccessToFolder(context, resourceId);
     } catch (CedarPermissionException e) {
       throw e;
     } catch (Exception e) {
@@ -769,18 +781,18 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return null;
   }
 
-  protected FolderServerNode userMustHaveWriteAccessToNode(CedarRequestContext context, String nodeId) throws
+  protected FileSystemResource userMustHaveWriteAccessToResource(CedarRequestContext context, String resourceId) throws
       CedarException {
     Exception genericException;
     try {
-      return userMustHaveWriteAccessToResource(context, nodeId);
+      return userMustHaveWriteAccessToArtifact(context, resourceId);
     } catch (CedarPermissionException e) {
       throw e;
     } catch (Exception e) {
       genericException = e;
     }
     try {
-      return userMustHaveWriteAccessToFolder(context, nodeId);
+      return userMustHaveWriteAccessToFolder(context, resourceId);
     } catch (CedarPermissionException e) {
       throw e;
     } catch (Exception e) {
@@ -794,11 +806,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return null;
   }
 
-  protected Response generateNodePermissionsResponse(CedarRequestContext c, String id) throws
+  protected Response generateResourcePermissionsResponse(CedarRequestContext c, String id) throws
       CedarException {
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    FolderServerNode node = folderSession.findNodeById(id);
+    FileSystemResource node = folderSession.findResourceById(id);
     if (node == null) {
       return CedarResponse.notFound()
           .errorKey(CedarErrorKey.NODE_NOT_FOUND)
@@ -815,7 +827,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return Response.ok().entity(permissions).build();
   }
 
-  protected Response updateNodePermissions(CedarRequestContext c, String id) throws CedarException {
+  protected Response updateResourcePermissions(CedarRequestContext c, String id) throws CedarException {
 
     c.must(c.request().getRequestBody()).be(NonEmpty);
     JsonNode permissionUpdateRequest = c.request().getRequestBody().asJson();
@@ -830,12 +842,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       log.error("Error while reading permission update request", e);
     }
 
-    FolderServerNode node = folderSession.findNodeById(id);
+    FileSystemResource node = folderSession.findResourceById(id);
     if (node == null) {
       return CedarResponse.notFound()
           .id(id)
           .errorKey(CedarErrorKey.NODE_NOT_FOUND)
-          .errorMessage("The node can not be found by id")
+          .errorMessage("The resource can not be found by id")
           .build();
     } else {
       BackendCallResult backendCallResult = permissionSession.updateNodePermissions(id, permissionsRequest);
@@ -843,7 +855,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         throw new CedarBackendException(backendCallResult);
       }
 
-      if (node.getType() == CedarNodeType.FOLDER) {
+      if (node.getType() == CedarResourceType.FOLDER) {
         searchPermissionEnqueueService.folderPermissionsChanged(id);
       } else {
         searchPermissionEnqueueService.resourcePermissionsChanged(id);
@@ -858,13 +870,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * Private methods: move these into a separate service
    */
 
-  private ValuerecommenderReindexMessage buildValuerecommenderEvent(FolderServerResource folderServerResource,
+  private ValuerecommenderReindexMessage buildValuerecommenderEvent(FolderServerArtifact folderServerResource,
                                                                     ValuerecommenderReindexMessageActionType actionType) {
     ValuerecommenderReindexMessage event = null;
-    if (folderServerResource.getType() == CedarNodeType.TEMPLATE) {
+    if (folderServerResource.getType() == CedarResourceType.TEMPLATE) {
       event = new ValuerecommenderReindexMessage(folderServerResource.getId(), null,
           ValuerecommenderReindexMessageResourceType.TEMPLATE, actionType);
-    } else if (folderServerResource.getType() == CedarNodeType.INSTANCE) {
+    } else if (folderServerResource.getType() == CedarResourceType.INSTANCE) {
       FolderServerInstance instance = (FolderServerInstance) folderServerResource;
       event = new ValuerecommenderReindexMessage(instance.getIsBasedOn().getValue(), instance.getId(),
           ValuerecommenderReindexMessageResourceType.INSTANCE, actionType);
@@ -872,9 +884,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return event;
   }
 
-  protected void createIndexResource(FolderServerResource folderServerResource, CedarRequestContext c)
+  protected void createIndexArtifact(FolderServerArtifact folderServerArtifact, CedarRequestContext c)
       throws CedarProcessingException {
-    nodeIndexingService.indexDocument(folderServerResource, c);
+    nodeIndexingService.indexDocument(folderServerArtifact, c);
   }
 
   protected void createIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
@@ -882,18 +894,18 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     nodeIndexingService.indexDocument(folderServerFolder, c);
   }
 
-  protected void createValuerecommenderResource(FolderServerResource folderServerResource) {
+  protected void createValuerecommenderResource(FolderServerArtifact folderServerArtifact) {
     ValuerecommenderReindexMessage event =
-        buildValuerecommenderEvent(folderServerResource, ValuerecommenderReindexMessageActionType.CREATED);
+        buildValuerecommenderEvent(folderServerArtifact, ValuerecommenderReindexMessageActionType.CREATED);
     if (event != null) {
       valuerecommenderReindexQueueService.enqueueEvent(event);
     }
   }
 
-  protected void updateIndexResource(FolderServerResource folderServerResource, CedarRequestContext c)
+  protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c)
       throws CedarProcessingException {
-    nodeIndexingService.removeDocumentFromIndex(folderServerResource.getId());
-    nodeIndexingService.indexDocument(folderServerResource, c);
+    nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getId());
+    nodeIndexingService.indexDocument(folderServerArtifact, c);
   }
 
   protected void updateIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws
@@ -902,9 +914,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     nodeIndexingService.indexDocument(folderServerFolder, c);
   }
 
-  protected void updateValuerecommenderResource(FolderServerResource folderServerResource) {
+  protected void updateValuerecommenderResource(FolderServerArtifact folderServerArtifact) {
     ValuerecommenderReindexMessage event =
-        buildValuerecommenderEvent(folderServerResource, ValuerecommenderReindexMessageActionType.UPDATED);
+        buildValuerecommenderEvent(folderServerArtifact, ValuerecommenderReindexMessageActionType.UPDATED);
     if (event != null) {
       valuerecommenderReindexQueueService.enqueueEvent(event);
     }
@@ -914,9 +926,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     nodeIndexingService.removeDocumentFromIndex(id);
   }
 
-  protected void removeValuerecommenderResource(FolderServerResource folderServerResource) {
+  protected void removeValuerecommenderResource(FolderServerArtifact folderServerArtifact) {
     ValuerecommenderReindexMessage event =
-        buildValuerecommenderEvent(folderServerResource, ValuerecommenderReindexMessageActionType.DELETED);
+        buildValuerecommenderEvent(folderServerArtifact, ValuerecommenderReindexMessageActionType.DELETED);
     if (event != null) {
       valuerecommenderReindexQueueService.enqueueEvent(event);
     }
@@ -996,11 +1008,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    FolderServerResource resource = folderSession.findResourceById(id);
-    if (resource == null) {
+    FolderServerArtifact artifact = folderSession.findArtifactById(id);
+    if (artifact == null) {
       return CedarResponse.notFound()
-          .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
-          .errorMessage("Resource not found")
+          .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+          .errorMessage("Artifact not found")
           .parameter("id", id)
           .build();
     }
@@ -1009,11 +1021,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     userMustHaveReadAccess(permissionSession, id);
 
-    if (!resource.getType().isVersioned()) {
+    if (!artifact.getType().isVersioned()) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_DATA)
-          .errorMessage("Invalid resource type")
-          .parameter("nodeType", resource.getType().getValue())
+          .errorMessage("Invalid artifact type")
+          .parameter("artifactType", artifact.getType().getValue())
           .build();
     }
 
@@ -1025,13 +1037,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     NodeListQueryType nlqt = NodeListQueryType.ALL_VERSIONS;
     r.setNodeListQueryType(nlqt);
 
-    List<FolderServerResourceExtract> resources = folderSession.getVersionHistory(id);
+    List<FolderServerArtifactExtract> resources = folderSession.getVersionHistory(id);
     r.setResources(resources);
 
     r.setCurrentOffset(0);
     r.setTotalCount(resources.size());
 
-    for (FolderServerNodeExtract node : r.getResources()) {
+    for (FolderServerResourceExtract node : r.getResources()) {
       addProvenanceDisplayName(node);
     }
 
@@ -1042,7 +1054,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       throws CedarException {
     boolean b = permissionServiceSession.userHasReadAccessToNode(id);
     if (!b) {
-      throw new CedarPermissionException("You do not have read access to the node")
+      throw new CedarPermissionException("You do not have read access to the resource")
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_NODE)
           .parameter("nodeId", id);
     }
@@ -1054,21 +1066,21 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected void decorateResourceWithVersionHistory(CedarRequestContext c, FolderServiceSession folderSession,
-                                                    FolderServerResourceReport resourceReport) {
-    List<FolderServerResourceExtract> allVersions = folderSession.getVersionHistory(resourceReport.getId());
-    List<FolderServerResourceExtract> allVersionsWithPermission =
+                                                    FolderServerArtifactReport resourceReport) {
+    List<FolderServerArtifactExtract> allVersions = folderSession.getVersionHistory(resourceReport.getId());
+    List<FolderServerArtifactExtract> allVersionsWithPermission =
         folderSession.getVersionHistoryWithPermission(resourceReport.getId());
-    Map<String, FolderServerResourceExtract> accessibleMap = new HashMap<>();
-    for (FolderServerResourceExtract e : allVersionsWithPermission) {
+    Map<String, FolderServerArtifactExtract> accessibleMap = new HashMap<>();
+    for (FolderServerArtifactExtract e : allVersionsWithPermission) {
       accessibleMap.put(e.getId(), e);
     }
 
-    List<FolderServerResourceExtract> visibleVersions = new ArrayList<>();
-    for (FolderServerResourceExtract v : allVersions) {
+    List<FolderServerArtifactExtract> visibleVersions = new ArrayList<>();
+    for (FolderServerArtifactExtract v : allVersions) {
       if (accessibleMap.containsKey(v.getId())) {
         visibleVersions.add(v);
       } else {
-        visibleVersions.add(FolderServerNodeExtract.anonymous(v));
+        visibleVersions.add(FolderServerResourceExtract.anonymous(v));
       }
     }
     resourceReport.setVersions(visibleVersions);
@@ -1085,7 +1097,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         if (hasReadAccess) {
           instanceReport.setIsBasedOnExtract(resourceExtract);
         } else {
-          instanceReport.setIsBasedOnExtract(FolderServerNodeExtract.anonymous(resourceExtract));
+          instanceReport.setIsBasedOnExtract(FolderServerResourceExtract.anonymous(resourceExtract));
         }
       }
     }
@@ -1093,29 +1105,29 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected void decorateResourceWithDerivedFrom(FolderServiceSession folderSession,
                                                  PermissionServiceSession permissionServiceSession,
-                                                 FolderServerResourceReport resourceReport) {
+                                                 FolderServerArtifactReport resourceReport) {
     if (resourceReport.getDerivedFrom() != null && resourceReport.getDerivedFrom().getValue() != null) {
-      FolderServerResourceExtract resourceExtract =
+      FolderServerArtifactExtract resourceExtract =
           folderSession.findResourceExtractById(resourceReport.getDerivedFrom());
       if (resourceExtract != null) {
         boolean hasReadAccess = permissionServiceSession.userHasReadAccessToNode(resourceExtract.getId());
         if (hasReadAccess) {
           resourceReport.setDerivedFromExtract(resourceExtract);
         } else {
-          resourceReport.setDerivedFromExtract(FolderServerNodeExtract.anonymous(resourceExtract));
+          resourceReport.setDerivedFromExtract(FolderServerResourceExtract.anonymous(resourceExtract));
         }
       }
     }
   }
 
-  protected Response generateNodeReportResponse(CedarRequestContext c, String id) throws CedarException {
+  protected Response generateArtifactReportResponse(CedarRequestContext c, String id) throws CedarException {
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    FolderServerResource resource = folderSession.findResourceById(id);
-    if (resource == null) {
+    FolderServerArtifact artifact = folderSession.findArtifactById(id);
+    if (artifact == null) {
       return CedarResponse.notFound()
-          .errorKey(CedarErrorKey.RESOURCE_NOT_FOUND)
+          .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
           .errorMessage("Resource not found")
           .parameter("id", id)
           .build();
@@ -1123,26 +1135,26 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
 
-    userMustHaveReadAccess(permissionSession, resource.getId());
+    userMustHaveReadAccess(permissionSession, artifact.getId());
 
-    folderSession.addPathAndParentId(resource);
+    folderSession.addPathAndParentId(artifact);
 
-    resource.setPathInfo(PathInfoBuilder.getNodePathExtract(c, folderSession, permissionSession, resource));
+    artifact.setPathInfo(PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, artifact));
 
-    FolderServerResourceReport resourceReport = FolderServerResourceReport.fromResource(resource);
+    FolderServerArtifactReport resourceReport = FolderServerArtifactReport.fromResource(artifact);
 
     decorateResourceWithDerivedFrom(folderSession, permissionSession, resourceReport);
     GraphDbPermissionReader
         .decorateResourceWithCurrentUserPermissions(c, permissionSession, cedarConfig, resourceReport);
 
-    if (resource.getType() == CedarNodeType.INSTANCE) {
+    if (artifact.getType() == CedarResourceType.INSTANCE) {
       decorateResourceWithIsBasedOn(folderSession, permissionSession,
           (FolderServerInstanceReport) resourceReport);
-    } else if (resource.getType() == CedarNodeType.FIELD) {
+    } else if (artifact.getType() == CedarResourceType.FIELD) {
       decorateResourceWithVersionHistory(c, folderSession, resourceReport);
-    } else if (resource.getType() == CedarNodeType.ELEMENT) {
+    } else if (artifact.getType() == CedarResourceType.ELEMENT) {
       decorateResourceWithVersionHistory(c, folderSession, resourceReport);
-    } else if (resource.getType() == CedarNodeType.TEMPLATE) {
+    } else if (artifact.getType() == CedarResourceType.TEMPLATE) {
       decorateResourceWithNumberOfInstances(c, folderSession, (FolderServerTemplateReport) resourceReport);
       decorateResourceWithVersionHistory(c, folderSession, resourceReport);
     }
