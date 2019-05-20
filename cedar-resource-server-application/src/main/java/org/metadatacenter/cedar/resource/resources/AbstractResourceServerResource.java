@@ -647,20 +647,22 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       FolderServerSchemaArtifactCurrentUserReport schemaArtifact =
           (FolderServerSchemaArtifactCurrentUserReport) resourceReport;
       String previousId = schemaArtifact.getPreviousVersion().getValue();
-      FolderServerArtifactCurrentUserReport folderServerPreviousResource =
-          userMustHaveReadAccessToArtifact(c, previousId);
-      String getResponse = getResourceFromArtifactServer(resourceType, previousId, c);
-      if (getResponse != null) {
-        JsonNode getJsonNode = null;
-        try {
-          getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-          if (getJsonNode != null) {
-            FolderServerArtifact folderServerPreviousR =
-                FolderServerArtifact.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource);
-            updateIndexResource(folderServerPreviousR, c);
+      if (previousId != null) {
+        FolderServerArtifactCurrentUserReport folderServerPreviousResource =
+            userMustHaveReadAccessToArtifact(c, previousId);
+        String getResponse = getResourceFromArtifactServer(resourceType, previousId, c);
+        if (getResponse != null) {
+          JsonNode getJsonNode = null;
+          try {
+            getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+            if (getJsonNode != null) {
+              FolderServerArtifact folderServerPreviousR =
+                  FolderServerArtifact.fromFolderServerResourceCurrentUserReport(folderServerPreviousResource);
+              updateIndexResource(folderServerPreviousR, c);
+            }
+          } catch (Exception e) {
+            log.error("There was an error while reindexing the new latest version", e);
           }
-        } catch (Exception e) {
-          log.error("There was an error while reindexing the new latest version", e);
         }
       }
     }
