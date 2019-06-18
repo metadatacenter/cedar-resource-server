@@ -205,7 +205,7 @@ public class CommandResource extends AbstractResourceServerResource {
           oldTitle = "";
         }
         String newTitle = titleTemplate.replace("{{title}}", oldTitle);
-        ((ObjectNode) jsonNode).put(SCHEMA_NAME, newTitle);
+        ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newTitle);
         ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
         if (resourceType.isVersioned()) {
           ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
@@ -1020,7 +1020,7 @@ public class CommandResource extends AbstractResourceServerResource {
           newDocument.put(ModelNodeNames.PAV_VERSION, newVersion.getValue());
           newDocument.put(ModelNodeNames.BIBO_STATUS, BiboStatus.DRAFT.getValue());
           newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, id);
-          newDocument.remove(ModelNodeNames.LD_ID);
+          newDocument.remove(ModelNodeNames.JSON_LD_ID);
 
           FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, folderId);
 
