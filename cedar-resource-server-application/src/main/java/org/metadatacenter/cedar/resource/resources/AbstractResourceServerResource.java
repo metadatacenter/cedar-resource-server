@@ -108,12 +108,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected static void updateNameInObject(CedarResourceType resourceType, JsonNode jsonNode, String name) {
-    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_NAME, name);
+    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_ORG_NAME, name);
   }
 
   protected static void updateDescriptionInObject(CedarResourceType resourceType, JsonNode jsonNode,
                                                   String description) {
-    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_DESCRIPTION, description);
+    ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_ORG_DESCRIPTION, description);
   }
 
   protected static Response newResponseWithValidationHeader(Response.ResponseBuilder responseBuilder,
