@@ -7,6 +7,7 @@ import org.metadatacenter.error.CedarAssertionResult;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.exception.CedarBackendException;
+import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
 import org.metadatacenter.model.folderserver.basic.FolderServerGroup;
@@ -39,7 +40,8 @@ import static org.metadatacenter.constant.CedarQueryParameters.QP_OFFSET;
 import static org.metadatacenter.error.CedarErrorKey.GROUP_CAN_BY_DELETED_ONLY_BY_GROUP_ADMIN;
 import static org.metadatacenter.error.CedarErrorKey.SPECIAL_GROUP_CAN_NOT_BE_DELETED;
 import static org.metadatacenter.rest.assertion.GenericAssertions.*;
-import static org.metadatacenter.server.security.model.auth.CedarPermission.*;
+import static org.metadatacenter.server.security.model.auth.CedarPermission.GROUP_DELETE;
+import static org.metadatacenter.server.security.model.auth.CedarPermission.UPDATE_NOT_ADMINISTERED_GROUP;
 
 @Path("/categories")
 @Produces(MediaType.APPLICATION_JSON)
@@ -178,37 +180,49 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(GROUP_UPDATE);
+    //c.must(c.user()).have(GROUP_UPDATE);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
 
-    GroupServiceSession groupSession = CedarDataServices.getGroupServiceSession(c);
-    FolderServerGroup existingGroup = findNonSpecialGroupById(c, groupSession, id);
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
 
-    CedarParameter groupName = requestBody.get("schema:name");
-    CedarParameter groupDescription = requestBody.get("schema:description");
-    c.should(groupName, groupDescription).be(NonNull).otherwiseBadRequest();
-
-    // check if the new name is unique
-    FolderServerGroup otherGroup = groupSession.findGroupByName(groupName.stringValue());
-    checkUniqueness(otherGroup, existingGroup);
-
-    Map<NodeProperty, String> updateFields = new HashMap<>();
-    updateFields.put(NodeProperty.NAME, groupName.stringValue());
-    updateFields.put(NodeProperty.DESCRIPTION, groupDescription.stringValue());
-    FolderServerGroup updatedGroup = groupSession.updateGroupById(id, updateFields);
-
-    c.should(updatedGroup).be(NonNull).otherwiseInternalServerError(
+    FolderServerCategory existingCategory = categorySession.getCategoryById(id);
+    c.should(existingCategory).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
-            .message("There was an error while updating the group!")
-            .operation(CedarOperations.update(FolderServerGroup.class, "id", id))
+            .message("The category can not be found by id!")
+            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", id))
     );
 
-    // BackendCallResult<FolderServerGroup> bcr = groupSession.updateGroup(c, groupSession, id, updateFields);
-    // c.must(backendCallResult).be(Successful); // InternalServerError, 404 NotFound, 403 Forbidden if special
-    // FolderServerGroup existingGroup = bcr.get();
+    CedarParameter categoryName = requestBody.get(NodeProperty.NAME.getValue());
+    CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
+    c.should(categoryName, categoryDescription).be(NonNull).otherwiseBadRequest();
 
-    return Response.ok().entity(updatedGroup).build();
+    FolderServerCategory sameNameCategory = categorySession.getCategoryByNameAndParent(categoryName.stringValue(),
+        existingCategory.getParentCategoryId());
+
+    if (sameNameCategory != null && !sameNameCategory.getId().equals(id)) {
+      CedarErrorPack cedarErrorPack = new CedarErrorPack();
+      cedarErrorPack.status(Response.Status.BAD_REQUEST)
+          .message("There is a category with the same name under the parent category. Category names must be unique!")
+          .parameter(NodeProperty.NAME.getValue(), categoryName.stringValue())
+          .parameter(NodeProperty.PARENT_CATEGORY_ID.getValue(), existingCategory.getParentCategoryId())
+          .operation(CedarOperations.lookup(FolderServerCategory.class, NodeProperty.NAME.getValue(), categoryName))
+          .errorKey(CedarErrorKey.CATEGORY_ALREADY_PRESENT);
+      throw new CedarBadRequestException(cedarErrorPack);
+    }
+
+    Map<NodeProperty, String> updateFields = new HashMap<>();
+    updateFields.put(NodeProperty.NAME, categoryName.stringValue());
+    updateFields.put(NodeProperty.DESCRIPTION, categoryDescription.stringValue());
+    FolderServerCategory updatedCategory = categorySession.updateCategoryById(id, updateFields);
+
+    c.should(updatedCategory).be(NonNull).otherwiseInternalServerError(
+        new CedarErrorPack()
+            .message("There was an error while updating the category!")
+            .operation(CedarOperations.update(FolderServerCategory.class, "id", id))
+    );
+
+    return Response.ok().entity(updatedCategory).build();
   }
 
   private static void checkUniqueness(FolderServerGroup otherGroup, FolderServerGroup existingGroup) throws
