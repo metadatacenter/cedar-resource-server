@@ -45,7 +45,6 @@ import static org.metadatacenter.server.security.model.auth.CedarPermission.*;
 @Produces(MediaType.APPLICATION_JSON)
 public class CategoriesResource extends AbstractResourceServerResource {
 
-
   public CategoriesResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
@@ -78,42 +77,42 @@ public class CategoriesResource extends AbstractResourceServerResource {
   }
 
 
-  //TODO:ATTI:FROMHERE
   @POST
   @Timed
   public Response createCategory() throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(GROUP_CREATE);
+    c.must(c.user()).have(CATEGORY_CREATE);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
 
-    CedarParameter groupName = requestBody.get("schema:name");
-    CedarParameter groupDescription = requestBody.get("schema:description");
-    c.should(groupName, groupDescription).be(NonNull).otherwiseBadRequest();
+    CedarParameter parentCategoryId = requestBody.get("parentCategoryId");
+    CedarParameter categoryName = requestBody.get("schema:name");
+    CedarParameter categoryDescription = requestBody.get("schema:description");
+    c.should(parentCategoryId, categoryName, categoryDescription).be(NonNull).otherwiseBadRequest();
 
-    GroupServiceSession groupSession = CedarDataServices.getGroupServiceSession(c);
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
 
-    FolderServerGroup oldGroup = groupSession.findGroupByName(groupName.stringValue());
-    c.should(oldGroup).be(Null).otherwiseBadRequest(
+    FolderServerCategory oldCategory = categorySession.getCategoryByNameAndParent(categoryName.stringValue(), parentCategoryId.stringValue());
+    c.should(oldCategory).be(Null).otherwiseBadRequest(
         new CedarErrorPack()
-            .message("There is a group with the same name present in the system. Group names must be unique!")
-            .operation(CedarOperations.lookup(FolderServerGroup.class, "schema:name", groupName))
-            .errorKey(CedarErrorKey.GROUP_ALREADY_PRESENT)
+            .message("There is a category with the same name under the parent category. Category names must be unique!")
+            .operation(CedarOperations.lookup(FolderServerCategory.class, "schema:name", categoryName))
+            .errorKey(CedarErrorKey.CATEGORY_ALREADY_PRESENT)
     );
 
-    FolderServerGroup newGroup = groupSession.createGroup(groupName.stringValue(), groupName.stringValue(),
-        groupDescription.stringValue());
-    c.should(newGroup).be(NonNull).otherwiseInternalServerError(
+    FolderServerCategory newCategory = categorySession.createCategory(categoryName.stringValue(), categoryDescription.stringValue(),
+        parentCategoryId.stringValue());
+    c.should(newCategory).be(NonNull).otherwiseInternalServerError(
         new CedarErrorPack()
-            .message("There was an error while creating the group!")
-            .operation(CedarOperations.create(FolderServerGroup.class, "schema:name", groupName))
+            .message("There was an error while creating the category!")
+            .operation(CedarOperations.create(FolderServerCategory.class, "schema:name", categoryName))
     );
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-    URI uri = builder.path(CedarUrlUtil.urlEncode(newGroup.getId())).build();
-    return Response.created(uri).entity(newGroup).build();
+    URI uri = builder.path(CedarUrlUtil.urlEncode(newCategory.getId())).build();
+    return Response.created(uri).entity(newCategory).build();
   }
 
   @GET
