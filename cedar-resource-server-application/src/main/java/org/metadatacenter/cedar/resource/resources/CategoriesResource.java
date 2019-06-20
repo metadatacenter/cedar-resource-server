@@ -3,14 +3,11 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.error.CedarAssertionResult;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
-import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
-import org.metadatacenter.model.folderserver.basic.FolderServerGroup;
 import org.metadatacenter.model.request.CategoryListRequest;
 import org.metadatacenter.model.response.FolderServerCategoryListResponse;
 import org.metadatacenter.operation.CedarOperations;
@@ -18,7 +15,6 @@ import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryServiceSession;
-import org.metadatacenter.server.GroupServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.LinkHeaderUtil;
@@ -37,11 +33,7 @@ import java.util.Optional;
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_LIMIT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_OFFSET;
-import static org.metadatacenter.error.CedarErrorKey.GROUP_CAN_BY_DELETED_ONLY_BY_GROUP_ADMIN;
-import static org.metadatacenter.error.CedarErrorKey.SPECIAL_GROUP_CAN_NOT_BE_DELETED;
 import static org.metadatacenter.rest.assertion.GenericAssertions.*;
-import static org.metadatacenter.server.security.model.auth.CedarPermission.GROUP_DELETE;
-import static org.metadatacenter.server.security.model.auth.CedarPermission.UPDATE_NOT_ADMINISTERED_GROUP;
 
 @Path("/categories")
 @Produces(MediaType.APPLICATION_JSON)
@@ -225,37 +217,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
     return Response.ok().entity(updatedCategory).build();
   }
 
-  private static void checkUniqueness(FolderServerGroup otherGroup, FolderServerGroup existingGroup) throws
-      CedarException {
-    if (otherGroup != null && !otherGroup.getId().equals(existingGroup.getId())) {
-      CedarAssertionResult ar = new CedarAssertionResult(
-          "There is a group with the new name present in the system. Group names must be unique!")
-          .parameter("schema:name", otherGroup.getName())
-          .parameter("id", otherGroup.getId())
-          .badRequest();
-      throw new CedarBackendException(ar);
-    }
-  }
-
-  private static FolderServerGroup findNonSpecialGroupById(CedarRequestContext c, GroupServiceSession groupSession,
-                                                           String id) throws CedarException {
-    FolderServerGroup existingGroup = groupSession.findGroupById(id);
-    c.should(existingGroup).be(NonNull).otherwiseNotFound(
-        new CedarErrorPack()
-            .message("The group can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerGroup.class, "id", id))
-    );
-
-    if (existingGroup.getSpecialGroup() != null) {
-      CedarAssertionResult ar = new CedarAssertionResult("Special groups can not be modified!")
-          .parameter("id", id)
-          .parameter("specialGroup", existingGroup.getSpecialGroup())
-          .badRequest();
-      throw new CedarBackendException(ar);
-    }
-    return existingGroup;
-  }
-
   @DELETE
   @Timed
   @Path("/{id}")
@@ -263,26 +224,23 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(GROUP_DELETE);
+    //c.must(c.user()).have(GROUP_DELETE);
 
-    GroupServiceSession groupSession = CedarDataServices.getGroupServiceSession(c);
-    FolderServerGroup existingGroup = groupSession.findGroupById(id);
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    FolderServerCategory existingCategory = categorySession.getCategoryById(id);
 
-    c.should(existingGroup).be(NonNull).otherwiseNotFound(
+    c.should(existingCategory).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
-            .message("The group can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerGroup.class, "id", id))
+            .message("The category can not be found by id!")
+            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", id))
     );
 
-    String specialGroup = existingGroup.getSpecialGroup();
-    c.should(specialGroup).be(Null).otherwiseBadRequest(
-        new CedarErrorPack()
-            .errorKey(SPECIAL_GROUP_CAN_NOT_BE_DELETED)
-            .parameter("schema:name", existingGroup.getName())
-            .message("The special group '" + specialGroup + "'can not be deleted!")
-            .operation(CedarOperations.delete(FolderServerGroup.class, "id", id))
-    );
+    //TODO: check if it can be deleted:
+    // - it has no child nodes
+    // - it has no artifacts attached
+    // - also perform some kind of permission checking
 
+    /*
     boolean isAdministrator = groupSession.userAdministersGroup(id) || c.getCedarUser().has
         (UPDATE_NOT_ADMINISTERED_GROUP);
     c.should(isAdministrator).be(True).otherwiseForbidden(
@@ -291,16 +249,19 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .message("Only the administrators can delete the group!")
             .operation(CedarOperations.delete(FolderServerGroup.class, "id", id))
     );
+    */
 
 
-    boolean deleted = groupSession.deleteGroupById(id);
+    boolean deleted = categorySession.deleteCategoryById(id);
     c.should(deleted).be(True).otherwiseInternalServerError(
         new CedarErrorPack()
-            .message("There was an error while deleting the group!")
-            .operation(CedarOperations.delete(FolderServerGroup.class, "id", id))
+            .message("There was an error while deleting the category!")
+            .operation(CedarOperations.delete(FolderServerCategory.class, "id", id))
     );
 
-    searchPermissionEnqueueService.groupDeleted(id);
+    //searchPermissionEnqueueService.groupDeleted(id);
+
+    // TODO: if there will be a search index for this, handle that as well. Throughout the whole process.
 
     return Response.noContent().build();
   }
