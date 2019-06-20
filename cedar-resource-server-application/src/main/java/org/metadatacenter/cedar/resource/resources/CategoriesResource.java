@@ -10,8 +10,8 @@ import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
 import org.metadatacenter.model.folderserver.basic.FolderServerGroup;
+import org.metadatacenter.model.request.CategoryListRequest;
 import org.metadatacenter.model.response.FolderServerCategoryListResponse;
-import org.metadatacenter.model.response.FolderServerGroupListResponse;
 import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
@@ -19,8 +19,8 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.GroupServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
-import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarUrlUtil;
+import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedQuery;
 
 import javax.ws.rs.*;
@@ -57,7 +57,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CATEGORY_READ);
+    //c.must(c.user()).have(CATEGORY_READ);
 
     PagedQuery pagedQuery = new PagedQuery(cedarConfig.getCategoryRESTAPI().getPagination())
         .limit(limitParam)
@@ -67,11 +67,30 @@ public class CategoriesResource extends AbstractResourceServerResource {
     Integer limit = pagedQuery.getLimit();
     Integer offset = pagedQuery.getOffset();
 
-    CategoryServiceSession category = CedarDataServices.getCategoryServiceSession(c);
-    List<FolderServerCategory> categories = category.getAllCategories(limit, offset);
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    List<FolderServerCategory> categories = categorySession.getAllCategories(limit, offset);
+    long total = categorySession.getCategoryCount();
 
     FolderServerCategoryListResponse r = new FolderServerCategoryListResponse();
+
+    CategoryListRequest req = new CategoryListRequest();
+    req.setLimit(limit);
+    req.setOffset(offset);
+
+    r.setRequest(req);
+
     r.setCategories(categories);
+
+    r.setTotalCount(total);
+    r.setCurrentOffset(offset);
+
+    UriBuilder builder = uriInfo.getAbsolutePathBuilder();
+    URI absoluteURI = builder
+        .build();
+
+    r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteURI.toString(), total, limit, offset));
+
+    addProvenanceDisplayNames(r);
 
     return Response.ok().entity(r).build();
   }
@@ -83,32 +102,47 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CATEGORY_CREATE);
+    //c.must(c.user()).have(CATEGORY_CREATE);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
 
-    CedarParameter parentCategoryId = requestBody.get("parentCategoryId");
-    CedarParameter categoryName = requestBody.get("schema:name");
-    CedarParameter categoryDescription = requestBody.get("schema:description");
-    c.should(parentCategoryId, categoryName, categoryDescription).be(NonNull).otherwiseBadRequest();
+    CedarParameter categoryName = requestBody.get(NodeProperty.NAME.getValue());
+    CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
+    CedarParameter parentCategoryId = requestBody.get(NodeProperty.PARENT_CATEGORY_ID.getValue());
+    c.should(categoryName, categoryDescription, parentCategoryId).be(NonNull).otherwiseBadRequest();
 
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
 
-    FolderServerCategory oldCategory = categorySession.getCategoryByNameAndParent(categoryName.stringValue(), parentCategoryId.stringValue());
+    FolderServerCategory parentCategory = categorySession.getCategoryById(parentCategoryId.stringValue());
+    c.should(parentCategory).be(NonNull).otherwiseBadRequest(
+        new CedarErrorPack()
+            .message("The parent category can not be found!")
+            .parameter(NodeProperty.PARENT_CATEGORY_ID.getValue(), parentCategoryId.stringValue())
+            .operation(CedarOperations.lookup(FolderServerCategory.class, NodeProperty.ID.getValue(), parentCategoryId))
+            .errorKey(CedarErrorKey.PARENT_CATEGORY_NOT_FOUND)
+    );
+
+    FolderServerCategory oldCategory = categorySession.getCategoryByNameAndParent(categoryName.stringValue(),
+        parentCategoryId.stringValue());
     c.should(oldCategory).be(Null).otherwiseBadRequest(
         new CedarErrorPack()
             .message("There is a category with the same name under the parent category. Category names must be unique!")
-            .operation(CedarOperations.lookup(FolderServerCategory.class, "schema:name", categoryName))
+            .parameter(NodeProperty.NAME.getValue(), categoryName.stringValue())
+            .parameter(NodeProperty.PARENT_CATEGORY_ID.getValue(), parentCategoryId.stringValue())
+            .operation(CedarOperations.lookup(FolderServerCategory.class, NodeProperty.NAME.getValue(), categoryName))
             .errorKey(CedarErrorKey.CATEGORY_ALREADY_PRESENT)
     );
 
-    FolderServerCategory newCategory = categorySession.createCategory(categoryName.stringValue(), categoryDescription.stringValue(),
+    FolderServerCategory newCategory = categorySession.createCategory(categoryName.stringValue(),
+        categoryDescription.stringValue(),
         parentCategoryId.stringValue());
     c.should(newCategory).be(NonNull).otherwiseInternalServerError(
         new CedarErrorPack()
             .message("There was an error while creating the category!")
-            .operation(CedarOperations.create(FolderServerCategory.class, "schema:name", categoryName))
+            .operation(CedarOperations.create(FolderServerCategory.class, NodeProperty.NAME.getValue(), categoryName))
     );
+
+    addProvenanceDisplayName(newCategory);
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
     URI uri = builder.path(CedarUrlUtil.urlEncode(newCategory.getId())).build();
@@ -122,23 +156,19 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(GROUP_READ);
+    //c.must(c.user()).have(GROUP_READ);
 
-    GroupServiceSession groupSession = CedarDataServices.getGroupServiceSession(c);
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
 
-    FolderServerGroup group = groupSession.findGroupById(id);
-    c.should(group).be(NonNull).otherwiseNotFound(
+    FolderServerCategory category = categorySession.getCategoryById(id);
+    c.should(category).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
-            .message("The group can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerGroup.class, "id", id))
+            .message("The category can not be found by id!")
+            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", id))
     );
 
-    // BackendCallResult<FolderServerGroup> bcr = groupSession.findGroupById(id);
-    // c.must(backendCallResult).be(Successful);
-    // c.must(backendCallResult).be(Found);
-    // FolderServerGroup group = bcr.get();
-
-    return Response.ok().entity(group).build();
+    addProvenanceDisplayName(category);
+    return Response.ok().entity(category).build();
   }
 
   @PUT

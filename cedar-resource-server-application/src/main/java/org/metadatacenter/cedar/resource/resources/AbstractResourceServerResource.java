@@ -20,6 +20,7 @@ import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerSchemaArtifactCurrentUserReport;
+import org.metadatacenter.model.folderserver.datagroup.ResourceWithUsersAndUserNamesData;
 import org.metadatacenter.model.folderserver.extract.FolderServerArtifactExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerTemplateExtract;
@@ -29,6 +30,7 @@ import org.metadatacenter.model.folderserver.report.FolderServerInstanceReport;
 import org.metadatacenter.model.folderserver.report.FolderServerTemplateReport;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
+import org.metadatacenter.model.response.FolderServerCategoryListResponse;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
@@ -146,7 +148,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected void addProvenanceDisplayName(FileSystemResource resource) throws CedarProcessingException {
+  protected void addProvenanceDisplayName(ResourceWithUsersAndUserNamesData resource) {
     if (resource != null) {
       CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
       CedarUserSummary updater = UserSummaryCache.getInstance().getUser(resource.getLastUpdatedBy());
@@ -160,8 +162,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       if (owner != null) {
         resource.setOwnedByUserName(owner.getScreenName());
       }
-      for (FolderServerResourceExtract pi : resource.getPathInfo()) {
-        addProvenanceDisplayName(pi);
+      if (resource instanceof FileSystemResource) {
+        FileSystemResource res = (FileSystemResource) resource;
+        for (FolderServerResourceExtract pi : res.getPathInfo()) {
+          addProvenanceDisplayName(pi);
+        }
       }
     }
   }
@@ -222,6 +227,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       for (FolderServerResourceExtract pi : nodeList.getPathInfo()) {
         addProvenanceDisplayName(pi);
       }
+    }
+  }
+
+  protected void addProvenanceDisplayNames(FolderServerCategoryListResponse categoryList) {
+    for (FolderServerCategory c : categoryList.getCategories()) {
+      addProvenanceDisplayName(c);
     }
   }
 

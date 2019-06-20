@@ -2,7 +2,6 @@ package org.metadatacenter.cedar.resource;
 
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
-import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.IndexCreator;
@@ -87,6 +86,9 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     final TemplateInstancesResource instances = new TemplateInstancesResource(cedarConfig);
     environment.jersey().register(instances);
+
+    final CategoriesResource categories = new CategoriesResource(cedarConfig);
+    environment.jersey().register(categories);
 
     final ResourceServerHealthCheck healthCheck = new ResourceServerHealthCheck();
     environment.healthChecks().register("message", healthCheck);
