@@ -816,10 +816,10 @@ public class CommandResource extends AbstractResourceServerResource {
     }
 
     FolderServerArtifactCurrentUserReport folderServerResourceOld = userMustHaveReadAccessToArtifact(c, id);
-    CurrentUserPermissions currentUserPermissions = folderServerResourceOld.getCurrentUserPermissions();
-    if (!currentUserPermissions.isCanPublish()) {
+    CurrentUserResourcePermissions currentUserResourcePermissions = folderServerResourceOld.getCurrentUserPermissions();
+    if (!currentUserResourcePermissions.isCanPublish()) {
       return CedarResponse.badRequest()
-          .errorKey(currentUserPermissions.getPublishErrorKey())
+          .errorKey(currentUserResourcePermissions.getPublishErrorKey())
           .parameter("id", id)
           .build();
     }
@@ -951,10 +951,10 @@ public class CommandResource extends AbstractResourceServerResource {
     }
 
     FolderServerArtifactCurrentUserReport folderServeArtifactOld = userMustHaveReadAccessToArtifact(c, id);
-    CurrentUserPermissions currentUserPermissions = folderServeArtifactOld.getCurrentUserPermissions();
-    if (!currentUserPermissions.isCanCreateDraft()) {
+    CurrentUserResourcePermissions currentUserResourcePermissions = folderServeArtifactOld.getCurrentUserPermissions();
+    if (!currentUserResourcePermissions.isCanCreateDraft()) {
       return CedarResponse.badRequest()
-          .errorKey(currentUserPermissions.getCreateDraftErrorKey())
+          .errorKey(currentUserResourcePermissions.getCreateDraftErrorKey())
           .parameter("id", id)
           .build();
     }

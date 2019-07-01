@@ -14,8 +14,10 @@ import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedQuery;
@@ -51,7 +53,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    //c.must(c.user()).have(CATEGORY_READ);
+    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
     PagedQuery pagedQuery = new PagedQuery(cedarConfig.getCategoryRESTAPI().getPagination())
         .limit(limitParam)
@@ -96,28 +98,31 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    //c.must(c.user()).have(CATEGORY_CREATE);
+    c.must(c.user()).have(CedarPermission.CATEGORY_CREATE);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
 
     CedarParameter categoryName = requestBody.get(NodeProperty.NAME.getValue());
     CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
     CedarParameter parentCategoryId = requestBody.get(NodeProperty.PARENT_CATEGORY_ID.getValue());
+    CedarParameter identifier = requestBody.get(NodeProperty.IDENTIFIER.getValue());
     c.should(categoryName, categoryDescription, parentCategoryId).be(NonNull).otherwiseBadRequest();
+    CedarCategoryId ccParentId = CedarCategoryId.build(parentCategoryId.stringValue());
 
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
 
-    FolderServerCategory parentCategory = categorySession.getCategoryById(parentCategoryId.stringValue());
+    FolderServerCategory parentCategory = categorySession.getCategoryById(ccParentId);
     c.should(parentCategory).be(NonNull).otherwiseBadRequest(
         new CedarErrorPack()
             .message("The parent category can not be found!")
-            .parameter(NodeProperty.PARENT_CATEGORY_ID.getValue(), parentCategoryId.stringValue())
-            .operation(CedarOperations.lookup(FolderServerCategory.class, NodeProperty.ID.getValue(), parentCategoryId))
+            .parameter(NodeProperty.PARENT_CATEGORY_ID.getValue(), ccParentId)
+            .operation(CedarOperations.lookup(FolderServerCategory.class, NodeProperty.ID.getValue(),
+                ccParentId.getId()))
             .errorKey(CedarErrorKey.PARENT_CATEGORY_NOT_FOUND)
     );
 
-    FolderServerCategory oldCategory = categorySession.getCategoryByNameAndParent(categoryName.stringValue(),
-        parentCategoryId.stringValue());
+    FolderServerCategory oldCategory = categorySession.getCategoryByParentAndName(ccParentId,
+        categoryName.stringValue());
     c.should(oldCategory).be(Null).otherwiseBadRequest(
         new CedarErrorPack()
             .message("There is a category with the same name under the parent category. Category names must be unique!")
@@ -127,9 +132,10 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .errorKey(CedarErrorKey.CATEGORY_ALREADY_PRESENT)
     );
 
-    FolderServerCategory newCategory = categorySession.createCategory(categoryName.stringValue(),
-        categoryDescription.stringValue(),
-        parentCategoryId.stringValue());
+    FolderServerCategory parentCategoryWritable = userMustHaveWriteAccessToCategory(c, ccParentId);
+
+    FolderServerCategory newCategory = categorySession.createCategory(ccParentId,
+        categoryName.stringValue(), categoryDescription.stringValue(), identifier.stringValue());
     c.should(newCategory).be(NonNull).otherwiseInternalServerError(
         new CedarErrorPack()
             .message("There was an error while creating the category!")
@@ -150,15 +156,16 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    //c.must(c.user()).have(GROUP_READ);
+    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
+    CedarCategoryId ccid = CedarCategoryId.build(id);
 
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
 
-    FolderServerCategory category = categorySession.getCategoryById(id);
+    FolderServerCategory category = categorySession.getCategoryById(ccid);
     c.should(category).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
             .message("The category can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", id))
+            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
     addProvenanceDisplayName(category);
@@ -172,27 +179,29 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    //c.must(c.user()).have(GROUP_UPDATE);
+    c.must(c.user()).have(CedarPermission.CATEGORY_UPDATE);
+    CedarCategoryId ccid = CedarCategoryId.build(id);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
 
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
 
-    FolderServerCategory existingCategory = categorySession.getCategoryById(id);
+    FolderServerCategory existingCategory = categorySession.getCategoryById(ccid);
     c.should(existingCategory).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
             .message("The category can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", id))
+            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
+    //TODO read identifier as well optionally
     CedarParameter categoryName = requestBody.get(NodeProperty.NAME.getValue());
     CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
     c.should(categoryName, categoryDescription).be(NonNull).otherwiseBadRequest();
 
-    FolderServerCategory sameNameCategory = categorySession.getCategoryByNameAndParent(categoryName.stringValue(),
-        existingCategory.getParentCategoryId());
+    FolderServerCategory sameNameCategory = categorySession.getCategoryByParentAndName(CedarCategoryId.build(existingCategory.getParentCategoryId()),
+        categoryName.stringValue());
 
-    if (sameNameCategory != null && !sameNameCategory.getId().equals(id)) {
+    if (sameNameCategory != null && !sameNameCategory.getId().equals(ccid.getId())) {
       CedarErrorPack cedarErrorPack = new CedarErrorPack();
       cedarErrorPack.status(Response.Status.BAD_REQUEST)
           .message("There is a category with the same name under the parent category. Category names must be unique!")
@@ -206,12 +215,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
     Map<NodeProperty, String> updateFields = new HashMap<>();
     updateFields.put(NodeProperty.NAME, categoryName.stringValue());
     updateFields.put(NodeProperty.DESCRIPTION, categoryDescription.stringValue());
-    FolderServerCategory updatedCategory = categorySession.updateCategoryById(id, updateFields);
+    FolderServerCategory updatedCategory = categorySession.updateCategoryById(ccid, updateFields);
 
     c.should(updatedCategory).be(NonNull).otherwiseInternalServerError(
         new CedarErrorPack()
             .message("There was an error while updating the category!")
-            .operation(CedarOperations.update(FolderServerCategory.class, "id", id))
+            .operation(CedarOperations.update(FolderServerCategory.class, "id", ccid.getId()))
     );
 
     return Response.ok().entity(updatedCategory).build();
@@ -224,15 +233,16 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    //c.must(c.user()).have(GROUP_DELETE);
+    c.must(c.user()).have(CedarPermission.CATEGORY_DELETE);
+    CedarCategoryId ccid = CedarCategoryId.build(id);
 
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
-    FolderServerCategory existingCategory = categorySession.getCategoryById(id);
+    FolderServerCategory existingCategory = categorySession.getCategoryById(ccid);
 
     c.should(existingCategory).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
             .message("The category can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", id))
+            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
     //TODO: check if it can be deleted:
@@ -240,7 +250,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     // - it has no artifacts attached
     // - also perform some kind of permission checking
 
-    /*
+      /*
     boolean isAdministrator = groupSession.userAdministersGroup(id) || c.getCedarUser().has
         (UPDATE_NOT_ADMINISTERED_GROUP);
     c.should(isAdministrator).be(True).otherwiseForbidden(
@@ -252,11 +262,11 @@ public class CategoriesResource extends AbstractResourceServerResource {
     */
 
 
-    boolean deleted = categorySession.deleteCategoryById(id);
+    boolean deleted = categorySession.deleteCategoryById(ccid);
     c.should(deleted).be(True).otherwiseInternalServerError(
         new CedarErrorPack()
             .message("There was an error while deleting the category!")
-            .operation(CedarOperations.delete(FolderServerCategory.class, "id", id))
+            .operation(CedarOperations.delete(FolderServerCategory.class, "id", ccid.getId()))
     );
 
     //searchPermissionEnqueueService.groupDeleted(id);
