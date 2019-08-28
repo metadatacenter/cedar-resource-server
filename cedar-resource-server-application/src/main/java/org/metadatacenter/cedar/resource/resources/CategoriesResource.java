@@ -7,14 +7,15 @@ import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
+import org.metadatacenter.model.folderserver.extract.FolderServerCategoryExtractWithChildren;
 import org.metadatacenter.model.request.CategoryListRequest;
 import org.metadatacenter.model.response.FolderServerCategoryListResponse;
 import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -35,6 +36,7 @@ import java.util.Optional;
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_LIMIT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_OFFSET;
+import static org.metadatacenter.id.CedarCategoryId.CATEGORY_ID_ROOT;
 import static org.metadatacenter.rest.assertion.GenericAssertions.*;
 
 @Path("/categories")
@@ -151,16 +153,37 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
+  @Path("/root")
+  public Response findRootCategory() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
+
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+
+    FolderServerCategory category = categorySession.getRootCategory();
+    c.should(category).be(NonNull).otherwiseNotFound(
+        new CedarErrorPack()
+            .message("The root category can not be found!")
+            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", CATEGORY_ID_ROOT))
+    );
+    addProvenanceDisplayName(category);
+    return Response.ok().entity(category).build();
+  }
+
+  @GET
+  @Timed
   @Path("/{id}")
   public Response findCategory(@PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.CATEGORY_READ);
-    CedarCategoryId ccid = CedarCategoryId.build(id);
 
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
 
+    CedarCategoryId ccid = CedarCategoryId.build(id);
     FolderServerCategory category = categorySession.getCategoryById(ccid);
     c.should(category).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
@@ -169,6 +192,22 @@ public class CategoriesResource extends AbstractResourceServerResource {
     );
 
     addProvenanceDisplayName(category);
+    return Response.ok().entity(category).build();
+  }
+
+  @GET
+  @Timed
+  @Path("/tree")
+  public Response findCategoryTree(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
+
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+
+    FolderServerCategoryExtractWithChildren category = categorySession.getCategoryTree();
+
     return Response.ok().entity(category).build();
   }
 
@@ -198,8 +237,9 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
     c.should(categoryName, categoryDescription).be(NonNull).otherwiseBadRequest();
 
-    FolderServerCategory sameNameCategory = categorySession.getCategoryByParentAndName(CedarCategoryId.build(existingCategory.getParentCategoryId()),
-        categoryName.stringValue());
+    FolderServerCategory sameNameCategory =
+        categorySession.getCategoryByParentAndName(CedarCategoryId.build(existingCategory.getParentCategoryId()),
+            categoryName.stringValue());
 
     if (sameNameCategory != null && !sameNameCategory.getId().equals(ccid.getId())) {
       CedarErrorPack cedarErrorPack = new CedarErrorPack();
@@ -212,6 +252,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
       throw new CedarBadRequestException(cedarErrorPack);
     }
 
+    FolderServerCategory categoryWritable = userMustHaveWriteAccessToCategory(c, ccid);
+
     Map<NodeProperty, String> updateFields = new HashMap<>();
     updateFields.put(NodeProperty.NAME, categoryName.stringValue());
     updateFields.put(NodeProperty.DESCRIPTION, categoryDescription.stringValue());
@@ -222,6 +264,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .message("There was an error while updating the category!")
             .operation(CedarOperations.update(FolderServerCategory.class, "id", ccid.getId()))
     );
+
+    addProvenanceDisplayName(updatedCategory);
 
     return Response.ok().entity(updatedCategory).build();
   }
@@ -249,6 +293,18 @@ public class CategoriesResource extends AbstractResourceServerResource {
     // - it has no child nodes
     // - it has no artifacts attached
     // - also perform some kind of permission checking
+
+    FolderServerCategory categoryWritable = userMustHaveWriteAccessToCategory(c, ccid);
+
+    if (categoryWritable.getParentCategoryId() == null) {
+      CedarErrorPack cedarErrorPack = new CedarErrorPack();
+      cedarErrorPack.status(Response.Status.BAD_REQUEST)
+          .message("The root category can not be deleted!")
+          .parameter(NodeProperty.ID.getValue(), ccid.getId())
+          .operation(CedarOperations.delete(FolderServerCategory.class, NodeProperty.ID.getValue(), ccid.getId()))
+          .errorKey(CedarErrorKey.ROOT_CATEGORY_CAN_NOT_BE_DELETED);
+      throw new CedarBadRequestException(cedarErrorPack);
+    }
 
       /*
     boolean isAdministrator = groupSession.userAdministersGroup(id) || c.getCedarUser().has
