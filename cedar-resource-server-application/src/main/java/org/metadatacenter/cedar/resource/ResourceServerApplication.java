@@ -43,7 +43,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     ValuerecommenderReindexQueueService valuerecommenderReindexQueueService =
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent());
 
-    CommandResource.injectUserService(userService);
+    CommandGenericResource.injectUserService(userService);
+    CommandSearchResource.injectUserService(userService);
     SearchResource.injectServices(nodeIndexingService, nodeSearchingService, searchPermissionEnqueueService,
         valuerecommenderReindexQueueService);
 
@@ -66,8 +67,20 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final UsersResource user = new UsersResource(cedarConfig);
     environment.jersey().register(user);
 
-    final CommandResource command = new CommandResource(cedarConfig);
-    environment.jersey().register(command);
+    final CommandGenericResource commandGeneric = new CommandGenericResource(cedarConfig);
+    environment.jersey().register(commandGeneric);
+
+    final CommandOpenResource commandOpen = new CommandOpenResource(cedarConfig);
+    environment.jersey().register(commandOpen);
+
+    final CommandVersionResource commandVersion = new CommandVersionResource(cedarConfig);
+    environment.jersey().register(commandVersion);
+
+    final CommandSearchResource commandSearch = new CommandSearchResource(cedarConfig);
+    environment.jersey().register(commandSearch);
+
+    final CommandCategoriesResource commandCategories = new CommandCategoriesResource(cedarConfig);
+    environment.jersey().register(commandCategories);
 
     final SearchResource search = new SearchResource(cedarConfig);
     environment.jersey().register(search);
