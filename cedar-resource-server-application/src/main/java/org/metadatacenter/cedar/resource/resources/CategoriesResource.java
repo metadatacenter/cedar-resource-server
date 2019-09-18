@@ -232,9 +232,9 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    //TODO read identifier as well optionally
     CedarParameter categoryName = requestBody.get(NodeProperty.NAME.getValue());
     CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
+    CedarParameter categoryIdentifier = requestBody.get(NodeProperty.IDENTIFIER.getValue());
     c.should(categoryName, categoryDescription).be(NonNull).otherwiseBadRequest();
 
     FolderServerCategory sameNameCategory =
@@ -257,6 +257,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     Map<NodeProperty, String> updateFields = new HashMap<>();
     updateFields.put(NodeProperty.NAME, categoryName.stringValue());
     updateFields.put(NodeProperty.DESCRIPTION, categoryDescription.stringValue());
+    updateFields.put(NodeProperty.IDENTIFIER, categoryIdentifier.stringValue());
     FolderServerCategory updatedCategory = categorySession.updateCategoryById(ccid, updateFields);
 
     c.should(updatedCategory).be(NonNull).otherwiseInternalServerError(

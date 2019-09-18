@@ -4,13 +4,11 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
-import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
-import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryServiceSession;
@@ -23,7 +21,8 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
-import static org.metadatacenter.rest.assertion.GenericAssertions.*;
+import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
@@ -55,15 +54,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     FolderServerArtifactCurrentUserReport folderServerResource = userMustHaveWriteAccessToArtifact(c, artifactId);
 
-    FolderServerCategory category = categorySession.getCategoryById(ccid);
-    c.should(category).be(NonNull).otherwiseNotFound(
-        new CedarErrorPack()
-            .message("The category can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
-    );
-
-    // TODO: check, if the user can also attach the category:
-    //      (global category editor role, or attach permission on the category, or its parents)
+    FolderServerCategory category = userMustHaveAttachAccessToCategory(c, ccid);
 
     boolean attached = categorySession.attachCategoryToArtifact(ccid, artifactId);
     if (attached) {
@@ -103,15 +94,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     FolderServerArtifactCurrentUserReport folderServerResource = userMustHaveWriteAccessToArtifact(c, artifactId);
 
-    FolderServerCategory category = categorySession.getCategoryById(ccid);
-    c.should(category).be(NonNull).otherwiseNotFound(
-        new CedarErrorPack()
-            .message("The category can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
-    );
-
-    // TODO: check, if the user can also detach the category:
-    //      (global category editor role, or attach permission on the category, or its parents)
+    FolderServerCategory category = userMustHaveAttachAccessToCategory(c, ccid);
 
     boolean attached = categorySession.detachCategoryFromArtifact(ccid, artifactId);
     if (attached) {
@@ -126,6 +109,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
           .parameter("categoryId", categoryId)
           .parameter("artifactId", artifactId)
           .build();
-    }  }
+    }
+  }
 
 }

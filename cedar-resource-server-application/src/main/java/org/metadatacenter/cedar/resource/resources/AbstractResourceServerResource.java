@@ -14,6 +14,7 @@ import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.CustomHttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.model.*;
@@ -34,6 +35,7 @@ import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerCategoryListResponse;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
+import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -75,6 +77,7 @@ import static org.keycloak.adapters.CorsHeaders.ACCESS_CONTROL_EXPOSE_HEADERS;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonNull;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
@@ -1194,6 +1197,29 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
     if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_CATEGORY) ||
         fsCategory.getCurrentUserPermissions().isCanWrite()) {
+      return fsCategory;
+    } else {
+      throw new CedarPermissionException("You do not have write access to the category")
+          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_CATEGORY)
+          .parameter("categoryId", categoryId);
+    }
+  }
+
+  protected FolderServerCategory userMustHaveAttachAccessToCategory(CedarRequestContext context,
+                                                                   CedarCategoryId categoryId) throws CedarException {
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(context);
+    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(context);
+
+    FolderServerCategoryCurrentUserReport fsCategory =
+        GraphDbPermissionReader.getCategoryCurrentUserReport(context, categorySession, permissionSession, categoryId);
+    if (fsCategory == null) {
+      throw new CedarObjectNotFoundException("Category not found by id")
+          .errorKey(CedarErrorKey.CATEGORY_NOT_FOUND)
+          .parameter("categoryId", categoryId);
+    }
+    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_CATEGORY) ||
+        fsCategory.getCurrentUserPermissions().isCanWrite() ||
+        fsCategory.getCurrentUserPermissions().isCanAttach()) {
       return fsCategory;
     } else {
       throw new CedarPermissionException("You do not have write access to the category")
