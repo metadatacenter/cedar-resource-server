@@ -25,6 +25,7 @@ import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServer
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerSchemaArtifactCurrentUserReport;
 import org.metadatacenter.model.folderserver.datagroup.ResourceWithUsersAndUserNamesData;
 import org.metadatacenter.model.folderserver.extract.FolderServerArtifactExtract;
+import org.metadatacenter.model.folderserver.extract.FolderServerCategoryExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerTemplateExtract;
 import org.metadatacenter.model.folderserver.report.FolderServerArtifactReport;
@@ -1139,6 +1140,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
+  protected void decorateResourceWithCategories(CategoryServiceSession serviceSession, FolderServerArtifactReport resourceReport) {
+    List<List<FolderServerCategoryExtract>> categories = serviceSession.getAttachedCategoryPaths(resourceReport.getId());
+    resourceReport.setCategories(categories);
+  }
+
   protected Response generateArtifactReportResponse(CedarRequestContext c, String id) throws CedarException {
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
@@ -1156,6 +1162,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     userMustHaveReadAccess(permissionSession, artifact.getId());
 
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
     folderSession.addPathAndParentId(artifact);
 
     artifact.setPathInfo(PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, artifact));
@@ -1165,6 +1172,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     decorateResourceWithDerivedFrom(folderSession, permissionSession, resourceReport);
     GraphDbPermissionReader
         .decorateResourceWithCurrentUserPermissions(c, permissionSession, cedarConfig, resourceReport);
+
+    decorateResourceWithCategories(categorySession, resourceReport);
 
     if (artifact.getType() == CedarResourceType.INSTANCE) {
       decorateResourceWithIsBasedOn(folderSession, permissionSession,
