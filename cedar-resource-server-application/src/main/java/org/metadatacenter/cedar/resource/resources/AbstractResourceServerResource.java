@@ -13,6 +13,7 @@ import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.CustomHttpConstants;
+import org.metadatacenter.constant.LinkedData;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.exception.*;
@@ -39,6 +40,7 @@ import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
+import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.FolderServiceSession;
@@ -282,8 +284,34 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   // Proxy methods for artifact types
   protected Response executeResourceCreationOnArtifactServerAndGraphDb(CedarRequestContext context,
                                                                        CedarResourceType resourceType,
+                                                                       String newId,
                                                                        Optional<String> folderId)
       throws CedarException {
+
+    CedarRequestBody requestBody = context.request().getRequestBody();
+    String idInBody = requestBody.get(LinkedData.ID).stringValue();
+    if (newId == null) {
+      if (idInBody != null && idInBody.trim().length() != 0) {
+        return CedarResponse.badRequest()
+            .errorMessage("The body should not contain an @id in case of the POST.")
+            .errorKey(CedarErrorKey.DIFFERENT_ID_IN_BODY_AND_PATH)
+            .parameter("idInBody", idInBody)
+            .build();
+      }
+
+    }
+
+    if (newId != null && newId.trim().length() > 0) {
+      if (!newId.equals(idInBody)) {
+        return CedarResponse.badRequest()
+            .errorMessage("If you pass in an @id in case of the PUT, the one in the body must be equal with the one " +
+                "in the path.")
+            .errorKey(CedarErrorKey.DIFFERENT_ID_IN_BODY_AND_PATH)
+            .parameter("idInPath", newId)
+            .parameter("idInBody", idInBody)
+            .build();
+      }
+    }
 
     String folderIdS;
 
@@ -300,7 +328,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
-      HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context);
+      JsonNode contentJson = requestBody.asJson();
+      if (newId != null) {
+        ((ObjectNode) contentJson).put(LinkedData.ID, newId);
+      }
+      String content = contentJson.toString();
+      HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
       int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
@@ -489,16 +522,25 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType,
-                                                         String id)
+                                                         String id, Optional<String> folderId)
       throws CedarException {
-    return executeResourceCreateOrUpdateViaPut(context, resourceType, id,
-        context.request().getRequestBody().asJsonString());
+    return executeResourceCreateOrUpdateViaPut(context, resourceType, id, folderId,
+        context.request().getRequestBody().asJsonString()
+    );
   }
 
   protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType,
                                                          String id,
+                                                         Optional<String> folderId,
                                                          String content)
       throws CedarException {
+
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServerArtifact existingArtifact = folderSession.findArtifactById(id);
+
+    if (existingArtifact == null) {
+      return executeResourceCreationOnArtifactServerAndGraphDb(context, resourceType, id, folderId);
+    }
 
     FolderServerArtifactCurrentUserReport folderServerResourceReport = userMustHaveWriteAccessToArtifact(context, id);
     FolderServerArtifact folderServerOldResource =
@@ -545,7 +587,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue();
           String newIdentifier = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue();
 
-          FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
           FolderServerArtifact resource = folderSession.findArtifactById(id);
 
           if (resource == null) {
@@ -1140,8 +1181,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected void decorateResourceWithCategories(CategoryServiceSession serviceSession, FolderServerArtifactReport resourceReport) {
-    List<List<FolderServerCategoryExtract>> categories = serviceSession.getAttachedCategoryPaths(resourceReport.getId());
+  protected void decorateResourceWithCategories(CategoryServiceSession serviceSession,
+                                                FolderServerArtifactReport resourceReport) {
+    List<List<FolderServerCategoryExtract>> categories =
+        serviceSession.getAttachedCategoryPaths(resourceReport.getId());
     resourceReport.setCategories(categories);
   }
 
@@ -1215,7 +1258,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected FolderServerCategory userMustHaveAttachAccessToCategory(CedarRequestContext context,
-                                                                   CedarCategoryId categoryId) throws CedarException {
+                                                                    CedarCategoryId categoryId) throws CedarException {
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(context);
     PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(context);
 

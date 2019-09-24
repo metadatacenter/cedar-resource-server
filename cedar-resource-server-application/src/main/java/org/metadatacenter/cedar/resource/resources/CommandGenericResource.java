@@ -12,6 +12,7 @@ import org.apache.http.util.EntityUtils;
 import org.keycloak.events.Event;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.constant.LinkedData;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorType;
 import org.metadatacenter.exception.CedarBackendException;
@@ -123,7 +124,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
 
     JsonNode jsonBody = c.request().getRequestBody().asJson();
 
-    String id = jsonBody.get("@id").asText();
+    String id = jsonBody.get(LinkedData.ID).asText();
     String folderId = jsonBody.get("folderId").asText();
     String titleTemplate = jsonBody.get("titleTemplate").asText();
 
@@ -185,7 +186,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       if (entity != null) {
         originalDocument = EntityUtils.toString(entity);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
-        ((ObjectNode) jsonNode).remove("@id");
+        ((ObjectNode) jsonNode).remove(LinkedData.ID);
         String oldTitle = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
         if (oldTitle != null) {
           oldTitle = "";
@@ -219,7 +220,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
         Header locationHeader = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION);
         String entityContent = EntityUtils.toString(entity);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(entityContent);
-        String createdId = jsonNode.get("@id").asText();
+        String createdId = jsonNode.get(LinkedData.ID).asText();
 
         FolderServerArtifact folderServerCreatedResource =
             copyArtifactToFolderInGraphDb(c, id, createdId, targetFolder.getId(), resourceType,
@@ -656,7 +657,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
               if (changeDescription) {
                 updateDescriptionInObject(resourceType, currentTemplateJsonNode, description);
               }
-              return executeResourceCreateOrUpdateViaPut(c, resourceType, id,
+              return executeResourceCreateOrUpdateViaPut(c, resourceType, id, Optional.empty(),
                   JsonMapper.MAPPER.writeValueAsString(currentTemplateJsonNode));
             } else {
               return CedarResponse.badRequest()
