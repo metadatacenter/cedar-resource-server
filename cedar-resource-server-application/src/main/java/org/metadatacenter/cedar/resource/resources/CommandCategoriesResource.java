@@ -11,6 +11,7 @@ import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
+import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryServiceSession;
@@ -144,7 +145,8 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
 
     String artifactId = categoryRequest.getArtifactId();
-    //c.must(artifactId).be(NonEmpty);
+    CedarParameter artifactIdParam = new CedarInPlaceParameter("artifactId", artifactId);
+    c.must(artifactIdParam).be(NonEmpty);
 
     FolderServerArtifactCurrentUserReport folderServerResource = userMustHaveWriteAccessToArtifact(c, artifactId);
 
