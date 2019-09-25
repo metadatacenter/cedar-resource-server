@@ -1,6 +1,8 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
@@ -13,7 +15,11 @@ import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.security.model.auth.CedarResourceBatchAttachCategoryRequest;
 import org.metadatacenter.util.http.CedarResponse;
+import org.metadatacenter.util.json.JsonMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -27,6 +33,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
 public class CommandCategoriesResource extends AbstractResourceServerResource {
+
+  private static final Logger log = LoggerFactory.getLogger(CommandCategoriesResource.class);
 
   public CommandCategoriesResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -111,5 +119,58 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
           .build();
     }
   }
+
+  @POST
+  @Timed
+  @Path("/attach-categories")
+  public Response attachCategoriesToArtifact() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+
+    c.must(c.request().getRequestBody()).be(NonEmpty);
+    JsonNode categoryAttachmentRequest = c.request().getRequestBody().asJson();
+
+    CedarResourceBatchAttachCategoryRequest categoryRequest = null;
+    try {
+      categoryRequest = JsonMapper.MAPPER.treeToValue(categoryAttachmentRequest, CedarResourceBatchAttachCategoryRequest.class);
+    } catch (JsonProcessingException e) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.MALFORMED_JSON_REQUEST_BODY)
+          .errorMessage("Malformed batch category attachment request")
+          .exception(e)
+          .build();
+    }
+
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+
+    String artifactId = categoryRequest.getArtifactId();
+    //c.must(artifactId).be(NonEmpty);
+
+    FolderServerArtifactCurrentUserReport folderServerResource = userMustHaveWriteAccessToArtifact(c, artifactId);
+
+    boolean changed = false;
+    for(String categoryId: categoryRequest.getCategoryIds()) {
+      CedarCategoryId ccid = CedarCategoryId.build(categoryId);
+      FolderServerCategory category = userMustHaveAttachAccessToCategory(c, ccid);
+      boolean attached = categorySession.attachCategoryToArtifact(ccid, artifactId);
+      if (attached) {
+        changed = true;
+      }
+    }
+    if (changed) {
+      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+      FolderServerArtifact updatedResource = folderSession.findArtifactById(artifactId);
+      updateIndexResource(updatedResource, c);
+      return Response.ok().entity(folderServerResource).build();
+    } else {
+      return CedarResponse.internalServerError()
+          .errorKey(CedarErrorKey.NO_CATEGORIES_WERE_ATTACHED)
+          .errorMessage("No categories were attached")
+          .parameter("categoryIds", categoryRequest.getCategoryIds())
+          .parameter("artifactId", artifactId)
+          .build();
+    }
+  }
+
 
 }
