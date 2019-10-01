@@ -19,10 +19,12 @@ import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServer
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
-import org.metadatacenter.server.PermissionServiceSession;
+import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.*;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
 import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.json.JsonMapper;
@@ -320,10 +322,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               throw new CedarBackendException(backendCallResult);
             } else {
               if (propagateSharing) {
-                PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
+                ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
                 CedarNodePermissions permissions = permissionSession.getNodePermissions(id);
-                CedarNodePermissionsRequest permissionsRequest = permissions.toRequest();
-                NodePermissionUser newOwner = new NodePermissionUser();
+                ResourcePermissionsRequest permissionsRequest = permissions.toRequest();
+                ResourcePermissionUser newOwner = new ResourcePermissionUser();
                 newOwner.setId(c.getCedarUser().getId());
                 permissionsRequest.setOwner(newOwner);
                 BackendCallResult backendCallResult =

@@ -1,10 +1,13 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
+import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarCategoryId;
@@ -16,12 +19,21 @@ import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.CategoryPermissionServiceSession;
 import org.metadatacenter.server.CategoryServiceSession;
+import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
+import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.permission.category.CategoryPermissionRequest;
+import org.metadatacenter.server.security.model.permission.category.CategoryPermissions;
+import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedQuery;
+import org.metadatacenter.util.json.JsonMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
@@ -34,14 +46,15 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
-import static org.metadatacenter.constant.CedarQueryParameters.QP_LIMIT;
-import static org.metadatacenter.constant.CedarQueryParameters.QP_OFFSET;
+import static org.metadatacenter.constant.CedarQueryParameters.*;
 import static org.metadatacenter.id.CedarCategoryId.CATEGORY_ID_ROOT;
 import static org.metadatacenter.rest.assertion.GenericAssertions.*;
 
 @Path("/categories")
 @Produces(MediaType.APPLICATION_JSON)
 public class CategoriesResource extends AbstractResourceServerResource {
+
+  private static final Logger log = LoggerFactory.getLogger(CategoriesResource.class);
 
   public CategoriesResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -331,6 +344,64 @@ public class CategoriesResource extends AbstractResourceServerResource {
     // TODO: if there will be a search index for this, handle that as well. Throughout the whole process.
 
     return Response.noContent().build();
+  }
+
+  @GET
+  @Timed
+  @Path("/{id}/permissions")
+  public Response getCategoryPermissions(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
+
+    CategoryPermissionServiceSession categoryPermissionSession =
+        CedarDataServices.getCategoryPermissionServiceSession(c);
+
+    CedarCategoryId categoryId = CedarCategoryId.build(id);
+    userMustHaveWriteAccessToCategory(c, categoryId);
+
+    CategoryPermissions permissions = categoryPermissionSession.getCategoryPermissions(categoryId);
+    return Response.ok().entity(permissions).build();
+
+  }
+
+  @PUT
+  @Timed
+  @Path("/{id}/permissions")
+  public Response updateCategoryPermissions(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.CATEGORY_UPDATE);
+
+    c.must(c.request().getRequestBody()).be(NonEmpty);
+    JsonNode permissionUpdateRequest = c.request().getRequestBody().asJson();
+
+    CedarCategoryId categoryId = CedarCategoryId.build(id);
+    userMustHaveWriteAccessToCategory(c, categoryId);
+
+    CategoryPermissionServiceSession categoryPermissionSession =
+        CedarDataServices.getCategoryPermissionServiceSession(c);
+
+    CategoryPermissionRequest permissionsRequest = null;
+    try {
+      permissionsRequest = JsonMapper.MAPPER.treeToValue(permissionUpdateRequest, CategoryPermissionRequest.class);
+    } catch (JsonProcessingException e) {
+      log.error("Error while reading permission update request", e);
+      return CedarResponse.badRequest()
+          .errorMessage("Error while reading permission update request!")
+          .errorKey(CedarErrorKey.MALFORMED_JSON_REQUEST_BODY)
+          .exception(e)
+          .build();
+    }
+
+    BackendCallResult backendCallResult = categoryPermissionSession.updateCategoryPermissions(categoryId,
+        permissionsRequest);
+    if (backendCallResult.isError()) {
+      throw new CedarBackendException(backendCallResult);
+    }
+
+    CategoryPermissions permissions = categoryPermissionSession.getCategoryPermissions(categoryId);
+    return Response.ok().entity(permissions).build();
   }
 
 

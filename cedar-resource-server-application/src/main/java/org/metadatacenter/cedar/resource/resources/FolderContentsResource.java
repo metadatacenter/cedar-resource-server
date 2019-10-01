@@ -15,7 +15,7 @@ import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
-import org.metadatacenter.server.PermissionServiceSession;
+import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
 import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
 import org.metadatacenter.util.http.CedarResponse;
@@ -86,7 +86,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
           .build();
     }
 
-    PermissionServiceSession permissionServiceSession = CedarDataServices.getPermissionServiceSession(c);
+    ResourcePermissionServiceSession permissionServiceSession = CedarDataServices.getResourcePermissionServiceSession(c);
     boolean hasRead = permissionServiceSession.userHasReadAccessToNode(id);
     if (!hasRead) {
       return CedarResponse.forbidden()
@@ -104,7 +104,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .queryParam(QP_SORT, pagedSortedTypedQuery.getSortListAsString())
         .build();
 
-    PermissionServiceSession permissionSession = CedarDataServices.getPermissionServiceSession(c);
+    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
     
     List<FolderServerResourceExtract> pathInfo =
         PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, folder);
