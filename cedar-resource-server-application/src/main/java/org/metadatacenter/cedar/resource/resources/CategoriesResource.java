@@ -21,7 +21,6 @@ import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryPermissionServiceSession;
 import org.metadatacenter.server.CategoryServiceSession;
-import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -46,7 +45,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
-import static org.metadatacenter.constant.CedarQueryParameters.*;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_LIMIT;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_OFFSET;
 import static org.metadatacenter.id.CedarCategoryId.CATEGORY_ID_ROOT;
 import static org.metadatacenter.rest.assertion.GenericAssertions.*;
 
