@@ -7,6 +7,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
+import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
@@ -51,8 +52,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
                                          @QueryParam(QP_PUBLICATION_STATUS) Optional<String> publicationStatusParam,
                                          @QueryParam(QP_SORT) Optional<String> sortParam,
                                          @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-                                         @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws
-      CedarException {
+                                         @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -64,6 +64,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     if (id == null || id.length() == 0) {
       throw new CedarProcessingException("You need to specify id as a request parameter!");
     }
+
+    CedarFolderId fid = CedarFolderId.build(id);
 
     PagedSortedTypedQuery pagedSortedTypedQuery = new PagedSortedTypedQuery(
         cedarConfig.getResourceRESTAPI().getPagination())
@@ -77,7 +79,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    FolderServerFolder folder = folderSession.findFolderById(id);
+    FolderServerFolder folder = folderSession.findFolderById(fid);
     if (folder == null) {
       return CedarResponse.notFound()
           .id(id)
@@ -87,7 +89,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     }
 
     ResourcePermissionServiceSession permissionServiceSession = CedarDataServices.getResourcePermissionServiceSession(c);
-    boolean hasRead = permissionServiceSession.userHasReadAccessToNode(id);
+    boolean hasRead = permissionServiceSession.userHasReadAccessToResource(fid);
     if (!hasRead) {
       return CedarResponse.forbidden()
           .id(id)
@@ -105,21 +107,17 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .build();
 
     ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
-    
-    List<FolderServerResourceExtract> pathInfo =
-        PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, folder);
 
-    FolderServerNodeListResponse r =
-        findFolderContents(c, folderSession, folder, absoluteURI.toString(), pathInfo, pagedSortedTypedQuery);
+    List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, folder);
+
+    FolderServerNodeListResponse r = findFolderContents(folderSession, fid, absoluteURI.toString(), pathInfo, pagedSortedTypedQuery);
 
     addProvenanceDisplayNames(r);
     return Response.ok(r).build();
   }
 
-  private FolderServerNodeListResponse findFolderContents(CedarRequestContext c, FolderServiceSession folderSession,
-                                                          FolderServerFolder folder, String absoluteUrl,
-                                                          List<FolderServerResourceExtract> pathInfo,
-                                                          PagedSortedTypedQuery pagedSortedTypedQuery) {
+  private FolderServerNodeListResponse findFolderContents(FolderServiceSession folderSession, CedarFolderId folderId, String absoluteUrl,
+                                                          List<FolderServerResourceExtract> pathInfo, PagedSortedTypedQuery pagedSortedTypedQuery) {
 
     int limit = pagedSortedTypedQuery.getLimit();
     int offset = pagedSortedTypedQuery.getOffset();
@@ -141,11 +139,10 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     r.setRequest(req);
 
-    List<FolderServerResourceExtract> resources = folderSession.findFolderContentsExtract(folder.getId(),
-        resourceTypeList, version, publicationStatus, limit, offset, sortList);
+    List<FolderServerResourceExtract> resources = folderSession.findFolderContentsExtract(folderId, resourceTypeList, version, publicationStatus,
+        limit, offset, sortList);
 
-    long total = folderSession.findFolderContentsCount(folder.getId(), resourceTypeList, version,
-        publicationStatus);
+    long total = folderSession.findFolderContentsCount(folderId, resourceTypeList, version, publicationStatus);
 
     r.setTotalCount(total);
     r.setCurrentOffset(offset);

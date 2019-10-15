@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.id.CedarTemplateInstanceId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -42,8 +43,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
+    CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, id);
+    userMustHaveReadAccessToArtifact(c, tiid);
     return executeResourceGetByProxyFromArtifactServer(CedarResourceType.INSTANCE, id, format, c);
   }
 
@@ -54,8 +56,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
+    CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    return getDetails(c, id);
+    return getDetails(c, tiid);
   }
 
   @PUT
@@ -65,8 +68,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
+    CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.INSTANCE, id);
+    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.INSTANCE, tiid);
   }
 
   @DELETE
@@ -76,8 +80,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
+    CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    return executeResourceDelete(c, CedarResourceType.INSTANCE, id);
+    return executeArtifactDelete(c, CedarResourceType.INSTANCE, tiid);
   }
 
   @GET
@@ -87,8 +92,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
+    CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    return generateResourcePermissionsResponse(c, id);
+    return generateResourcePermissionsResponse(c, tiid);
   }
 
   @PUT
@@ -98,8 +104,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
+    CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    return updateResourcePermissions(c, id);
+    return updateResourcePermissions(c, tiid);
   }
 
   @GET
@@ -109,8 +116,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
+    CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    return generateArtifactReportResponse(c, id);
+    return generateArtifactReportResponse(c, tiid);
   }
 
 }
