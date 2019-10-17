@@ -45,12 +45,13 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
                          @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
                          @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
                          @QueryParam(QP_SHARING) Optional<String> sharingParam,
+                         @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam,
                          boolean searchDeep) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharingParam);
+    NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharingParam, categoryIdParam);
 
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
         .queryParam(QP_Q, q)
@@ -62,7 +63,8 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         .queryParam(QP_SORT, sortParam)
         .queryParam(QP_LIMIT, limitParam)
         .queryParam(QP_OFFSET, offsetParam)
-        .queryParam(QP_SHARING, sharingParam);
+        .queryParam(QP_SHARING, sharingParam)
+        .queryParam(QP_CATEGORY_ID, categoryIdParam);
 
     PagedSortedTypedSearchQuery pagedSearchQuery = new PagedSortedTypedSearchQuery(
         cedarConfig.getResourceRESTAPI().getPagination())
@@ -72,6 +74,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         .version(versionParam)
         .publicationStatus(publicationStatusParam)
         .isBasedOn(isBasedOnParam)
+        .categoryId(categoryIdParam)
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);
@@ -85,6 +88,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     ResourcePublicationStatusFilter publicationStatus = pagedSearchQuery.getPublicationStatus();
     List<String> sortList = pagedSearchQuery.getSortList();
     String isBasedOn = pagedSearchQuery.getIsBasedOn();
+    String categoryId = pagedSearchQuery.getCategoryId();
 
     FolderServerNodeListResponse r;
     String absoluteUrl = builder.build().toString();
@@ -101,11 +105,11 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
       if (searchDeep) {
         r = nodeSearchingService
-            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, sortList, limit, offset,
+            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset,
                 absoluteUrl);
       } else {
         r = nodeSearchingService
-            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, sortList, limit, offset,
+            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset,
                 absoluteUrl);
       }
     }
