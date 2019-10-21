@@ -7,8 +7,8 @@ import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.id.CedarCategoryId;
+import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
@@ -59,7 +59,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     String artifactId = artifactIdParam.stringValue();
     String categoryId = categoryIdParam.stringValue();
 
-    CedarArtifactId aid = CedarArtifactId.buildSafe(artifactId);
+    CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
 
     CedarCategoryId ccid = CedarCategoryId.build(categoryId);
 
@@ -103,7 +103,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     String artifactId = artifactIdParam.stringValue();
     String categoryId = categoryIdParam.stringValue();
 
-    CedarArtifactId aid = CedarArtifactId.buildSafe(artifactId);
+    CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
 
     CedarCategoryId ccid = CedarCategoryId.build(categoryId);
 
@@ -156,7 +156,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     CedarParameter artifactIdParam = new CedarInPlaceParameter("artifactId", artifactId);
     c.must(artifactIdParam).be(NonEmpty);
 
-    CedarArtifactId aid = CedarArtifactId.buildSafe(artifactId);
+    CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
 
     userMustHaveWriteAccessToArtifact(c, aid);
 

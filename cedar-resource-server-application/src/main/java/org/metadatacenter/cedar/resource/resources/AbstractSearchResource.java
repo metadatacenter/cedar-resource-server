@@ -7,6 +7,7 @@ import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarTemplateId;
+import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
@@ -173,7 +174,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
       total = folderSession.searchIsBasedOnCount(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()));
     } else if (nlqt == NodeListQueryType.SEARCH_ID) {
       resources = new ArrayList<>();
-      FolderServerArtifact resourceById = folderSession.findArtifactById(CedarArtifactId.build(id));
+      FolderServerArtifact resourceById = folderSession.findArtifactById(CedarUntypedArtifactId.build(id));
       if (resourceById != null) {
         resources.add(FolderServerResourceExtract.fromNode(resourceById));
       } else {

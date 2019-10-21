@@ -6,6 +6,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.id.CedarSchemaArtifactId;
+import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
@@ -38,7 +39,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     String id = requestBody.get("@id").stringValue();
-    CedarArtifactId artifactId = CedarArtifactId.build(id);
+    CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
     userMustHaveWriteAccessToArtifact(c, artifactId);
@@ -57,13 +58,13 @@ public class CommandOpenResource extends AbstractResourceServerResource {
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     String id = requestBody.get("@id").stringValue();
-    CedarSchemaArtifactId aid = CedarSchemaArtifactId.build(id);
+    CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    userMustHaveWriteAccessToArtifact(c, aid);
+    userMustHaveWriteAccessToArtifact(c, artifactId);
 
-    folderSession.setNotOpen(aid);
-    FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
+    folderSession.setNotOpen(artifactId);
+    FolderServerArtifact updatedResource = folderSession.findArtifactById(artifactId);
     return Response.ok().entity(updatedResource).build();
 
   }

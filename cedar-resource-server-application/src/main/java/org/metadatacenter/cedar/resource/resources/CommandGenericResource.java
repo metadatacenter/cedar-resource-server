@@ -18,10 +18,7 @@ import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.exception.CedarProcessingException;
-import org.metadatacenter.id.CedarArtifactId;
-import org.metadatacenter.id.CedarFilesystemResourceId;
-import org.metadatacenter.id.CedarFolderId;
-import org.metadatacenter.id.CedarResourceId;
+import org.metadatacenter.id.*;
 import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.GraphDbObjectBuilder;
@@ -72,7 +69,6 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 @Produces(MediaType.APPLICATION_JSON)
 public class CommandGenericResource extends AbstractResourceServerResource {
 
-  protected static final String MOVE_COMMAND = "move-resource-to-folder";
   private static final Logger log = LoggerFactory.getLogger(CommandGenericResource.class);
   private static UserService userService;
 
@@ -128,13 +124,16 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     String folderId = jsonBody.get("folderId").asText();
     String titleTemplate = jsonBody.get("titleTemplate").asText();
 
-    CedarArtifactId sourceArtifactId = CedarArtifactId.build(id);
+
+    CedarUntypedArtifactId untypedSourceArtifactId = CedarUntypedArtifactId.build(id);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    CedarResourceType resourceType = folderSession.getResourceType(untypedSourceArtifactId);
+    CedarArtifactId sourceArtifactId = CedarArtifactId.build(id, resourceType);
+
     CedarFolderId targetFolderId = CedarFolderId.build(folderId);
 
     userMustHaveReadAccessToArtifact(c, sourceArtifactId);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-    CedarResourceType resourceType = folderSession.getResourceType(sourceArtifactId);
 
     if (resourceType == CedarResourceType.FOLDER) {
       return CedarResponse.badRequest()
@@ -226,11 +225,11 @@ public class CommandGenericResource extends AbstractResourceServerResource {
         String entityContent = EntityUtils.toString(entity);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(entityContent);
         String createdId = jsonNode.get("@id").asText();
-        CedarArtifactId newId = CedarArtifactId.buildSafe(createdId);
+        CedarArtifactId newId = CedarArtifactId.build(createdId, resourceType);
 
         FolderServerArtifact folderServerCreatedResource =
             copyArtifactToFolderInGraphDb(c, sourceArtifactId, newId, targetFolderId, resourceType,
-                ModelUtil.extractNameFromResource(resourceType,jsonNode).getValue(),
+                ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue(),
                 ModelUtil.extractDescriptionFromResource(resourceType, jsonNode).getValue(),
                 ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue());
 
@@ -317,8 +316,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/" + MOVE_COMMAND)
-  public Response moveNodeToFolder() throws CedarException {
+  @Path("/move-resource-to-folder")
+  public Response moveResourceToFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
@@ -329,10 +328,13 @@ public class CommandGenericResource extends AbstractResourceServerResource {
 
     CedarFolderId targetFolderId = CedarFolderId.build(fId);
 
+    CedarResourceId untypedResourceId = CedarUntypedResourceId.build(sId);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-    CedarFilesystemResourceId sourceId = CedarFilesystemResourceId.buildSafe(sId);
-    CedarResourceType sourceResourceType = folderSession.getResourceType(sourceId);
-    userMustHaveWriteAccessToResource(c, sourceId);
+
+    CedarResourceType sourceResourceType = folderSession.getResourceType(untypedResourceId);
+    CedarFilesystemResourceId sourceId = CedarFilesystemResourceId.build(sId, sourceResourceType);
+
+    userMustHaveWriteAccessToFilesystemResource(c, sourceId);
 
     CedarPermission permissionCreate = null;
     CedarPermission permissionDelete = null;
@@ -566,9 +568,14 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     CedarParameter idParam = c.request().getRequestBody().get("id");
 
     String id = idParam.stringValue();
-    CedarResourceId resourceId = CedarResourceId.build(id);
 
-    FileSystemResource folderServerNode = userMustHaveWriteAccessToResource(c, resourceId);
+    CedarResourceId untypedResourceId = CedarUntypedResourceId.build(id);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+
+    CedarResourceType resourceType = folderSession.getResourceType(untypedResourceId);
+    CedarFilesystemResourceId fsResourceId = CedarFilesystemResourceId.build(id, resourceType);
+
+    userMustHaveWriteAccessToFilesystemResource(c, fsResourceId);
 
     String name = null;
     if (!nameParam.isEmpty()) {
@@ -577,15 +584,6 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     String description = null;
     if (!descriptionParam.isEmpty()) {
       description = descriptionParam.stringValue();
-    }
-
-    CedarResourceType resourceType = folderServerNode.getType();
-    if (resourceType == null) {
-      return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.UNKNOWN_RESOURCE_TYPE)
-          .parameter("resourceType", resourceType.getValue())
-          .errorMessage("Unknown resourceType:" + resourceType.getValue() + ":")
-          .build();
     }
 
     boolean isFolder = false;
@@ -622,9 +620,9 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     c.must(c.user()).have(permission);
 
     if (isFolder) {
-      return updateFolderNameAndDescriptionInGraphDb(c, (CedarFolderId) resourceId);
+      return updateFolderNameAndDescriptionInGraphDb(c, (CedarFolderId) fsResourceId);
     } else {
-      String artifactServerUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, (CedarArtifactId) resourceId);
+      String artifactServerUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, (CedarArtifactId) fsResourceId);
 
       HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(artifactServerUrl, c);
       int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();
@@ -665,7 +663,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
               if (changeDescription) {
                 updateDescriptionInObject(currentTemplateJsonNode, description);
               }
-              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) resourceId,
+              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId,
                   JsonMapper.MAPPER.writeValueAsString(currentTemplateJsonNode));
             } else {
               return CedarResponse.badRequest()

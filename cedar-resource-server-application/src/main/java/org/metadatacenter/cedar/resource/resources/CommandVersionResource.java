@@ -10,9 +10,9 @@ import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorType;
 import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarSchemaArtifactId;
+import org.metadatacenter.id.CedarUntypedSchemaArtifactId;
 import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerSchemaArtifact;
@@ -67,7 +67,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
 
     String id = idParam.stringValue();
-    CedarSchemaArtifactId aid = CedarSchemaArtifactId.buildSafe(id);
+    CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
 
     ResourceVersion newVersion = null;
     if (!newVersionParam.isEmpty()) {
@@ -200,9 +200,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     CedarParameter propagateSharingParam = c.request().getRequestBody().get("propagateSharing");
 
     String id = idParam.stringValue();
-    CedarSchemaArtifactId aid = CedarSchemaArtifactId.buildSafe(id);
+    CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
     String folderId = folderIdParam.stringValue();
-    CedarFolderId fid = CedarFolderId.buildSafe(folderId);
+    CedarFolderId fid = CedarFolderId.build(folderId);
     String propagateSharingString = propagateSharingParam.stringValue();
 
     ResourceVersion newVersion = null;
@@ -295,9 +295,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           if (artifactServerPostStatus == Response.Status.CREATED.getStatusCode()) {
             JsonNode atId = artifactServerPostResponseNode.at(ModelPaths.AT_ID);
             String newIdString = atId.asText();
-            CedarArtifactId newId = CedarArtifactId.build(newIdString);
+            CedarUntypedSchemaArtifactId newId = CedarUntypedSchemaArtifactId.build(newIdString);
 
-            FolderServerArtifact sourceResource = folderSession.findArtifactById(aid);
+            FolderServerArtifact sourceResource = folderSession.findSchemaArtifactById(aid);
 
             BiboStatus status = BiboStatus.DRAFT;
 
@@ -311,7 +311,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               schemaArtifact.setLatestPublishedVersion(false);
             }
 
-            folderSession.unsetLatestVersion((CedarSchemaArtifactId) sourceResource.getResourceId());
+            folderSession.unsetLatestVersion(aid);
             FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, fid);
             if (newResource == null) {
               BackendCallResult backendCallResult = new BackendCallResult();
