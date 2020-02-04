@@ -236,6 +236,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       } else {
         boolean deleted = folderSession.deleteFolderById(fid);
         if (deleted) {
+          removeIndexDocument(id);
           return CedarResponse.noContent().build();
         } else {
           return CedarResponse.internalServerError()
