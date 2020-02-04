@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.id.CedarFieldId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -41,8 +42,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
+    CedarFieldId fid = CedarFieldId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, id);
+    userMustHaveReadAccessToArtifact(c, fid);
     return executeResourceGetByProxyFromArtifactServer(CedarResourceType.FIELD, id, c);
   }
 
@@ -53,8 +55,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
+    CedarFieldId fid = CedarFieldId.build(id);
 
-    return getDetails(c, id);
+    return getDetails(c, fid);
   }
 
   @PUT
@@ -64,8 +67,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
+    CedarFieldId fid = CedarFieldId.build(id);
 
-    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.FIELD, id);
+    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.FIELD, fid);
   }
 
   @DELETE
@@ -75,8 +79,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_DELETE);
+    CedarFieldId fid = CedarFieldId.build(id);
 
-    return executeResourceDelete(c, CedarResourceType.FIELD, id);
+    return executeArtifactDelete(c, CedarResourceType.FIELD, fid);
   }
 
   @GET
@@ -86,8 +91,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
+    CedarFieldId fid = CedarFieldId.build(id);
 
-    return generateResourcePermissionsResponse(c, id);
+    return generateResourcePermissionsResponse(c, fid);
   }
 
   @PUT
@@ -97,8 +103,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
+    CedarFieldId fid = CedarFieldId.build(id);
 
-    return updateResourcePermissions(c, id);
+    return updateResourcePermissions(c, fid);
   }
 
   @GET
@@ -108,8 +115,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
+    CedarFieldId fid = CedarFieldId.build(id);
 
-    return generateArtifactReportResponse(c, id);
+    return generateArtifactReportResponse(c, fid);
   }
 
   @GET
@@ -119,8 +127,9 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
+    CedarFieldId fid = CedarFieldId.build(id);
 
-    return generateNodeVersionsResponse(c, id);
+    return generateNodeVersionsResponse(c, fid);
   }
 
 }

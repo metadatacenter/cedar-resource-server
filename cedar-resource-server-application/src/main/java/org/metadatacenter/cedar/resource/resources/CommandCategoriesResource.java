@@ -8,8 +8,8 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarCategoryId;
+import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
-import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
@@ -59,16 +59,20 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     String artifactId = artifactIdParam.stringValue();
     String categoryId = categoryIdParam.stringValue();
 
+    CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
+
     CedarCategoryId ccid = CedarCategoryId.build(categoryId);
 
-    FolderServerArtifactCurrentUserReport folderServerResource = userMustHaveWriteAccessToArtifact(c, artifactId);
+    userMustHaveWriteAccessToArtifact(c, aid);
 
-    FolderServerCategory category = userMustHaveAttachAccessToCategory(c, ccid);
+    userMustHaveAttachAccessToCategory(c, ccid);
 
-    boolean attached = categorySession.attachCategoryToArtifact(ccid, artifactId);
+    FolderServerArtifactCurrentUserReport folderServerResource = getArtifactReport(c, aid);
+
+    boolean attached = categorySession.attachCategoryToArtifact(ccid, aid);
     if (attached) {
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-      FolderServerArtifact updatedResource = folderSession.findArtifactById(artifactId);
+      FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
       updateIndexResource(updatedResource, c);
       return Response.ok().entity(folderServerResource).build();
     } else {
@@ -99,16 +103,20 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     String artifactId = artifactIdParam.stringValue();
     String categoryId = categoryIdParam.stringValue();
 
+    CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
+
     CedarCategoryId ccid = CedarCategoryId.build(categoryId);
 
-    FolderServerArtifactCurrentUserReport folderServerResource = userMustHaveWriteAccessToArtifact(c, artifactId);
+    userMustHaveWriteAccessToArtifact(c, aid);
 
-    FolderServerCategory category = userMustHaveAttachAccessToCategory(c, ccid);
+    userMustHaveAttachAccessToCategory(c, ccid);
 
-    boolean attached = categorySession.detachCategoryFromArtifact(ccid, artifactId);
+    FolderServerArtifactCurrentUserReport folderServerResource = getArtifactReport(c, aid);
+
+    boolean attached = categorySession.detachCategoryFromArtifact(ccid, aid);
     if (attached) {
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-      FolderServerArtifact updatedResource = folderSession.findArtifactById(artifactId);
+      FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
       updateIndexResource(updatedResource, c);
       return Response.ok().entity(folderServerResource).build();
     } else {
@@ -148,20 +156,24 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     CedarParameter artifactIdParam = new CedarInPlaceParameter("artifactId", artifactId);
     c.must(artifactIdParam).be(NonEmpty);
 
-    FolderServerArtifactCurrentUserReport folderServerResource = userMustHaveWriteAccessToArtifact(c, artifactId);
+    CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
+
+    userMustHaveWriteAccessToArtifact(c, aid);
+
+    FolderServerArtifactCurrentUserReport folderServerResource = getArtifactReport(c, aid);
 
     boolean changed = false;
-    for(String categoryId: categoryRequest.getCategoryIds()) {
+    for (String categoryId : categoryRequest.getCategoryIds()) {
       CedarCategoryId ccid = CedarCategoryId.build(categoryId);
-      FolderServerCategory category = userMustHaveAttachAccessToCategory(c, ccid);
-      boolean attached = categorySession.attachCategoryToArtifact(ccid, artifactId);
+      userMustHaveAttachAccessToCategory(c, ccid);
+      boolean attached = categorySession.attachCategoryToArtifact(ccid, aid);
       if (attached) {
         changed = true;
       }
     }
     if (changed) {
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-      FolderServerArtifact updatedResource = folderSession.findArtifactById(artifactId);
+      FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
       updateIndexResource(updatedResource, c);
       return Response.ok().entity(folderServerResource).build();
     } else {

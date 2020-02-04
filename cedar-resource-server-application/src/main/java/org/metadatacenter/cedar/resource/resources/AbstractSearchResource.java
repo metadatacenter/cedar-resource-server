@@ -4,6 +4,10 @@ import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
+import org.metadatacenter.id.CedarArtifactId;
+import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.id.CedarTemplateId;
+import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
@@ -166,15 +170,15 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
       resources = folderSession.viewAll(resourceTypeList, version, publicationStatus, limit, offset, sortList);
       total = folderSession.viewAllCount(resourceTypeList, version, publicationStatus);
     } else if (nlqt == NodeListQueryType.SEARCH_IS_BASED_ON) {
-      resources = folderSession.searchIsBasedOn(resourceTypeList, req.getIsBasedOn(), limit, offset, sortList);
-      total = folderSession.searchIsBasedOnCount(resourceTypeList, req.getIsBasedOn());
+      resources = folderSession.searchIsBasedOn(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()), limit, offset, sortList);
+      total = folderSession.searchIsBasedOnCount(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()));
     } else if (nlqt == NodeListQueryType.SEARCH_ID) {
       resources = new ArrayList<>();
-      FolderServerArtifact resourceById = folderSession.findArtifactById(id);
+      FolderServerArtifact resourceById = folderSession.findArtifactById(CedarUntypedArtifactId.build(id));
       if (resourceById != null) {
         resources.add(FolderServerResourceExtract.fromNode(resourceById));
       } else {
-        FolderServerFolder folderById = folderSession.findFolderById(id);
+        FolderServerFolder folderById = folderSession.findFolderById(CedarFolderId.build(id));
         if (folderById != null) {
           resources.add(FolderServerResourceExtract.fromNode(folderById));
         }
