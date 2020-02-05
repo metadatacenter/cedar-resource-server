@@ -4,6 +4,9 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.id.CedarArtifactId;
+import org.metadatacenter.id.CedarSchemaArtifactId;
+import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
@@ -36,17 +39,14 @@ public class CommandOpenResource extends AbstractResourceServerResource {
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     String id = requestBody.get("@id").stringValue();
+    CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    FolderServerArtifactCurrentUserReport resourceReport = userMustHaveWriteAccessToArtifact(c, id);
+    userMustHaveWriteAccessToArtifact(c, artifactId);
 
-    if (resourceReport != null) {
-      folderSession.setOpen(id);
-      FolderServerArtifact updatedResource = folderSession.findArtifactById(id);
-      return Response.ok().entity(updatedResource).build();
-    } else {
-      return CedarResponse.notFound().build();
-    }
+    folderSession.setOpen(artifactId);
+    FolderServerArtifact updatedResource = folderSession.findArtifactById(artifactId);
+    return Response.ok().entity(updatedResource).build();
   }
 
   @POST
@@ -58,17 +58,14 @@ public class CommandOpenResource extends AbstractResourceServerResource {
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     String id = requestBody.get("@id").stringValue();
+    CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
-    FolderServerArtifactCurrentUserReport resourceReport = userMustHaveWriteAccessToArtifact(c, id);
+    userMustHaveWriteAccessToArtifact(c, artifactId);
 
-    if (resourceReport != null) {
-      folderSession.setNotOpen(id);
-      FolderServerArtifact updatedResource = folderSession.findArtifactById(id);
-      return Response.ok().entity(updatedResource).build();
-    } else {
-      return CedarResponse.notFound().build();
-    }
+    folderSession.setNotOpen(artifactId);
+    FolderServerArtifact updatedResource = folderSession.findArtifactById(artifactId);
+    return Response.ok().entity(updatedResource).build();
 
   }
 }

@@ -6,8 +6,10 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.id.CedarUntypedFilesystemResourceId;
 import org.metadatacenter.model.folderserver.basic.FileSystemResource;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -43,8 +45,9 @@ public class FoldersResource extends AbstractResourceServerResource {
     CedarParameter folderIdP = c.request().getRequestBody().get("folderId");
     c.must(folderIdP).be(NonEmpty);
     String folderId = folderIdP.stringValue();
+    CedarFolderId fid = CedarFolderId.build(folderId);
 
-    userMustHaveWriteAccessToFolder(c, folderId);
+    userMustHaveWriteAccessToFolder(c, fid);
 
     CedarParameter path = c.request().getRequestBody().get("path");
 
@@ -83,7 +86,8 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     if (!folderId.isEmpty()) {
       folderIdV = folderIdP.stringValue();
-      parentFolder = folderSession.findFolderById(folderIdV);
+      CedarFolderId fidv = CedarFolderId.build(folderIdV);
+      parentFolder = folderSession.findFolderById(fidv);
     }
 
     if (parentFolder == null) {
@@ -116,7 +120,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     // check existence of parent folder
     FolderServerFolder newFolder = null;
-    FileSystemResource newFolderCandidate = folderSession.findNodeByParentIdAndName(parentFolder, nameV);
+    FileSystemResource newFolderCandidate = folderSession.findFilesystemResourceByParentFolderIdAndName(parentFolder.getResourceId(), nameV);
     if (newFolderCandidate != null) {
       return CedarResponse.badRequest()
           .parameter("parentFolderId", parentFolder.getId())
@@ -133,7 +137,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServerFolder brandNewFolder = new FolderServerFolder();
     brandNewFolder.setName(nameV);
     brandNewFolder.setDescription(descriptionV);
-    newFolder = folderSession.createFolderAsChildOfId(brandNewFolder, parentFolder.getId());
+    newFolder = folderSession.createFolderAsChildOfId(brandNewFolder, parentFolder.getResourceId());
 
     if (newFolder == null) {
       return CedarResponse.badRequest()
@@ -158,8 +162,10 @@ public class FoldersResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
+    CedarFolderId fid = CedarFolderId.build(id);
 
-    FolderServerFolderCurrentUserReport folderServerFolder = userMustHaveReadAccessToFolder(c, id);
+    userMustHaveReadAccessToFolder(c, fid);
+    FolderServerFolderCurrentUserReport folderServerFolder = getFolderReport(c, fid);
     addProvenanceDisplayName(folderServerFolder);
     return Response.ok().entity(folderServerFolder).build();
   }
@@ -179,8 +185,9 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
     c.must(c.request().getRequestBody()).be(NonEmpty);
+    CedarFolderId fid = CedarFolderId.build(id);
 
-    return updateFolderNameAndDescriptionInGraphDb(c, id);
+    return updateFolderNameAndDescriptionInGraphDb(c, fid);
   }
 
   @DELETE
@@ -190,10 +197,12 @@ public class FoldersResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
+    CedarFolderId fid = CedarFolderId.build(id);
 
-    FolderServerFolderCurrentUserReport folder = userMustHaveWriteAccessToFolder(c, id);
+    userMustHaveWriteAccessToFolder(c, fid);
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServerFolder folder = folderSession.findFolderById(fid);
 
     if (folder == null) {
       return CedarResponse.notFound()
@@ -202,7 +211,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           .errorMessage("The folder can not be found by id")
           .build();
     } else {
-      long contentCount = folderSession.findFolderContentsUnfilteredCount(id);
+      long contentCount = folderSession.findFolderContentsUnfilteredCount(fid);
       if (contentCount > 0) {
         return CedarResponse.badRequest()
             .id(id)
@@ -225,9 +234,9 @@ public class FoldersResource extends AbstractResourceServerResource {
             .errorMessage("System folders can not be deleted")
             .build();
       } else {
-        boolean deleted = folderSession.deleteFolderById(id);
+        boolean deleted = folderSession.deleteFolderById(fid);
         if (deleted) {
-          removeIndexDocument(id);
+          removeIndexDocument(CedarUntypedFilesystemResourceId.build(id));
           return CedarResponse.noContent().build();
         } else {
           return CedarResponse.internalServerError()
@@ -247,8 +256,9 @@ public class FoldersResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
+    CedarFolderId fid = CedarFolderId.build(id);
 
-    return generateResourcePermissionsResponse(c, id);
+    return generateResourcePermissionsResponse(c, fid);
   }
 
   @PUT
@@ -258,7 +268,8 @@ public class FoldersResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
+    CedarFolderId fid = CedarFolderId.build(id);
 
-    return updateResourcePermissions(c, id);
+    return updateResourcePermissions(c, fid);
   }
 }
