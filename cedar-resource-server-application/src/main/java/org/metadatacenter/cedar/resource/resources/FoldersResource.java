@@ -6,10 +6,10 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.id.CedarElementId;
 import org.metadatacenter.id.CedarFolderId;
-import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.id.CedarUntypedFilesystemResourceId;
 import org.metadatacenter.model.folderserver.basic.FileSystemResource;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -236,7 +236,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       } else {
         boolean deleted = folderSession.deleteFolderById(fid);
         if (deleted) {
-          removeIndexDocument(id);
+          removeIndexDocument(CedarUntypedFilesystemResourceId.build(id));
           return CedarResponse.noContent().build();
         } else {
           return CedarResponse.internalServerError()
