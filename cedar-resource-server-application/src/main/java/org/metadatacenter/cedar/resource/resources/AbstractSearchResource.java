@@ -163,8 +163,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
       resources = folderSession.viewSharedWithMe(resourceTypeList, version, publicationStatus, limit, offset, sortList);
       total = folderSession.viewSharedWithMeCount(resourceTypeList, version, publicationStatus);
     } else if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_EVERYBODY) {
-      resources =
-          folderSession.viewSharedWithEverybody(resourceTypeList, version, publicationStatus, limit, offset, sortList);
+      resources = folderSession.viewSharedWithEverybody(resourceTypeList, version, publicationStatus, limit, offset, sortList);
       total = folderSession.viewSharedWithEverybodyCount(resourceTypeList, version, publicationStatus);
     } else if (nlqt == NodeListQueryType.VIEW_ALL) {
       resources = folderSession.viewAll(resourceTypeList, version, publicationStatus, limit, offset, sortList);

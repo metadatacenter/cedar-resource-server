@@ -46,7 +46,7 @@ import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
-import org.metadatacenter.server.security.model.auth.CedarNodePermissions;
+import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.server.security.model.user.CedarUserSummary;
@@ -733,7 +733,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     userMustHaveReadAccess(permissionSession, resourceId);
 
-    CedarNodePermissions permissions = permissionSession.getResourcePermissions(resourceId);
+    CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(resourceId);
     return Response.ok().entity(permissions).build();
   }
 
@@ -771,7 +771,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
       }
 
-      CedarNodePermissions permissions = permissionSession.getResourcePermissions(resourceId);
+      CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(resourceId);
       return Response.ok().entity(permissions).build();
     }
   }
