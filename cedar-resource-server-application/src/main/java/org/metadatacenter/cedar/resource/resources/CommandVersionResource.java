@@ -24,7 +24,7 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
-import org.metadatacenter.server.security.model.auth.CedarNodePermissions;
+import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.auth.CurrentUserResourcePermissions;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
@@ -322,7 +322,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             } else {
               if (propagateSharing) {
                 ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
-                CedarNodePermissions permissions = permissionSession.getResourcePermissions(aid);
+                CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(aid);
                 ResourcePermissionsRequest permissionsRequest = permissions.toRequest();
                 ResourcePermissionUser newOwner = new ResourcePermissionUser();
                 newOwner.setId(c.getCedarUser().getId());
