@@ -35,9 +35,10 @@ public class SearchResource extends AbstractSearchResource {
                          @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
                          @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
                          @QueryParam(QP_SHARING) Optional<String> sharing,
+                         @QueryParam(QP_MODE) Optional<String> mode,
                          @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam) throws CedarException {
 
     return super.search(q, id, resourceTypes, versionParam, publicationStatusParam, isBasedOnParam, sortParam,
-        limitParam, offsetParam, sharing, categoryIdParam, false);
+        limitParam, offsetParam, sharing, mode, categoryIdParam, false);
   }
 }

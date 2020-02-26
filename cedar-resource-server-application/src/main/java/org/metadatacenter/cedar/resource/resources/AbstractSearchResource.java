@@ -4,13 +4,12 @@ import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
-import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarTemplateId;
 import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
-import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListQueryTypeDetector;
@@ -49,13 +48,14 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
                          @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
                          @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
                          @QueryParam(QP_SHARING) Optional<String> sharingParam,
+                         @QueryParam(QP_MODE) Optional<String> modeParam,
                          @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam,
                          boolean searchDeep) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharingParam, categoryIdParam);
+    NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharingParam, modeParam, categoryIdParam);
 
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
         .queryParam(QP_Q, q)
@@ -68,6 +68,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         .queryParam(QP_LIMIT, limitParam)
         .queryParam(QP_OFFSET, offsetParam)
         .queryParam(QP_SHARING, sharingParam)
+        .queryParam(QP_MODE, modeParam)
         .queryParam(QP_CATEGORY_ID, categoryIdParam);
 
     PagedSortedTypedSearchQuery pagedSearchQuery = new PagedSortedTypedSearchQuery(
@@ -79,6 +80,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         .publicationStatus(publicationStatusParam)
         .isBasedOn(isBasedOnParam)
         .categoryId(categoryIdParam)
+        .mode(modeParam)
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);
@@ -93,28 +95,27 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     List<String> sortList = pagedSearchQuery.getSortList();
     String isBasedOn = pagedSearchQuery.getIsBasedOn();
     String categoryId = pagedSearchQuery.getCategoryId();
+    String mode = pagedSearchQuery.getMode();
 
     FolderServerNodeListResponse r;
     String absoluteUrl = builder.build().toString();
 
     if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_ME || nlqt == NodeListQueryType.VIEW_SHARED_WITH_EVERYBODY ||
         nlqt == NodeListQueryType.VIEW_ALL || nlqt == NodeListQueryType.SEARCH_ID ||
-        nlqt == NodeListQueryType.SEARCH_IS_BASED_ON) {
+        nlqt == NodeListQueryType.SEARCH_IS_BASED_ON || nlqt == NodeListQueryType.VIEW_SPECIAL_FOLDERS) {
 
-      r = performGraphDbSearch(c, pagedSearchQuery, nlqt, queryString, idString, version, publicationStatus, isBasedOn,
-          sortList, limit, offset);
+      r = performGraphDbSearch(c, pagedSearchQuery, nlqt, queryString, idString, version, publicationStatus, isBasedOn, mode, sortList, limit,
+          offset);
 
     } else {
       List<String> resourceTypeList = pagedSearchQuery.getResourceTypeAsStringList();
 
       if (searchDeep) {
         r = nodeSearchingService
-            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset,
-                absoluteUrl);
+            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
       } else {
         r = nodeSearchingService
-            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset,
-                absoluteUrl);
+            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
       }
     }
     r.setNodeListQueryType(nlqt);
@@ -131,10 +132,10 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
                                                             ResourceVersionFilter version,
                                                             ResourcePublicationStatusFilter publicationStatus,
                                                             String isBasedOn,
+                                                            String mode,
                                                             List<String> sortList,
                                                             int limit,
-                                                            int offset)
-      throws CedarException {
+                                                            int offset) throws CedarException {
     List<CedarResourceType> resourceTypeList = pagedSearchQuery.getResourceTypeList();
 
     FolderServerNodeListResponse r = new FolderServerNodeListResponse();
@@ -149,6 +150,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     req.setQ(q);
     req.setId(id);
     req.setIsBasedOn(isBasedOn);
+    req.setMode(mode);
 
     r.setRequest(req);
 
@@ -168,6 +170,9 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     } else if (nlqt == NodeListQueryType.VIEW_ALL) {
       resources = folderSession.viewAll(resourceTypeList, version, publicationStatus, limit, offset, sortList);
       total = folderSession.viewAllCount(resourceTypeList, version, publicationStatus);
+    } else if (nlqt == NodeListQueryType.VIEW_SPECIAL_FOLDERS) {
+      resources = folderSession.viewSpecialFolders(limit, offset, sortList);
+      total = folderSession.viewSpecialFoldersCount();
     } else if (nlqt == NodeListQueryType.SEARCH_IS_BASED_ON) {
       resources = folderSession.searchIsBasedOn(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()), limit, offset, sortList);
       total = folderSession.searchIsBasedOnCount(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()));
