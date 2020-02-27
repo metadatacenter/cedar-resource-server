@@ -445,6 +445,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
 
   }
 
+  // This is the endpoint called by the Keycloak Event Listener
   @POST
   @Timed
   @Path("/auth-user-callback")
