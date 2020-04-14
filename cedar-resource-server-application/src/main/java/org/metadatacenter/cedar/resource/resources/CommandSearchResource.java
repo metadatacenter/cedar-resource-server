@@ -57,8 +57,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     executor.submit(() -> {
       RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext =
-            CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.regenerateSearchIndex(force, cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
@@ -81,8 +80,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     executor.submit(() -> {
       GenerateEmptySearchIndexTask task = new GenerateEmptySearchIndexTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext =
-            CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.generateEmptySearchIndex(cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
@@ -108,8 +106,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     executor.submit(() -> {
       RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext =
-            CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.regenerateRulesIndex(force, cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
@@ -132,8 +129,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     executor.submit(() -> {
       GenerateEmptyRulesIndexTask task = new GenerateEmptyRulesIndexTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext =
-            CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.generateEmptyRulesIndex(cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
