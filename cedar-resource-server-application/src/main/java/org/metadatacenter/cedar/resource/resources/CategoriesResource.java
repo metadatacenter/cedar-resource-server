@@ -346,6 +346,31 @@ public class CategoriesResource extends AbstractResourceServerResource {
     return Response.noContent().build();
   }
 
+  @DELETE
+  @Timed
+  @Path("/tree")
+  /**
+   * Deletes all the categories in the category tree, except for the root category
+   */
+  public Response deleteCategoryTree() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.CATEGORY_DELETE);
+
+    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+
+    boolean deleted = categorySession.deleteAllCategoriesExceptRoot();
+    c.should(deleted).be(True).otherwiseInternalServerError(
+        new CedarErrorPack()
+            .message("There was an error while deleting the category tree!")
+            .operation(CedarOperations.delete(FolderServerCategory.class, null, null)));
+
+    // TODO: if there will be a search index for this, handle that as well. Throughout the whole process.
+
+    return Response.noContent().build();
+  }
+
   @GET
   @Timed
   @Path("/{id}/permissions")
