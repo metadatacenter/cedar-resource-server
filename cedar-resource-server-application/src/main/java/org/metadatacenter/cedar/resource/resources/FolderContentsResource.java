@@ -238,7 +238,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     FolderServerNodeMapListResponse r = findFolderContentsAsMaps(folderSession, fid, absoluteURI.toString(), pathInfo, pagedSortedTypedQuery,
         fieldNameList);
 
-    boolean readCategories = fieldNameList.contains("categories");
+    boolean readCategories = fieldNameList != null && fieldNameList.contains("categories");
 
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
     for (Map<String, Object> resourceMap : r.getResources()) {
