@@ -320,18 +320,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
       throw new CedarBadRequestException(cedarErrorPack);
     }
 
-      /*
-    boolean isAdministrator = groupSession.userAdministersGroup(id) || c.getCedarUser().has
-        (UPDATE_NOT_ADMINISTERED_GROUP);
-    c.should(isAdministrator).be(True).otherwiseForbidden(
-        new CedarErrorPack()
-            .errorKey(GROUP_CAN_BY_DELETED_ONLY_BY_GROUP_ADMIN)
-            .message("Only the administrators can delete the group!")
-            .operation(CedarOperations.delete(FolderServerGroup.class, "id", id))
-    );
-    */
-
-
     boolean deleted = categorySession.deleteCategoryById(ccid);
     c.should(deleted).be(True).otherwiseInternalServerError(
         new CedarErrorPack()
