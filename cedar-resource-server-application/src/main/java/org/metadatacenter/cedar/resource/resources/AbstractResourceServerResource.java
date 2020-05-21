@@ -491,6 +491,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
               updateFields.put(NodeProperty.DESCRIPTION, newDescription);
               updateFields.put(NodeProperty.NAME, newName);
               updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
+              String sourceHash = context.getSourceHashHeader();
+              if (sourceHash != null) {
+                updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
+              }
               FolderServerArtifact updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
               if (updatedResource == null) {
                 return CedarResponse.internalServerError().build();
