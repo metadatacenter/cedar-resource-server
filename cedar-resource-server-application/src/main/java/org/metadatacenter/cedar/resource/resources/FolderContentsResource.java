@@ -8,10 +8,10 @@ import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.CedarArtifactId;
+import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
-import org.metadatacenter.model.folderserver.extract.FolderServerCategoryExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
@@ -248,14 +248,10 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         CedarResourceType resourceType = CedarResourceType.forValue(resourceTypeString);
         if (resourceType != CedarResourceType.FOLDER) {
           CedarArtifactId caid = CedarArtifactId.build(resourceId, resourceType);
-          List<List<FolderServerCategoryExtract>> categories = categorySession.getAttachedCategoryPaths(caid);
-          List<List<String>> categoryList = new ArrayList<>();
-          for (List<FolderServerCategoryExtract> oneList : categories) {
-            List<String> oneCategoryList = new ArrayList<>();
-            for (FolderServerCategoryExtract categoryExtract : oneList) {
-              oneCategoryList.add(categoryExtract.getId());
-            }
-            categoryList.add(oneCategoryList);
+          List<CedarCategoryId> categories = categorySession.getAttachedCategoryIds(caid);
+          List<String> categoryList = new ArrayList<>();
+          for (CedarCategoryId categoryId : categories) {
+            categoryList.add(categoryId.getId());
           }
           resourceMap.put("categories", categoryList);
         }
