@@ -12,6 +12,7 @@ import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.constant.CedarHeaderParameters;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.id.*;
@@ -311,6 +312,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             FolderServerInstanceArtifact brandNewInstance = (FolderServerInstanceArtifact) brandNewResource;
             brandNewInstance.setIsBasedOn(ibo);
           }
+          String sourceHash = context.getSourceHashHeader();
+          if (sourceHash != null) {
+            brandNewResource.setSourceHash(sourceHash);
+          }
           FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, fid);
 
           if (newResource == null) {
@@ -486,6 +491,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
               updateFields.put(NodeProperty.DESCRIPTION, newDescription);
               updateFields.put(NodeProperty.NAME, newName);
               updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
+              String sourceHash = context.getSourceHashHeader();
+              if (sourceHash != null) {
+                updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
+              }
               FolderServerArtifact updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
               if (updatedResource == null) {
                 return CedarResponse.internalServerError().build();
@@ -1051,13 +1060,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       decorateResourceWithIsBasedOn(folderSession, permissionSession, (FolderServerInstanceReport) resourceReport);
     } else if (artifact.getType() == CedarResourceType.FIELD) {
       resourceReport = FolderServerSchemaArtifactReport.fromResource(artifact);
-      decorateResourceWithVersionHistory(folderSession, (FolderServerSchemaArtifactReport)resourceReport);
+      decorateResourceWithVersionHistory(folderSession, (FolderServerSchemaArtifactReport) resourceReport);
     } else if (artifact.getType() == CedarResourceType.ELEMENT) {
       resourceReport = FolderServerSchemaArtifactReport.fromResource(artifact);
-      decorateResourceWithVersionHistory(folderSession, (FolderServerSchemaArtifactReport)resourceReport);
+      decorateResourceWithVersionHistory(folderSession, (FolderServerSchemaArtifactReport) resourceReport);
     } else if (artifact.getType() == CedarResourceType.TEMPLATE) {
       resourceReport = FolderServerSchemaArtifactReport.fromResource(artifact);
-      decorateResourceWithVersionHistory(folderSession, (FolderServerSchemaArtifactReport)resourceReport);
+      decorateResourceWithVersionHistory(folderSession, (FolderServerSchemaArtifactReport) resourceReport);
     }
 
     decorateResourceWithDerivedFrom(folderSession, permissionSession, resourceReport);
