@@ -21,6 +21,7 @@ import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryPermissionServiceSession;
 import org.metadatacenter.server.CategoryServiceSession;
+import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -101,7 +102,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteURI.toString(), total, limit, offset));
 
-    addProvenanceDisplayNames(r);
+    ProvenanceNameUtil.addProvenanceDisplayNames(r);
 
     return Response.ok().entity(r).build();
   }
@@ -157,7 +158,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .operation(CedarOperations.create(FolderServerCategory.class, NodeProperty.NAME.getValue(), categoryName))
     );
 
-    addProvenanceDisplayName(newCategory);
+    ProvenanceNameUtil.addProvenanceDisplayName(newCategory);
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
     URI uri = builder.path(CedarUrlUtil.urlEncode(newCategory.getId())).build();
@@ -181,7 +182,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .message("The root category can not be found!")
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", CATEGORY_ID_ROOT))
     );
-    addProvenanceDisplayName(category);
+    ProvenanceNameUtil.addProvenanceDisplayName(category);
     return Response.ok().entity(category).build();
   }
 
@@ -204,7 +205,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    addProvenanceDisplayName(category);
+    ProvenanceNameUtil.addProvenanceDisplayName(category);
     return Response.ok().entity(category).build();
   }
 
@@ -279,7 +280,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .operation(CedarOperations.update(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    addProvenanceDisplayName(updatedCategory);
+    ProvenanceNameUtil.addProvenanceDisplayName(updatedCategory);
 
     return Response.ok().entity(updatedCategory).build();
   }

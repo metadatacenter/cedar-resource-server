@@ -17,6 +17,7 @@ import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
 import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
 import org.metadatacenter.util.http.CedarURIBuilder;
@@ -120,7 +121,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     }
     r.setNodeListQueryType(nlqt);
     r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, r.getTotalCount(), limit, offset));
-    addProvenanceDisplayNames(r);
+    ProvenanceNameUtil.addProvenanceDisplayNames(r);
     return Response.ok().entity(r).build();
   }
 
