@@ -22,6 +22,7 @@ import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
+import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
 import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
 import org.metadatacenter.util.http.CedarResponse;
@@ -116,7 +117,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     FolderServerNodeListResponse r = findFolderContents(folderSession, fid, absoluteURI.toString(), pathInfo, pagedSortedTypedQuery);
 
-    addProvenanceDisplayNames(r);
+    ProvenanceNameUtil.addProvenanceDisplayNames(r);
     return Response.ok(r).build();
   }
 

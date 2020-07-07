@@ -12,7 +12,6 @@ import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.constant.CedarHeaderParameters;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.id.*;
@@ -21,18 +20,11 @@ import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerCategoryCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
-import org.metadatacenter.model.folderserver.datagroup.ResourceWithUsersAndUserNamesData;
 import org.metadatacenter.model.folderserver.extract.FolderServerArtifactExtract;
-import org.metadatacenter.model.folderserver.extract.FolderServerCategoryExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
-import org.metadatacenter.model.folderserver.extract.FolderServerTemplateExtract;
 import org.metadatacenter.model.folderserver.report.FolderServerArtifactReport;
-import org.metadatacenter.model.folderserver.report.FolderServerInstanceReport;
-import org.metadatacenter.model.folderserver.report.FolderServerSchemaArtifactReport;
-import org.metadatacenter.model.folderserver.report.FolderServerTemplateReport;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
-import org.metadatacenter.model.response.FolderServerCategoryListResponse;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
@@ -41,7 +33,7 @@ import org.metadatacenter.server.CategoryPermissionServiceSession;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
-import org.metadatacenter.server.cache.user.UserSummaryCache;
+import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
@@ -50,7 +42,6 @@ import org.metadatacenter.server.search.permission.SearchPermissionEnqueueServic
 import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
-import org.metadatacenter.server.security.model.user.CedarUserSummary;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessage;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
@@ -58,6 +49,7 @@ import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexM
 import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
+import org.metadatacenter.util.artifact.ArtifactReportUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
@@ -70,7 +62,10 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
@@ -117,76 +112,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_ORG_DESCRIPTION, description);
   }
 
-  protected void addProvenanceDisplayName(ResourceWithUsersAndUserNamesData resource) {
-    if (resource != null) {
-      CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
-      CedarUserSummary updater = UserSummaryCache.getInstance().getUser(resource.getLastUpdatedBy());
-      CedarUserSummary owner = UserSummaryCache.getInstance().getUser(resource.getOwnedBy());
-      if (creator != null) {
-        resource.setCreatedByUserName(creator.getScreenName());
-      }
-      if (updater != null) {
-        resource.setLastUpdatedByUserName(updater.getScreenName());
-      }
-      if (owner != null) {
-        resource.setOwnedByUserName(owner.getScreenName());
-      }
-      if (resource instanceof FileSystemResource) {
-        FileSystemResource res = (FileSystemResource) resource;
-        for (FolderServerResourceExtract pi : res.getPathInfo()) {
-          addProvenanceDisplayName(pi);
-        }
-      }
-    }
-  }
-
-  private void addProvenanceDisplayName(FolderServerResourceExtract resource) {
-    if (resource != null) {
-      CedarUserSummary creator = UserSummaryCache.getInstance().getUser(resource.getCreatedBy());
-      CedarUserSummary updater = UserSummaryCache.getInstance().getUser(resource.getLastUpdatedBy());
-      CedarUserSummary owner = UserSummaryCache.getInstance().getUser(resource.getOwnedBy());
-      if (creator != null) {
-        resource.setCreatedByUserName(creator.getScreenName());
-      }
-      if (updater != null) {
-        resource.setLastUpdatedByUserName(updater.getScreenName());
-      }
-      if (owner != null) {
-        resource.setOwnedByUserName(owner.getScreenName());
-      }
-    }
-  }
-
-  protected void addProvenanceDisplayNames(FolderServerArtifactReport report) {
-    for (FolderServerResourceExtract v : report.getVersions()) {
-      addProvenanceDisplayName(v);
-    }
-    for (FolderServerResourceExtract pi : report.getPathInfo()) {
-      addProvenanceDisplayName(pi);
-    }
-    addProvenanceDisplayName(report.getDerivedFromExtract());
-    if (report instanceof FolderServerInstanceReport) {
-      FolderServerInstanceReport instanceReport = (FolderServerInstanceReport) report;
-      addProvenanceDisplayName(instanceReport.getIsBasedOnExtract());
-    }
-  }
-
-  protected void addProvenanceDisplayNames(FolderServerNodeListResponse nodeList) {
-    for (FolderServerResourceExtract r : nodeList.getResources()) {
-      addProvenanceDisplayName(r);
-    }
-    if (nodeList.getPathInfo() != null) {
-      for (FolderServerResourceExtract pi : nodeList.getPathInfo()) {
-        addProvenanceDisplayName(pi);
-      }
-    }
-  }
-
-  protected void addProvenanceDisplayNames(FolderServerCategoryListResponse categoryList) {
-    for (FolderServerCategory c : categoryList.getCategories()) {
-      addProvenanceDisplayName(c);
-    }
-  }
 
   protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarResourceType resourceType, String content) throws CedarProcessingException {
     try {
@@ -419,7 +344,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
     FolderServerArtifact resource = folderSession.findArtifactById(id);
 
-    addProvenanceDisplayName(resource);
+    ProvenanceNameUtil.addProvenanceDisplayName(resource);
     return CedarResponse.ok().entity(resource).build();
   }
 
@@ -912,7 +837,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
 
 
-      addProvenanceDisplayName(folderServerFolderUpdated);
+      ProvenanceNameUtil.addProvenanceDisplayName(folderServerFolderUpdated);
       return Response.ok().entity(folderServerFolderUpdated).build();
     }
   }
@@ -957,7 +882,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     r.setTotalCount(resources.size());
 
     for (FolderServerResourceExtract node : r.getResources()) {
-      addProvenanceDisplayName(node);
+      ProvenanceNameUtil.addProvenanceDisplayName(node);
     }
 
     return Response.ok().entity(r).build();
@@ -972,64 +897,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected void decorateResourceWithNumberOfInstances(FolderServiceSession folderSession, FolderServerTemplateReport templateReport) {
-    templateReport.setNumberOfInstances(folderSession.getNumberOfInstances((CedarTemplateId) templateReport.getResourceId()));
-  }
-
-  protected void decorateResourceWithVersionHistory(FolderServiceSession folderSession, FolderServerSchemaArtifactReport resourceReport) {
-    List<FolderServerArtifactExtract> allVersions = folderSession.getVersionHistory(resourceReport.getResourceId());
-    List<FolderServerArtifactExtract> allVersionsWithPermission = folderSession.getVersionHistoryWithPermission(resourceReport.getResourceId());
-    Map<String, FolderServerArtifactExtract> accessibleMap = new HashMap<>();
-    for (FolderServerArtifactExtract e : allVersionsWithPermission) {
-      accessibleMap.put(e.getId(), e);
-    }
-
-    List<FolderServerArtifactExtract> visibleVersions = new ArrayList<>();
-    for (FolderServerArtifactExtract v : allVersions) {
-      if (accessibleMap.containsKey(v.getId())) {
-        visibleVersions.add(v);
-      } else {
-        visibleVersions.add(FolderServerResourceExtract.anonymous(v));
-      }
-    }
-    resourceReport.setVersions(visibleVersions);
-  }
-
-  protected void decorateResourceWithIsBasedOn(FolderServiceSession folderSession, ResourcePermissionServiceSession permissionServiceSession,
-                                               FolderServerInstanceReport instanceReport) {
-    if (instanceReport.getIsBasedOn() != null) {
-      FolderServerTemplateExtract resourceExtract =
-          (FolderServerTemplateExtract) folderSession.findResourceExtractById(instanceReport.getIsBasedOn());
-      if (resourceExtract != null) {
-        boolean hasReadAccess = permissionServiceSession.userHasReadAccessToResource(resourceExtract.getResourceId());
-        if (hasReadAccess) {
-          instanceReport.setIsBasedOnExtract(resourceExtract);
-        } else {
-          instanceReport.setIsBasedOnExtract(FolderServerResourceExtract.anonymous(resourceExtract));
-        }
-      }
-    }
-  }
-
-  protected void decorateResourceWithDerivedFrom(FolderServiceSession folderSession, ResourcePermissionServiceSession permissionServiceSession,
-                                                 FolderServerArtifactReport artifactReport) {
-    if (artifactReport.getDerivedFrom() != null && artifactReport.getDerivedFrom().getId() != null) {
-      FolderServerArtifactExtract resourceExtract = folderSession.findResourceExtractById(artifactReport.getDerivedFrom());
-      if (resourceExtract != null) {
-        boolean hasReadAccess = permissionServiceSession.userHasReadAccessToResource(resourceExtract.getResourceId());
-        if (hasReadAccess) {
-          artifactReport.setDerivedFromExtract(resourceExtract);
-        } else {
-          artifactReport.setDerivedFromExtract(FolderServerResourceExtract.anonymous(resourceExtract));
-        }
-      }
-    }
-  }
-
-  protected void decorateResourceWithCategories(CategoryServiceSession serviceSession, FolderServerArtifactReport artifactReport) {
-    List<List<FolderServerCategoryExtract>> categories = serviceSession.getAttachedCategoryPaths(artifactReport.getResourceId());
-    artifactReport.setCategories(categories);
-  }
 
   protected Response generateArtifactReportResponse(CedarRequestContext c, CedarArtifactId artifactId) throws CedarException {
 
@@ -1053,29 +920,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     artifact.setPathInfo(PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, artifact));
 
-    FolderServerArtifactReport resourceReport = null;
+    FolderServerArtifactReport resourceReport = ArtifactReportUtil.getArtifactReport(c, cedarConfig, artifact, folderSession, permissionSession,
+        categorySession);
 
-    if (artifact.getType() == CedarResourceType.INSTANCE) {
-      resourceReport = FolderServerInstanceReport.fromResource(artifact);
-      decorateResourceWithIsBasedOn(folderSession, permissionSession, (FolderServerInstanceReport) resourceReport);
-    } else if (artifact.getType() == CedarResourceType.FIELD) {
-      resourceReport = FolderServerSchemaArtifactReport.fromResource(artifact);
-      decorateResourceWithVersionHistory(folderSession, (FolderServerSchemaArtifactReport) resourceReport);
-    } else if (artifact.getType() == CedarResourceType.ELEMENT) {
-      resourceReport = FolderServerSchemaArtifactReport.fromResource(artifact);
-      decorateResourceWithVersionHistory(folderSession, (FolderServerSchemaArtifactReport) resourceReport);
-    } else if (artifact.getType() == CedarResourceType.TEMPLATE) {
-      resourceReport = FolderServerSchemaArtifactReport.fromResource(artifact);
-      decorateResourceWithVersionHistory(folderSession, (FolderServerSchemaArtifactReport) resourceReport);
-    }
+    ProvenanceNameUtil.addProvenanceDisplayName(resourceReport);
+    ProvenanceNameUtil.addProvenanceDisplayNames(resourceReport);
 
-    decorateResourceWithDerivedFrom(folderSession, permissionSession, resourceReport);
-    GraphDbPermissionReader.decorateResourceWithCurrentUserPermissions(c, permissionSession, cedarConfig, resourceReport);
-
-    decorateResourceWithCategories(categorySession, resourceReport);
-
-    addProvenanceDisplayName(resourceReport);
-    addProvenanceDisplayNames(resourceReport);
     return Response.ok(resourceReport).build();
   }
 

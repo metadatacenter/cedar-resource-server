@@ -14,6 +14,7 @@ import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServer
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -166,7 +167,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     userMustHaveReadAccessToFolder(c, fid);
     FolderServerFolderCurrentUserReport folderServerFolder = getFolderReport(c, fid);
-    addProvenanceDisplayName(folderServerFolder);
+    ProvenanceNameUtil.addProvenanceDisplayName(folderServerFolder);
     return Response.ok().entity(folderServerFolder).build();
   }
 
