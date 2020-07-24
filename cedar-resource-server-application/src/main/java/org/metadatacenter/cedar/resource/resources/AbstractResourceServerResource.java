@@ -953,8 +953,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected FolderServerCategory userMustHaveAttachAccessToCategory(CedarRequestContext context, CedarCategoryId categoryId) throws CedarException {
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(context);
-    CategoryPermissionServiceSession categoryPermissionSession =
-        CedarDataServices.getCategoryPermissionServiceSession(context);
+    CategoryPermissionServiceSession categoryPermissionSession = CedarDataServices.getCategoryPermissionServiceSession(context);
 
     FolderServerCategoryCurrentUserReport fsCategory = GraphDbPermissionReader.getCategoryCurrentUserReport(categorySession,
         categoryPermissionSession, categoryId);
