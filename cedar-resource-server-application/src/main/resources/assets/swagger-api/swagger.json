@@ -976,6 +976,47 @@
         }
       }
     },
+    "/template-fields/{template_field_id}/versions": {
+      "get": {
+        "summary": "Get a list of versions of a template field",
+        "description": "Get a list of versions of a template field.\n",
+        "tags": [
+          "Template Fields",
+          "Resource Report",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_field_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
     "/template-elements/{template_element_id}": {
       "get": {
         "summary": "Get a template element",
@@ -1268,6 +1309,47 @@
       "get": {
         "summary": "Get report of a template element",
         "description": "Get report of a template element.\n",
+        "tags": [
+          "Template Elements",
+          "Resource Report",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_element_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/template-elements/{template_element_id}/versions": {
+      "get": {
+        "summary": "Get a list of versions of a template element",
+        "description": "Get a list of versions of a template element.\n",
         "tags": [
           "Template Elements",
           "Resource Report",
@@ -1928,6 +2010,47 @@
       "get": {
         "summary": "Get report of a template",
         "description": "Get report of a template.\n",
+        "tags": [
+          "Templates",
+          "Resource Report",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/templates/{template_id}/versions": {
+      "get": {
+        "summary": "Get a list of versions of a template",
+        "description": "Get a list of versions of a template.\n",
         "tags": [
           "Templates",
           "Resource Report",
