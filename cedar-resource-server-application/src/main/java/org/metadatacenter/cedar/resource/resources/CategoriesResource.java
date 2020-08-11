@@ -132,13 +132,11 @@ public class CategoriesResource extends AbstractResourceServerResource {
         new CedarErrorPack()
             .message("The parent category can not be found!")
             .parameter(NodeProperty.PARENT_CATEGORY_ID.getValue(), ccParentId)
-            .operation(CedarOperations.lookup(FolderServerCategory.class, NodeProperty.ID.getValue(),
-                ccParentId.getId()))
+            .operation(CedarOperations.lookup(FolderServerCategory.class, NodeProperty.ID.getValue(), ccParentId.getId()))
             .errorKey(CedarErrorKey.PARENT_CATEGORY_NOT_FOUND)
     );
 
-    FolderServerCategory oldCategory = categorySession.getCategoryByParentAndName(ccParentId,
-        categoryName.stringValue());
+    FolderServerCategory oldCategory = categorySession.getCategoryByParentAndName(ccParentId, categoryName.stringValue());
     c.should(oldCategory).be(Null).otherwiseBadRequest(
         new CedarErrorPack()
             .message("There is a category with the same name under the parent category. Category names must be unique!")
@@ -150,8 +148,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     FolderServerCategory parentCategoryWritable = userMustHaveWriteAccessToCategory(c, ccParentId);
 
-    FolderServerCategory newCategory = categorySession.createCategory(ccParentId,
-        categoryName.stringValue(), categoryDescription.stringValue(), identifier.stringValue());
+    FolderServerCategory newCategory = categorySession.createCategory(ccParentId, categoryName.stringValue(), categoryDescription.stringValue(),
+        identifier.stringValue());
     c.should(newCategory).be(NonNull).otherwiseInternalServerError(
         new CedarErrorPack()
             .message("There was an error while creating the category!")

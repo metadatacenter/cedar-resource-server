@@ -152,14 +152,13 @@
     "resource_types": {
       "name": "resource_types",
       "in": "query",
-      "description": "Resource types as comma separated values.\nThe allowed values are: 'folder', 'element', 'template', 'instance'\n",
-      "type": "string",
-      "required": true
+      "description": "Resource types as comma separated values.\nThe allowed values are: 'folder', 'field', 'element', 'template', 'instance'\n",
+      "type": "string"
     },
     "resource_type": {
       "name": "resource_type",
       "in": "query",
-      "description": "The type of CEDAR resource.\nThe allowed values are: 'template', 'element', 'instance'\n",
+      "description": "The type of CEDAR resource.\nThe allowed values are: 'field', 'element', 'template', 'instance'\n",
       "type": "string",
       "required": true
     },
@@ -235,9 +234,15 @@
     "sharing": {
       "name": "sharing",
       "in": "query",
-      "description": "Sharing modifier for the search.\nOnly the value 'shared-with-me' is currently supported.\n",
+      "description": "Sharing modifier for the search.\nOnly the artifacts and folder matching the criteria will be returned.\n",
       "type": "string",
-      "required": false
+      "enum": [
+        "shared-with-me",
+        "shared-with-everybody",
+        null
+      ],
+      "required": false,
+      "default": null
     },
     "format": {
       "name": "format",
@@ -276,6 +281,34 @@
       ],
       "required": false,
       "default": "all"
+    },
+    "id": {
+      "name": "id",
+      "in": "query",
+      "description": "Artifact id. If passed, only the artifact or folder with the given id will be returned.\n",
+      "type": "string",
+      "required": false,
+      "default": null
+    },
+    "mode": {
+      "name": "mode",
+      "in": "query",
+      "description": "Search mode. The only value currently supported is 'special-folders'. If passed, the list of special folders will be returned ('/Shared', etc.)\n",
+      "type": "string",
+      "enum": [
+        "special-folders",
+        null
+      ],
+      "required": false,
+      "default": null
+    },
+    "category_id": {
+      "name": "category_id",
+      "in": "query",
+      "description": "Category Id. All the artifacts in the given category will be returned.\n",
+      "type": "string",
+      "required": false,
+      "default": null
     }
   },
   "paths": {
@@ -2091,7 +2124,7 @@
     "/search": {
       "get": {
         "summary": "Search resources",
-        "description": "Search resources using different criteria\n",
+        "description": "Search resources using different criteria. All of the parameters are optional, but you need to provide at least one search criteria. The parameters can be combined, but not all of the combinations will work. You can see the type of the executed search in the response body.\n",
         "tags": [
           "Search",
           "Template Fields",
@@ -2111,6 +2144,9 @@
         "parameters": [
           {
             "$ref": "#/parameters/q"
+          },
+          {
+            "$ref": "#/parameters/id"
           },
           {
             "$ref": "#/parameters/resource_types"
@@ -2135,6 +2171,12 @@
           },
           {
             "$ref": "#/parameters/sharing"
+          },
+          {
+            "$ref": "#/parameters/mode"
+          },
+          {
+            "$ref": "#/parameters/category_id"
           }
         ],
         "responses": {
@@ -2162,7 +2204,7 @@
     "/search-deep": {
       "get": {
         "summary": "Search resources",
-        "description": "Search resources using different criteria.\nThis call can go further than 10.000 resources. It is not intended for everyday use.\n",
+        "description": "Search resources using different criteria.\nThis call can go further than 10.000 resources. It is not intended for everyday use.\nAll of the parameters are optional, but you need to provide at least one search criteria. The parameters can be combined, but not all of the combinations will work. You can see the type of the executed search in the response body.\n",
         "tags": [
           "Search",
           "Template Fields",
@@ -2182,6 +2224,9 @@
         "parameters": [
           {
             "$ref": "#/parameters/q"
+          },
+          {
+            "$ref": "#/parameters/id"
           },
           {
             "$ref": "#/parameters/resource_types"
@@ -2206,6 +2251,12 @@
           },
           {
             "$ref": "#/parameters/sharing"
+          },
+          {
+            "$ref": "#/parameters/mode"
+          },
+          {
+            "$ref": "#/parameters/category_id"
           }
         ],
         "responses": {
