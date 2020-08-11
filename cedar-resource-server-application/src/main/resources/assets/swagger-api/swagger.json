@@ -146,9 +146,8 @@
     "qs_folder_id": {
       "name": "folder_id",
       "in": "query",
-      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-      "type": "string",
-      "required": true
+      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
+      "type": "string"
     },
     "resource_types": {
       "name": "resource_types",
@@ -699,6 +698,15 @@
         ],
         "parameters": [
           {
+            "name": "template_field",
+            "in": "body",
+            "description": "The template field to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TemplateField"
+            }
+          },
+          {
             "$ref": "#/parameters/template_field_id"
           }
         ],
@@ -1018,6 +1026,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "template_element",
+            "in": "body",
+            "description": "The template element to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TemplateElement"
+            }
+          },
           {
             "$ref": "#/parameters/template_element_id"
           }
@@ -1342,6 +1359,15 @@
         ],
         "parameters": [
           {
+            "name": "template_instance",
+            "in": "body",
+            "description": "The template instance to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TemplateInstance"
+            }
+          },
+          {
             "$ref": "#/parameters/template_instance_id"
           }
         ],
@@ -1660,6 +1686,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "template",
+            "in": "body",
+            "description": "The template to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Template"
+            }
+          },
           {
             "$ref": "#/parameters/template_id"
           }
