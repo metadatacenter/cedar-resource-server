@@ -2203,7 +2203,6 @@
           "Template Instances",
           "Folders",
           "Folder Contents",
-          "Shared With Me",
           "Versioning"
         ],
         "security": [
@@ -2283,7 +2282,6 @@
           "Template Instances",
           "Folders",
           "Folder Contents",
-          "Shared With Me",
           "Versioning"
         ],
         "security": [
@@ -2356,7 +2354,8 @@
         "summary": "Validate resources",
         "description": "Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model.\n&nbsp;\nTo use this service you will need to append the resource text in the request body as the payload. However, in the case of validating the template instance, you have an additional option to include the template text by organizing them as follows:\n```\n{\n  \"schema\": <template text>,\n  \"instance\": <instance text>\n}\n```\n&nbsp;\nThe validation service will return a report in JSON format as follows:\n```\n{\n  \"validates\": \"\",  # Indicate the validity of the submitted resource (true = valid, false = invalid).\n  \"warnings\": [],   # A list of warning messages, if any.\n  \"errors\": []      # A list of error messages, if any.\n}\n```\n",
         "tags": [
-          "Validation"
+          "Validation",
+          "Command"
         ],
         "security": [
           {
@@ -2366,6 +2365,100 @@
         "parameters": [
           {
             "$ref": "#/parameters/resource_type"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/publish-artifact": {
+      "post": {
+        "summary": "Publish artifact.",
+        "description": "Publish artifact. The 'bibo:status' of the artifact will be changed from 'bibo:draft' to 'bibo:published'. The 'pav:version' will be also set.\n",
+        "tags": [
+          "Validation",
+          "Command",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "publishArtifactRequest",
+            "in": "body",
+            "description": "Info about the publishing process",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PublishArtifactRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/create-draft-artifact": {
+      "post": {
+        "summary": "Create draft artifact.",
+        "description": "Create draft artifact out of a published artifact. A new artifact will be created in the supplied folder. The version of the new artifact must be set, and must follow the current published version. The sharing settings of the old artifact can be copied over to the new artifact..\n",
+        "tags": [
+          "Validation",
+          "Command",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "createDraftArtifactRequest",
+            "in": "body",
+            "description": "Info about the creation process",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateDraftArtifactRequest"
+            }
           }
         ],
         "responses": {
@@ -2491,6 +2584,40 @@
         "@id": {
           "type": "string",
           "description": "Unique URL identifier representing a specific template."
+        }
+      }
+    },
+    "PublishArtifactRequest": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier of the artifact."
+        },
+        "newVersion": {
+          "type": "string",
+          "description": "Version string. Must have three positive decimal numbers, separated by period."
+        }
+      }
+    },
+    "CreateDraftArtifactRequest": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing the source artifact."
+        },
+        "newVersion": {
+          "type": "string",
+          "description": "Version string. Must have three positive decimal numbers, separated by period."
+        },
+        "folderId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the target folder that the new artifact will be created in."
+        },
+        "propagateSharing": {
+          "type": "boolean",
+          "description": "Copy sharing settings, or leave the new artifact unshared"
         }
       }
     }
