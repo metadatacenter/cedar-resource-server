@@ -309,6 +309,14 @@
       "type": "string",
       "required": false,
       "default": null
+    },
+    "field_names": {
+      "name": "field_names",
+      "in": "query",
+      "description": "Field name list, separated by comma.\n",
+      "type": "string",
+      "required": false,
+      "default": null
     }
   },
   "paths": {
@@ -656,6 +664,68 @@
           },
           {
             "$ref": "#/parameters/offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/folders/{folder_id}/contents-extract": {
+      "get": {
+        "summary": "Get the content extracts of a folder",
+        "description": "Get the content extracts of a folder. Only the enumerated fields will be returned. Multilevel field paths are not supported. It is intended to return smaller payload if a lot of artifacts are expected to be returned.\n",
+        "tags": [
+          "Folders",
+          "Folder Contents",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/folder_id"
+          },
+          {
+            "$ref": "#/parameters/resource_types"
+          },
+          {
+            "$ref": "#/parameters/version"
+          },
+          {
+            "$ref": "#/parameters/publication_status"
+          },
+          {
+            "$ref": "#/parameters/sort"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/field_names"
           }
         ],
         "responses": {
