@@ -2482,6 +2482,150 @@
           }
         }
       }
+    },
+    "/command/regenerate-search-index": {
+      "post": {
+        "summary": "Regenerate search index.",
+        "description": "Regenerate search index.\nThis is an administrative command, you need special permission to run it.\nIf there is no need for reindexing, the task will not run. It can be forced using the force parameter.\nA background task will be started. The status of the task can be monitored in the resource server log files. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time.\n",
+        "tags": [
+          "Command",
+          "Administration"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "forceRequest",
+            "in": "body",
+            "description": "Force or not",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ForceRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/regenerate-rules-index": {
+      "post": {
+        "summary": "Regenerate rules index.",
+        "description": "Regenerate rules index.\nThis is an administrative command, you need special permission to run it.\nIf there is no need for reindexing, the task will not run. It can be forced using the force parameter.\nA background task will be started. The status of the task can be monitored in the resource server log files. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time.\n",
+        "tags": [
+          "Command",
+          "Administration"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "forceRequest",
+            "in": "body",
+            "description": "Force or not",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ForceRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/generate-empty-search-index": {
+      "post": {
+        "summary": "Empty search index.",
+        "description": "Empty search index.\nThis is an administrative command, you need special permission to run it.\nThe old index will be deleted and replaced by a new empty one. The search will work, but will not return results, since the index will be empty.\n",
+        "tags": [
+          "Command",
+          "Administration"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/generate-empty-rules-index": {
+      "post": {
+        "summary": "Empty rules index.",
+        "description": "Regenerate rules index.\nThis is an administrative command, you need special permission to run it.\nThe old index will be deleted and replaced by a new empty one. The recommendations will work, but will not return results, since the index will be empty.\n",
+        "tags": [
+          "Command",
+          "Administration"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -2618,6 +2762,15 @@
         "propagateSharing": {
           "type": "boolean",
           "description": "Copy sharing settings, or leave the new artifact unshared"
+        }
+      }
+    },
+    "ForceRequest": {
+      "type": "object",
+      "properties": {
+        "force": {
+          "type": "boolean",
+          "description": "Force the regeneration, or not"
         }
       }
     }

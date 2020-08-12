@@ -271,9 +271,9 @@ parameters:
 #                              Paths                                           #
 ################################################################################
 paths:
-################################################################################
-#                              Paths: Users                                    #
-################################################################################
+  ################################################################################
+  #                              Paths: Users                                    #
+  ################################################################################
   /users:
     get:
       summary: Users
@@ -296,9 +296,9 @@ paths:
           $ref: '#/responses/unauthorized'
         500:
           $ref: '#/responses/internal_error'
-################################################################################
-#                              Paths: Folders                                  #
-################################################################################
+  ################################################################################
+  #                              Paths: Folders                                  #
+  ################################################################################
   /folders/{folder_id}:
     get:
       summary: Get a folder
@@ -536,9 +536,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-################################################################################
-#                              Paths: Template Fields                          #
-################################################################################
+  ################################################################################
+  #                              Paths: Template Fields                          #
+  ################################################################################
   /template-fields/{template_field_id}:
     get:
       summary: Get a template field
@@ -771,9 +771,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-################################################################################
-#                              Paths: Template Elements                        #
-################################################################################
+  ################################################################################
+  #                              Paths: Template Elements                        #
+  ################################################################################
   /template-elements/{template_element_id}:
     get:
       summary: Get a template element
@@ -1006,9 +1006,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-################################################################################
-#                              Paths: Template Instances                       #
-################################################################################
+  ################################################################################
+  #                              Paths: Template Instances                       #
+  ################################################################################
   /template-instances/{template_instance_id}:
     get:
       summary: Get a template instance
@@ -1215,9 +1215,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-################################################################################
-#                              Paths: Templates                                #
-################################################################################
+  ################################################################################
+  #                              Paths: Templates                                #
+  ################################################################################
   /templates/{template_id}:
     get:
       summary: Get a template
@@ -1450,9 +1450,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-################################################################################
-#                              Paths: Search                                   #
-################################################################################
+  ################################################################################
+  #                              Paths: Search                                   #
+  ################################################################################
   /search:
     get:
       summary: Search resources
@@ -1495,9 +1495,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-################################################################################
-#                              Paths: Search Deep                              #
-################################################################################
+  ################################################################################
+  #                              Paths: Search Deep                              #
+  ################################################################################
   /search-deep:
     get:
       summary: Search resources
@@ -1542,9 +1542,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
-################################################################################
-#                              Paths: Command                                  #
-################################################################################
+  ################################################################################
+  #                              Paths: Command                                  #
+  ################################################################################
   /command/validate:
     post:
       summary: Validate resources
@@ -1587,6 +1587,9 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
+  ################################################################################
+  #                              Command: Versioning                             #
+  ################################################################################
   /command/publish-artifact:
     post:
       summary: Publish artifact.
@@ -1647,6 +1650,113 @@ paths:
           $ref: '#/responses/forbidden'
         404:
           $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  ################################################################################
+  #                              Command: Search Indices                         #
+  ################################################################################
+  /command/regenerate-search-index:
+    post:
+      summary: Regenerate search index.
+      description: |
+        Regenerate search index.
+        This is an administrative command, you need special permission to run it.
+        If there is no need for reindexing, the task will not run. It can be forced using the force parameter.
+        A background task will be started. The status of the task can be monitored in the resource server log files. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time.
+      tags:
+        - Command
+        - Administration
+      security:
+        - api_key: []
+      parameters:
+        - name: forceRequest
+          in: body
+          description: Force or not
+          required: true
+          schema:
+            $ref: '#/definitions/ForceRequest'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        500:
+          $ref: '#/responses/internal_error'
+  /command/regenerate-rules-index:
+    post:
+      summary: Regenerate rules index.
+      description: |
+        Regenerate rules index.
+        This is an administrative command, you need special permission to run it.
+        If there is no need for reindexing, the task will not run. It can be forced using the force parameter.
+        A background task will be started. The status of the task can be monitored in the resource server log files. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time.
+      tags:
+        - Command
+        - Administration
+      security:
+        - api_key: []
+      parameters:
+        - name: forceRequest
+          in: body
+          description: Force or not
+          required: true
+          schema:
+            $ref: '#/definitions/ForceRequest'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        500:
+          $ref: '#/responses/internal_error'
+  /command/generate-empty-search-index:
+    post:
+      summary: Empty search index.
+      description: |
+        Empty search index.
+        This is an administrative command, you need special permission to run it.
+        The old index will be deleted and replaced by a new empty one. The search will work, but will not return results, since the index will be empty.
+      tags:
+        - Command
+        - Administration
+      security:
+        - api_key: []
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        500:
+          $ref: '#/responses/internal_error'
+  /command/generate-empty-rules-index:
+    post:
+      summary: Empty rules index.
+      description: |
+        Regenerate rules index.
+        This is an administrative command, you need special permission to run it.
+        The old index will be deleted and replaced by a new empty one. The recommendations will work, but will not return results, since the index will be empty.
+      tags:
+        - Command
+        - Administration
+      security:
+        - api_key: []
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
         500:
           $ref: '#/responses/internal_error'
 ################################################################################
@@ -1749,3 +1859,9 @@ definitions:
       propagateSharing:
         type: boolean
         description: Copy sharing settings, or leave the new artifact unshared
+  ForceRequest:
+    type: object
+    properties:
+      force:
+        type: boolean
+        description: Force the regeneration, or not
