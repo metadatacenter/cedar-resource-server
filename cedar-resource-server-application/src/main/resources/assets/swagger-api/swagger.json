@@ -2712,6 +2712,144 @@
           }
         }
       }
+    },
+    "/command/copy-artifact-to-folder": {
+      "post": {
+        "summary": "Copy artifact",
+        "description": "Copy artifact to a given folder.\nA copy of the given artifact will be created in the given folder, with a new name\nOnly artifacts (fields, elements, templates, instances) can be copied.\n",
+        "tags": [
+          "Command",
+          "File Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "copyRequest",
+            "in": "body",
+            "description": "Parameters of the copy operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CopyRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/move-resource-to-folder": {
+      "post": {
+        "summary": "Move resource",
+        "description": "Move resource to a given folder.\nFolders or artifacts (fields, elements, templates, instances) can be moved.\n",
+        "tags": [
+          "Command",
+          "File Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "moveRequest",
+            "in": "body",
+            "description": "Parameters of the move operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MoveRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/rename-resource": {
+      "post": {
+        "summary": "Rename resource",
+        "description": "Change name and/or description of a resource.\nFolders or artifacts (fields, elements, templates, instances) can be altered.\n",
+        "tags": [
+          "Command",
+          "File Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "renameRequest",
+            "in": "body",
+            "description": "Parameters of the rename operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RenameRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -2866,6 +3004,53 @@
         "@id": {
           "type": "string",
           "description": "Unique URL identifier representing an artifact."
+        }
+      }
+    },
+    "CopyRequest": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing the source artifact."
+        },
+        "folderId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the target folder that the new artifact will be created in."
+        },
+        "titleTemplate": {
+          "type": "string",
+          "description": "Template that will be used to name the new artifact. The variables in the template will be interpolated. Currently only one variable is supported, the name of the source artifact as '{{title}}'."
+        }
+      }
+    },
+    "MoveRequest": {
+      "type": "object",
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the source resource."
+        },
+        "folderId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the target folder where the resource will be moved."
+        }
+      }
+    },
+    "RenameRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique URL identifier representing the resource."
+        },
+        "name": {
+          "type": "string",
+          "description": "New name of the resource."
+        },
+        "description": {
+          "type": "string",
+          "description": "New description of the resource."
         }
       }
     }
