@@ -1759,6 +1759,65 @@ paths:
           $ref: '#/responses/forbidden'
         500:
           $ref: '#/responses/internal_error'
+  ################################################################################
+  #                              Command: OpenView                               #
+  ################################################################################
+  /command/make-artifact-open:
+    post:
+      summary: Make artifact open
+      description: |
+        Make artifact open.
+      tags:
+        - Command
+        - OpenView
+      security:
+        - api_key: []
+      parameters:
+        - name: idRequest
+          in: body
+          description: Id of the artifact to make open
+          required: true
+          schema:
+            $ref: '#/definitions/IdRequest'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        500:
+          $ref: '#/responses/internal_error'
+  /command/make-artifact-not-open:
+    post:
+      summary: Make artifact not open
+      description: |
+        Make artifact not open.
+      tags:
+        - Command
+        - OpenView
+      security:
+        - api_key: []
+      parameters:
+        - name: idRequest
+          in: body
+          description: Id of the artifact to make open
+          required: true
+          schema:
+            $ref: '#/definitions/IdRequest'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        500:
+          $ref: '#/responses/internal_error'
 ################################################################################
 #                              Definitions                                     #
 ################################################################################
@@ -1865,3 +1924,9 @@ definitions:
       force:
         type: boolean
         description: Force the regeneration, or not
+  IdRequest:
+    type: object
+    properties:
+      '@id':
+        type: string
+        description: Unique URL identifier representing an artifact.
