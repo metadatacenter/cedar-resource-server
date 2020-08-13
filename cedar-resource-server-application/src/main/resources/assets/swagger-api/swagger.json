@@ -3220,6 +3220,147 @@
           }
         }
       }
+    },
+    "/command/attach-category": {
+      "post": {
+        "summary": "Attach category to an artifact",
+        "description": "Attach an existing category to an existing artifact.\nThe user must have 'write' access to the artifact.\nThe user must have 'attach' access to the category.\n",
+        "tags": [
+          "Command",
+          "Categories",
+          "Category Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "categoryAttachRequest",
+            "in": "body",
+            "description": "Parameters of the attach operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CategoryAttachRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/detach-category": {
+      "post": {
+        "summary": "Detach category from an artifact",
+        "description": "Detach an existing category from an existing artifact.\nThe user must have 'write' access to the artifact.\nThe user must have 'attach' access to the category.\n",
+        "tags": [
+          "Command",
+          "Categories",
+          "Category Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "categoryAttachRequest",
+            "in": "body",
+            "description": "Parameters of the detach operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CategoryAttachRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/attach-categories": {
+      "post": {
+        "summary": "Attach multiple categories to an artifact",
+        "description": "Attach a list of existing categories to an existing artifact.\nThe user must have 'write' access to the artifact.\nThe user must have 'attach' access to all the categories. The call will exit at the firts category without 'attach' access\n",
+        "tags": [
+          "Command",
+          "Categories",
+          "Category Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "categoryAttachListRequest",
+            "in": "body",
+            "description": "Parameters of the attach operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CategoryAttachListRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -3446,6 +3587,35 @@
         "description": {
           "type": "string",
           "description": "New description of the resource."
+        }
+      }
+    },
+    "CategoryAttachRequest": {
+      "type": "object",
+      "properties": {
+        "artifactId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the artifact."
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the categtory."
+        }
+      }
+    },
+    "CategoryAttachListRequest": {
+      "type": "object",
+      "properties": {
+        "artifactId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the artifact."
+        },
+        "categoryIds": {
+          "type": "array",
+          "description": "Unique URL identifier list representing the categtories.",
+          "items": {
+            "type": "string"
+          }
         }
       }
     }
