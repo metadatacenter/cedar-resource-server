@@ -2216,6 +2216,74 @@
         }
       }
     },
+    "/categories/root": {
+      "get": {
+        "summary": "Get root category",
+        "description": "Get root category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/categories/tree": {
+      "get": {
+        "summary": "Get category tree",
+        "description": "Get category tree.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
     "/categories/{category_id}": {
       "get": {
         "summary": "Get a category",
@@ -2339,6 +2407,35 @@
       }
     },
     "/categories": {
+      "get": {
+        "summary": "Get all categories",
+        "description": "Get the list of all categories.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
       "post": {
         "summary": "Create a category",
         "description": "Create a category.\n",
