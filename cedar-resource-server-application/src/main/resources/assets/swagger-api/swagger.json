@@ -3550,24 +3550,24 @@
           "type": "string",
           "description": "Unique URL identifier representing the source artifact."
         },
-        "folderId": {
+        "targetFolderId": {
           "type": "string",
           "description": "Unique URL identifier representing the target folder that the new artifact will be created in."
         },
-        "titleTemplate": {
+        "nameTemplate": {
           "type": "string",
-          "description": "Template that will be used to name the new artifact. The variables in the template will be interpolated. Currently only one variable is supported, the name of the source artifact as '{{title}}'."
+          "description": "Template that will be used to name the new artifact. The variables in the template will be interpolated. Currently only one variable is supported, the name of the source artifact as '{{name}}'. If no interpolatioin is needed, the new name should be passed."
         }
       }
     },
     "MoveRequest": {
       "type": "object",
       "properties": {
-        "sourceId": {
+        "@id": {
           "type": "string",
           "description": "Unique URL identifier representing the source resource."
         },
-        "folderId": {
+        "targetFolderId": {
           "type": "string",
           "description": "Unique URL identifier representing the target folder where the resource will be moved."
         }
@@ -3576,15 +3576,15 @@
     "RenameRequest": {
       "type": "object",
       "properties": {
-        "id": {
+        "@id": {
           "type": "string",
           "description": "Unique URL identifier representing the resource."
         },
-        "name": {
+        "schema:name": {
           "type": "string",
           "description": "New name of the resource."
         },
-        "description": {
+        "schema:description": {
           "type": "string",
           "description": "New description of the resource."
         }

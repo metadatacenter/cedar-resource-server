@@ -12,6 +12,7 @@ import org.apache.http.util.EntityUtils;
 import org.keycloak.events.Event;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.constant.LinkedData;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorType;
 import org.metadatacenter.exception.CedarBackendException;
@@ -23,6 +24,7 @@ import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.GraphDbObjectBuilder;
 import org.metadatacenter.model.ResourceVersion;
+import org.metadatacenter.model.core.CedarModelVocabulary;
 import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.model.request.OutputFormatType;
 import org.metadatacenter.model.request.OutputFormatTypeDetector;
@@ -121,8 +123,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     JsonNode jsonBody = c.request().getRequestBody().asJson();
 
     String id = jsonBody.get("@id").asText();
-    String folderId = jsonBody.get("folderId").asText();
-    String titleTemplate = jsonBody.get("titleTemplate").asText();
+    String folderId = jsonBody.get("targetFolderId").asText();
+    String nameTemplate = jsonBody.get("nameTemplate").asText();
 
 
     CedarUntypedArtifactId untypedSourceArtifactId = CedarUntypedArtifactId.build(id);
@@ -191,12 +193,12 @@ public class CommandGenericResource extends AbstractResourceServerResource {
         originalDocument = EntityUtils.toString(entity);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
         ((ObjectNode) jsonNode).remove("@id");
-        String oldTitle = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
-        if (oldTitle != null) {
-          oldTitle = "";
+        String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
+        if (oldName != null) {
+          oldName = "";
         }
-        String newTitle = titleTemplate.replace("{{title}}", oldTitle);
-        ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newTitle);
+        String newName = nameTemplate.replace("{{name}}", oldName);
+        ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
         ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
         if (resourceType.isVersioned()) {
           ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
@@ -276,7 +278,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     String candidatePath = null;
     if (parentFolder == null) {
       throw new CedarObjectNotFoundException("The parent folder is not present!")
-          .parameter("folderId", targetFolderId)
+          .parameter("targetFolderId", targetFolderId)
           .errorKey(CedarErrorKey.PARENT_FOLDER_NOT_FOUND);
     } else {
       // Later we will guarantee some kind of uniqueness for the artifact names
@@ -284,7 +286,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       FolderServerArtifact oldResource = folderSession.findArtifactById(oldId);
       if (oldResource == null) {
         throw new CedarObjectNotFoundException("The source artifact was not found!")
-            .parameter("id", oldId)
+            .parameter("@id", oldId)
             .parameter("resourceType", resourceType.getValue())
             .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND);
       } else {
@@ -308,8 +310,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       return newResource;
     } else {
       throw new CedarProcessingException("The artifact was not created!")
-          .parameter("id", oldId)
-          .parameter("parentId", parentFolder)
+          .parameter("@id", oldId)
+          .parameter("targetFolderId", parentFolder)
           .errorKey(CedarErrorKey.RESOURCE_NOT_CREATED);
     }
   }
@@ -323,8 +325,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
 
     JsonNode jsonBody = c.request().getRequestBody().asJson();
 
-    String sId = jsonBody.get("sourceId").asText();
-    String fId = jsonBody.get("folderId").asText();
+    String sId = jsonBody.get(LinkedData.ID).asText();
+    String fId = jsonBody.get("targetFolderId").asText();
 
     CedarFolderId targetFolderId = CedarFolderId.build(fId);
 
@@ -385,7 +387,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.SOURCE_FOLDER_NOT_FOUND)
             .errorMessage("The source folder can not be found:" + sourceId)
-            .parameter("sourceId", sourceId)
+            .parameter("@id", sourceId)
             .build();
       }
     } else {
@@ -394,7 +396,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.SOURCE_RESOURCE_NOT_FOUND)
             .errorMessage("The source artifact can not be found:" + sourceId)
-            .parameter("sourceId", sourceId)
+            .parameter("@id", sourceId)
             .build();
       }
     }
@@ -405,7 +407,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.TARGET_FOLDER_NOT_FOUND)
           .errorMessage("The target folder can not be found:" + targetFolderId)
-          .parameter("folderId", targetFolderId)
+          .parameter("targetFolderId", targetFolderId)
           .build();
     }
 
@@ -526,8 +528,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     OutputFormatType formatType = OutputFormatTypeDetector.detectFormat(format);
     JsonNode resourceNode = c.request().getRequestBody().asJson();
 
-    Response response = doConvert(resourceNode, formatType);
-    return response;
+    return doConvert(resourceNode, formatType);
   }
 
   @POST
@@ -543,8 +544,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     try {
       HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      Response response = createServiceResponse(proxyResponse);
-      return response;
+      return createServiceResponse(proxyResponse);
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
@@ -564,9 +564,9 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    CedarParameter nameParam = c.request().getRequestBody().get("name");
-    CedarParameter descriptionParam = c.request().getRequestBody().get("description");
-    CedarParameter idParam = c.request().getRequestBody().get("id");
+    CedarParameter nameParam = c.request().getRequestBody().get(SCHEMA_ORG_NAME);
+    CedarParameter descriptionParam = c.request().getRequestBody().get(SCHEMA_ORG_DESCRIPTION);
+    CedarParameter idParam = c.request().getRequestBody().get(LinkedData.ID);
 
     String id = idParam.stringValue();
 
@@ -670,8 +670,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
               return CedarResponse.badRequest()
                   .errorKey(CedarErrorKey.NOTHING_TO_DO)
                   .errorMessage("The name and the description are unchanged. There is nothing to do!")
-                  .parameter("name", name)
-                  .parameter("description", description)
+                  .parameter(SCHEMA_ORG_NAME, name)
+                  .parameter(SCHEMA_ORG_DESCRIPTION, description)
                   .build();
             }
           } catch (IOException e) {
