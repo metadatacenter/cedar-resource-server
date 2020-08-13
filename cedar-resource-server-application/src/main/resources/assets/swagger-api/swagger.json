@@ -71,6 +71,15 @@
         }
       }
     },
+    "ok_category": {
+      "description": "A category",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/Category"
+        }
+      }
+    },
     "created_folder": {
       "description": "A folder",
       "schema": {
@@ -113,6 +122,15 @@
         "type": "object",
         "items": {
           "$ref": "#/definitions/Template"
+        }
+      }
+    },
+    "created_category": {
+      "description": "A category",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/Category"
         }
       }
     },
@@ -217,6 +235,13 @@
       "type": "string",
       "required": true
     },
+    "category_id": {
+      "name": "category_id",
+      "in": "path",
+      "description": "Category identifier. Example&#58; https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "type": "string",
+      "required": true
+    },
     "q": {
       "name": "q",
       "in": "query",
@@ -302,7 +327,7 @@
       "required": false,
       "default": null
     },
-    "category_id": {
+    "category_id_query": {
       "name": "category_id",
       "in": "query",
       "description": "Category Id. All the artifacts in the given category will be returned.\n",
@@ -2191,6 +2216,254 @@
         }
       }
     },
+    "/categories/{category_id}": {
+      "get": {
+        "summary": "Get a category",
+        "description": "Get a category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a category",
+        "description": "Update a category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category",
+            "in": "body",
+            "description": "The category to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Category"
+            }
+          },
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a category",
+        "description": "Delete a category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "#/responses/no_content"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/categories": {
+      "post": {
+        "summary": "Create a category",
+        "description": "Create a category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template",
+            "in": "body",
+            "description": "The category to be created",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Category"
+            }
+          },
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/responses/created_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/categories/{category_id}/permissions": {
+      "get": {
+        "summary": "Get permissions of a category",
+        "description": "Get permissions of a category.\n",
+        "tags": [
+          "Categories",
+          "Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update permissions of a category",
+        "description": "Update permissions of a category.\n",
+        "tags": [
+          "Categories",
+          "Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
     "/search": {
       "get": {
         "summary": "Search resources",
@@ -2245,7 +2518,7 @@
             "$ref": "#/parameters/mode"
           },
           {
-            "$ref": "#/parameters/category_id"
+            "$ref": "#/parameters/category_id_query"
           }
         ],
         "responses": {
@@ -2324,7 +2597,7 @@
             "$ref": "#/parameters/mode"
           },
           {
-            "$ref": "#/parameters/category_id"
+            "$ref": "#/parameters/category_id_query"
           }
         ],
         "responses": {
@@ -2952,6 +3225,31 @@
         "@id": {
           "type": "string",
           "description": "Unique URL identifier representing a specific template."
+        }
+      }
+    },
+    "Category": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific category."
+        },
+        "schema:name": {
+          "type": "string",
+          "description": "Name of the category."
+        },
+        "schema:description": {
+          "type": "string",
+          "description": "Description of the category."
+        },
+        "parentCategoryId": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific parent category."
+        },
+        "schema:identifier": {
+          "type": "string",
+          "description": "Identifier, used for identifying this object in outside-to-CEDAR systems."
         }
       }
     },

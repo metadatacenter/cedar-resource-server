@@ -57,6 +57,12 @@ responses:
       type: object
       items:
         $ref: '#/definitions/Template'
+  ok_category: #200
+    description: A category
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/Category'
   created_folder: #201
     description: A folder
     schema:
@@ -87,6 +93,12 @@ responses:
       type: object
       items:
         $ref: '#/definitions/Template'
+  created_category: #201
+    description: A category
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/Category'
   no_content: #204
     description: Successful operation (no content)
   bad_request: #400
@@ -180,6 +192,12 @@ parameters:
     description: Template identifier. Example&#58; https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e
     type: string
     required: true
+  category_id:
+    name: category_id
+    in: path
+    description: Category identifier. Example&#58; https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e
+    type: string
+    required: true
   q:
     name: q
     in: query
@@ -251,7 +269,7 @@ parameters:
     enum: [ "special-folders", null]
     required: false
     default: null
-  category_id:
+  category_id_query:
     name: category_id
     in: query
     description: |
@@ -1451,6 +1469,164 @@ paths:
         500:
           $ref: '#/responses/internal_error'
   ################################################################################
+  #                              Paths: Categories                               #
+  ################################################################################
+  /categories/{category_id}:
+    get:
+      summary: Get a category
+      description: |
+        Get a category.
+      tags:
+        - Categories
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/category_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_category'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update a category
+      description: |
+        Update a category.
+      tags:
+        - Categories
+      security:
+        - api_key: []
+      parameters:
+        - name: category
+          in: body
+          description: The category to be updated
+          required: true
+          schema:
+            $ref: '#/definitions/Category'
+        - $ref: '#/parameters/category_id'
+      responses:
+        200:
+          $ref: '#/responses/ok_category'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    delete:
+      summary: Delete a category
+      description: |
+        Delete a category.
+      tags:
+        - Categories
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/category_id'
+      responses:
+        204:
+          $ref: '#/responses/no_content'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /categories:
+    post:
+      summary: Create a category
+      description: |
+        Create a category.
+      tags:
+        - Categories
+      security:
+        - api_key: []
+      parameters:
+        - name: template
+          in: body
+          description: The category to be created
+          required: true
+          schema:
+            $ref: '#/definitions/Category'
+        - $ref: '#/parameters/category_id'
+      responses:
+        201:
+          $ref: '#/responses/created_category'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  /categories/{category_id}/permissions:
+    get:
+      summary: Get permissions of a category
+      description: |
+        Get permissions of a category.
+      tags:
+        - Categories
+        - Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/category_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+    put:
+      summary: Update permissions of a category
+      description: |
+        Update permissions of a category.
+      tags:
+        - Categories
+        - Permissions
+      security:
+        - api_key: []
+      parameters:
+        - $ref: '#/parameters/category_id'
+      responses:
+        200:
+          $ref: '#/responses/ok'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
+  ################################################################################
   #                              Paths: Search                                   #
   ################################################################################
   /search:
@@ -1481,7 +1657,7 @@ paths:
         - $ref: '#/parameters/offset'
         - $ref: '#/parameters/sharing'
         - $ref: '#/parameters/mode'
-        - $ref: '#/parameters/category_id'
+        - $ref: '#/parameters/category_id_query'
       responses:
         200:
           $ref: '#/responses/ok'
@@ -1528,7 +1704,7 @@ paths:
         - $ref: '#/parameters/offset'
         - $ref: '#/parameters/sharing'
         - $ref: '#/parameters/mode'
-        - $ref: '#/parameters/category_id'
+        - $ref: '#/parameters/category_id_query'
       responses:
         200:
           $ref: '#/responses/ok'
@@ -1992,6 +2168,24 @@ definitions:
       '@id':
         type: string
         description: Unique URL identifier representing a specific template.
+  Category:
+    type: object
+    properties:
+      '@id':
+        type: string
+        description: Unique URL identifier representing a specific category.
+      'schema:name':
+        type: string
+        description: Name of the category.
+      'schema:description':
+        type: string
+        description: Description of the category.
+      'parentCategoryId':
+        type: string
+        description: Unique URL identifier representing a specific parent category.
+      'schema:identifier':
+        type: string
+        description: Identifier, used for identifying this object in outside-to-CEDAR systems.
   PublishArtifactRequest:
     type: object
     properties:
