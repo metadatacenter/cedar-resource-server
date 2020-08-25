@@ -17,8 +17,8 @@
   <description>CEDAR server to handle resource data</description>
 
   <scm>
-    <connection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</connection>
-    <developerConnection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</developerConnection>
+    <connection>scm:git:https://github.com/metadatacenter/cedar-resource-server.git</connection>
+    <developerConnection>scm:git:https://github.com/metadatacenter/cedar-resource-server.git</developerConnection>
     <url>https://github.com/metadatacenter/cedar-resource-server</url>
     <tag>HEAD</tag>
   </scm>
