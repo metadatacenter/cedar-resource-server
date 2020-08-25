@@ -5,22 +5,22 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-parent</artifactId>
-    <version>2.5.1</version>
+    <version>2.5.4</version>
   </parent>
 
   <groupId>org.metadatacenter</groupId>
   <artifactId>cedar-resource-server</artifactId>
-  <version>2.5.1</version>
+  <version>2.5.4</version>
   <packaging>pom</packaging>
 
   <name>CEDAR Resource Server</name>
   <description>CEDAR server to handle resource data</description>
 
   <scm>
-    <connection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</connection>
-    <developerConnection>scm:git:git@github.com:metadatacenter/cedar-resource-server.git</developerConnection>
+    <connection>scm:git:https://github.com/metadatacenter/cedar-resource-server.git</connection>
+    <developerConnection>scm:git:https://github.com/metadatacenter/cedar-resource-server.git</developerConnection>
     <url>https://github.com/metadatacenter/cedar-resource-server</url>
-    <tag>release-2.5.1</tag>
+    <tag>release-2.5.4</tag>
   </scm>
 
   <modules>

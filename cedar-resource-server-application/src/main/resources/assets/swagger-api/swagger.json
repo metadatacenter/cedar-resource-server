@@ -3,7 +3,7 @@
   "info": {
     "title": "CEDAR Resource Server API",
     "description": "Better Metadata - Better Science",
-    "version": "1.8.4"
+    "version": "2.5.2"
   },
   "schemes": [
     "https"
@@ -71,6 +71,15 @@
         }
       }
     },
+    "ok_category": {
+      "description": "A category",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/Category"
+        }
+      }
+    },
     "created_folder": {
       "description": "A folder",
       "schema": {
@@ -116,6 +125,15 @@
         }
       }
     },
+    "created_category": {
+      "description": "A category",
+      "schema": {
+        "type": "object",
+        "items": {
+          "$ref": "#/definitions/Category"
+        }
+      }
+    },
     "no_content": {
       "description": "Successful operation (no content)"
     },
@@ -146,21 +164,19 @@
     "qs_folder_id": {
       "name": "folder_id",
       "in": "query",
-      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-      "type": "string",
-      "required": true
+      "description": "Folder identifier. Example&#58; https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
+      "type": "string"
     },
     "resource_types": {
       "name": "resource_types",
       "in": "query",
-      "description": "Resource types as comma separated values.\nThe allowed values are: 'folder', 'element', 'template', 'instance'\n",
-      "type": "string",
-      "required": true
+      "description": "Resource types as comma separated values.\nThe allowed values are: 'folder', 'field', 'element', 'template', 'instance'\n",
+      "type": "string"
     },
     "resource_type": {
       "name": "resource_type",
       "in": "query",
-      "description": "The type of CEDAR resource.\nThe allowed values are: 'template', 'element', 'instance'\n",
+      "description": "The type of CEDAR resource.\nThe allowed values are: 'field', 'element', 'template', 'instance'\n",
       "type": "string",
       "required": true
     },
@@ -219,10 +235,17 @@
       "type": "string",
       "required": true
     },
+    "category_id": {
+      "name": "category_id",
+      "in": "path",
+      "description": "Category identifier. Example&#58; https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+      "type": "string",
+      "required": true
+    },
     "q": {
       "name": "q",
       "in": "query",
-      "description": "Search term. It will be looked up in the resource names",
+      "description": "Search term. It will be looked up in the artifact names",
       "type": "string",
       "required": false
     },
@@ -236,9 +259,15 @@
     "sharing": {
       "name": "sharing",
       "in": "query",
-      "description": "Sharing modifier for the search.\nOnly the value 'shared-with-me' is currently supported.\n",
+      "description": "Sharing modifier for the search.\nOnly the artifacts and folder matching the criteria will be returned.\n",
       "type": "string",
-      "required": false
+      "enum": [
+        "shared-with-me",
+        "shared-with-everybody",
+        null
+      ],
+      "required": false,
+      "default": null
     },
     "format": {
       "name": "format",
@@ -277,6 +306,42 @@
       ],
       "required": false,
       "default": "all"
+    },
+    "id": {
+      "name": "id",
+      "in": "query",
+      "description": "Artifact id. If passed, only the artifact or folder with the given id will be returned.\n",
+      "type": "string",
+      "required": false,
+      "default": null
+    },
+    "mode": {
+      "name": "mode",
+      "in": "query",
+      "description": "Search mode. The only value currently supported is 'special-folders'. If passed, the list of special folders will be returned ('/Shared', etc.)\n",
+      "type": "string",
+      "enum": [
+        "special-folders",
+        null
+      ],
+      "required": false,
+      "default": null
+    },
+    "category_id_query": {
+      "name": "category_id",
+      "in": "query",
+      "description": "Category Id. All the artifacts in the given category will be returned.\n",
+      "type": "string",
+      "required": false,
+      "default": null
+    },
+    "field_names": {
+      "name": "field_names",
+      "in": "query",
+      "description": "Field name list, separated by comma.\n",
+      "type": "string",
+      "required": false,
+      "default": null
     }
   },
   "paths": {
@@ -648,6 +713,68 @@
         }
       }
     },
+    "/folders/{folder_id}/contents-extract": {
+      "get": {
+        "summary": "Get the content extracts of a folder",
+        "description": "Get the content extracts of a folder. Only the enumerated fields will be returned. Multilevel field paths are not supported. It is intended to return smaller payload if a lot of artifacts are expected to be returned.\n",
+        "tags": [
+          "Folders",
+          "Folder Contents",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/folder_id"
+          },
+          {
+            "$ref": "#/parameters/resource_types"
+          },
+          {
+            "$ref": "#/parameters/version"
+          },
+          {
+            "$ref": "#/parameters/publication_status"
+          },
+          {
+            "$ref": "#/parameters/sort"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/field_names"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
     "/template-fields/{template_field_id}": {
       "get": {
         "summary": "Get a template field",
@@ -698,6 +825,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "template_field",
+            "in": "body",
+            "description": "The template field to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TemplateField"
+            }
+          },
           {
             "$ref": "#/parameters/template_field_id"
           }
@@ -968,6 +1104,47 @@
         }
       }
     },
+    "/template-fields/{template_field_id}/versions": {
+      "get": {
+        "summary": "Get a list of versions of a template field",
+        "description": "Get a list of versions of a template field.\n",
+        "tags": [
+          "Template Fields",
+          "Resource Report",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_field_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
     "/template-elements/{template_element_id}": {
       "get": {
         "summary": "Get a template element",
@@ -1018,6 +1195,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "template_element",
+            "in": "body",
+            "description": "The template element to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TemplateElement"
+            }
+          },
           {
             "$ref": "#/parameters/template_element_id"
           }
@@ -1288,6 +1474,47 @@
         }
       }
     },
+    "/template-elements/{template_element_id}/versions": {
+      "get": {
+        "summary": "Get a list of versions of a template element",
+        "description": "Get a list of versions of a template element.\n",
+        "tags": [
+          "Template Elements",
+          "Resource Report",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_element_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
     "/template-instances/{template_instance_id}": {
       "get": {
         "summary": "Get a template instance",
@@ -1341,6 +1568,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "template_instance",
+            "in": "body",
+            "description": "The template instance to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TemplateInstance"
+            }
+          },
           {
             "$ref": "#/parameters/template_instance_id"
           }
@@ -1661,6 +1897,15 @@
         ],
         "parameters": [
           {
+            "name": "template",
+            "in": "body",
+            "description": "The template to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Template"
+            }
+          },
+          {
             "$ref": "#/parameters/template_id"
           }
         ],
@@ -1930,10 +2175,396 @@
         }
       }
     },
+    "/templates/{template_id}/versions": {
+      "get": {
+        "summary": "Get a list of versions of a template",
+        "description": "Get a list of versions of a template.\n",
+        "tags": [
+          "Templates",
+          "Resource Report",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/template_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/categories/root": {
+      "get": {
+        "summary": "Get root category",
+        "description": "Get root category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/categories/tree": {
+      "get": {
+        "summary": "Get category tree",
+        "description": "Get category tree.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/categories/{category_id}": {
+      "get": {
+        "summary": "Get a category",
+        "description": "Get a category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a category",
+        "description": "Update a category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category",
+            "in": "body",
+            "description": "The category to be updated",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Category"
+            }
+          },
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a category",
+        "description": "Delete a category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "$ref": "#/responses/no_content"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "summary": "Get all categories",
+        "description": "Get the list of all categories.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a category",
+        "description": "Create a category.\n",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template",
+            "in": "body",
+            "description": "The category to be created",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Category"
+            }
+          },
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/responses/created_category"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/categories/{category_id}/permissions": {
+      "get": {
+        "summary": "Get permissions of a category",
+        "description": "Get permissions of a category.\n",
+        "tags": [
+          "Categories",
+          "Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update permissions of a category",
+        "description": "Update permissions of a category.\n",
+        "tags": [
+          "Categories",
+          "Permissions"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/category_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
     "/search": {
       "get": {
         "summary": "Search resources",
-        "description": "Search resources using different criteria\n",
+        "description": "Search resources using different criteria. All of the parameters are optional, but you need to provide at least one search criteria. The parameters can be combined, but not all of the combinations will work. You can see the type of the executed search in the response body.\n",
         "tags": [
           "Search",
           "Template Fields",
@@ -1942,7 +2573,6 @@
           "Template Instances",
           "Folders",
           "Folder Contents",
-          "Shared With Me",
           "Versioning"
         ],
         "security": [
@@ -1953,6 +2583,9 @@
         "parameters": [
           {
             "$ref": "#/parameters/q"
+          },
+          {
+            "$ref": "#/parameters/id"
           },
           {
             "$ref": "#/parameters/resource_types"
@@ -1977,6 +2610,12 @@
           },
           {
             "$ref": "#/parameters/sharing"
+          },
+          {
+            "$ref": "#/parameters/mode"
+          },
+          {
+            "$ref": "#/parameters/category_id_query"
           }
         ],
         "responses": {
@@ -2004,7 +2643,7 @@
     "/search-deep": {
       "get": {
         "summary": "Search resources",
-        "description": "Search resources using different criteria.\nThis call can go further than 10.000 resources. It is not intended for everyday use.\n",
+        "description": "Search resources using different criteria.\nThis call can go further than 10.000 resources. It is not intended for everyday use.\nAll of the parameters are optional, but you need to provide at least one search criteria. The parameters can be combined, but not all of the combinations will work. You can see the type of the executed search in the response body.\n",
         "tags": [
           "Search",
           "Template Fields",
@@ -2013,7 +2652,6 @@
           "Template Instances",
           "Folders",
           "Folder Contents",
-          "Shared With Me",
           "Versioning"
         ],
         "security": [
@@ -2024,6 +2662,9 @@
         "parameters": [
           {
             "$ref": "#/parameters/q"
+          },
+          {
+            "$ref": "#/parameters/id"
           },
           {
             "$ref": "#/parameters/resource_types"
@@ -2048,6 +2689,12 @@
           },
           {
             "$ref": "#/parameters/sharing"
+          },
+          {
+            "$ref": "#/parameters/mode"
+          },
+          {
+            "$ref": "#/parameters/category_id_query"
           }
         ],
         "responses": {
@@ -2077,7 +2724,8 @@
         "summary": "Validate resources",
         "description": "Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model.\n&nbsp;\nTo use this service you will need to append the resource text in the request body as the payload. However, in the case of validating the template instance, you have an additional option to include the template text by organizing them as follows:\n```\n{\n  \"schema\": <template text>,\n  \"instance\": <instance text>\n}\n```\n&nbsp;\nThe validation service will return a report in JSON format as follows:\n```\n{\n  \"validates\": \"\",  # Indicate the validity of the submitted resource (true = valid, false = invalid).\n  \"warnings\": [],   # A list of warning messages, if any.\n  \"errors\": []      # A list of error messages, if any.\n}\n```\n",
         "tags": [
-          "Validation"
+          "Validation",
+          "Command"
         ],
         "security": [
           {
@@ -2110,31 +2758,618 @@
           }
         }
       }
+    },
+    "/command/publish-artifact": {
+      "post": {
+        "summary": "Publish artifact.",
+        "description": "Publish artifact. The 'bibo:status' of the artifact will be changed from 'bibo:draft' to 'bibo:published'. The 'pav:version' will be also set.\n",
+        "tags": [
+          "Validation",
+          "Command",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "publishArtifactRequest",
+            "in": "body",
+            "description": "Info about the publishing process",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PublishArtifactRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/create-draft-artifact": {
+      "post": {
+        "summary": "Create draft artifact.",
+        "description": "Create draft artifact out of a published artifact. A new artifact will be created in the supplied folder. The version of the new artifact must be set, and must follow the current published version. The sharing settings of the old artifact can be copied over to the new artifact..\n",
+        "tags": [
+          "Validation",
+          "Command",
+          "Versioning"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "createDraftArtifactRequest",
+            "in": "body",
+            "description": "Info about the creation process",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateDraftArtifactRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/regenerate-search-index": {
+      "post": {
+        "summary": "Regenerate search index.",
+        "description": "Regenerate search index.\nThis is an administrative command, you need special permission to run it.\nIf there is no need for reindexing, the task will not run. It can be forced using the force parameter.\nA background task will be started. The status of the task can be monitored in the resource server log files. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time.\n",
+        "tags": [
+          "Command",
+          "Administration"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "forceRequest",
+            "in": "body",
+            "description": "Force or not",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ForceRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/regenerate-rules-index": {
+      "post": {
+        "summary": "Regenerate rules index.",
+        "description": "Regenerate rules index.\nThis is an administrative command, you need special permission to run it.\nIf there is no need for reindexing, the task will not run. It can be forced using the force parameter.\nA background task will be started. The status of the task can be monitored in the resource server log files. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time.\n",
+        "tags": [
+          "Command",
+          "Administration"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "forceRequest",
+            "in": "body",
+            "description": "Force or not",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ForceRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/generate-empty-search-index": {
+      "post": {
+        "summary": "Empty search index.",
+        "description": "Empty search index.\nThis is an administrative command, you need special permission to run it.\nThe old index will be deleted and replaced by a new empty one. The search will work, but will not return results, since the index will be empty.\n",
+        "tags": [
+          "Command",
+          "Administration"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/generate-empty-rules-index": {
+      "post": {
+        "summary": "Empty rules index.",
+        "description": "Regenerate rules index.\nThis is an administrative command, you need special permission to run it.\nThe old index will be deleted and replaced by a new empty one. The recommendations will work, but will not return results, since the index will be empty.\n",
+        "tags": [
+          "Command",
+          "Administration"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/make-artifact-open": {
+      "post": {
+        "summary": "Make artifact open",
+        "description": "Make artifact open.\n",
+        "tags": [
+          "Command",
+          "OpenView"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "idRequest",
+            "in": "body",
+            "description": "Id of the artifact to make open",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/IdRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/make-artifact-not-open": {
+      "post": {
+        "summary": "Make artifact not open",
+        "description": "Make artifact not open.\n",
+        "tags": [
+          "Command",
+          "OpenView"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "idRequest",
+            "in": "body",
+            "description": "Id of the artifact to make open",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/IdRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/copy-artifact-to-folder": {
+      "post": {
+        "summary": "Copy artifact",
+        "description": "Copy artifact to a given folder.\nA copy of the given artifact will be created in the given folder, with a new name\nOnly artifacts (fields, elements, templates, instances) can be copied.\n",
+        "tags": [
+          "Command",
+          "File Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "copyRequest",
+            "in": "body",
+            "description": "Parameters of the copy operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CopyRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/move-resource-to-folder": {
+      "post": {
+        "summary": "Move resource",
+        "description": "Move resource to a given folder.\nFolders or artifacts (fields, elements, templates, instances) can be moved.\n",
+        "tags": [
+          "Command",
+          "File Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "moveRequest",
+            "in": "body",
+            "description": "Parameters of the move operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MoveRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/rename-resource": {
+      "post": {
+        "summary": "Rename resource",
+        "description": "Change name and/or description of a resource.\nFolders or artifacts (fields, elements, templates, instances) can be altered.\n",
+        "tags": [
+          "Command",
+          "File Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "renameRequest",
+            "in": "body",
+            "description": "Parameters of the rename operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RenameRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/attach-category": {
+      "post": {
+        "summary": "Attach category to an artifact",
+        "description": "Attach an existing category to an existing artifact.\nThe user must have 'write' access to the artifact.\nThe user must have 'attach' access to the category.\n",
+        "tags": [
+          "Command",
+          "Categories",
+          "Category Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "categoryAttachRequest",
+            "in": "body",
+            "description": "Parameters of the attach operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CategoryAttachRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/detach-category": {
+      "post": {
+        "summary": "Detach category from an artifact",
+        "description": "Detach an existing category from an existing artifact.\nThe user must have 'write' access to the artifact.\nThe user must have 'attach' access to the category.\n",
+        "tags": [
+          "Command",
+          "Categories",
+          "Category Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "categoryAttachRequest",
+            "in": "body",
+            "description": "Parameters of the detach operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CategoryAttachRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
+    },
+    "/command/attach-categories": {
+      "post": {
+        "summary": "Attach multiple categories to an artifact",
+        "description": "Attach a list of existing categories to an existing artifact.\nThe user must have 'write' access to the artifact.\nThe user must have 'attach' access to all the categories. The call will exit at the firts category without 'attach' access\n",
+        "tags": [
+          "Command",
+          "Categories",
+          "Category Operations"
+        ],
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "categoryAttachListRequest",
+            "in": "body",
+            "description": "Parameters of the attach operation",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CategoryAttachListRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/ok"
+          },
+          "400": {
+            "$ref": "#/responses/bad_request"
+          },
+          "401": {
+            "$ref": "#/responses/unauthorized"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/not_found"
+          },
+          "500": {
+            "$ref": "#/responses/internal_error"
+          }
+        }
+      }
     }
   },
   "definitions": {
     "User": {
       "type": "object",
       "properties": {
-        "id": {
+        "@id": {
           "type": "string",
           "description": "Unique URL identifier representing a specific user."
-        },
-        "createdOn": {
-          "type": "string",
-          "description": "Creation time in xsd:dateTime format."
-        },
-        "createdOnTS": {
-          "type": "number",
-          "description": "Creation time as Unix timestamp."
-        },
-        "lastUpdatedOn": {
-          "type": "string",
-          "description": "Last update time in xsd:dateTime format."
-        },
-        "lastUpdatedOnTS": {
-          "type": "string",
-          "description": "Last update time as Unix timestamp."
         },
         "firstName": {
           "type": "string",
@@ -2144,13 +3379,41 @@
           "type": "string",
           "description": "Last name."
         },
-        "displayName": {
-          "type": "string",
-          "description": "Display name."
-        },
         "email": {
           "type": "string",
           "description": "Email."
+        },
+        "pav:createdOn": {
+          "type": "string",
+          "description": "Creation time in xsd:dateTime format."
+        },
+        "createdOnTS": {
+          "type": "number",
+          "description": "Creation time as Unix timestamp."
+        },
+        "pav:lastUpdatedOn": {
+          "type": "string",
+          "description": "Last update time in xsd:dateTime format."
+        },
+        "lastUpdatedOnTS": {
+          "type": "string",
+          "description": "Last update time as Unix timestamp."
+        },
+        "sourceHash": {
+          "type": "string",
+          "description": "Reserved for further use. Currently null."
+        },
+        "schema:identifier": {
+          "type": "string",
+          "description": "Reserved for further use. Currently null."
+        },
+        "schema:name": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "schema:description": {
+          "type": "string",
+          "description": "Reserved for further use. Currently null."
         },
         "resourceType": {
           "type": "string",
@@ -2200,6 +3463,159 @@
         "@id": {
           "type": "string",
           "description": "Unique URL identifier representing a specific template."
+        }
+      }
+    },
+    "Category": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific category."
+        },
+        "schema:name": {
+          "type": "string",
+          "description": "Name of the category."
+        },
+        "schema:description": {
+          "type": "string",
+          "description": "Description of the category."
+        },
+        "parentCategoryId": {
+          "type": "string",
+          "description": "Unique URL identifier representing a specific parent category."
+        },
+        "schema:identifier": {
+          "type": "string",
+          "description": "Identifier, used for identifying this object in outside-to-CEDAR systems."
+        }
+      }
+    },
+    "PublishArtifactRequest": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier of the artifact."
+        },
+        "newVersion": {
+          "type": "string",
+          "description": "Version string. Must have three positive decimal numbers, separated by period."
+        }
+      }
+    },
+    "CreateDraftArtifactRequest": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing the source artifact."
+        },
+        "newVersion": {
+          "type": "string",
+          "description": "Version string. Must have three positive decimal numbers, separated by period."
+        },
+        "folderId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the target folder that the new artifact will be created in."
+        },
+        "propagateSharing": {
+          "type": "boolean",
+          "description": "Copy sharing settings, or leave the new artifact unshared"
+        }
+      }
+    },
+    "ForceRequest": {
+      "type": "object",
+      "properties": {
+        "force": {
+          "type": "boolean",
+          "description": "Force the regeneration, or not"
+        }
+      }
+    },
+    "IdRequest": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing an artifact."
+        }
+      }
+    },
+    "CopyRequest": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing the source artifact."
+        },
+        "targetFolderId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the target folder that the new artifact will be created in."
+        },
+        "nameTemplate": {
+          "type": "string",
+          "description": "Template that will be used to name the new artifact. The variables in the template will be interpolated. Currently only one variable is supported, the name of the source artifact as '{{name}}'. If no interpolatioin is needed, the new name should be passed."
+        }
+      }
+    },
+    "MoveRequest": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing the source resource."
+        },
+        "targetFolderId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the target folder where the resource will be moved."
+        }
+      }
+    },
+    "RenameRequest": {
+      "type": "object",
+      "properties": {
+        "@id": {
+          "type": "string",
+          "description": "Unique URL identifier representing the resource."
+        },
+        "schema:name": {
+          "type": "string",
+          "description": "New name of the resource."
+        },
+        "schema:description": {
+          "type": "string",
+          "description": "New description of the resource."
+        }
+      }
+    },
+    "CategoryAttachRequest": {
+      "type": "object",
+      "properties": {
+        "artifactId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the artifact."
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the categtory."
+        }
+      }
+    },
+    "CategoryAttachListRequest": {
+      "type": "object",
+      "properties": {
+        "artifactId": {
+          "type": "string",
+          "description": "Unique URL identifier representing the artifact."
+        },
+        "categoryIds": {
+          "type": "array",
+          "description": "Unique URL identifier list representing the categtories.",
+          "items": {
+            "type": "string"
+          }
         }
       }
     }
