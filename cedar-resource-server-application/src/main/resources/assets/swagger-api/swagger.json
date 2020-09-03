@@ -3,7 +3,7 @@
   "info": {
     "title": "CEDAR Resource Server API",
     "description": "Better Metadata - Better Science",
-    "version": "2.5.2"
+    "version": "2.5.11"
   },
   "schemes": [
     "https"
@@ -3599,7 +3599,7 @@
         },
         "categoryId": {
           "type": "string",
-          "description": "Unique URL identifier representing the categtory."
+          "description": "Unique URL identifier representing the category."
         }
       }
     },
@@ -3612,7 +3612,7 @@
         },
         "categoryIds": {
           "type": "array",
-          "description": "Unique URL identifier list representing the categtories.",
+          "description": "Unique URL identifier list representing the categories.",
           "items": {
             "type": "string"
           }

@@ -2427,7 +2427,7 @@ definitions:
         description: Unique URL identifier representing the artifact.
       categoryId:
         type: string
-        description: Unique URL identifier representing the categtory.
+        description: Unique URL identifier representing the category.
   CategoryAttachListRequest:
     type: object
     properties:
@@ -2436,6 +2436,6 @@ definitions:
         description: Unique URL identifier representing the artifact.
       categoryIds:
         type: array
-        description: Unique URL identifier list representing the categtories.
+        description: Unique URL identifier list representing the categories.
         items:
           type: string
