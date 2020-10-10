@@ -68,7 +68,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
-import static org.metadatacenter.model.ModelNodeNames.BIBO_STATUS;
+import static org.metadatacenter.model.ModelNodeNames.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
@@ -780,7 +780,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     String oldName = folderServerFolder.getName();
 
-    CedarParameter name = c.request().getRequestBody().get("name");
+    CedarParameter name = c.request().getRequestBody().get(SCHEMA_ORG_NAME);
 
     String nameV = null;
     if (!name.isEmpty()) {
@@ -796,7 +796,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
     }
 
-    CedarParameter description = c.request().getRequestBody().get("description");
+    CedarParameter description = c.request().getRequestBody().get(SCHEMA_ORG_DESCRIPTION);
 
     String descriptionV = null;
     if (!description.isEmpty()) {
