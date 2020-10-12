@@ -5,7 +5,7 @@ swagger: '2.0'
 info:
   title: CEDAR Resource Server API
   description: Better Metadata - Better Science
-  version: "2.5.2"
+  version: "1.0.0"
 schemes:
   - https
 consumes:
