@@ -722,7 +722,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       event = new ValuerecommenderReindexMessage(templateId, null, ValuerecommenderReindexMessageResourceType.TEMPLATE, actionType);
     } else if (folderServerResource.getType() == CedarResourceType.INSTANCE) {
       FolderServerInstance instance = (FolderServerInstance) folderServerResource;
-      CedarInstanceArtifactId instanceId = CedarTemplateInstanceId.build(instance.getId());
+      CedarTemplateInstanceId instanceId = CedarTemplateInstanceId.build(instance.getId());
       event = new ValuerecommenderReindexMessage(instance.getIsBasedOn(), instanceId, ValuerecommenderReindexMessageResourceType.INSTANCE,
           actionType);
     }
