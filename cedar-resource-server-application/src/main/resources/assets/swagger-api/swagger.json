@@ -3,7 +3,7 @@
   "info": {
     "title": "CEDAR Resource Server API",
     "description": "Better Metadata - Better Science",
-    "version": "2.5.31-SNAPSHOT"
+    "version": "2.5.32"
   },
   "schemes": [
     "https"
