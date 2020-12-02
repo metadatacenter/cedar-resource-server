@@ -10,7 +10,6 @@
 
   <groupId>org.metadatacenter</groupId>
   <artifactId>cedar-resource-server</artifactId>
-  <version>2.5.36-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>CEDAR Resource Server</name>
