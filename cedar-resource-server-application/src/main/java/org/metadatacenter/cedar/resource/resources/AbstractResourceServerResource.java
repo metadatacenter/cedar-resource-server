@@ -467,17 +467,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
 
     // Check whether it is published
-    if (isSchemaArtifact) {
-      if (schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
-        return CedarResponse.badRequest()
-            .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
-            .errorMessage("Published artifacts can not be deleted!")
-            .parameter("id", id)
-            .parameter("name", schemaArtifact.getName())
-            .parameter(BIBO_STATUS, schemaArtifact.getPublicationStatus())
-            .build();
-      }
-    }
+//    if (isSchemaArtifact) {
+//      if (schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
+//        return CedarResponse.badRequest()
+//            .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
+//            .errorMessage("Published artifacts can not be deleted!")
+//            .parameter("id", id)
+//            .parameter("name", schemaArtifact.getName())
+//            .parameter(BIBO_STATUS, schemaArtifact.getPublicationStatus())
+//            .build();
+//      }
+//    }
 
     // Delete from artifact server
     try {
