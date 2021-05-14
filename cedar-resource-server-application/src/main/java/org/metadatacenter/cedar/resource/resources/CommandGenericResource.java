@@ -377,7 +377,6 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     // Check delete permission
     c.must(c.user()).have(permissionDelete);
 
-
     FolderServerFolder sourceFolder = null;
     FolderServerArtifact sourceResource = null;
     // Check if the source resource exists
@@ -421,7 +420,6 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     // Check if the user has write permission to the target folder
     userMustHaveWriteAccessToFolder(c, targetFolderId);
 
-
     boolean moved;
     if (sourceResourceType == CedarResourceType.FOLDER) {
       CedarFolderId sourceFolderId = sourceId.asFolderId();
@@ -444,7 +442,6 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       URI uri = builder.build();
       return Response.created(uri).entity(movedNode).build();
     }
-
   }
 
   // This is the endpoint called by the Keycloak Event Listener

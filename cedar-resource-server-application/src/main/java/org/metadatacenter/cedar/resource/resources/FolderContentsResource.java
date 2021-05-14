@@ -12,6 +12,7 @@ import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.extract.FolderServerArtifactExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
@@ -25,6 +26,7 @@ import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
 import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
+import org.metadatacenter.util.TrustedByUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedSortedTypedQuery;
@@ -150,6 +152,10 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     r.setRequest(req);
 
     List<FolderServerResourceExtract> resources = folderSession.findFolderContentsExtract(folderId, req);
+
+    for (FolderServerResourceExtract resourceExtract : resources) {
+      TrustedByUtil.decorateWithTrustedby(resourceExtract, pathInfo);
+    }
 
     long total = folderSession.findFolderContentsCount(folderId, req);
 

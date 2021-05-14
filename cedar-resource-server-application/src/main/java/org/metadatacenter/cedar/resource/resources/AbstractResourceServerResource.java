@@ -49,6 +49,7 @@ import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexM
 import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
+import org.metadatacenter.util.TrustedByUtil;
 import org.metadatacenter.util.artifact.ArtifactReportUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -254,7 +255,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           }
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
           URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
-
           createIndexArtifact(newResource, context);
           createValuerecommenderResource(newResource);
           return Response.created(uri).entity(templateJsonNode).build();
@@ -925,6 +925,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     ProvenanceNameUtil.addProvenanceDisplayName(resourceReport);
     ProvenanceNameUtil.addProvenanceDisplayNames(resourceReport);
+    TrustedByUtil.decorateWithTrustedby(resourceReport);
 
     return Response.ok(resourceReport).build();
   }
