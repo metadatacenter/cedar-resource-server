@@ -204,7 +204,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
       if (!resourceExtract.getType().equals(CedarResourceType.FOLDER)) {
         FolderServerArtifact artifact = folderSession.findArtifactById(CedarUntypedArtifactId.build(resourceExtract.getId()));
         List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, artifact);
-        TrustedByUtil.decorateWithTrustedby(resourceExtract, pathInfo);
+        TrustedByUtil.decorateWithTrustedby(resourceExtract, pathInfo, cedarConfig.getTrustedFolders().getFoldersMap());
       }
     }
 

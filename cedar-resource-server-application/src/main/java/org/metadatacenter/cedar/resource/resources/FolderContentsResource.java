@@ -154,7 +154,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     List<FolderServerResourceExtract> resources = folderSession.findFolderContentsExtract(folderId, req);
 
     for (FolderServerResourceExtract resourceExtract : resources) {
-      TrustedByUtil.decorateWithTrustedby(resourceExtract, pathInfo);
+      TrustedByUtil.decorateWithTrustedby(resourceExtract, pathInfo, cedarConfig.getTrustedFolders().getFoldersMap());
     }
 
     long total = folderSession.findFolderContentsCount(folderId, req);
