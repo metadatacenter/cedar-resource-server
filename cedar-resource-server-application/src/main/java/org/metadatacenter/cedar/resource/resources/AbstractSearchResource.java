@@ -1,6 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
@@ -10,6 +11,7 @@ import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.extract.FolderServerArtifactExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListQueryTypeDetector;
@@ -17,9 +19,11 @@ import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
 import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
+import org.metadatacenter.util.TrustedByUtil;
 import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedSortedTypedSearchQuery;
@@ -105,8 +109,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         nlqt == NodeListQueryType.VIEW_ALL || nlqt == NodeListQueryType.SEARCH_ID ||
         nlqt == NodeListQueryType.SEARCH_IS_BASED_ON || nlqt == NodeListQueryType.VIEW_SPECIAL_FOLDERS) {
 
-      r = performGraphDbSearch(c, pagedSearchQuery, nlqt, queryString, idString, version, publicationStatus, isBasedOn, mode, sortList, limit,
-          offset);
+      r = performGraphDbSearch(c, pagedSearchQuery, nlqt, queryString, idString, version, publicationStatus, isBasedOn, mode, sortList, limit, offset);
 
     } else {
       List<String> resourceTypeList = pagedSearchQuery.getResourceTypeAsStringList();
@@ -158,6 +161,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     r.setNodeListQueryType(nlqt);
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
 
     List<FolderServerResourceExtract> resources;
     long total;
@@ -192,6 +196,16 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     } else {
       throw new CedarProcessingException("Search type not supported!")
           .parameter("resolvedSearchType", nlqt.getValue());
+    }
+
+    // Add "trustedB" information to artifacts. An alternative that would provide better performance would be to
+    // get the parentFolderId directly from Neo4j, instead of executing this extra loop to add it at this level.
+    for (FolderServerResourceExtract resourceExtract : resources) {
+      if (!resourceExtract.getType().equals(CedarResourceType.FOLDER)) {
+        FolderServerArtifact artifact = folderSession.findArtifactById(CedarUntypedArtifactId.build(resourceExtract.getId()));
+        List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, artifact);
+        TrustedByUtil.decorateWithTrustedby(resourceExtract, pathInfo);
+      }
     }
 
     r.setTotalCount(total);
