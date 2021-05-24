@@ -198,7 +198,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
           .parameter("resolvedSearchType", nlqt.getValue());
     }
 
-    // Add "trustedB" information to artifacts. An alternative that would provide better performance would be to
+    // Add "trustedBy" information to artifacts. An alternative that would provide better performance would be to
     // get the parentFolderId directly from Neo4j, instead of executing this extra loop to add it at this level.
     for (FolderServerResourceExtract resourceExtract : resources) {
       if (!resourceExtract.getType().equals(CedarResourceType.FOLDER)) {
