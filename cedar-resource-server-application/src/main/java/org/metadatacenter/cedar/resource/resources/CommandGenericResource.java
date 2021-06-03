@@ -198,12 +198,19 @@ public class CommandGenericResource extends AbstractResourceServerResource {
           oldName = "";
         }
         String newName = nameTemplate.replace("{{name}}", oldName);
-        ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
         ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
         if (resourceType.isVersioned()) {
           ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
           ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
         }
+        if (jsonNode.get(SCHEMA_ORG_IDENTIFIER) != null) {
+          String schemaId = jsonNode.get(SCHEMA_ORG_IDENTIFIER).asText();
+          // Since we are creating a copy, we remove the schema:identifier to avoid confusion with the original artifact
+          ((ObjectNode) jsonNode).remove(SCHEMA_ORG_IDENTIFIER);
+          // CDE artifacts have the schema:identifier between brackets as part of their name so we need to remove it too
+          newName = newName.replace("(" + schemaId + ")", "").trim();
+        }
+        ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
         originalDocument = jsonNode.toString();
       }
     } catch (Exception e) {
