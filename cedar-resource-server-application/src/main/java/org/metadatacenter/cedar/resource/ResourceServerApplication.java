@@ -45,8 +45,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     CommandGenericResource.injectUserService(userService);
     CommandSearchResource.injectUserService(userService);
-    SearchResource.injectServices(nodeIndexingService, nodeSearchingService, searchPermissionEnqueueService,
-        valuerecommenderReindexQueueService);
+    SearchResource.injectServices(nodeIndexingService, nodeSearchingService,
+        searchPermissionEnqueueService, valuerecommenderReindexQueueService);
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
     // TODO: uncomment the following line
@@ -102,6 +102,9 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     final CategoriesResource categories = new CategoriesResource(cedarConfig);
     environment.jersey().register(categories);
+
+    final RecommendResource recommend = new RecommendResource(cedarConfig);
+    environment.jersey().register(recommend);
 
     final ResourceServerHealthCheck healthCheck = new ResourceServerHealthCheck();
     environment.healthChecks().register("message", healthCheck);
