@@ -6,20 +6,18 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
-import org.metadatacenter.model.folderserver.info.FolderServerNodeInfo;
 import org.metadatacenter.model.request.TemplateRecommendationRequest;
+import org.metadatacenter.model.request.TemplateRecommendationRequestSummary;
 import org.metadatacenter.model.response.ResourceRecommendation;
-import org.metadatacenter.model.response.ResourceRecommendationResponse;
+import org.metadatacenter.model.response.TemplateRecommendationResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.search.IndexedDocumentDocument;
+import org.metadatacenter.search.InfoField;
 import org.metadatacenter.server.search.elasticsearch.worker.SearchResponseResult;
+import org.metadatacenter.util.StringUtil;
 import org.metadatacenter.util.http.PagedSortedTypedSearchQuery;
 import org.metadatacenter.util.json.JsonMapper;
-import org.neo4j.driver.internal.shaded.reactor.util.annotation.NonNull;
 
-import javax.validation.Valid;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotEmpty;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -27,10 +25,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
@@ -61,6 +56,7 @@ public class RecommendResource extends AbstractSearchResource {
 
     Iterator<String> itFieldNames = recommendationRequest.getMetadataRecord().fieldNames();
     List<String> fieldNames = new ArrayList<>();
+
     while (itFieldNames.hasNext()) {
       fieldNames.add(itFieldNames.next());
     }
@@ -69,22 +65,42 @@ public class RecommendResource extends AbstractSearchResource {
     SearchResponseResult searchResponse = searchArtifactsByFieldNames(c, fieldNames,
         CedarResourceType.Types.TEMPLATE);
 
-    // 2. Generation of recommendations
+    // 2. Recommendations generation
+    int sourceFieldsCount = fieldNames.size();
+    Set<String> fieldNamesNormalizedSet = new HashSet<>(); // To search by field name in O(1)
+    for (String fieldName : fieldNames) {
+      fieldNamesNormalizedSet.add(StringUtil.basicNormalization(fieldName));
+    }
     List<ResourceRecommendation> recommendations = new ArrayList<>();
     int totalCount = Math.min(cedarConfig.getResourceRESTAPI().getPagination().getDefaultPageSize(), (int)searchResponse.getTotalCount());
     for (SearchHit hit : searchResponse.getHits().subList(0, totalCount)) {
-      double recommendationScore = 0;
-      int sourceFieldsCount = -1;
-      int sourceFieldsMatched = -1;
+
+      IndexedDocumentDocument indexedDoc = JsonMapper.MAPPER.readValue(hit.getSourceAsString(), IndexedDocumentDocument.class);
+      int sourceFieldsMatched = 0;
+      for (InfoField targetField : indexedDoc.getInfoFields()) {
+        String normFieldName = StringUtil.basicNormalization(targetField.getFieldName());
+        String normFieldPrefLabel = StringUtil.basicNormalization(targetField.getFieldPrefLabel());
+        if (fieldNamesNormalizedSet.contains(normFieldName) || fieldNamesNormalizedSet.contains(normFieldPrefLabel)) {
+          sourceFieldsMatched++;
+        }
+      }
+      int targetFieldsCount = indexedDoc.getInfoFields().size();
+      // Score calculated using the Jaccard Index
+      double recommendationScore = (double) sourceFieldsMatched / (double) (sourceFieldsCount + targetFieldsCount - sourceFieldsMatched);
+
       IndexedDocumentDocument indexedDocument = JsonMapper.MAPPER.readValue(hit.getSourceAsString(), IndexedDocumentDocument.class);
       FolderServerResourceExtract resourceExtract = FolderServerResourceExtract.fromNodeInfo(indexedDocument.getInfo());
-      ResourceRecommendation recommendation = new ResourceRecommendation(recommendationScore, sourceFieldsCount, sourceFieldsMatched, resourceExtract);
+      ResourceRecommendation recommendation = new ResourceRecommendation(recommendationScore, sourceFieldsMatched, targetFieldsCount, resourceExtract);
       recommendations.add(recommendation);
     }
 
-    // 3. Assemble and return response
-    ResourceRecommendationResponse recommendationResponse = new ResourceRecommendationResponse();
+    // 3. Rank recommendations
+    Collections.sort(recommendations); // Sorted by recommendation score
+
+    // 4. Assemble and return response
+    TemplateRecommendationResponse recommendationResponse = new TemplateRecommendationResponse();
     recommendationResponse.setTotalCount(totalCount);
+    recommendationResponse.setRequest(new TemplateRecommendationRequestSummary(sourceFieldsCount));
     recommendationResponse.setRecommendations(recommendations);
     return Response.ok().entity(recommendationResponse).build();
   }
