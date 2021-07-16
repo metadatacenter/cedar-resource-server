@@ -44,9 +44,6 @@ public class RecommendResource extends AbstractSearchResource {
   @Consumes(MediaType.APPLICATION_JSON)
   public Response recommendTemplates() throws CedarException, IOException {
 
-    // TODO:
-    //  - error 500 when the field name contains /
-
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.request().getRequestBody()).be(NonEmpty);
@@ -56,26 +53,26 @@ public class RecommendResource extends AbstractSearchResource {
 
     Iterator<String> itFieldNames = recommendationRequest.getMetadataRecord().fieldNames();
     List<String> fieldNames = new ArrayList<>();
-
     while (itFieldNames.hasNext()) {
       fieldNames.add(itFieldNames.next());
     }
 
     // 1: Basic search to retrieve templates by field name
-    SearchResponseResult searchResponse = searchArtifactsByFieldNames(c, fieldNames,
-        CedarResourceType.Types.TEMPLATE);
+    SearchResponseResult searchResponse = searchArtifactsByFieldNames(c, fieldNames, CedarResourceType.Types.TEMPLATE);
 
-    // 2. Recommendations generation
+    // 2. Generation of recommendations
     int sourceFieldsCount = fieldNames.size();
-    Set<String> fieldNamesNormalizedSet = new HashSet<>(); // To search by field name in O(1)
+    Set<String> fieldNamesNormalizedSet = new HashSet<>(); // To find by field name in O(1)
     for (String fieldName : fieldNames) {
       fieldNamesNormalizedSet.add(StringUtil.basicNormalization(fieldName));
     }
     List<ResourceRecommendation> recommendations = new ArrayList<>();
-    int totalCount = Math.min(cedarConfig.getResourceRESTAPI().getPagination().getDefaultPageSize(), (int)searchResponse.getTotalCount());
-    for (SearchHit hit : searchResponse.getHits().subList(0, totalCount)) {
+    int totalCount = Math.min(cedarConfig.getResourceRESTAPI().getPagination().getDefaultPageSize(),
+        (int) searchResponse.getTotalCount());
 
-      IndexedDocumentDocument indexedDoc = JsonMapper.MAPPER.readValue(hit.getSourceAsString(), IndexedDocumentDocument.class);
+    for (SearchHit hit : searchResponse.getHits().subList(0, totalCount)) {
+      IndexedDocumentDocument indexedDoc = JsonMapper.MAPPER.readValue(hit.getSourceAsString(),
+          IndexedDocumentDocument.class);
       int sourceFieldsMatched = 0;
       for (InfoField targetField : indexedDoc.getInfoFields()) {
         String normFieldName = StringUtil.basicNormalization(targetField.getFieldName());
@@ -86,16 +83,18 @@ public class RecommendResource extends AbstractSearchResource {
       }
       int targetFieldsCount = indexedDoc.getInfoFields().size();
       // Score calculated using the Jaccard Index
-      double recommendationScore = (double) sourceFieldsMatched / (double) (sourceFieldsCount + targetFieldsCount - sourceFieldsMatched);
-
-      IndexedDocumentDocument indexedDocument = JsonMapper.MAPPER.readValue(hit.getSourceAsString(), IndexedDocumentDocument.class);
+      double recommendationScore =
+          (double) sourceFieldsMatched / (double) (sourceFieldsCount + targetFieldsCount - sourceFieldsMatched);
+      IndexedDocumentDocument indexedDocument = JsonMapper.MAPPER.readValue(hit.getSourceAsString(),
+          IndexedDocumentDocument.class);
       FolderServerResourceExtract resourceExtract = FolderServerResourceExtract.fromNodeInfo(indexedDocument.getInfo());
-      ResourceRecommendation recommendation = new ResourceRecommendation(recommendationScore, sourceFieldsMatched, targetFieldsCount, resourceExtract);
+      ResourceRecommendation recommendation = new ResourceRecommendation(recommendationScore, sourceFieldsMatched,
+          targetFieldsCount, resourceExtract);
       recommendations.add(recommendation);
     }
 
-    // 3. Rank recommendations
-    Collections.sort(recommendations); // Sorted by recommendation score
+    // 3. Rank recommendations by recommendation score
+    Collections.sort(recommendations);
 
     // 4. Assemble and return response
     TemplateRecommendationResponse recommendationResponse = new TemplateRecommendationResponse();
@@ -129,18 +128,13 @@ public class RecommendResource extends AbstractSearchResource {
         .offset(Optional.empty());
     pagedSearchQuery.validate();
 
-    SearchResponseResult result = nodeSearchingService.search(ctx, pagedSearchQuery.getQ(), pagedSearchQuery.getResourceTypeAsStringList(),
-    pagedSearchQuery.getVersion(), pagedSearchQuery.getPublicationStatus(), pagedSearchQuery.getCategoryId(), pagedSearchQuery.getSortList(), pagedSearchQuery.getLimit(),
-    pagedSearchQuery.getOffset());
+    SearchResponseResult result = nodeSearchingService.search(ctx, pagedSearchQuery.getQ(),
+        pagedSearchQuery.getResourceTypeAsStringList(),
+        pagedSearchQuery.getVersion(), pagedSearchQuery.getPublicationStatus(), pagedSearchQuery.getCategoryId(),
+        pagedSearchQuery.getSortList(), pagedSearchQuery.getLimit(),
+        pagedSearchQuery.getOffset());
 
     return result;
-
-
-//    Response r = super.search(Optional.of(queryBuilder.toString()), Optional.empty(), Optional.of(resourceTypes),
-//        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-//        Optional.empty(), Optional.empty(), Optional.empty(), false);
-
-    //return (FolderServerNodeListResponse) r.getEntity();
 
   }
 
