@@ -85,12 +85,14 @@ public class RecommendResource extends AbstractSearchResource {
       // Score calculated using the Jaccard Index
       double recommendationScore =
           (double) sourceFieldsMatched / (double) (sourceFieldsCount + targetFieldsCount - sourceFieldsMatched);
-      IndexedDocumentDocument indexedDocument = JsonMapper.MAPPER.readValue(hit.getSourceAsString(),
-          IndexedDocumentDocument.class);
-      FolderServerResourceExtract resourceExtract = FolderServerResourceExtract.fromNodeInfo(indexedDocument.getInfo());
-      ResourceRecommendation recommendation = new ResourceRecommendation(recommendationScore, sourceFieldsMatched,
-          targetFieldsCount, resourceExtract);
-      recommendations.add(recommendation);
+      if (recommendationScore > 0) {
+        IndexedDocumentDocument indexedDocument = JsonMapper.MAPPER.readValue(hit.getSourceAsString(),
+            IndexedDocumentDocument.class);
+        FolderServerResourceExtract resourceExtract = FolderServerResourceExtract.fromNodeInfo(indexedDocument.getInfo());
+        ResourceRecommendation recommendation = new ResourceRecommendation(recommendationScore, sourceFieldsMatched,
+            targetFieldsCount, resourceExtract);
+        recommendations.add(recommendation);
+      }
     }
 
     // 3. Rank recommendations by recommendation score
