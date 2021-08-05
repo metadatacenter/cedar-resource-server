@@ -100,7 +100,7 @@ public class RecommendResource extends AbstractSearchResource {
 
     // 4. Assemble and return response
     TemplateRecommendationResponse recommendationResponse = new TemplateRecommendationResponse();
-    recommendationResponse.setTotalCount(totalCount);
+    recommendationResponse.setTotalCount(recommendations.size());
     recommendationResponse.setRequestSummary(new TemplateRecommendationRequestSummary(sourceFieldsCount));
     recommendationResponse.setRecommendations(recommendations);
     return Response.ok().entity(recommendationResponse).build();
