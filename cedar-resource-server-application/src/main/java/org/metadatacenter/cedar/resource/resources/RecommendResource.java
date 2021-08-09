@@ -17,6 +17,7 @@ import org.metadatacenter.server.search.elasticsearch.worker.SearchResponseResul
 import org.metadatacenter.util.StringUtil;
 import org.metadatacenter.util.http.PagedSortedTypedSearchQuery;
 import org.metadatacenter.util.json.JsonMapper;
+import me.xdrop.fuzzywuzzy.FuzzySearch;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
@@ -37,6 +38,8 @@ public class RecommendResource extends AbstractSearchResource {
   public RecommendResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
+
+  final double SIMILARITY_THRESHOLD = 0.9;
 
   @POST
   @Timed
@@ -62,37 +65,33 @@ public class RecommendResource extends AbstractSearchResource {
 
     // 2. Generation of recommendations
     int sourceFieldsCount = fieldNames.size();
-    Set<String> fieldNamesNormalizedSet = new HashSet<>(); // To find by field name in O(1)
-    for (String fieldName : fieldNames) {
-      fieldNamesNormalizedSet.add(StringUtil.basicNormalization(fieldName));
-    }
     List<ResourceRecommendation> recommendations = new ArrayList<>();
-    int totalCount = Math.min(cedarConfig.getResourceRESTAPI().getPagination().getDefaultPageSize(),
-        (int) searchResponse.getTotalCount());
+    int totalCount = Math.min(cedarConfig.getResourceRESTAPI().getPagination().getDefaultPageSize(), (int) searchResponse.getTotalCount());
 
     for (SearchHit hit : searchResponse.getHits().subList(0, totalCount)) {
-      IndexedDocumentDocument indexedDoc = JsonMapper.MAPPER.readValue(hit.getSourceAsString(),
-          IndexedDocumentDocument.class);
+      // For each template returned by ElasticSearch, measure the similarity between the input metadata fields and the
+      // template fields, and calculate a recommendation score based on the Jaccard Index
+      IndexedDocumentDocument indexedDoc = JsonMapper.MAPPER.readValue(hit.getSourceAsString(), IndexedDocumentDocument.class);
       int sourceFieldsMatched = 0;
-      for (InfoField targetField : indexedDoc.getInfoFields()) {
-        String normFieldName = StringUtil.basicNormalization(targetField.getFieldName());
-        String normFieldPrefLabel = StringUtil.basicNormalization(targetField.getFieldPrefLabel());
-        if (fieldNamesNormalizedSet.contains(normFieldName) || fieldNamesNormalizedSet.contains(normFieldPrefLabel)) {
-          sourceFieldsMatched++;
+      for (String fieldName : fieldNames) {
+        for (InfoField targetField : indexedDoc.getInfoFields()) {
+          if ((targetField.getFieldName() != null && calculateSimilarity(fieldName, targetField.getFieldName()) >= SIMILARITY_THRESHOLD)
+              || (targetField.getFieldPrefLabel() != null && calculateSimilarity(fieldName, targetField.getFieldPrefLabel()) >= SIMILARITY_THRESHOLD)) {
+            sourceFieldsMatched++;
+            break;
+          }
         }
       }
       int targetFieldsCount = indexedDoc.getInfoFields().size();
       // Score calculated using the Jaccard Index
       double recommendationScore =
           (double) sourceFieldsMatched / (double) (sourceFieldsCount + targetFieldsCount - sourceFieldsMatched);
-      if (recommendationScore > 0) {
         IndexedDocumentDocument indexedDocument = JsonMapper.MAPPER.readValue(hit.getSourceAsString(),
             IndexedDocumentDocument.class);
         FolderServerResourceExtract resourceExtract = FolderServerResourceExtract.fromNodeInfo(indexedDocument.getInfo());
         ResourceRecommendation recommendation = new ResourceRecommendation(recommendationScore, sourceFieldsMatched,
             targetFieldsCount, resourceExtract);
         recommendations.add(recommendation);
-      }
     }
 
     // 3. Rank recommendations by recommendation score
@@ -139,6 +138,20 @@ public class RecommendResource extends AbstractSearchResource {
     return result;
 
   }
+
+  public static double calculateSimilarity(String str1, String str2) {
+    if (str1 == null || str2 == null) {
+      throw new IllegalArgumentException("Null argument");
+    }
+    // Apply basic normalization
+    str1 = StringUtil.basicNormalization(str1);
+    str2 = StringUtil.basicNormalization(str2);
+    // FuzzySearch.weightedRatio calculates a weighted ratio between the different FuzzyWuzzy algorithms for best results
+    int ratio = FuzzySearch.ratio(str1, str2);
+    return (double) ratio / (double) 100;
+  }
+
+
 
 }
 
