@@ -30,75 +30,55 @@ responses:
   ok_folder: #200
     description: A folder
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/Folder'
+      $ref: '#/definitions/Folder'
   ok_template_field: #200
     description: A template field
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/TemplateField'
+      $ref: '#/definitions/TemplateField'
   ok_template_element: #200
     description: A template element
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/TemplateElement'
+      $ref: '#/definitions/TemplateElement'
   ok_template_instance: #200
     description: A template instance
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/TemplateInstance'
+      $ref: '#/definitions/TemplateInstance'
   ok_template: #200
     description: A template
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/Template'
+      $ref: '#/definitions/Template'
   ok_category: #200
     description: A category
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/Category'
+      $ref: '#/definitions/Category'
   created_folder: #201
     description: A folder
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/Folder'
+      $ref: '#/definitions/Folder'
   created_template_field: #201
     description: A template field
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/TemplateField'
+      $ref: '#/definitions/TemplateField'
   created_template_element: #201
     description: A template element
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/TemplateElement'
+      $ref: '#/definitions/TemplateElement'
   created_template_instance: #201
     description: A template instance
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/TemplateInstance'
+      $ref: '#/definitions/TemplateInstance'
   created_template: #201
     description: A template
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/Template'
+      $ref: '#/definitions/Template'
   created_category: #201
     description: A category
     schema:
-      type: object
-      items:
-        $ref: '#/definitions/Category'
+      $ref: '#/definitions/Category'
+  template_recommendation_response: #200
+    description: A ranked list of recommended templates
+    schema:
+      $ref: '#/definitions/TemplateRecommendationResponse'
   no_content: #204
     description: Successful operation (no content)
   bad_request: #400
@@ -1468,6 +1448,36 @@ paths:
           $ref: '#/responses/not_found'
         500:
           $ref: '#/responses/internal_error'
+  /templates/recommend:
+    post:
+      summary: Get recommendations on the templates that best match an input metadata record
+      description: |
+        Get a ranked list of recommended templates.
+      tags:
+        - Templates
+        - Recommendations
+      security:
+        - api_key: []
+      parameters:
+        - name: metadata record
+          in: body
+          description: The metadata record to get recommendations for
+          required: true
+          schema:
+            $ref: '#/definitions/TemplateRecommendationRequest'
+      responses:
+        200:
+          $ref: '#/responses/template_recommendation_response'
+        400:
+          $ref: '#/responses/bad_request'
+        401:
+          $ref: '#/responses/unauthorized'
+        403:
+          $ref: '#/responses/forbidden'
+        404:
+          $ref: '#/responses/not_found'
+        500:
+          $ref: '#/responses/internal_error'
   ################################################################################
   #                              Paths: Categories                               #
   ################################################################################
@@ -2439,3 +2449,38 @@ definitions:
         description: Unique URL identifier list representing the categories.
         items:
           type: string
+  TemplateRecommendationRequest:
+    type: object
+    properties:
+      metadataRecord:
+        type: object
+        example: {"tissue": "lung", "disease": "influenza"}
+  TemplateRecommendationResponse:
+    type: object
+    properties:
+      totalCount:
+        type: number
+        example: 1
+        description: total number of recommendations returned
+      request:
+        type: object
+        properties:
+          sourceFieldsCount:
+            type: integer
+            description: number of fields in the input metadata record
+      recommendations:
+        type: array
+        items:
+          type: object
+          properties:
+            recommendationScore:
+              type: number
+              description: recommendation score
+            sourceFieldsMatched:
+              type: integer
+              description: number of fields in the template that match fields in the input metadata record
+            targetFieldsCount:
+              type: integer
+              description: total number of fields in the recommended template
+            resourceExtract:
+              $ref: '#/definitions/Template'
