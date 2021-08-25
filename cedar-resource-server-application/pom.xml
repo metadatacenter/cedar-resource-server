@@ -136,6 +136,11 @@
       <artifactId>jackson-module-afterburner</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>me.xdrop</groupId>
+      <artifactId>fuzzywuzzy</artifactId>
+    </dependency>
+
   </dependencies>
 
   <build>
