@@ -11,6 +11,7 @@ import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.extract.FolderServerArtifactExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListQueryTypeDetector;

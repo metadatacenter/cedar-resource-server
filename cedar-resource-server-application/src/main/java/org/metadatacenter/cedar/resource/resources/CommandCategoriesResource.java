@@ -27,8 +27,6 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
@@ -176,10 +174,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     if (changed) {
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
-      // Partial update to add the categories to the indexed document
-      Map<String, Object> map = new HashMap<>();
-      map.put("categories", categoryRequest.getCategoryIds());
-      partialUpdateIndexResource(updatedResource.getResourceId(), map, true, true);
+      updateIndexResource(updatedResource, c);
       return Response.ok().entity(folderServerResource).build();
     } else {
       return CedarResponse.internalServerError()
