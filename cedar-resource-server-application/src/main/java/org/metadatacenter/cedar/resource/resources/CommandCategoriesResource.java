@@ -73,7 +73,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     if (attached) {
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
-      updateIndexResource(updatedResource, c);
+      updateIndexResourceWithAsyncRemove(updatedResource, c);
       return Response.ok().entity(folderServerResource).build();
     } else {
       return CedarResponse.internalServerError()
