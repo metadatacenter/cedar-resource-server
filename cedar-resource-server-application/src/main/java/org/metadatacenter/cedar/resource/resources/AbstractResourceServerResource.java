@@ -750,9 +750,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     nodeIndexingService.indexDocument(folderServerArtifact, c);
   }
 
-  protected void updateIndexResourceWithAsyncRemove(FolderServerArtifact folderServerArtifact, CedarRequestContext c)
-      throws CedarProcessingException {
-    nodeIndexingService.removeDocumentFromIndexAsync(folderServerArtifact.getResourceId(), true);
+  protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c, boolean retryRemove) throws CedarProcessingException {
+    if (!retryRemove) {
+      updateIndexResource(folderServerArtifact, c);
+    }
+    nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getResourceId(), retryRemove);
     nodeIndexingService.indexDocument(folderServerArtifact, c);
   }
 
