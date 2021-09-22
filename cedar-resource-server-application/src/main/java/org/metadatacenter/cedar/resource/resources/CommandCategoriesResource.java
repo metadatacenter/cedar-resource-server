@@ -73,7 +73,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     if (attached) {
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
-      updateIndexResource(updatedResource, c);
+      updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();
     } else {
       return CedarResponse.internalServerError()
@@ -117,7 +117,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     if (attached) {
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
-      updateIndexResource(updatedResource, c);
+      updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();
     } else {
       return CedarResponse.internalServerError()
@@ -174,7 +174,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     if (changed) {
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
-      updateIndexResource(updatedResource, c);
+      updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();
     } else {
       return CedarResponse.internalServerError()
@@ -185,6 +185,4 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
           .build();
     }
   }
-
-
 }
