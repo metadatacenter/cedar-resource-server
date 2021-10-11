@@ -4,6 +4,7 @@ import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.jsonldjava.core.JsonLdError;
+import org.apache.commons.lang.CharEncoding;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -190,7 +191,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       if (entity != null) {
-        originalDocument = EntityUtils.toString(entity);
+        originalDocument = EntityUtils.toString(entity, CharEncoding.UTF_8);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
         ((ObjectNode) jsonNode).remove("@id");
         String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
@@ -198,12 +199,19 @@ public class CommandGenericResource extends AbstractResourceServerResource {
           oldName = "";
         }
         String newName = nameTemplate.replace("{{name}}", oldName);
-        ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
         ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
         if (resourceType.isVersioned()) {
           ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
           ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
         }
+        if (jsonNode.get(SCHEMA_ORG_IDENTIFIER) != null) {
+          String schemaId = jsonNode.get(SCHEMA_ORG_IDENTIFIER).asText();
+          // Since we are creating a copy, we remove the schema:identifier to avoid confusion with the original artifact
+          ((ObjectNode) jsonNode).remove(SCHEMA_ORG_IDENTIFIER);
+          // CDE artifacts have the schema:identifier between brackets as part of their name so we need to remove it too
+          newName = newName.replace("(" + schemaId + ")", "").trim();
+        }
+        ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
         originalDocument = jsonNode.toString();
       }
     } catch (Exception e) {
@@ -224,7 +232,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
         // artifact was created
         HttpEntity entity = templateProxyResponse.getEntity();
         Header locationHeader = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION);
-        String entityContent = EntityUtils.toString(entity);
+        String entityContent = EntityUtils.toString(entity, CharEncoding.UTF_8);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(entityContent);
         String createdId = jsonNode.get("@id").asText();
         CedarArtifactId newId = CedarArtifactId.build(createdId, resourceType);
@@ -631,7 +639,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
         HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
         if (currentTemplateEntity != null) {
           try {
-            String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity);
+            String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, CharEncoding.UTF_8);
             JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
             String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
             String currentDescription = ModelUtil.extractDescriptionFromResource(resourceType, currentTemplateJsonNode)

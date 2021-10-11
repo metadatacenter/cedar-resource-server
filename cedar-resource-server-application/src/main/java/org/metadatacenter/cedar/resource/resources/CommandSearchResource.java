@@ -1,6 +1,8 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.metadatacenter.cedar.resource.search.ValueSetsImportStatusManager;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
@@ -10,13 +12,17 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.search.util.GenerateEmptyRulesIndexTask;
 import org.metadatacenter.server.search.util.GenerateEmptySearchIndexTask;
+import org.metadatacenter.server.search.util.LoadValueSetsOntologyTask;
 import org.metadatacenter.server.search.util.RegenerateRulesIndexTask;
 import org.metadatacenter.server.search.util.RegenerateSearchIndexTask;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.service.UserService;
+import org.metadatacenter.util.http.CedarResponse;
+import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -40,6 +46,48 @@ public class CommandSearchResource extends AbstractResourceServerResource {
 
   public static void injectUserService(UserService us) {
     userService = us;
+  }
+
+  @POST
+  @Timed
+  @Path("/load-valuesets-ontology")
+  public Response loadValueSetsOntology() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+    //c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
+
+    if (ValueSetsImportStatusManager.getInstance().getImportStatus() == ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS) {
+      return CedarResponse.badRequest().errorMessage("Value set loading already in progress").build();
+    } else {
+      ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS);
+
+      ExecutorService executor = Executors.newSingleThreadExecutor();
+      executor.submit(() -> {
+        LoadValueSetsOntologyTask task = new LoadValueSetsOntologyTask(cedarConfig);
+        try {
+          CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+
+          task.loadValueSetsOntology(cedarAdminRequestContext);
+
+          ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.COMPLETE);
+        } catch (CedarProcessingException e) {
+          ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
+          log.error("Error in load value sets ontology executor", e);
+        }
+      });
+      return Response.ok().build();
+    }
+  }
+
+  @GET
+  @Timed
+  @Path("/load-valuesets-ontology-status")
+  public Response loadValueSetsOntologyStatus() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+
+    JsonNode output = JsonMapper.MAPPER.valueToTree(ValueSetsImportStatusManager.getInstance());
+    return Response.ok().entity(output).build();
   }
 
   @POST

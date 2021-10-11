@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.apache.commons.lang.CharEncoding;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -97,7 +98,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static <T extends FileSystemResource> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz) throws CedarProcessingException {
     T resource = null;
     try {
-      String responseString = EntityUtils.toString(proxyResponse.getEntity());
+      String responseString = EntityUtils.toString(proxyResponse.getEntity(), CharEncoding.UTF_8);
       resource = JsonMapper.MAPPER.readValue(responseString, klazz);
     } catch (IOException e) {
       throw new CedarProcessingException(e);
@@ -172,7 +173,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         // artifact was created
         HttpEntity templateProxyResponseEntity = templateProxyResponse.getEntity();
         if (templateProxyResponseEntity != null) {
-          String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity);
+          String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity, CharEncoding.UTF_8);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
           String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
@@ -311,7 +312,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
-      return EntityUtils.toString(entity);
+      return EntityUtils.toString(entity, CharEncoding.UTF_8);
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
@@ -326,7 +327,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     if (entity != null) {
       JsonNode responseNode = null;
       try {
-        String responseString = EntityUtils.toString(entity);
+        String responseString = EntityUtils.toString(entity, CharEncoding.UTF_8);
         responseNode = JsonMapper.MAPPER.readTree(responseString);
       } catch (Exception e) {
         Response.status(statusCode).build();
@@ -394,7 +395,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         // artifact was updated
         HttpEntity templateEntity = templateProxyResponse.getEntity();
         if (templateEntity != null) {
-          String templateEntityContent = EntityUtils.toString(templateEntity);
+          String templateEntityContent = EntityUtils.toString(templateEntity, CharEncoding.UTF_8);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
 
           String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue();
@@ -746,6 +747,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c) throws CedarProcessingException {
     nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getResourceId());
+    nodeIndexingService.indexDocument(folderServerArtifact, c);
+  }
+
+  protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c, boolean retryRemove) throws CedarProcessingException {
+    if (!retryRemove) {
+      updateIndexResource(folderServerArtifact, c);
+    }
+    nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getResourceId(), retryRemove);
     nodeIndexingService.indexDocument(folderServerArtifact, c);
   }
 
