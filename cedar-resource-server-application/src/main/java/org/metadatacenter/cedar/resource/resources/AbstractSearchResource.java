@@ -61,6 +61,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
     NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharingParam, modeParam, categoryIdParam);
 
+
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
         .queryParam(QP_Q, q)
         .queryParam(QP_ID, id)
@@ -112,7 +113,10 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
     } else {
       List<String> resourceTypeList = pagedSearchQuery.getResourceTypeAsStringList();
-
+      // If sortParam was empty, set sortList to empty too instead of using the default sorting applied by the validator, to keep ElasticSearch-generated ranking
+      if (sortParam.isEmpty()) {
+        sortList = new ArrayList<>();
+      }
       if (searchDeep) {
         r = nodeSearchingService
             .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
