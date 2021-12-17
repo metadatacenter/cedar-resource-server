@@ -11,7 +11,6 @@ import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
-import org.metadatacenter.model.folderserver.extract.FolderServerArtifactExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListQueryTypeDetector;
@@ -61,6 +60,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharingParam, modeParam, categoryIdParam);
+
 
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
         .queryParam(QP_Q, q)
@@ -113,7 +113,10 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
     } else {
       List<String> resourceTypeList = pagedSearchQuery.getResourceTypeAsStringList();
-
+      // If sortParam was empty, set sortList to empty too instead of using the default sorting applied by the validator, to keep ElasticSearch-generated ranking
+      if (sortParam.isEmpty()) {
+        sortList = new ArrayList<>();
+      }
       if (searchDeep) {
         r = nodeSearchingService
             .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);

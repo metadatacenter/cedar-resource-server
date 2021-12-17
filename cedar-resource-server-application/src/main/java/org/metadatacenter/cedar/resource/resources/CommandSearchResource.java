@@ -65,7 +65,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       executor.submit(() -> {
         LoadValueSetsOntologyTask task = new LoadValueSetsOntologyTask(cedarConfig);
         try {
-          CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+          CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig,
+              userService);
 
           task.loadValueSetsOntology(cedarAdminRequestContext);
 
@@ -101,14 +102,31 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
     final boolean force = forceParam.booleanValue();
+
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
-      RegenerateSearchIndexTask task = new RegenerateSearchIndexTask(cedarConfig);
+      // 1. LOAD VALUE SETS ONTOLOGY. This step is only required in CEDAR installations that need to load CDEs into the
+      // index (e.g., CEDAR Production). In those cases, this task ensures that the CDE values are available to be
+      // indexed before the index regeneration task begins. In the case of installations that don't manage CDEs, this
+      // task won't be able to load the CADSR-VS.owl file and will throw a warning.
+      LoadValueSetsOntologyTask loadOntologyTask = new LoadValueSetsOntologyTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-        task.regenerateSearchIndex(force, cedarAdminRequestContext);
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig,
+            userService);
+        loadOntologyTask.loadValueSetsOntology(cedarAdminRequestContext);
+        ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.COMPLETE);
       } catch (CedarProcessingException e) {
-        //TODO: handle this, log it separately
+        ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
+        log.warn("Failed to load value sets ontology: " + e.getMessage());
+      }
+
+      // 2. REGENERATE SEARCH INDEX
+      RegenerateSearchIndexTask regenerateIndexTask = new RegenerateSearchIndexTask(cedarConfig);
+      try {
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig,
+            userService);
+        regenerateIndexTask.regenerateSearchIndex(force, cedarAdminRequestContext);
+      } catch (CedarProcessingException e) {
         log.error("Error in index regeneration executor", e);
       }
     });
@@ -128,7 +146,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     executor.submit(() -> {
       GenerateEmptySearchIndexTask task = new GenerateEmptySearchIndexTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig,
+            userService);
         task.generateEmptySearchIndex(cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
@@ -154,7 +173,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     executor.submit(() -> {
       RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig,
+            userService);
         task.regenerateRulesIndex(force, cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
@@ -177,7 +197,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     executor.submit(() -> {
       GenerateEmptyRulesIndexTask task = new GenerateEmptyRulesIndexTask(cedarConfig);
       try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig,
+            userService);
         task.generateEmptyRulesIndex(cedarAdminRequestContext);
       } catch (CedarProcessingException e) {
         //TODO: handle this, log it separately
