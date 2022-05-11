@@ -136,27 +136,26 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .errorKey(CedarErrorKey.PARENT_CATEGORY_NOT_FOUND)
     );
 
-    FolderServerCategory oldCategory = categorySession.getCategoryByParentAndName(ccParentId, categoryName.stringValue());
-    c.should(oldCategory).be(Null).otherwiseBadRequest(
-        new CedarErrorPack()
-            .message("There is a category with the same name under the parent category. Category names must be unique!")
-            .parameter(NodeProperty.NAME.getValue(), categoryName.stringValue())
-            .parameter(NodeProperty.PARENT_CATEGORY_ID.getValue(), parentCategoryId.stringValue())
-            .operation(CedarOperations.lookup(FolderServerCategory.class, NodeProperty.NAME.getValue(), categoryName))
-            .errorKey(CedarErrorKey.CATEGORY_ALREADY_PRESENT)
-    );
+    userMustHaveWriteAccessToCategory(c, ccParentId);
 
-    FolderServerCategory parentCategoryWritable = userMustHaveWriteAccessToCategory(c, ccParentId);
-
-    FolderServerCategory newCategory = categorySession.createCategory(ccParentId, categoryName.stringValue(), categoryDescription.stringValue(),
-        identifier.stringValue());
-    c.should(newCategory).be(NonNull).otherwiseInternalServerError(
-        new CedarErrorPack()
-            .message("There was an error while creating the category!")
-            .operation(CedarOperations.create(FolderServerCategory.class, NodeProperty.NAME.getValue(), categoryName))
-    );
-
-    ProvenanceNameUtil.addProvenanceDisplayName(newCategory);
+    FolderServerCategory newCategory = null;
+    // If the category already exists, return it
+    FolderServerCategory existingCategory = categorySession.getCategoryByParentAndName(ccParentId, categoryName.stringValue());
+    if (existingCategory != null) {
+      log.warn("There is a category with the same name (" + categoryName.stringValue()
+          + ") under the parent category. Category names must be unique!");
+      newCategory = existingCategory;
+    }
+    else {
+      newCategory = categorySession.createCategory(ccParentId, categoryName.stringValue(), categoryDescription.stringValue(),
+          identifier.stringValue());
+      c.should(newCategory).be(NonNull).otherwiseInternalServerError(
+          new CedarErrorPack()
+              .message("There was an error while creating the category!")
+              .operation(CedarOperations.create(FolderServerCategory.class, NodeProperty.NAME.getValue(), categoryName))
+      );
+      ProvenanceNameUtil.addProvenanceDisplayName(newCategory);
+    }
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
     URI uri = builder.path(CedarUrlUtil.urlEncode(newCategory.getId())).build();
@@ -254,14 +253,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
             categoryName.stringValue());
 
     if (sameNameCategory != null && !sameNameCategory.getId().equals(ccid.getId())) {
-      CedarErrorPack cedarErrorPack = new CedarErrorPack();
-      cedarErrorPack.status(Response.Status.BAD_REQUEST)
-          .message("There is a category with the same name under the parent category. Category names must be unique!")
-          .parameter(NodeProperty.NAME.getValue(), categoryName.stringValue())
-          .parameter(NodeProperty.PARENT_CATEGORY_ID.getValue(), existingCategory.getParentCategoryId())
-          .operation(CedarOperations.lookup(FolderServerCategory.class, NodeProperty.NAME.getValue(), categoryName))
-          .errorKey(CedarErrorKey.CATEGORY_ALREADY_PRESENT);
-      throw new CedarBadRequestException(cedarErrorPack);
+      log.warn("There is a category with the same name (" + sameNameCategory.getName()
+          + ") under the parent category. Category names must be unique!");
     }
 
     FolderServerCategory categoryWritable = userMustHaveWriteAccessToCategory(c, ccid);
