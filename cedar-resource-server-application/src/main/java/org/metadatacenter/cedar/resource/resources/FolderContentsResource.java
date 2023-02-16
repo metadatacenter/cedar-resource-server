@@ -26,6 +26,7 @@ import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
 import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
+import org.metadatacenter.util.NodeListUtil;
 import org.metadatacenter.util.TrustedByUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.LinkHeaderUtil;
@@ -117,60 +118,11 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, folder);
 
-    FolderServerNodeListResponse r = findFolderContents(folderSession, fid, absoluteURI.toString(), pathInfo, pagedSortedTypedQuery);
+    FolderServerNodeListResponse r = NodeListUtil.findFolderContents(cedarConfig, folderSession, fid, absoluteURI.toString(), pathInfo, pagedSortedTypedQuery);
 
     ProvenanceNameUtil.addProvenanceDisplayNames(r);
     return Response.ok(r).build();
   }
-
-  private NodeListRequest buildNodeListRequest(PagedSortedTypedQuery pagedSortedTypedQuery) {
-    int limit = pagedSortedTypedQuery.getLimit();
-    int offset = pagedSortedTypedQuery.getOffset();
-    List<String> sortList = pagedSortedTypedQuery.getSortList();
-    List<CedarResourceType> resourceTypeList = pagedSortedTypedQuery.getResourceTypeList();
-    ResourceVersionFilter version = pagedSortedTypedQuery.getVersion();
-    ResourcePublicationStatusFilter publicationStatus = pagedSortedTypedQuery.getPublicationStatus();
-
-    NodeListRequest req = new NodeListRequest();
-    req.setResourceTypes(resourceTypeList);
-    req.setVersion(version);
-    req.setPublicationStatus(publicationStatus);
-    req.setLimit(limit);
-    req.setOffset(offset);
-    req.setSort(sortList);
-
-    return req;
-  }
-
-  private FolderServerNodeListResponse findFolderContents(FolderServiceSession folderSession, CedarFolderId folderId, String absoluteUrl,
-                                                          List<FolderServerResourceExtract> pathInfo, PagedSortedTypedQuery pagedSortedTypedQuery) {
-    FolderServerNodeListResponse r = new FolderServerNodeListResponse();
-    r.setNodeListQueryType(NodeListQueryType.FOLDER_CONTENT);
-
-    NodeListRequest req = buildNodeListRequest(pagedSortedTypedQuery);
-
-    r.setRequest(req);
-
-    List<FolderServerResourceExtract> resources = folderSession.findFolderContentsExtract(folderId, req);
-
-    for (FolderServerResourceExtract resourceExtract : resources) {
-      TrustedByUtil.decorateWithTrustedby(resourceExtract, pathInfo, cedarConfig.getTrustedFolders().getFoldersMap());
-    }
-
-    long total = folderSession.findFolderContentsCount(folderId, req);
-
-    r.setTotalCount(total);
-    r.setCurrentOffset(req.getOffset());
-
-    r.setResources(resources);
-
-    r.setPathInfo(pathInfo);
-
-    r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, total, req.getLimit(), req.getOffset()));
-
-    return r;
-  }
-
 
   @GET
   @Timed
@@ -282,7 +234,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     FolderServerNodeMapListResponse r = new FolderServerNodeMapListResponse();
     r.setNodeListQueryType(NodeListQueryType.FOLDER_CONTENT);
 
-    NodeListRequest req = buildNodeListRequest(pagedSortedTypedQuery);
+    NodeListRequest req = NodeListUtil.buildNodeListRequest(pagedSortedTypedQuery);
 
     r.setRequest(req);
 
