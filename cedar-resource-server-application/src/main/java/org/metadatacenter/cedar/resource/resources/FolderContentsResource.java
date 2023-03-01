@@ -240,6 +240,11 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     List<Map<String, Object>> resources = folderSession.findFolderContentsExtractMap(folderId, req, fieldNameList);
 
+    boolean isOpenImplicitly = pathInfo.get(pathInfo.size() - 1).getIsOpenImplicitly();
+    for(Object resource : resources) {
+      // TODO: resource.setIsOpenImplicitly(isOpenImplicitly);
+    }
+
     long total = folderSession.findFolderContentsCount(folderId, req);
 
     r.setTotalCount(total);
