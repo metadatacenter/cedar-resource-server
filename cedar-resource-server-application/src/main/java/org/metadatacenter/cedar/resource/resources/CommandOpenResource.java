@@ -4,15 +4,13 @@ import com.codahale.metrics.annotation.Timed;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.id.CedarArtifactId;
-import org.metadatacenter.id.CedarSchemaArtifactId;
+import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
-import org.metadatacenter.util.http.CedarResponse;
 
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -66,6 +64,44 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     folderSession.setNotOpen(artifactId);
     FolderServerArtifact updatedResource = folderSession.findArtifactById(artifactId);
     return Response.ok().entity(updatedResource).build();
-
   }
+
+  @POST
+  @Timed
+  @Path("/make-folder-open")
+  public Response makeFolderOpen() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+
+    CedarRequestBody requestBody = c.request().getRequestBody();
+    String id = requestBody.get("@id").stringValue();
+    CedarFolderId folderId = CedarFolderId.build(id);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+
+    userMustHaveWriteAccessToFolder(c, folderId);
+
+    folderSession.setOpen(folderId);
+    FolderServerFolder updatedFolder = folderSession.findFolderById(folderId);
+    return Response.ok().entity(updatedFolder).build();
+  }
+
+  @POST
+  @Timed
+  @Path("/make-folder-not-open")
+  public Response makeFolderNotOpen() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+
+    CedarRequestBody requestBody = c.request().getRequestBody();
+    String id = requestBody.get("@id").stringValue();
+    CedarFolderId folderId = CedarFolderId.build(id);
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+
+    userMustHaveWriteAccessToFolder(c, folderId);
+
+    folderSession.setNotOpen(folderId);
+    FolderServerFolder updatedFolder = folderSession.findFolderById(folderId);
+    return Response.ok().entity(updatedFolder).build();
+  }
+
 }

@@ -103,6 +103,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     // get name parameter
     CedarParameter name = c.request().getRequestBody().get("name");
+    name.trim();
     c.must(name).be(NonEmpty);
 
     String nameV = name.stringValue();
@@ -117,6 +118,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
 
     CedarParameter description = c.request().getRequestBody().get("description");
+    description.trim();
     c.must(description).be(NonEmpty);
 
     // check existence of parent folder

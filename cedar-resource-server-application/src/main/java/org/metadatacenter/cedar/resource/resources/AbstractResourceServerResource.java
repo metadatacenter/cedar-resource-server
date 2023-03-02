@@ -186,6 +186,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
 
           CedarParameter name = new CedarInPlaceParameter("name", namePair.getValue());
+          name.trim();
           context.must(name).be(NonEmpty);
 
           CedarParameter versionP = new CedarInPlaceParameter("version",
@@ -223,7 +224,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           CedarTemplateId ibo = CedarTemplateId.build(isBasedOnString);
 
           CedarParameter description = new CedarInPlaceParameter("description", descriptionPair.getValue());
+          description.trim();
           CedarParameter identifier = new CedarInPlaceParameter("identifier", identifierPair.getValue());
+          identifier.trim();
 
           // Later we will guarantee some kind of uniqueness for the artifact names
           // Currently we allow duplicate names, the id is the PK
@@ -398,9 +401,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           String templateEntityContent = EntityUtils.toString(templateEntity, CharEncoding.UTF_8);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
 
-          String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue();
-          String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue();
-          String newIdentifier = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue();
+          String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue().trim();
+          String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue().trim();
+          String newIdentifier = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue().trim();
 
           FolderServerArtifact resource = folderSession.findArtifactById(id);
 
@@ -790,11 +793,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     String oldName = folderServerFolder.getName();
 
     CedarParameter name = c.request().getRequestBody().get(SCHEMA_ORG_NAME);
+    name.trim();
 
     String nameV = null;
     if (!name.isEmpty()) {
       nameV = name.stringValue();
-      nameV = nameV.trim();
       String normalizedName = folderSession.sanitizeName(nameV);
       if (!normalizedName.equals(nameV)) {
         return CedarResponse.badRequest()
@@ -806,11 +809,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
 
     CedarParameter description = c.request().getRequestBody().get(SCHEMA_ORG_DESCRIPTION);
+    description.trim();
 
     String descriptionV = null;
     if (!description.isEmpty()) {
       descriptionV = description.stringValue();
-      descriptionV = descriptionV.trim();
     }
 
     if ((name == null || name.isEmpty()) && (description == null || description.isEmpty())) {
