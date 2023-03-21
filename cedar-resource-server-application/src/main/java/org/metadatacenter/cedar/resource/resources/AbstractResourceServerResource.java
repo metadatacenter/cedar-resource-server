@@ -403,7 +403,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
           String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue().trim();
           String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue().trim();
-          String newIdentifier = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue().trim();
+          String newIdentifierValue = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue();
+          String newIdentifier = newIdentifierValue == null ? "" : newIdentifierValue.trim();
 
           FolderServerArtifact resource = folderSession.findArtifactById(id);
 
