@@ -17,12 +17,12 @@
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
-      <artifactId>cedar-user-operations</artifactId>
+      <artifactId>cedar-user-operations-library</artifactId>
     </dependency>
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
-      <artifactId>cedar-server-globals</artifactId>
+      <artifactId>cedar-server-globals-library</artifactId>
     </dependency>
 
     <dependency>
@@ -32,12 +32,12 @@
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
-      <artifactId>cedar-server-rest</artifactId>
+      <artifactId>cedar-server-rest-library</artifactId>
     </dependency>
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
-      <artifactId>cedar-search-operations</artifactId>
+      <artifactId>cedar-search-operations-library</artifactId>
     </dependency>
 
     <dependency>
