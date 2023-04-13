@@ -49,8 +49,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
         searchPermissionEnqueueService, valuerecommenderReindexQueueService);
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
-    // TODO: uncomment the following line
-    //IndexCreator.ensureRulesIndexExists(cedarConfig);
+    IndexCreator.ensureRulesIndexExists(cedarConfig);
   }
 
   @Override
