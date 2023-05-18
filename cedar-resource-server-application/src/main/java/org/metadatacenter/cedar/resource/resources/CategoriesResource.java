@@ -10,6 +10,7 @@ import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
 import org.metadatacenter.model.folderserver.extract.FolderServerCategoryExtractWithChildren;
@@ -304,7 +305,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     if (categoryWritable.getParentCategoryId() == null) {
       CedarErrorPack cedarErrorPack = new CedarErrorPack();
-      cedarErrorPack.status(Response.Status.BAD_REQUEST)
+      cedarErrorPack.status(CedarResponseStatus.BAD_REQUEST)
           .message("The root category can not be deleted!")
           .parameter(NodeProperty.ID.getValue(), ccid.getId())
           .operation(CedarOperations.delete(FolderServerCategory.class, NodeProperty.ID.getValue(), ccid.getId()))

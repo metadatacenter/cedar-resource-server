@@ -10,6 +10,7 @@ import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorType;
 import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarSchemaArtifactId;
 import org.metadatacenter.id.CedarUntypedSchemaArtifactId;
@@ -292,7 +293,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           int artifactServerPostStatus = artifactServerPostResponse.getStatus();
           InputStream is = (InputStream) artifactServerPostResponse.getEntity();
           JsonNode artifactServerPostResponseNode = JsonMapper.MAPPER.readTree(is);
-          if (artifactServerPostStatus == Response.Status.CREATED.getStatusCode()) {
+          if (artifactServerPostStatus == CedarResponseStatus.CREATED.getStatusCode()) {
             JsonNode atId = artifactServerPostResponseNode.at(ModelPaths.AT_ID);
             String newIdString = atId.asText();
             CedarUntypedSchemaArtifactId newId = CedarUntypedSchemaArtifactId.build(newIdString);
