@@ -940,7 +940,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     ProvenanceNameUtil.addProvenanceDisplayName(resourceReport);
     ProvenanceNameUtil.addProvenanceDisplayNames(resourceReport);
-    TrustedByUtil.decorateWithTrustedby(resourceReport, cedarConfig.getTrustedFolders().getFoldersMap());
+    TrustedByUtil.decorateWithTrustedBy(resourceReport, cedarConfig.getTrustedFolders().getFoldersMap());
 
     return Response.ok(resourceReport).build();
   }
