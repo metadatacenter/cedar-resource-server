@@ -70,7 +70,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
-import static org.metadatacenter.model.ModelNodeNames.*;
+import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_DESCRIPTION;
+import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 public class AbstractResourceServerResource extends CedarMicroserviceResource {
@@ -757,9 +758,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c, boolean retryRemove) throws CedarProcessingException {
     if (!retryRemove) {
       updateIndexResource(folderServerArtifact, c);
+    } else {
+      nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getResourceId(), retryRemove);
+      nodeIndexingService.indexDocument(folderServerArtifact, c);
     }
-    nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getResourceId(), retryRemove);
-    nodeIndexingService.indexDocument(folderServerArtifact, c);
   }
 
   protected void updateIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws CedarProcessingException {
@@ -938,7 +940,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     ProvenanceNameUtil.addProvenanceDisplayName(resourceReport);
     ProvenanceNameUtil.addProvenanceDisplayNames(resourceReport);
-    TrustedByUtil.decorateWithTrustedby(resourceReport, cedarConfig.getTrustedFolders().getFoldersMap());
+    TrustedByUtil.decorateWithTrustedBy(resourceReport, cedarConfig.getTrustedFolders().getFoldersMap());
 
     return Response.ok(resourceReport).build();
   }

@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import org.metadatacenter.bridge.CedarDataServices;
-import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
@@ -203,11 +202,13 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
     // Add "trustedBy" information to artifacts. An alternative that would provide better performance would be to
     // get the parentFolderId directly from Neo4j, instead of executing this extra loop to add it at this level.
+    // TODO Try to optimize more. In case of a folder (VIEW_SPECIAL_FOLDERS) the parent can be retrieved directly
+    // Maybe - just maybe - storing the parent folderId on the Neo4j node and in the search index doc is not a bad idea?
+    // Then it could be checked directly, without reading in the parent
     for (FolderServerResourceExtract resourceExtract : resources) {
       if (!resourceExtract.getType().equals(CedarResourceType.FOLDER)) {
-        FolderServerArtifact artifact = folderSession.findArtifactById(CedarUntypedArtifactId.build(resourceExtract.getId()));
-        List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, artifact);
-        TrustedByUtil.decorateWithTrustedby(resourceExtract, pathInfo, cedarConfig.getTrustedFolders().getFoldersMap());
+        FolderServerFolder parentFolder = folderSession.getParentFolder(CedarUntypedArtifactId.build(resourceExtract.getId()));
+        TrustedByUtil.decorateWithTrustedBy(resourceExtract, parentFolder, cedarConfig.getTrustedFolders().getFoldersMap());
       }
     }
 
