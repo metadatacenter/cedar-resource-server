@@ -31,8 +31,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_CREATE);
-
-    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, folderId);
+    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, Optional.empty(), folderId);
   }
 
   @GET
@@ -63,14 +62,14 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{id}")
-  public Response updateTemplate(@PathParam(PP_ID) String id) throws CedarException {
+  public Response updateTemplate(@PathParam(PP_ID) String id, @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
-    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.TEMPLATE, tid);
+    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.TEMPLATE, tid, folderId);
   }
 
   @DELETE

@@ -32,14 +32,13 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE);
-    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.INSTANCE, folderId);
+    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.INSTANCE, Optional.empty(), folderId);
   }
 
   @GET
   @Timed
   @Path("/{id}")
-  public Response findTemplateInstance(@PathParam(PP_ID) String id, @QueryParam(QP_FORMAT) Optional<String> format)
-      throws CedarException {
+  public Response findTemplateInstance(@PathParam(PP_ID) String id, @QueryParam(QP_FORMAT) Optional<String> format) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
@@ -64,13 +63,13 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{id}")
-  public Response updateTemplateInstance(@PathParam(PP_ID) String id) throws CedarException {
+  public Response updateTemplateInstance(@PathParam(PP_ID) String id, @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.INSTANCE, tiid);
+    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.INSTANCE, tiid, folderId);
   }
 
   @DELETE
