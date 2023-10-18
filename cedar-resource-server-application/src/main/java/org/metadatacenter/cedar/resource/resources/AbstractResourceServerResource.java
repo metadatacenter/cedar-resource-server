@@ -87,7 +87,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     super(cedarConfig);
   }
 
-  public static void injectServices(NodeIndexingService nodeIndexingService, NodeSearchingService nodeSearchingService,
+  public static void injectServices(NodeIndexingService nodeIndexingService,
+                                    NodeSearchingService nodeSearchingService,
                                     SearchPermissionEnqueueService searchPermissionEnqueueService,
                                     ValuerecommenderReindexQueueService valuerecommenderReindexQueueService) {
     AbstractResourceServerResource.nodeIndexingService = nodeIndexingService;
@@ -115,7 +116,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_ORG_DESCRIPTION, description);
   }
 
-
   protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarResourceType resourceType, String content) throws CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
@@ -132,11 +132,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         String mediaType = entity.getContentType().getValue();
         String location = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION).getValue();
         URI locationURI = new URI(location);
-        if (entity != null) {
-          return Response.created(locationURI).type(mediaType).entity(entity.getContent()).build();
-        } else {
-          return Response.created(locationURI).type(mediaType).build();
-        }
+        return Response.created(locationURI).type(mediaType).entity(entity.getContent()).build();
       }
     } catch (Exception e) {
       throw new CedarProcessingException(e);
@@ -144,9 +140,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   // Proxy methods for artifact types
-  protected Response executeResourceCreationOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType,
-                                                                       Optional<String> folderId) throws CedarException {
+  protected Response executeResourceCreationOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, Optional<String> artifactId, Optional<String> folderId) throws CedarException {
+    return executeResourceCreationOnArtifactServerAndGraphDb(context, resourceType, artifactId, folderId, context.request().getRequestBody().asJsonString());
+  }
 
+  protected Response executeResourceCreationOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, Optional<String> artifactId, Optional<String> folderId,
+                                                                       String content) throws CedarException {
     String folderIdS;
 
     CedarParameter folderIdP = context.request().wrapQueryParam(QP_FOLDER_ID, folderId);
@@ -161,9 +160,15 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     userMustHaveWriteAccessToFolder(context, fid);
 
     try {
-      String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
-
-      HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context);
+      String url;
+      HttpResponse templateProxyResponse;
+      if (artifactId.isEmpty()) {
+        url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
+        templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
+      } else {
+        url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId.get(), Optional.empty());
+        templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
+      }
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
       int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
@@ -180,8 +185,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
 
           JsonPointerValuePair namePair = ModelUtil.extractNameFromResource(resourceType, templateJsonNode);
-          JsonPointerValuePair descriptionPair =
-              ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode);
+          JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode);
           JsonPointerValuePair identifierPair = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode);
 
           FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
@@ -190,12 +194,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           name.trim();
           context.must(name).be(NonEmpty);
 
-          CedarParameter versionP = new CedarInPlaceParameter("version",
-              ModelUtil.extractVersionFromResource(resourceType, templateJsonNode).getValue());
-          CedarParameter publicationStatusP = new CedarInPlaceParameter("publicationStatus",
-              ModelUtil.extractPublicationStatusFromResource(resourceType, templateJsonNode).getValue());
-          CedarParameter isBasedOnP = new CedarInPlaceParameter("isBasedOn",
-              ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
+          CedarParameter versionP = new CedarInPlaceParameter("version", ModelUtil.extractVersionFromResource(resourceType, templateJsonNode).getValue());
+          CedarParameter publicationStatusP = new CedarInPlaceParameter("publicationStatus", ModelUtil.extractPublicationStatusFromResource(resourceType, templateJsonNode).getValue());
+          CedarParameter isBasedOnP = new CedarInPlaceParameter("isBasedOn", ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
 
           if (resourceType.isVersioned()) {
             context.must(versionP).be(NonEmpty);
@@ -207,8 +208,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
           if (CedarResourceTypeUtil.isNotValidForRestCall(resourceType)) {
             return CedarResponse.badRequest()
-                .errorMessage("You passed an illegal resourceType:'" + resourceType +
-                    "'. The allowed values are:" + CedarResourceTypeUtil.getValidResourceTypesForRestCalls())
+                .errorMessage("You passed an illegal resourceType:'" + resourceType + "'. The allowed values are:" + CedarResourceTypeUtil.getValidResourceTypesForRestCalls())
                 .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
                 .parameter("invalidResourceTypes", resourceType)
                 .parameter("allowedResourceTypes", CedarResourceTypeUtil.getValidResourceTypeValuesForRestCalls())
@@ -231,16 +231,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
           // Later we will guarantee some kind of uniqueness for the artifact names
           // Currently we allow duplicate names, the id is the PK
-          FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(resourceType, aid, name.stringValue(),
-              description.stringValue(), identifier.stringValue(), version, publicationStatus);
-          if (brandNewResource instanceof FolderServerSchemaArtifact) {
-            FolderServerSchemaArtifact schemaArtifact = (FolderServerSchemaArtifact) brandNewResource;
+          FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(resourceType, aid, name.stringValue(), description.stringValue(), identifier.stringValue(), version,
+              publicationStatus);
+          if (brandNewResource instanceof FolderServerSchemaArtifact schemaArtifact) {
             schemaArtifact.setLatestVersion(true);
             schemaArtifact.setLatestDraftVersion(publicationStatus == BiboStatus.DRAFT);
             schemaArtifact.setLatestPublishedVersion(publicationStatus == BiboStatus.PUBLISHED);
           }
-          if (brandNewResource instanceof FolderServerInstanceArtifact) {
-            FolderServerInstanceArtifact brandNewInstance = (FolderServerInstanceArtifact) brandNewResource;
+          if (brandNewResource instanceof FolderServerInstanceArtifact brandNewInstance) {
             brandNewInstance.setIsBasedOn(ibo);
           }
           String sourceHash = context.getSourceHashHeader();
@@ -290,8 +288,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return executeResourceGetByProxyFromArtifactServer(resourceType, id, Optional.empty(), context);
   }
 
-  protected Response executeResourceGetByProxyFromArtifactServer(CedarResourceType resourceType, String id, Optional<String> format,
-                                                                 CedarRequestContext context) throws CedarProcessingException {
+  protected Response executeResourceGetByProxyFromArtifactServer(CedarResourceType resourceType, String id, Optional<String> format, CedarRequestContext context) throws CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id, format);
       // parameter
@@ -300,11 +297,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getStatusLine().getStatusCode();
       String mediaType = entity.getContentType().getValue();
-      if (entity != null) {
-        return Response.status(statusCode).type(mediaType).entity(entity.getContent()).build();
-      } else {
-        return Response.status(statusCode).type(mediaType).build();
-      }
+      return Response.status(statusCode).type(mediaType).entity(entity.getContent()).build();
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
@@ -322,8 +315,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context,
-                                                       String content) throws CedarProcessingException {
+  protected Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, String content) throws CedarProcessingException {
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
     HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
     HttpEntity entity = templateProxyResponse.getEntity();
@@ -343,7 +335,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response getDetails(CedarRequestContext context, CedarArtifactId id) throws CedarException {
-
     userMustHaveReadAccessToArtifact(context, id);
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
@@ -353,113 +344,91 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return CedarResponse.ok().entity(resource).build();
   }
 
-  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id) throws CedarException {
-    return executeResourceCreateOrUpdateViaPut(context, resourceType, id, context.request().getRequestBody().asJsonString());
+  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId) throws CedarException {
+    return executeResourceCreateOrUpdateViaPut(context, resourceType, id, folderId, context.request().getRequestBody().asJsonString());
   }
 
-  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id,
-                                                         String content) throws CedarException {
-
-    userMustHaveWriteAccessToArtifact(context, id);
-
+  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId, String content) throws CedarException {
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
+    if (folderServerOldResource != null) {
+      userMustHaveWriteAccessToArtifact(context, id);
+      return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content);
+    } else {
+      return executeResourceCreationOnArtifactServerAndGraphDb(context, resourceType, Optional.of(id.getId()), folderId, content);
+    }
+  }
+
+  protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content) throws CedarException {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
-      CreateOrUpdate createOrUpdate = null;
-      if (statusCode == HttpStatus.SC_OK) {
-        createOrUpdate = CreateOrUpdate.UPDATE;
-      } else if (statusCode == HttpStatus.SC_CREATED) {
-        createOrUpdate = CreateOrUpdate.CREATE;
-      }
-      if (createOrUpdate == null) {
-        // artifact was not created or updated
-        return generateStatusResponse(templateProxyResponse);
-      } else {
 
-        if (createOrUpdate == CreateOrUpdate.UPDATE) {
-          if (folderServerOldResource != null) {
-            if (folderServerOldResource instanceof FolderServerSchemaArtifact) {
-              FolderServerSchemaArtifact artifact = (FolderServerSchemaArtifact) folderServerOldResource;
-              if (artifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
-                return CedarResponse.badRequest()
-                    .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
-                    .errorMessage("The artifact can not be changed since it is published!")
-                    .parameter("name", folderServerOldResource.getName())
-                    .build();
-              }
-            }
-          }
-        }
-        // artifact was updated
-        HttpEntity templateEntity = templateProxyResponse.getEntity();
-        if (templateEntity != null) {
-          String templateEntityContent = EntityUtils.toString(templateEntity, CharEncoding.UTF_8);
-          JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
+      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+      FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
-          String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue().trim();
-          String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue().trim();
-          String newIdentifierValue = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue();
-          String newIdentifier = newIdentifierValue == null ? "" : newIdentifierValue.trim();
 
-          FolderServerArtifact resource = folderSession.findArtifactById(id);
-
-          if (resource == null) {
-            return CedarResponse.notFound()
-                .id(id)
-                .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
-                .errorMessage("The artifact can not be found by id")
+      if (folderServerOldResource != null) {
+        if (folderServerOldResource instanceof FolderServerSchemaArtifact artifact) {
+          if (artifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
+            return CedarResponse.badRequest()
+                .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
+                .errorMessage("The artifact can not be changed since it is published!")
+                .parameter("name", folderServerOldResource.getName())
                 .build();
-          } else {
-
-            if (statusCode == HttpStatus.SC_OK) {
-              Map<NodeProperty, String> updateFields = new HashMap<>();
-              updateFields.put(NodeProperty.DESCRIPTION, newDescription);
-              updateFields.put(NodeProperty.NAME, newName);
-              updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
-              String sourceHash = context.getSourceHashHeader();
-              if (sourceHash != null) {
-                updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
-              }
-              FolderServerArtifact updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
-              if (updatedResource == null) {
-                return CedarResponse.internalServerError().build();
-              } else {
-                updateIndexResource(updatedResource, context);
-                updateValuerecommenderResource(updatedResource);
-                return Response.ok().entity(updatedResource).build();
-              }
-            } else if (statusCode == HttpStatus.SC_CREATED) {
-              //TODO : Handle creation via PUT
-              /*FolderServerResource updatedResource =
-                  folderSession.updateResourceById(id, artifact.getType(), updateFields);
-              if (updatedResource == null) {
-                return CedarResponse.internalServerError().build();
-              } else {
-                updateIndexResource(updatedResource, context);
-                updateValuerecommenderResource(updatedResource);
-                return Response.ok().entity(updatedResource).build();
-              }*/
-              return CedarResponse.internalServerError().build();
-            }
-            return CedarResponse.internalServerError().build();
           }
-        } else {
-          return Response.ok().build();
         }
       }
+
+      // artifact was updated
+      HttpEntity templateEntity = templateProxyResponse.getEntity();
+      if (templateEntity != null) {
+        String templateEntityContent = EntityUtils.toString(templateEntity, CharEncoding.UTF_8);
+        JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
+
+        String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue().trim();
+        String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue().trim();
+        String newIdentifierValue = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue();
+        String newIdentifier = newIdentifierValue == null ? "" : newIdentifierValue.trim();
+
+        FolderServerArtifact resource = folderSession.findArtifactById(id);
+
+        if (resource == null) {
+          return CedarResponse.notFound()
+              .id(id)
+              .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+              .errorMessage("The artifact can not be found by id")
+              .build();
+        }
+        Map<NodeProperty, String> updateFields = new HashMap<>();
+        updateFields.put(NodeProperty.DESCRIPTION, newDescription);
+        updateFields.put(NodeProperty.NAME, newName);
+        updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
+        String sourceHash = context.getSourceHashHeader();
+        if (sourceHash != null) {
+          updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
+        }
+        FolderServerArtifact updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
+        if (updatedResource == null) {
+          return CedarResponse.internalServerError().build();
+        } else {
+          updateIndexResource(updatedResource, context);
+          updateValuerecommenderResource(updatedResource);
+          return Response.ok().entity(updatedResource).build();
+        }
+      } else {
+        return Response.ok().build();
+      }
+
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
   }
 
   protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id) throws CedarException {
-
     // Check delete preconditions
     userMustHaveWriteAccessToArtifact(c, id);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
@@ -601,9 +570,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       } catch (CedarPermissionException e) {
         throw e;
       } catch (Exception e) {
-        if (genericException == null) {
-          genericException = e;
-        }
+        genericException = e;
       }
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
       resource = folderSession.findFolderById(resourceId.asFolderId());
@@ -634,9 +601,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       } catch (CedarPermissionException e) {
         throw e;
       } catch (Exception e) {
-        if (genericException == null) {
-          genericException = e;
-        }
+        genericException = e;
         FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
         resource = folderSession.findFolderById(resourceId.asFolderId());
       }
@@ -720,8 +685,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * Private methods: move these into a separate service
    */
 
-  private ValuerecommenderReindexMessage buildValuerecommenderEvent(FolderServerArtifact folderServerResource,
-                                                                    ValuerecommenderReindexMessageActionType actionType) {
+  private ValuerecommenderReindexMessage buildValuerecommenderEvent(FolderServerArtifact folderServerResource, ValuerecommenderReindexMessageActionType actionType) {
     ValuerecommenderReindexMessage event = null;
     if (folderServerResource.getType() == CedarResourceType.TEMPLATE) {
       CedarTemplateId templateId = CedarTemplateId.build(folderServerResource.getId());
@@ -819,7 +783,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       descriptionV = description.stringValue();
     }
 
-    if ((name == null || name.isEmpty()) && (description == null || description.isEmpty())) {
+    if (name.isEmpty() && description.isEmpty()) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.MISSING_NAME_AND_DESCRIPTION)
           .errorMessage("You must supply the new description or the new name of the folder!")
@@ -858,7 +822,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response generateNodeVersionsResponse(CedarRequestContext c, CedarSchemaArtifactId artifactId) throws CedarException {
-
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
     FolderServerArtifact artifact = folderSession.findArtifactById(artifactId);
@@ -914,7 +877,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
 
   protected Response generateArtifactReportResponse(CedarRequestContext c, CedarArtifactId artifactId) throws CedarException {
-
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
     FolderServerArtifact artifact = folderSession.findArtifactById(artifactId);

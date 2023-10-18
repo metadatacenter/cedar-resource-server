@@ -25,7 +25,6 @@ import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.GraphDbObjectBuilder;
 import org.metadatacenter.model.ResourceVersion;
-import org.metadatacenter.model.core.CedarModelVocabulary;
 import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.model.request.OutputFormatType;
 import org.metadatacenter.model.request.OutputFormatTypeDetector;
@@ -298,10 +297,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
             .parameter("resourceType", resourceType.getValue())
             .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND);
       } else {
-        FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(resourceType, newId, name, description, identifier, version,
-            publicationStatus);
-        if (brandNewResource instanceof FolderServerSchemaArtifact) {
-          FolderServerSchemaArtifact schemaArtifact = (FolderServerSchemaArtifact) brandNewResource;
+        FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(resourceType, newId, name, description, identifier, version, publicationStatus);
+        if (brandNewResource instanceof FolderServerSchemaArtifact schemaArtifact) {
           schemaArtifact.setLatestVersion(true);
           schemaArtifact.setLatestDraftVersion(publicationStatus == BiboStatus.DRAFT);
           schemaArtifact.setLatestPublishedVersion(publicationStatus == BiboStatus.PUBLISHED);
@@ -642,10 +639,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
             String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, CharEncoding.UTF_8);
             JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
             String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
-            String currentDescription = ModelUtil.extractDescriptionFromResource(resourceType, currentTemplateJsonNode)
-                .getValue();
-            String publicationStatusString = ModelUtil.extractPublicationStatusFromResource(resourceType,
-                currentTemplateJsonNode).getValue();
+            String currentDescription = ModelUtil.extractDescriptionFromResource(resourceType, currentTemplateJsonNode).getValue();
+            String publicationStatusString = ModelUtil.extractPublicationStatusFromResource(resourceType, currentTemplateJsonNode).getValue();
             BiboStatus biboStatus = BiboStatus.forValue(publicationStatusString);
             if (biboStatus == BiboStatus.PUBLISHED) {
               return CedarResponse.badRequest()
@@ -669,8 +664,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
               if (changeDescription) {
                 updateDescriptionInObject(currentTemplateJsonNode, description);
               }
-              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId,
-                  JsonMapper.MAPPER.writeValueAsString(currentTemplateJsonNode));
+              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId, Optional.empty(), JsonMapper.MAPPER.writeValueAsString(currentTemplateJsonNode));
             } else {
               return CedarResponse.badRequest()
                   .errorKey(CedarErrorKey.NOTHING_TO_DO)
