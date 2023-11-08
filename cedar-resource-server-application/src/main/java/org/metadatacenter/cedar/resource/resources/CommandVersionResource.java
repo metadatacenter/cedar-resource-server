@@ -156,8 +156,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               folderSession.setLatestVersion(aid);
               folderSession.unsetLatestDraftVersion(aid);
               folderSession.setLatestPublishedVersion(aid);
-              if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport) {
-                FolderServerSchemaArtifactCurrentUserReport schemaArtifact = (FolderServerSchemaArtifactCurrentUserReport) folderServerResourceOld;
+              if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport schemaArtifact) {
                 if (schemaArtifact.getPreviousVersion() != null) {
                   folderSession.unsetLatestPublishedVersion(schemaArtifact.getPreviousVersion());
                 }
@@ -304,8 +303,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
             FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(artifactType, newId, sourceResource.getName(),
                 sourceResource.getDescription(), sourceResource.getIdentifier(), newVersion, status);
-            if (brandNewResource instanceof FolderServerSchemaArtifact) {
-              FolderServerSchemaArtifact schemaArtifact = (FolderServerSchemaArtifact) brandNewResource;
+            if (brandNewResource instanceof FolderServerSchemaArtifact schemaArtifact) {
               schemaArtifact.setPreviousVersion(aid);
               schemaArtifact.setLatestVersion(true);
               schemaArtifact.setLatestDraftVersion(true);

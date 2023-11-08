@@ -27,6 +27,7 @@ import org.metadatacenter.model.folderserver.report.FolderServerArtifactReport;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
+import org.metadatacenter.proxy.ArtifactProxy;
 import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -285,22 +286,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceGetByProxyFromArtifactServer(CedarResourceType resourceType, String id, CedarRequestContext context) throws CedarProcessingException {
-    return executeResourceGetByProxyFromArtifactServer(resourceType, id, Optional.empty(), context);
-  }
-
-  protected Response executeResourceGetByProxyFromArtifactServer(CedarResourceType resourceType, String id, Optional<String> format, CedarRequestContext context) throws CedarProcessingException {
-    try {
-      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id, format);
-      // parameter
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      HttpEntity entity = proxyResponse.getEntity();
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
-      String mediaType = entity.getContentType().getValue();
-      return Response.status(statusCode).type(mediaType).entity(entity.getContent()).build();
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
-    }
+    return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(microserviceUrlUtil, response, resourceType, id, Optional.empty(), context);
   }
 
   protected String getSchemaArtifactFromArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context) throws CedarProcessingException {
