@@ -14,6 +14,7 @@ import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.id.*;
 import org.metadatacenter.model.*;
@@ -27,6 +28,7 @@ import org.metadatacenter.model.folderserver.report.FolderServerArtifactReport;
 import org.metadatacenter.model.request.NodeListQueryType;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
+import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.proxy.ArtifactProxy;
 import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
@@ -756,6 +758,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.UPDATE_INVALID_FOLDER_NAME)
             .errorMessage("The folder name contains invalid characters!")
+            .operation(CedarOperations.update(FolderServerFolder.class, "id", folderId.getId()))
             .parameter("name", name.stringValue())
             .build();
       }
@@ -773,6 +776,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.MISSING_NAME_AND_DESCRIPTION)
           .errorMessage("You must supply the new description or the new name of the folder!")
+          .parameter(SCHEMA_ORG_NAME, nameV)
+          .parameter(SCHEMA_ORG_DESCRIPTION, descriptionV)
+          .operation(CedarOperations.update(FolderServerFolder.class, "id", folderId.getId()))
           .build();
     }
 
@@ -782,6 +788,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .id(folderId)
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
           .errorMessage("The folder can not be found by id")
+          .operation(CedarOperations.update(FolderServerFolder.class, "id", folderId.getId()))
           .build();
     } else {
       Map<NodeProperty, String> updateFields = new HashMap<>();

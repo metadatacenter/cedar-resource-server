@@ -436,7 +436,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       searchPermissionEnqueueService.resourceMoved(sourceId.getId());
     }
     if (!moved) {
-      BackendCallResult backendCallResult = new BackendCallResult();
+      BackendCallResult<?> backendCallResult = new BackendCallResult<>();
       backendCallResult.addError(CedarErrorType.SERVER_ERROR)
           .errorKey(CedarErrorKey.NODE_NOT_MOVED)
           .message("There was an error while moving the resource");
