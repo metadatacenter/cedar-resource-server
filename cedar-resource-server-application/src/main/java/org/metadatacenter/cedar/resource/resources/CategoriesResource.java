@@ -77,8 +77,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
         .offset(offsetParam);
     pagedQuery.validate();
 
-    Integer limit = pagedQuery.getLimit();
-    Integer offset = pagedQuery.getOffset();
+    int limit = pagedQuery.getLimit();
+    int offset = pagedQuery.getOffset();
 
     CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
     List<FolderServerCategory> categories = categorySession.getAllCategories(limit, offset);

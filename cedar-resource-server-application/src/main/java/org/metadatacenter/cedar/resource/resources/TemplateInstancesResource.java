@@ -5,6 +5,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarTemplateInstanceId;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.proxy.ArtifactProxy;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 
@@ -45,7 +46,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
     userMustHaveReadAccessToArtifact(c, tiid);
-    return executeResourceGetByProxyFromArtifactServer(CedarResourceType.INSTANCE, id, format, c);
+    return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(microserviceUrlUtil, response, CedarResourceType.INSTANCE, id, format, c);
   }
 
   @GET
