@@ -33,16 +33,14 @@ import org.metadatacenter.proxy.ArtifactProxy;
 import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.server.CategoryPermissionServiceSession;
-import org.metadatacenter.server.CategoryServiceSession;
-import org.metadatacenter.server.FolderServiceSession;
-import org.metadatacenter.server.ResourcePermissionServiceSession;
+import org.metadatacenter.server.*;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.util.InclusionSubgraphUtil;
 import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
@@ -261,6 +259,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           }
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
           URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
+          updateInclusionSubgraphIfNeeded(context, newResource, templateJsonNode);
           createIndexArtifact(newResource, context);
           createValuerecommenderResource(newResource);
           return Response.created(uri).entity(templateJsonNode).build();
@@ -270,6 +269,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
     } catch (Exception e) {
       throw new CedarProcessingException(e);
+    }
+  }
+
+  private void updateInclusionSubgraphIfNeeded(CedarRequestContext context, FolderServerArtifact resource, JsonNode templateJsonNode) {
+    if (resource.getType() == CedarResourceType.ELEMENT || resource.getType() == CedarResourceType.TEMPLATE) {
+      InclusionSubgraphServiceSession inclusionSubgraphSession = CedarDataServices.getInclusionSubgraphServiceSession(context);
+      FolderServerResourceExtract resourceExtract = FolderServerResourceExtract.fromNode(resource);
+      InclusionSubgraphUtil.updateResourceInclusionInfo(resourceExtract, inclusionSubgraphSession, templateJsonNode);
     }
   }
 
@@ -403,6 +410,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         if (updatedResource == null) {
           return CedarResponse.internalServerError().build();
         } else {
+          updateInclusionSubgraphIfNeeded(context, updatedResource, templateJsonNode);
           updateIndexResource(updatedResource, context);
           updateValuerecommenderResource(updatedResource);
           return Response.ok().entity(updatedResource).build();
