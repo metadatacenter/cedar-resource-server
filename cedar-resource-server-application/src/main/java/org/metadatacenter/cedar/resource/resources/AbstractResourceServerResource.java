@@ -246,6 +246,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           if (sourceHash != null) {
             brandNewResource.setSourceHash(sourceHash);
           }
+          if (resourceType.supportsDOI()) {
+            JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, templateJsonNode);
+            String doi = doiPair.getValue();
+            if (doi != null) {
+              brandNewResource.setDOI(doi);
+            }
+          }
           FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, fid);
 
           if (newResource == null) {
@@ -388,6 +395,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue().trim();
         String newIdentifierValue = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue();
         String newIdentifier = newIdentifierValue == null ? "" : newIdentifierValue.trim();
+        String newDOI = null;
+
+        if (resourceType.supportsDOI()) {
+          JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, templateJsonNode);
+          newDOI = doiPair.getValue();
+        }
 
         FolderServerArtifact resource = folderSession.findArtifactById(id);
 
@@ -405,6 +418,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         String sourceHash = context.getSourceHashHeader();
         if (sourceHash != null) {
           updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
+        }
+        if (newDOI != null) {
+          updateFields.put(NodeProperty.DOI, newDOI);
         }
         FolderServerArtifact updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
         if (updatedResource == null) {
