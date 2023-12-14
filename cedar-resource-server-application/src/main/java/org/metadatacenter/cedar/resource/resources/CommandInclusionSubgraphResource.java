@@ -35,8 +35,8 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
 
   @POST
   @Timed
-  @Path("/inclusions-subgraph-update")
-  public Response updateInclusionSubgraph() throws CedarException, IOException {
+  @Path("/inclusions-subgraph-preview")
+  public Response previewInclusionSubgraph() throws CedarException, IOException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
