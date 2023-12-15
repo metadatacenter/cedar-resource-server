@@ -413,7 +413,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
-    String existingDOI = folderServerOldResourceinclusion.getDOI();
+    String existingDOI = folderServerOldResource.getDOI();
     if (existingDOI != null) {
       if (!existingDOI.equals(doiInRequest)) {
         return CedarResponse.badRequest()
