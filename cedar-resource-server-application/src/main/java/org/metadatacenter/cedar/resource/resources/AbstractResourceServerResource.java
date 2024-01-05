@@ -14,7 +14,6 @@ import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
-import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.id.*;
 import org.metadatacenter.model.*;
@@ -160,13 +159,42 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     userMustHaveWriteAccessToFolder(context, fid);
 
+    String doiInRequest = null;
+
+    try {
+      JsonNode folderServerNodeRequest = JsonMapper.MAPPER.readTree(content);
+      if (resourceType.supportsDOI()) {
+        JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, folderServerNodeRequest);
+        doiInRequest = doiPair.getValue();
+      }
+    } catch (JsonProcessingException e) {
+      throw new CedarProcessingException(e);
+    }
+
+    if (doiInRequest != null && !resourceType.supportsDOI()) {
+      return CedarResponse.badRequest()
+          .errorMessage("The doi is not supported by the given resource type")
+          .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
+          .parameter("resourceType", resourceType)
+          .build();
+    }
+
     try {
       String url;
       HttpResponse templateProxyResponse;
       if (artifactId.isEmpty()) {
+        // Create by POST, empty @id
+        if (doiInRequest != null) {
+          return CedarResponse.badRequest()
+              .errorMessage("The doi can not be set for an empty @id")
+              .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_SET_FOR_EMPTY_ATID)
+              .parameter("doi", doiInRequest)
+              .build();
+        }
         url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
         templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
       } else {
+        // Create by PUT, filled @id
         url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId.get(), Optional.empty());
         templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       }
@@ -245,6 +273,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           String sourceHash = context.getSourceHashHeader();
           if (sourceHash != null) {
             brandNewResource.setSourceHash(sourceHash);
+          }
+          if (resourceType.supportsDOI()) {
+            JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, templateJsonNode);
+            String doi = doiPair.getValue();
+            if (doi != null) {
+              brandNewResource.setDOI(doi);
+            }
           }
           FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, fid);
 
@@ -356,15 +391,45 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content) throws CedarException {
+    String doiInRequest = null;
+
+    try {
+      JsonNode folderServerNodeRequest = JsonMapper.MAPPER.readTree(content);
+      if (resourceType.supportsDOI()) {
+        JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, folderServerNodeRequest);
+        doiInRequest = doiPair.getValue();
+      }
+    } catch (JsonProcessingException e) {
+      throw new CedarProcessingException(e);
+    }
+
+    if (doiInRequest != null && !resourceType.supportsDOI()) {
+      return CedarResponse.badRequest()
+          .errorMessage("The doi is not supported by the given resource type")
+          .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
+          .parameter("resourceType", resourceType)
+          .build();
+    }
+
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
+    String existingDOI = folderServerOldResource.getDOI();
+    if (existingDOI != null) {
+      if (!existingDOI.equals(doiInRequest)) {
+        return CedarResponse.badRequest()
+            .errorMessage("The doi can not be altered")
+            .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_ALTERED)
+            .parameter("existingDOI", existingDOI)
+            .parameter("doi", doiInRequest)
+            .build();
+      }
+    }
+
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
-
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
-      FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
-
 
       if (folderServerOldResource != null) {
         if (folderServerOldResource instanceof FolderServerSchemaArtifact artifact) {
@@ -388,6 +453,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue().trim();
         String newIdentifierValue = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue();
         String newIdentifier = newIdentifierValue == null ? "" : newIdentifierValue.trim();
+        String newDOI = null;
+
+        if (resourceType.supportsDOI()) {
+          JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, templateJsonNode);
+          newDOI = doiPair.getValue();
+        }
 
         FolderServerArtifact resource = folderSession.findArtifactById(id);
 
@@ -405,6 +476,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         String sourceHash = context.getSourceHashHeader();
         if (sourceHash != null) {
           updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
+        }
+        if (newDOI != null) {
+          updateFields.put(NodeProperty.DOI, newDOI);
         }
         FolderServerArtifact updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
         if (updatedResource == null) {
