@@ -13,8 +13,10 @@ import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.*;
+import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.*;
 import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.basic.*;
@@ -430,6 +432,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
       HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
+      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      if (statusCode != HttpConstants.CREATED && statusCode != HttpConstants.OK) {
+        String templateProxyResponseContent = EntityUtils.toString(templateProxyResponse.getEntity(), CharEncoding.UTF_8);
+        return CedarResponse.status(CedarResponseStatus.fromStatusCode(statusCode)).entity(templateProxyResponseContent).build();
+      }
 
       if (folderServerOldResource != null) {
         if (folderServerOldResource instanceof FolderServerSchemaArtifact artifact) {
