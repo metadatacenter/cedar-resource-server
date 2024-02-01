@@ -161,24 +161,21 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     userMustHaveWriteAccessToFolder(context, fid);
 
-    String doiInRequest = null;
+    String doiInRequest = ModelUtil.extractDOIFromResourceContent(content, resourceType);
 
-    try {
-      JsonNode folderServerNodeRequest = JsonMapper.MAPPER.readTree(content);
-      if (resourceType.supportsDOI()) {
-        JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, folderServerNodeRequest);
-        doiInRequest = doiPair.getValue();
+    if (doiInRequest != null) {
+      if (!resourceType.supportsDOI()) {
+        return CedarResponse.badRequest()
+            .errorMessage("The doi is not supported by the given resource type")
+            .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
+            .parameter("resourceType", resourceType)
+            .build();
+      } else {
+        return CedarResponse.badRequest()
+            .errorMessage("The doi can not be set with this call")
+            .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_SET)
+            .build();
       }
-    } catch (JsonProcessingException e) {
-      throw new CedarProcessingException(e);
-    }
-
-    if (doiInRequest != null && !resourceType.supportsDOI()) {
-      return CedarResponse.badRequest()
-          .errorMessage("The doi is not supported by the given resource type")
-          .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
-          .parameter("resourceType", resourceType)
-          .build();
     }
 
     try {
@@ -186,13 +183,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       HttpResponse templateProxyResponse;
       if (artifactId.isEmpty()) {
         // Create by POST, empty @id
-        if (doiInRequest != null) {
-          return CedarResponse.badRequest()
-              .errorMessage("The doi can not be set for an empty @id")
-              .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_SET_FOR_EMPTY_ATID)
-              .parameter("doi", doiInRequest)
-              .build();
-        }
         url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
         templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
       } else {
@@ -277,7 +267,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             brandNewResource.setSourceHash(sourceHash);
           }
           if (resourceType.supportsDOI()) {
-            JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, templateJsonNode);
+            JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(templateJsonNode);
             String doi = doiPair.getValue();
             if (doi != null) {
               brandNewResource.setDOI(doi);
@@ -393,36 +383,40 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content) throws CedarException {
-    String doiInRequest = null;
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
-    try {
-      JsonNode folderServerNodeRequest = JsonMapper.MAPPER.readTree(content);
-      if (resourceType.supportsDOI()) {
-        JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, folderServerNodeRequest);
-        doiInRequest = doiPair.getValue();
-      }
-    } catch (JsonProcessingException e) {
-      throw new CedarProcessingException(e);
-    }
-
-    if (doiInRequest != null && !resourceType.supportsDOI()) {
-      return CedarResponse.badRequest()
-          .errorMessage("The doi is not supported by the given resource type")
-          .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
-          .parameter("resourceType", resourceType)
+    if (folderServerOldResource == null) {
+      return CedarResponse.notFound()
+          .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+          .errorMessage("The artifact can not be found by @id!")
+          .parameter("@id", id)
           .build();
     }
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
-    FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
-    String existingDOI = folderServerOldResource.getDOI();
-    if (existingDOI != null) {
-      if (!existingDOI.equals(doiInRequest)) {
+    if (folderServerOldResource instanceof FolderServerSchemaArtifact artifact) {
+      if (artifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
         return CedarResponse.badRequest()
-            .errorMessage("The doi can not be altered")
+            .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
+            .errorMessage("The artifact can not be changed since it is published!")
+            .parameter("name", folderServerOldResource.getName())
+            .build();
+      }
+    }
+
+    String doiInRequest = ModelUtil.extractDOIFromResourceContent(content, resourceType);
+
+    if (doiInRequest != null) {
+      if (!resourceType.supportsDOI()) {
+        return CedarResponse.badRequest()
+            .errorMessage("The doi is not supported by the given resource type")
+            .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
+            .parameter("resourceType", resourceType)
+            .build();
+      } else {
+        return CedarResponse.badRequest()
+            .errorMessage("The doi can not be altered with this call")
             .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_ALTERED)
-            .parameter("existingDOI", existingDOI)
-            .parameter("doi", doiInRequest)
             .build();
       }
     }
@@ -438,18 +432,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         return CedarResponse.status(CedarResponseStatus.fromStatusCode(statusCode)).entity(templateProxyResponseContent).build();
       }
 
-      if (folderServerOldResource != null) {
-        if (folderServerOldResource instanceof FolderServerSchemaArtifact artifact) {
-          if (artifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
-            return CedarResponse.badRequest()
-                .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
-                .errorMessage("The artifact can not be changed since it is published!")
-                .parameter("name", folderServerOldResource.getName())
-                .build();
-          }
-        }
-      }
-
       // artifact was updated
       HttpEntity templateEntity = templateProxyResponse.getEntity();
       if (templateEntity != null) {
@@ -460,12 +442,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue().trim();
         String newIdentifierValue = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode).getValue();
         String newIdentifier = newIdentifierValue == null ? "" : newIdentifierValue.trim();
-        String newDOI = null;
-
-        if (resourceType.supportsDOI()) {
-          JsonPointerValuePair doiPair = ModelUtil.extractDOIFromResource(resourceType, templateJsonNode);
-          newDOI = doiPair.getValue();
-        }
 
         FolderServerArtifact resource = folderSession.findArtifactById(id);
 
@@ -483,9 +459,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         String sourceHash = context.getSourceHashHeader();
         if (sourceHash != null) {
           updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
-        }
-        if (newDOI != null) {
-          updateFields.put(NodeProperty.DOI, newDOI);
         }
         FolderServerArtifact updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
         if (updatedResource == null) {
