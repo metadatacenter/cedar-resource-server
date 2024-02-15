@@ -11,12 +11,12 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
-import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -83,7 +83,15 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     String artifactGetUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId.getId(), Optional.empty());
     JsonNode oldArtifactContent = ProxyUtil.proxyGetBodyAsJsonNode(artifactGetUrl, c);
     ObjectNode objectNode = (ObjectNode) oldArtifactContent;
-    objectNode.put("_annotations.doi", doiInRequest);
+    ObjectNode annotationsNode;
+    if (objectNode.has(ModelNodeNames.ANNOTATIONS) && objectNode.get(ModelNodeNames.ANNOTATIONS).isObject()) {
+      annotationsNode = (ObjectNode) objectNode.get(ModelNodeNames.ANNOTATIONS);
+    } else {
+      annotationsNode = objectNode.putObject(ModelNodeNames.ANNOTATIONS);
+    }
+    ObjectNode doiNode = JsonMapper.MAPPER.createObjectNode();
+    doiNode.put(ModelNodeNames.JSON_LD_ID, doiInRequest);
+    annotationsNode.set(ModelNodeNames.DATACITE_DOI_URI, doiNode);
 
     try {
       ProxyUtil.proxyPut(artifactGetUrl, c, JsonMapper.MAPPER.writeValueAsString(objectNode));

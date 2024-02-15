@@ -282,6 +282,14 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, id);
           newDocument.remove(ModelNodeNames.JSON_LD_ID);
 
+          if (newDocument.has(ModelNodeNames.ANNOTATIONS) && newDocument.get(ModelNodeNames.ANNOTATIONS).isObject()) {
+            ObjectNode annotationsNode = (ObjectNode) newDocument.get(ModelNodeNames.ANNOTATIONS);
+            annotationsNode.remove(ModelNodeNames.DATACITE_DOI_URI);
+            if (annotationsNode.isEmpty()) {
+              newDocument.remove(ModelNodeNames.ANNOTATIONS);
+            }
+          }
+
           userMustHaveWriteAccessToFolder(c, fid);
 
           String artifactServerPostRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(newDocument);
