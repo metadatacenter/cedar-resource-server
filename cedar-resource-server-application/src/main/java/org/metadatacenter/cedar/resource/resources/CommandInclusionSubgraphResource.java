@@ -4,16 +4,20 @@ import com.codahale.metrics.annotation.Timed;
 import org.apache.http.HttpStatus;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarUntypedSchemaArtifactId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphRequest;
 import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphResponse;
+import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.InclusionSubgraphServiceSession;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.search.util.InclusionSubgraphUtil;
+import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.json.JsonMapper;
 
 import javax.ws.rs.POST;
@@ -43,6 +47,12 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     InclusionSubgraphRequest treeRequest = JsonMapper.MAPPER.readValue(c.request().getRequestBody().asJsonString(), InclusionSubgraphRequest.class);
 
     String id = treeRequest.getId();
+    if (id == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_DATA)
+          .errorMessage("@id not provided for the inclusion subgraph request")
+          .build();
+    }
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
 
     userMustHaveReadAccessToArtifact(c, aid);
