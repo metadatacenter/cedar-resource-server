@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.http.HttpStatus;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorType;
@@ -109,7 +110,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     // Check update permission
     c.must(c.user()).have(updatePermission);
 
-    String getResponse = getSchemaArtifactFromArtifactServer(resourceType, aid, c);
+    String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(resourceType, aid, c, microserviceUrlUtil, response);
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
@@ -135,7 +136,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           ((ObjectNode) getJsonNode).put(PAV_VERSION, newVersion.getValue());
           ((ObjectNode) getJsonNode).put(BIBO_STATUS, BiboStatus.PUBLISHED.getValue());
           String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);
-          Response putResponse = putSchemaArtifactToArtifactServer(resourceType, aid, c, content);
+          Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, aid, c, content, microserviceUrlUtil);
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
@@ -254,7 +255,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     // Check if the user has write permission to the target folder
     userMustHaveWriteAccessToFolder(c, fid);
 
-    String getResponse = getSchemaArtifactFromArtifactServer(artifactType, aid, c);
+    String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(artifactType, aid, c, microserviceUrlUtil, response);
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {

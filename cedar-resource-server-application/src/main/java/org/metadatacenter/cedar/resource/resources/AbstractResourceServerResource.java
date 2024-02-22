@@ -11,6 +11,7 @@ import org.apache.http.util.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
+import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
@@ -325,37 +326,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(microserviceUrlUtil, response, resourceType, id, Optional.empty(), context);
   }
 
-  protected String getSchemaArtifactFromArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context) throws CedarProcessingException {
-    try {
-      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      HttpEntity entity = proxyResponse.getEntity();
-      return EntityUtils.toString(entity, CharEncoding.UTF_8);
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
-    }
-  }
-
-  protected Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, String content) throws CedarProcessingException {
-    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-    HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
-    HttpEntity entity = templateProxyResponse.getEntity();
-    int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
-    if (entity != null) {
-      JsonNode responseNode = null;
-      try {
-        String responseString = EntityUtils.toString(entity, CharEncoding.UTF_8);
-        responseNode = JsonMapper.MAPPER.readTree(responseString);
-      } catch (Exception e) {
-        Response.status(statusCode).build();
-      }
-      return Response.status(statusCode).entity(responseNode).build();
-    } else {
-      return Response.status(statusCode).build();
-    }
-  }
-
   protected Response getDetails(CedarRequestContext context, CedarArtifactId id) throws CedarException {
     userMustHaveReadAccessToArtifact(context, id);
 
@@ -550,9 +520,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     // reindex the previous version, since that just became the latest
     if (isSchemaArtifact) {
       CedarSchemaArtifactId previousId = schemaArtifact.getPreviousVersion();
-      // Doublechekc if it is present on the artifact server as well
+      // Doublecheck if it is present on the artifact server as well
       if (previousId != null) {
-        String getResponse = getSchemaArtifactFromArtifactServer(resourceType, previousId, c);
+        String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(resourceType, previousId, c, microserviceUrlUtil, response);
         if (getResponse != null) {
           JsonNode getJsonNode = null;
           try {
