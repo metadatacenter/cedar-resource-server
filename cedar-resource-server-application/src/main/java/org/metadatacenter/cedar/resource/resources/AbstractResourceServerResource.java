@@ -425,6 +425,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         Map<NodeProperty, String> updateFields = new HashMap<>();
         updateFields.put(NodeProperty.DESCRIPTION, newDescription);
         updateFields.put(NodeProperty.NAME, newName);
+        updateFields.put(NodeProperty.NAME_LOWER, newName.toLowerCase());
         updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
         String sourceHash = context.getSourceHashHeader();
         if (sourceHash != null) {
@@ -829,6 +830,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
       if (nameV != null) {
         updateFields.put(NodeProperty.NAME, nameV);
+        updateFields.put(NodeProperty.NAME_LOWER, nameV.toLowerCase());
       }
       FolderServerFolder folderServerFolderUpdated = folderSession.updateFolderById(folderId, updateFields);
 

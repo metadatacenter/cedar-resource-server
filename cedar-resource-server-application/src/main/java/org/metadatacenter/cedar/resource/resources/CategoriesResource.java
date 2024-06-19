@@ -262,6 +262,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     Map<NodeProperty, String> updateFields = new HashMap<>();
     updateFields.put(NodeProperty.NAME, categoryName.stringValue());
+    updateFields.put(NodeProperty.NAME_LOWER, categoryName.stringValue().toLowerCase());
     updateFields.put(NodeProperty.DESCRIPTION, categoryDescription.stringValue());
     updateFields.put(NodeProperty.IDENTIFIER, categoryIdentifier.stringValue());
     FolderServerCategory updatedCategory = categorySession.updateCategoryById(ccid, updateFields);
