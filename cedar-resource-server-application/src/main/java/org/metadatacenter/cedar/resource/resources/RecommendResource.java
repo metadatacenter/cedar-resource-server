@@ -1,7 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.CedarResourceType;
