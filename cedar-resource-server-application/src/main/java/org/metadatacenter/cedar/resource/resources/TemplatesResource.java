@@ -1,23 +1,33 @@
 package org.metadatacenter.cedar.resource.resources;
 
+
 import com.codahale.metrics.annotation.Timed;
-import org.metadatacenter.bridge.CedarDataServices;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.apache.commons.codec.CharEncoding;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.util.EntityUtils;
+import org.metadatacenter.artifacts.model.core.Artifact;
+import org.metadatacenter.artifacts.model.reader.JsonSchemaArtifactReader;
+import org.metadatacenter.artifacts.model.tools.YamlSerializer;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.id.CedarArtifactId;
+import org.metadatacenter.id.CedarFieldId;
 import org.metadatacenter.id.CedarTemplateId;
-import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
-import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarResponse;
+import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.json.JsonMapper;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -45,30 +55,76 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}")
-  @Produces({MediaType.APPLICATION_JSON, "application/x-yaml"})
-  public Response findTemplate(@PathParam(PP_ID) String id,
+  public Response findTemplate(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+    c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
+    CedarTemplateId fid = CedarTemplateId.build(id);
+
+    userMustHaveReadAccessToArtifact(c, fid);
+    return executeResourceGetByProxyFromArtifactServer(CedarResourceType.TEMPLATE, id, c);
+  }
+
+  @POST
+  @Timed
+  @Path("/{id}/download")
+  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML})
+  public Response downloadTemplate(@PathParam(PP_ID) String id,
                                @HeaderParam("Accept") String acceptHeader,
-                               @QueryParam("compact") Optional<Boolean> compactParam,
-                               @QueryParam("download") Optional<Boolean> downloadParam) throws CedarException {
+                               @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
     userMustHaveReadAccessToArtifact(c, tid);
-    if (acceptHeader.isEmpty() || acceptHeader.contains(MediaType.APPLICATION_JSON)) {
+
+    CedarTemplateId templateId = CedarTemplateId.build(id);
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.TEMPLATE, templateId);
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
+    // If error while retrieving artifact, re-run and return proxy call directly
+    if (proxyResponse.getStatusLine().getStatusCode() != Response.Status.OK.getStatusCode()) {
       return executeResourceGetByProxyFromArtifactServer(CedarResourceType.TEMPLATE, id, c);
     }
-    if (acceptHeader.contains("application/x-yaml")) {
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-      CedarTemplateId templateId = CedarTemplateId.build(id);
-      FolderServerArtifact template = folderSession.findArtifactById(templateId);
+    HttpEntity entity = proxyResponse.getEntity();
+    JsonNode templateNode = null;
+
+    try {
+      String templateSource = EntityUtils.toString(entity, CharEncoding.UTF_8);
+      templateNode = JsonMapper.MAPPER.readTree(templateSource);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
+
+    String templateUUID = linkedDataUtil.getUUID(id, CedarResourceType.TEMPLATE);
+
+    // Handle JSON
+    if (acceptHeader == null || acceptHeader.isEmpty() || acceptHeader.contains(MediaType.APPLICATION_JSON) || acceptHeader.contains("*/*")) {
+      String fileName = templateUUID + ".json";
+      return CedarResponse.ok()
+          .type(MediaType.APPLICATION_JSON)
+          .contentDispositionAttachment(fileName)
+          .entity(templateNode)
+          .build();
+    }
+    // Handle YAML
+    if (acceptHeader.contains(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)) {
+      String fileName = templateUUID + ".yaml";
+      JsonSchemaArtifactReader reader = new JsonSchemaArtifactReader();
+      Artifact modelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) templateNode);
+      String content = YamlSerializer.getYAML(modelArtifact, compactParam.isPresent() && compactParam.get());
+      return CedarResponse.ok()
+          .type(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)
+          .contentDispositionAttachment(fileName)
+          .entity(content)
+          .build();
+    }
+    // Unknown accept header
     return CedarResponse.badRequest()
         .errorMessage("You passed an invalid Accept header: '" + acceptHeader + "'")
         .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
-        .parameter("Accept", acceptHeader)
-        .parameter("allowed Accept headers", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, "application/x-yaml"}))
+        .parameter(HttpConstants.HTTP_HEADER_ACCEPT, acceptHeader)
+        .parameter("allowed Accept headers", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML}))
         .build();
   }
 
