@@ -9,13 +9,12 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
 import org.metadatacenter.artifacts.model.core.Artifact;
-import org.metadatacenter.artifacts.model.reader.JsonSchemaArtifactReader;
+import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
 import org.metadatacenter.artifacts.model.tools.YamlSerializer;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.id.CedarFieldId;
 import org.metadatacenter.id.CedarTemplateId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -59,9 +58,9 @@ public class TemplatesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
-    CedarTemplateId fid = CedarTemplateId.build(id);
+    CedarTemplateId tid = CedarTemplateId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, fid);
+    userMustHaveReadAccessToArtifact(c, tid);
     return executeResourceGetByProxyFromArtifactServer(CedarResourceType.TEMPLATE, id, c);
   }
 
@@ -70,8 +69,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @Path("/{id}/download")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML})
   public Response downloadTemplate(@PathParam(PP_ID) String id,
-                               @HeaderParam("Accept") String acceptHeader,
-                               @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
+                                   @HeaderParam("Accept") String acceptHeader,
+                                   @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
@@ -79,8 +78,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
     userMustHaveReadAccessToArtifact(c, tid);
 
-    CedarTemplateId templateId = CedarTemplateId.build(id);
-    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.TEMPLATE, templateId);
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.TEMPLATE, tid);
     HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     // If error while retrieving artifact, re-run and return proxy call directly
     if (proxyResponse.getStatusLine().getStatusCode() != Response.Status.OK.getStatusCode()) {
@@ -110,7 +108,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     // Handle YAML
     if (acceptHeader.contains(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)) {
       String fileName = templateUUID + ".yaml";
-      JsonSchemaArtifactReader reader = new JsonSchemaArtifactReader();
+      JsonArtifactReader reader = new JsonArtifactReader();
       Artifact modelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) templateNode);
       String content = YamlSerializer.getYAML(modelArtifact, compactParam.isPresent() && compactParam.get());
       return CedarResponse.ok()
