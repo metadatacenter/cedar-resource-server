@@ -112,7 +112,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       String fileName = instanceUUID + ".yaml";
       JsonArtifactReader reader = new JsonArtifactReader();
       Artifact modelArtifact = reader.readTemplateInstanceArtifact((ObjectNode) instanceNode);
-      String content = YamlSerializer.getYAML(modelArtifact, compactParam.isPresent() && compactParam.get());
+      String content = YamlSerializer.getYAML(modelArtifact, compactParam.isPresent() && compactParam.get(), true);
       return CedarResponse.ok()
           .type(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)
           .contentDispositionAttachment(fileName)
