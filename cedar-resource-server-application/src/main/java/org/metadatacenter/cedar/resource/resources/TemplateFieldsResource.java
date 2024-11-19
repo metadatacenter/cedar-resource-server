@@ -110,7 +110,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       String fileName = fieldUUID + ".yaml";
       JsonArtifactReader reader = new JsonArtifactReader();
       Artifact modelArtifact = reader.readFieldSchemaArtifact((ObjectNode) fieldNode);
-      String content = YamlSerializer.getYAML(modelArtifact, compactParam.isPresent() && compactParam.get());
+      String content = YamlSerializer.getYAML(modelArtifact, compactParam.isPresent() && compactParam.get(), true);
       return CedarResponse.ok()
           .type(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)
           .contentDispositionAttachment(fileName)
