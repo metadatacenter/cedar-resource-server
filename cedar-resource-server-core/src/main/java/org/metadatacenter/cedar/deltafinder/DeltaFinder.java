@@ -40,9 +40,10 @@ public class DeltaFinder {
     Set<String> matchedNewKeys = new HashSet<>();
 
     for (String oldKey : oldFields.keySet()) {
+      if (newFields.containsKey(oldKey)) continue;
       FieldSchemaArtifact oldField = oldFields.get(oldKey);
       for (String newKey : newFields.keySet()) {
-        if (oldKey.equals(newKey)) continue;
+        if (oldFields.containsKey(newKey)) continue;
 
         FieldSchemaArtifact newField = newFields.get(newKey);
         if (oldField.getClass().equals(newField.getClass()) &&
@@ -131,9 +132,23 @@ public class DeltaFinder {
     }
 
     // Step 6: Order change detection
-    if (!oldOrder.equals(newOrder)) {
+    List<String> filteredOldOrder = new ArrayList<>();
+    for (String field : oldOrder) {
+      if (newFields.containsKey(field) || newElements.containsKey(field)) {
+        filteredOldOrder.add(field);
+      }
+    }
+
+    List<String> filteredNewOrder = new ArrayList<>();
+    for (String field : newOrder) {
+      if (oldFields.containsKey(field) || oldElements.containsKey(field)) {
+        filteredNewOrder.add(field);
+      }
+    }
+
+    if (!filteredOldOrder.equals(filteredNewOrder)) {
       // If all changes are renames and no unmatched fields exist, suppress OrderChange
-      if (!matchedOldKeys.isEmpty() && oldOrder.size() == newOrder.size() && matchedOldKeys.size() == oldOrder.size()) {
+      if (!matchedOldKeys.isEmpty() && filteredOldOrder.size() == filteredNewOrder.size() && matchedOldKeys.size() == filteredOldOrder.size()) {
         // All fields were renamed — order change is redundant
         // No action needed
       } else if (isSpecialRename(oldFields, newFields, oldOrder, newOrder)) {
@@ -143,6 +158,7 @@ public class DeltaFinder {
         delta.addNonDestructiveChange(new OrderChange("Field order changed"));
       }
     }
+
   }
 
 

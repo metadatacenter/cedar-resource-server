@@ -4,27 +4,25 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.Before;
-import org.junit.Test;
-import org.metadatacenter.artifacts.model.core.Artifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
 
 import java.io.InputStream;
 
-public class TestSimpleTemplate {
+abstract public class SimpleTemplateTest {
 
-  private ObjectMapper objectMapper;
+  protected ObjectMapper objectMapper;
 
   @Before
   public void setEnvironment() {
     objectMapper = new ObjectMapper();
   }
 
-  @Test
-  public void testSimpleTemplate1() throws Exception {
-    InputStream oldStream = getClass().getClassLoader().getResourceAsStream("deltafinder/template-01/template-01-old" +
-        ".json");
-    InputStream newStream = getClass().getClassLoader().getResourceAsStream("deltafinder/template-01/template-01-new" +
+  public void testSimpleTemplate(String testNumber) throws Exception {
+    String folder = "deltafinder/template-" + testNumber + "/";
+    InputStream oldStream = getClass().getClassLoader().getResourceAsStream(folder + "/template-" + testNumber + "-v1"
+        + ".json");
+    InputStream newStream = getClass().getClassLoader().getResourceAsStream(folder + "/template-" + testNumber + "-v2" +
         ".json");
 
     if (oldStream == null || newStream == null) {
@@ -49,4 +47,5 @@ public class TestSimpleTemplate {
     Delta delta = finder.findDelta(oldModelArtifact, newModelArtifact);
     System.out.println(delta);
   }
+
 }
