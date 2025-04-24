@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.deltafinder;
 import org.metadatacenter.artifacts.model.core.ElementSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.FieldSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
+import org.metadatacenter.artifacts.model.core.fields.constraints.ValueConstraints;
 import org.metadatacenter.cedar.deltafinder.change.*;
 
 import java.util.*;
@@ -40,15 +41,19 @@ public class DeltaFinder {
     Set<String> matchedNewKeys = new HashSet<>();
 
     for (String oldKey : oldFields.keySet()) {
-      if (newFields.containsKey(oldKey)) continue;
+      if (newFields.containsKey(oldKey)) {
+        continue;
+      }
       FieldSchemaArtifact oldField = oldFields.get(oldKey);
       for (String newKey : newFields.keySet()) {
-        if (oldFields.containsKey(newKey)) continue;
+        if (oldFields.containsKey(newKey)) {
+          continue;
+        }
 
         FieldSchemaArtifact newField = newFields.get(newKey);
         if (oldField.getClass().equals(newField.getClass()) &&
             Objects.equals(oldField.fieldUi(), newField.fieldUi()) &&
-            Objects.equals(oldField.valueConstraints(), newField.valueConstraints())) {
+            areValueConstraintsEqual(oldField, newField)) {
 
           renamedFields.put(oldKey, newKey);
           matchedOldKeys.add(oldKey);
@@ -59,29 +64,54 @@ public class DeltaFinder {
       }
     }
 
+    // Step 1b: Detect Renames in Elements
+    for (String oldKey : oldElements.keySet()) {
+      if (newElements.containsKey(oldKey)) continue;
+      ElementSchemaArtifact oldElement = oldElements.get(oldKey);
+
+      for (String newKey : newElements.keySet()) {
+        if (oldElements.containsKey(newKey) || matchedNewKeys.contains(newKey)) continue;
+
+        ElementSchemaArtifact newElement = newElements.get(newKey);
+
+        // Compare inner structure: field sets and schemas
+        if (Objects.equals(oldElement.fieldSchemas(), newElement.fieldSchemas()) &&
+            Objects.equals(oldElement.elementSchemas(), newElement.elementSchemas()) &&
+            Objects.equals(oldElement.getUi(), newElement.getUi())) {
+
+          renamedFields.put(oldKey, newKey);
+          matchedOldKeys.add(oldKey);
+          matchedNewKeys.add(newKey);
+          delta.addNonDestructiveChange(new Rename(oldKey, newKey));
+          break;
+        }
+      }
+    }
+
+
     // Step 2: Additions
     for (String newKey : newFields.keySet()) {
       if (!oldFields.containsKey(newKey) && !matchedNewKeys.contains(newKey)) {
-        delta.addNonDestructiveChange(new Addition(newKey));
+        delta.addNonDestructiveChange(new Addition(newKey, "field"));
       }
     }
 
     for (String newKey : newElements.keySet()) {
-      if (!oldElements.containsKey(newKey)) {
-        delta.addNonDestructiveChange(new Addition(newKey));
+      if (!oldElements.containsKey(newKey) && !matchedNewKeys.contains(newKey)) {
+        delta.addNonDestructiveChange(new Addition(newKey, "element"));
       }
     }
 
     // Step 3: Deletions
     for (String oldKey : oldFields.keySet()) {
       if (!newFields.containsKey(oldKey) && !matchedOldKeys.contains(oldKey)) {
-        delta.addDestructiveChange(new Deletion(oldKey));
+        delta.addDestructiveChange(new Deletion(oldKey, "field"));
       }
     }
 
     for (String oldKey : oldElements.keySet()) {
-      if (!newElements.containsKey(oldKey)) {
-        delta.addDestructiveChange(new Deletion(oldKey));
+      if (!newElements.containsKey(oldKey) && !matchedOldKeys.contains(oldKey)) {
+        delta.addDestructiveChange(new Deletion(oldKey, "element"));
       }
     }
 
@@ -89,7 +119,9 @@ public class DeltaFinder {
     Set<String> commonKeys = new HashSet<>(oldFields.keySet());
     commonKeys.retainAll(newFields.keySet());
     for (String key : commonKeys) {
-      if (matchedOldKeys.contains(key) || matchedNewKeys.contains(key)) continue;
+      if (matchedOldKeys.contains(key) || matchedNewKeys.contains(key)) {
+        continue;
+      }
 
       FieldSchemaArtifact oldField = oldFields.get(key);
       FieldSchemaArtifact newField = newFields.get(key);
@@ -105,16 +137,7 @@ public class DeltaFinder {
         }
       }
 
-      String oldConstraints = oldField.fieldUi().inputType().getText();
-      String newConstraints = newField.fieldUi().inputType().getText();
-      if (!oldConstraints.equals(newConstraints)) {
-        boolean destructive = isDestructiveConstraintChange(oldConstraints, newConstraints);
-        if (destructive) {
-          delta.addDestructiveChange(new ConstraintChange(key, oldConstraints, newConstraints, true));
-        } else {
-          delta.addNonDestructiveChange(new ConstraintChange(key, oldConstraints, newConstraints, false));
-        }
-      }
+      detectValueConstraintsChange(oldField, newField, key, delta);
     }
 
     // Step 5: Recursively handle elements
@@ -163,8 +186,10 @@ public class DeltaFinder {
 
 
   private boolean isDestructiveTypeChange(String oldType, String newType) {
-    Set<String> incompatible = Set.of("string->int", "float->int");
-    return incompatible.contains(oldType.toLowerCase() + "->" + newType.toLowerCase());
+    if (oldType.equals(newType)) {
+      return false;
+    }
+    return true;
   }
 
   private boolean isDestructiveConstraintChange(String oldC, String newC) {
@@ -175,7 +200,9 @@ public class DeltaFinder {
                                   Map<String, FieldSchemaArtifact> newFields,
                                   List<String> oldOrder,
                                   List<String> newOrder) {
-    if (oldOrder.size() != newOrder.size()) return false;
+    if (oldOrder.size() != newOrder.size()) {
+      return false;
+    }
 
     for (int i = 0; i < oldOrder.size(); i++) {
       String oldKey = oldOrder.get(i);
@@ -204,4 +231,126 @@ public class DeltaFinder {
     }
     return new String[]{"unknown", "unknown"};
   }
+
+  private boolean areValueConstraintsEqual(FieldSchemaArtifact oldField, FieldSchemaArtifact newField) {
+    Optional<ValueConstraints> oldVCOpt = oldField.valueConstraints();
+    Optional<ValueConstraints> newVCOpt = newField.valueConstraints();
+
+    if (oldVCOpt.isEmpty() && newVCOpt.isEmpty()) {
+      return true;
+    }
+    if (oldVCOpt.isEmpty() || newVCOpt.isEmpty()) {
+      return false;
+    }
+
+    ValueConstraints oldVC = oldVCOpt.get();
+    ValueConstraints newVC = newVCOpt.get();
+
+    // 1. Check if the types match
+    if (!oldVC.getClass().equals(newVC.getClass())) {
+      return false;
+    }
+
+    // 2. Compare base fields
+    boolean baseFieldsEqual =
+        oldVC.requiredValue() == newVC.requiredValue() &&
+            oldVC.recommendedValue() == newVC.recommendedValue() &&
+            oldVC.multipleChoice() == newVC.multipleChoice() &&
+            Objects.equals(oldVC.defaultValue(), newVC.defaultValue());
+
+    if (!baseFieldsEqual) {
+      return false;
+    }
+
+    // 3. If TextValueConstraints, compare minLength, maxLength, regex
+    if (oldVC.isTextValueConstraint() && newVC.isTextValueConstraint()) {
+      var oldTextVC = oldVC.asTextValueConstraints();
+      var newTextVC = newVC.asTextValueConstraints();
+
+      return Objects.equals(oldTextVC.minLength(), newTextVC.minLength()) &&
+          Objects.equals(oldTextVC.maxLength(), newTextVC.maxLength()) &&
+          Objects.equals(oldTextVC.regex(), newTextVC.regex()) &&
+          Objects.equals(oldTextVC.literals(), newTextVC.literals());
+    }
+
+    // 4. Otherwise, if not TextValueConstraints, assume they are equal now
+    return true;
+  }
+
+  private void detectValueConstraintsChange(FieldSchemaArtifact oldField,
+                                            FieldSchemaArtifact newField,
+                                            String key,
+                                            Delta delta) {
+    Optional<ValueConstraints> oldVCOpt = oldField.valueConstraints();
+    Optional<ValueConstraints> newVCOpt = newField.valueConstraints();
+
+    if (oldVCOpt.isEmpty() && newVCOpt.isEmpty()) {
+      return; // No constraint changes
+    }
+    if (oldVCOpt.isEmpty() || newVCOpt.isEmpty()) {
+      delta.addDestructiveChange(new ConstraintChange(key, "Presence/absence of valueConstraints", "Presence/absence " +
+          "of valueConstraints", true));
+      return;
+    }
+
+    ValueConstraints oldVC = oldVCOpt.get();
+    ValueConstraints newVC = newVCOpt.get();
+
+    if (!oldVC.getClass().equals(newVC.getClass())) {
+      delta.addDestructiveChange(new ConstraintChange(key, "Constraint type changed", "Constraint type changed", true));
+      return;
+    }
+
+    boolean destructive = false;
+    List<String> changes = new ArrayList<>();
+
+    // Base fields
+    if (oldVC.requiredValue() != newVC.requiredValue()) {
+      changes.add("requiredValue changed");
+      destructive = true;
+    }
+    if (oldVC.recommendedValue() != newVC.recommendedValue()) {
+      changes.add("recommendedValue changed");
+    }
+    if (oldVC.multipleChoice() != newVC.multipleChoice()) {
+      changes.add("multipleChoice changed");
+    }
+
+    // Default value (safe)
+    if (!Objects.equals(oldVC.defaultValue(), newVC.defaultValue())) {
+      changes.add("defaultValue changed");
+    }
+
+    // Text-specific
+    if (oldVC.isTextValueConstraint() && newVC.isTextValueConstraint()) {
+      var oldTextVC = oldVC.asTextValueConstraints();
+      var newTextVC = newVC.asTextValueConstraints();
+
+      if (!Objects.equals(oldTextVC.minLength(), newTextVC.minLength())) {
+        changes.add("minLength changed");
+        destructive = true;
+      }
+      if (!Objects.equals(oldTextVC.maxLength(), newTextVC.maxLength())) {
+        changes.add("maxLength changed");
+        destructive = true;
+      }
+      if (!Objects.equals(oldTextVC.regex(), newTextVC.regex())) {
+        changes.add("regex changed");
+        destructive = true;
+      }
+      if (!Objects.equals(oldTextVC.literals(), newTextVC.literals())) {
+        changes.add("literals changed");
+      }
+    }
+
+    if (!changes.isEmpty()) {
+      if (destructive) {
+        delta.addDestructiveChange(new ConstraintChange(key, "Changed: " + String.join(", ", changes), "", true));
+      } else {
+        delta.addNonDestructiveChange(new ConstraintChange(key, "Changed: " + String.join(", ", changes), "", false));
+      }
+    }
+  }
+
+
 }

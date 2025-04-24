@@ -18,7 +18,7 @@ abstract public class SimpleTemplateTest {
     objectMapper = new ObjectMapper();
   }
 
-  public void testSimpleTemplate(String testNumber) throws Exception {
+  public Delta testSimpleTemplate(String testNumber) throws Exception {
     String folder = "deltafinder/template-" + testNumber + "/";
     InputStream oldStream = getClass().getClassLoader().getResourceAsStream(folder + "/template-" + testNumber + "-v1"
         + ".json");
@@ -36,16 +36,16 @@ abstract public class SimpleTemplateTest {
     TemplateSchemaArtifact oldModelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) oldNode);
     TemplateSchemaArtifact newModelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) newNode);
 
-
-    System.out.println(oldNode.toString());
-    System.out.println(newNode.toString());
-
-    System.out.println(oldModelArtifact);
-    System.out.println(newModelArtifact);
+//    System.out.println(oldNode.toString());
+//    System.out.println(newNode.toString());
+//
+//    System.out.println(oldModelArtifact);
+//    System.out.println(newModelArtifact);
 
     DeltaFinder finder = new DeltaFinder();
-    Delta delta = finder.findDelta(oldModelArtifact, newModelArtifact);
-    System.out.println(delta);
+    Delta delta= finder.findDelta(oldModelArtifact, newModelArtifact);
+//    System.out.println(delta);
+    return delta;
   }
 
 }
