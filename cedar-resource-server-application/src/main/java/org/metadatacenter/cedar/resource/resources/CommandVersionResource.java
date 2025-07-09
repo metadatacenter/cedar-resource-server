@@ -14,6 +14,7 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarSchemaArtifactId;
+import org.metadatacenter.id.CedarTemplateId;
 import org.metadatacenter.id.CedarUntypedSchemaArtifactId;
 import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
@@ -34,6 +35,8 @@ import org.metadatacenter.server.security.model.permission.resource.ResourcePerm
 import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.json.JsonMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -53,6 +56,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
 public class CommandVersionResource extends AbstractResourceServerResource {
+
+  private static final Logger log = LoggerFactory.getLogger(CommandVersionResource.class);
 
   public CommandVersionResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -173,6 +178,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               if (schemaArtifact.hasPreviousVersion()) {
                 CedarSchemaArtifactId prevId = schemaArtifact.getPreviousVersion();
                 FolderServerArtifact folderServerResourcePrev = folderSession.findArtifactById(prevId);
+                if (resourceType == CedarResourceType.TEMPLATE) {
+                  createCopyOfInstancesWithNewTemplate(c, CedarTemplateId.build(prevId.getId()), CedarTemplateId.build(schemaArtifact.getId()));
+                }
                 updateIndexResource(folderServerResourcePrev, c);
               }
             }
@@ -186,6 +194,12 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       }
     }
     return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
+  }
+
+  private void createCopyOfInstancesWithNewTemplate(CedarRequestContext context, CedarTemplateId oldId, CedarTemplateId newId) {
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(oldId.getId()));
+    log.warn("Template " + oldId + " has " + instanceCount + " instances that need to be copied to new template" + newId);
   }
 
   @POST
