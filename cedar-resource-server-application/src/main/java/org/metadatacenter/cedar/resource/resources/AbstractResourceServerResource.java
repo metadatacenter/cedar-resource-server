@@ -454,7 +454,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     if (resourceType == CedarResourceType.TEMPLATE) {
       FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
       long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(id.getId()));
-      log.warn("Template " + id + " has " + instanceCount + " instances that need to be updated");
+      if (instanceCount > 0) {
+        log.warn("Template " + id + " has " + instanceCount + " instances that need to be updated");
+      }
     }
   }
 
