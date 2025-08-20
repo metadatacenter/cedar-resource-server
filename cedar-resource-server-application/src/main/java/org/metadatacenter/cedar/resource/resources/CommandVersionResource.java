@@ -221,11 +221,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   }
 
   private void createCopyOfInstancesWithNewTemplate(CedarRequestContext context, CedarTemplateId oldId,
-                                                    CedarTemplateId newId) {
+                                                    CedarTemplateId newId, String newFolderName) {
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
     long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(oldId.getId()));
     if (instanceCount > 0) {
-      cloneInstanceEnqueueService.cloneInstances(oldId, newId);
+      cloneInstanceEnqueueService.cloneInstances(oldId, newId, newFolderName);
     }
   }
 
@@ -240,12 +240,14 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
     CedarParameter folderIdParam = c.request().getRequestBody().get("folderId");
     CedarParameter propagateSharingParam = c.request().getRequestBody().get("propagateSharing");
+    CedarParameter newFolderNameParam = c.request().getRequestBody().get("newFolderName");
 
     String id = idParam.stringValue();
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
     String folderId = folderIdParam.stringValue();
     CedarFolderId fid = CedarFolderId.build(folderId);
     String propagateSharingString = propagateSharingParam.stringValue();
+    String newFolderNameString = newFolderNameParam.stringValue();
 
     ResourceVersion newVersion = null;
     if (!newVersionParam.isEmpty()) {
@@ -260,11 +262,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     boolean propagateSharing = Boolean.parseBoolean(propagateSharingString);
 
-    return createDraftArtifact(c, aid, newVersion, fid, propagateSharing);
+    return createDraftArtifact(c, aid, newVersion, fid, propagateSharing, newFolderNameString);
   }
 
   private Response createDraftArtifact(CedarRequestContext c, CedarUntypedSchemaArtifactId aid,
-                                       ResourceVersion newVersion, CedarFolderId fid, boolean propagateSharing) throws CedarException {
+                                       ResourceVersion newVersion, CedarFolderId fid, boolean propagateSharing, String newFolderName) throws CedarException {
 
     userMustHaveReadAccessToArtifact(c, aid);
 
@@ -400,7 +402,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
             if (artifactType == CedarResourceType.TEMPLATE) {
               createCopyOfInstancesWithNewTemplate(c, CedarTemplateId.build(aid.getId()),
-                  CedarTemplateId.build(newId.getId()));
+                  CedarTemplateId.build(newId.getId()), newFolderName);
             }
 
             UriBuilder builder = uriInfo.getAbsolutePathBuilder();
@@ -518,7 +520,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           publishArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()), oldVersion);
 
           Response createResponse = createDraftArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()),
-              newVersion, fid, true);
+              newVersion, fid, true, null);
 
           FolderServerTemplate entity = (FolderServerTemplate) createResponse.getEntity();
           String newTemplateIdString = entity.getId();
