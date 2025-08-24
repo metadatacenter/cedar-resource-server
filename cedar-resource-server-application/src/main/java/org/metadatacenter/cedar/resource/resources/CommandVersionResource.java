@@ -49,10 +49,7 @@ import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
+import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
@@ -61,8 +58,11 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_NAME;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPES;
 import static org.metadatacenter.model.ModelNodeNames.*;
 import static org.metadatacenter.model.ModelPaths.AT_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -266,7 +266,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   }
 
   private Response createDraftArtifact(CedarRequestContext c, CedarUntypedSchemaArtifactId aid,
-                                       ResourceVersion newVersion, CedarFolderId fid, boolean propagateSharing, String newFolderName) throws CedarException {
+                                       ResourceVersion newVersion, CedarFolderId fid, boolean propagateSharing,
+                                       String newFolderName) throws CedarException {
 
     userMustHaveReadAccessToArtifact(c, aid);
 
@@ -400,7 +401,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             FolderServerArtifact updatedSourceResource = folderSession.findArtifactById(aid);
             updateIndexResource(updatedSourceResource, c);
 
-            if (artifactType == CedarResourceType.TEMPLATE) {
+            if (artifactType == CedarResourceType.TEMPLATE && newFolderName != null && !newFolderName.isEmpty()) {
               createCopyOfInstancesWithNewTemplate(c, CedarTemplateId.build(aid.getId()),
                   CedarTemplateId.build(newId.getId()), newFolderName);
             }
@@ -467,7 +468,16 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           List<Change> nonDestructive = delta.getNonDestructiveChanges();
           resp.put("destructiveChanges", destructive.size());
           resp.put("nonDestructiveChanges", nonDestructive.size());
-          resp.put("canBeUpdated", destructive.isEmpty());
+          resp.put("canBeUpdated", destructive.isEmpty() && nonDestructive.isEmpty());
+          resp.put("numberOfInstances", instanceCount);
+
+          ResourceVersion oldVersion =
+              ResourceVersion.forValueWithValidation(newModelArtifact.version().get().toString());
+          ResourceVersion newVersion = oldVersion.nextPatchVersion();
+
+          resp.put("oldVersion", oldVersion);
+          resp.put("pav:version", newVersion);
+          resp.put("schema:name", oldModelArtifact.name());
           return Response.ok().entity(resp).build();
         }
       } catch (Exception e) {
@@ -480,7 +490,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/publish-create-draft-template/{id}")
-  public Response publishCreateDraftTemplate(@PathParam(PP_ID) String id) throws CedarException {
+  public Response publishCreateDraftTemplate(@PathParam(PP_ID) String id,
+                                             @QueryParam(QP_FOLDER_NAME) Optional<String> folderName) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
@@ -520,7 +531,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           publishArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()), oldVersion);
 
           Response createResponse = createDraftArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()),
-              newVersion, fid, true, null);
+              newVersion, fid, true, folderName.orElse(null));
 
           FolderServerTemplate entity = (FolderServerTemplate) createResponse.getEntity();
           String newTemplateIdString = entity.getId();
