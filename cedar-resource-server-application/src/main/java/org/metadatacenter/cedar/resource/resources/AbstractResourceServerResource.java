@@ -438,6 +438,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           updateInclusionSubgraphIfNeeded(context, updatedResource, templateJsonNode);
           updateIndexResource(updatedResource, context);
           updateValuerecommenderResource(updatedResource);
+          triggerInstanceUpdatesForTemplate(context, resourceType, id);
           return Response.ok().entity(updatedResource).build();
         }
       } else {
@@ -446,6 +447,16 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     } catch (Exception e) {
       throw new CedarProcessingException(e);
+    }
+  }
+
+  private void triggerInstanceUpdatesForTemplate(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id) {
+    if (resourceType == CedarResourceType.TEMPLATE) {
+      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+      long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(id.getId()));
+      if (instanceCount > 0) {
+        log.warn("Template " + id + " has " + instanceCount + " instances that need to be updated");
+      }
     }
   }
 

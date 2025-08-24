@@ -9,6 +9,7 @@ import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
 import org.metadatacenter.server.cache.user.UserSummaryCache;
+import org.metadatacenter.server.resource.CloneInstancesEnqueueService;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
@@ -40,6 +41,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     SearchPermissionEnqueueService searchPermissionEnqueueService = new SearchPermissionEnqueueService(cedarConfig);
 
+    CloneInstancesEnqueueService cloneInstanceEnqueueService = new CloneInstancesEnqueueService(cedarConfig);
+
     ValuerecommenderReindexQueueService valuerecommenderReindexQueueService =
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent());
 
@@ -47,6 +50,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     CommandSearchResource.injectUserService(userService);
     SearchResource.injectServices(nodeIndexingService, nodeSearchingService,
         searchPermissionEnqueueService, valuerecommenderReindexQueueService);
+
+    CommandVersionResource.injectCloneInstancesEnqueueServices(cloneInstanceEnqueueService);
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
     IndexCreator.ensureRulesIndexExists(cedarConfig);
