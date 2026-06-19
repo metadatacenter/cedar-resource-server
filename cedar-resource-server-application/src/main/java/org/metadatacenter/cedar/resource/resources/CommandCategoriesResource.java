@@ -3,6 +3,13 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+import io.swagger.annotations.Authorization;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
@@ -33,6 +40,7 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
+@Api(value = "/command", tags = "Command", authorizations = {@Authorization("api_key")})
 public class CommandCategoriesResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CommandCategoriesResource.class);
@@ -44,6 +52,23 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/attach-category")
+  @ApiOperation(value = "Attach category to an artifact",
+      notes = "Attach an existing category to an existing artifact. The user must have 'write' access to the "
+          + "artifact. The user must have 'attach' access to the category.",
+      tags = {"Command", "Categories", "Category Operations"})
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "categoryAttachRequest", value = "Parameters of the attach operation", required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachRequest",
+          paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
   public Response attachCategoryToArtifact() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -88,6 +113,23 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/detach-category")
+  @ApiOperation(value = "Detach category from an artifact",
+      notes = "Detach an existing category from an existing artifact. The user must have 'write' access to the "
+          + "artifact. The user must have 'attach' access to the category.",
+      tags = {"Command", "Categories", "Category Operations"})
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "categoryAttachRequest", value = "Parameters of the detach operation", required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachRequest",
+          paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
   public Response detachCategoryFromArtifact() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -132,6 +174,25 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/attach-categories")
+  @ApiOperation(value = "Attach multiple categories to an artifact",
+      notes = "Attach a list of existing categories to an existing artifact. The user must have 'write' access to "
+          + "the artifact. The user must have 'attach' access to all the categories. The call will exit at the "
+          + "firts category without 'attach' access",
+      tags = {"Command", "Categories", "Category Operations"})
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "categoryAttachListRequest", value = "Parameters of the attach operation",
+          required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachListRequest",
+          paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
   public Response attachCategoriesToArtifact() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);

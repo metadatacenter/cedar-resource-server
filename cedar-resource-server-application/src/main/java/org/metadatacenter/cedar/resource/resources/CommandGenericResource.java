@@ -3,6 +3,12 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.jsonldjava.core.JsonLdError;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+import io.swagger.annotations.Authorization;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.keycloak.events.Event;
@@ -43,6 +49,7 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
+@Api(value = "/command", tags = "Command", authorizations = {@Authorization("api_key")})
 public class CommandGenericResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CommandGenericResource.class);
@@ -91,6 +98,18 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/auth-user-callback")
+  @ApiOperation(value = "Authentication user callback",
+      notes = "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home "
+          + "folder, group membership) upon authentication.",
+      code = 201)
+  @ApiResponses({
+      @ApiResponse(code = 201, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
   public Response authUserCallback() throws CedarException {
     CedarRequestContext adminContext = buildRequestContext();
     adminContext.must(adminContext.user()).be(LoggedIn);
@@ -160,7 +179,20 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/convert")
-  public Response convertResource(@QueryParam(QP_FORMAT) Optional<String> format) throws CedarException {
+  @ApiOperation(value = "Convert a resource",
+      notes = "Convert the resource supplied in the request body to the requested output format.")
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response convertResource(
+      @ApiParam(value = "Output format type to display the content of the template instance. The allowed values "
+          + "are: 'jsonld', 'json', 'rdf-nquad'")
+      @QueryParam(QP_FORMAT) Optional<String> format) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     //c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ); // XXX Need a permission to convert?
@@ -174,7 +206,26 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/validate")
-  public Response validateResource(@QueryParam(QP_RESOURCE_TYPE) String resourceType) throws CedarException {
+  @ApiOperation(value = "Validate resources",
+      notes = "Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model. To "
+          + "use this service you will need to append the resource text in the request body as the payload. "
+          + "However, in the case of validating the template instance, you have an additional option to include "
+          + "the template text by organizing them as follows: { \"schema\": <template text>, \"instance\": "
+          + "<instance text> }. The validation service will return a report in JSON format as follows: { "
+          + "\"validates\": \"\", \"warnings\": [], \"errors\": [] }",
+      tags = {"Validation", "Command"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response validateResource(
+      @ApiParam(value = "The type of CEDAR resource. The allowed values are: 'field', 'element', 'template', "
+          + "'instance'", required = true)
+      @QueryParam(QP_RESOURCE_TYPE) String resourceType) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     //c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?

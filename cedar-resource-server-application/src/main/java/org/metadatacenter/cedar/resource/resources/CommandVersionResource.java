@@ -3,6 +3,14 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+import io.swagger.annotations.Authorization;
 import org.apache.http.HttpStatus;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
@@ -60,7 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_NAME;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPES;
 import static org.metadatacenter.model.ModelNodeNames.*;
@@ -69,6 +77,7 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
+@Api(value = "/command", tags = "Command", authorizations = {@Authorization("api_key")})
 public class CommandVersionResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CommandVersionResource.class);
@@ -85,6 +94,23 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/publish-artifact")
+  @ApiOperation(value = "Publish artifact.",
+      notes = "Publish artifact. The 'bibo:status' of the artifact will be changed from 'bibo:draft' to "
+          + "'bibo:published'. The 'pav:version' will be also set.",
+      tags = {"Validation", "Command", "Versioning"})
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "publishArtifactRequest", value = "Info about the publishing process", required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.PublishArtifactRequest",
+          paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
   public Response publishArtifact() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -232,6 +258,25 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/create-draft-artifact")
+  @ApiOperation(value = "Create draft artifact.",
+      notes = "Create draft artifact out of a published artifact. A new artifact will be created in the supplied "
+          + "folder. The version of the new artifact must be set, and must follow the current published version. "
+          + "The sharing settings of the old artifact can be copied over to the new artifact..",
+      tags = {"Validation", "Command", "Versioning"})
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "createDraftArtifactRequest", value = "Info about the creation process",
+          required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.CreateDraftArtifactRequest",
+          paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
   public Response createDraftArtifact() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -429,8 +474,22 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/check-update-template/{id}")
-  public Response checkUpdateTemplate(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/check-update-template/{template_id}")
+  @ApiOperation(value = "Check whether a template can be updated",
+      notes = "Check whether an existing template can be updated with the supplied template definition. The "
+          + "destructive and non-destructive changes between the stored template and the supplied template are "
+          + "computed, and the number of affected instances is reported.",
+      tags = {"Command", "Versioning"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response checkUpdateTemplate(
+      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
@@ -489,9 +548,23 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/publish-create-draft-template/{id}")
-  public Response publishCreateDraftTemplate(@PathParam(PP_ID) String id,
-                                             @QueryParam(QP_FOLDER_NAME) Optional<String> folderName) throws CedarException {
+  @Path("/publish-create-draft-template/{template_id}")
+  @ApiOperation(value = "Publish a template and create a new draft",
+      notes = "Publish the given template, then create a new draft version from it and apply the supplied template "
+          + "definition. Instances of the source template can be copied into a new folder.",
+      tags = {"Command", "Versioning"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response publishCreateDraftTemplate(
+      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
+      @ApiParam(value = "Name of the folder to copy the template instances into.")
+      @QueryParam(QP_FOLDER_NAME) Optional<String> folderName) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);

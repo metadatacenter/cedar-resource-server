@@ -4,6 +4,11 @@ import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+import io.swagger.annotations.Authorization;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
@@ -34,6 +39,7 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
+@Api(value = "/command", tags = "Command", authorizations = {@Authorization("api_key")})
 public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
   public CommandAnnotationsResource(CedarConfig cedarConfig) {
@@ -43,6 +49,17 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/annotations/doi")
+  @ApiOperation(value = "Set the DOI of an artifact",
+      notes = "Set the DOI annotation of an artifact. The user must have 'write' access to the artifact. The "
+          + "resource type must support DOIs, and an existing DOI can not be altered.")
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
   public Response setDOI() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);

@@ -151,11 +151,103 @@
       <artifactId>fuzzywuzzy</artifactId>
     </dependency>
 
+    <!-- Swagger 1.5.x annotations (@Api, @ApiOperation, ...) used to generate the OpenAPI 2.0 spec at build time -->
+    <dependency>
+      <groupId>io.swagger</groupId>
+      <artifactId>swagger-annotations</artifactId>
+    </dependency>
+
   </dependencies>
 
   <build>
 
     <plugins>
+
+      <!--
+        Generates the OpenAPI/Swagger 2.0 spec from the JAX-RS resource annotations.
+
+        Output goes to src/main/resources/assets/swagger-api/ (the committed location). The
+        generated swagger.json/yaml are tracked in git (visible/diffable/recoverable), and Maven
+        copies them onto the classpath (target/classes -> runnable jar), which is what the
+        Dropwizard AssetsBundle serves. The execution is bound to prepare-package, so any build
+        that reaches package/install (e.g. `mvn clean install`, cedarcli build all) regenerates
+        the committed spec in place, so commit the result like any tracked generated artifact.
+
+        kongchen's mojo uses the "include-project-dependencies" configurator, so the project's
+        compile+runtime classpath is on the plugin classloader. This is required here: the
+        resource classes extend cedar-* library base classes, and the generator must be able to
+        load them to introspect their annotations. (io.openapitools 1.0.3 only put target/classes
+        on the classloader, so resource classes failed to load and produced zero paths.)
+
+        Swagger spec version is 2.0 (swagger-core 1.5.x), matching the existing cedar-swagger-ui.
+      -->
+      <plugin>
+        <groupId>com.github.kongchen</groupId>
+        <artifactId>swagger-maven-plugin</artifactId>
+        <version>3.1.8</version>
+        <configuration>
+          <apiSources>
+            <apiSource>
+              <springmvc>false</springmvc>
+              <locations>
+                <location>org.metadatacenter.cedar.resource.resources</location>
+              </locations>
+              <schemes>
+                <scheme>https</scheme>
+              </schemes>
+              <info>
+                <title>CEDAR Resource Server API</title>
+                <description>Better Metadata - Better Science</description>
+                <!-- Version is stamped from the POM on every build, so it can never drift again -->
+                <version>${project.version}</version>
+              </info>
+              <!--
+                The api_key security scheme is loaded from a small JSON file. kongchen's inline
+                <securityDefinition> reuses <name> as both the scheme id and the apiKey header
+                name, so it cannot express "scheme api_key -> header Authorization"; the JSON file
+                lets us set the scheme key (api_key, which every @Authorization references) and the
+                header name (Authorization) independently. kongchen does NOT honor @SwaggerDefinition.
+              -->
+              <securityDefinitions>
+                <securityDefinition>
+                  <jsonPath>${project.basedir}/src/main/swagger/security-definitions.json</jsonPath>
+                </securityDefinition>
+              </securityDefinitions>
+              <swaggerDirectory>${project.basedir}/src/main/resources/assets/swagger-api</swaggerDirectory>
+              <swaggerFileName>swagger</swaggerFileName>
+              <outputFormats>json,yaml</outputFormats>
+            </apiSource>
+          </apiSources>
+          <!--
+            Sort every map (paths, definitions, responses) by key so the generated spec is
+            byte-stable across builds/machines. Without this, kongchen emits paths in reflection
+            scan order (a HashSet of Class objects), which can shuffle between JVM runs and produce
+            noisy git diffs on the committed spec.
+          -->
+          <enabledObjectMapperFeatures>
+            <feature>com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS</feature>
+          </enabledObjectMapperFeatures>
+        </configuration>
+        <dependencies>
+          <!--
+            Override the ancient transitive javassist (3.21.0-GA: broken POM, and cannot parse
+            Java 17 (v61) bytecode). 3.29.x understands Java 17 class files.
+          -->
+          <dependency>
+            <groupId>org.javassist</groupId>
+            <artifactId>javassist</artifactId>
+            <version>3.29.2-GA</version>
+          </dependency>
+        </dependencies>
+        <executions>
+          <execution>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
