@@ -3,6 +3,14 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+import io.swagger.annotations.Authorization;
 import org.apache.commons.codec.CharEncoding;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -10,6 +18,7 @@ import org.apache.http.util.EntityUtils;
 import org.metadatacenter.artifacts.model.core.Artifact;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
 import org.metadatacenter.artifacts.model.tools.YamlSerializer;
+import org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
@@ -30,13 +39,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
 
-import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_INSTANCE_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/template-instances")
 @Produces(MediaType.APPLICATION_JSON)
+@Api(value = "/template-instances", tags = "Template Instances", authorizations = {@Authorization("api_key")})
 public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   public TemplateInstancesResource(CedarConfig cedarConfig) {
@@ -45,7 +55,23 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  public Response createTemplateInstance(@QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
+  @ApiOperation(value = "Create a template instance", notes = "Create a template instance.", code = 201, response = TemplateInstance.class)
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "template_instance", value = "The template instance to be created", required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance", paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 201, message = "A template instance", response = TemplateInstance.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response createTemplateInstance(
+      @ApiParam(value = "Folder identifier. The artifact will be created in this folder. The user must have write "
+          + "access to the folder. If not provided, the artifact will be created in the user's home folder.")
+      @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE);
@@ -54,8 +80,23 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}")
-  public Response findTemplateInstance(@PathParam(PP_ID) String id, @QueryParam(QP_FORMAT) Optional<String> format) throws CedarException {
+  @Path("/{template_instance_id}")
+  @ApiOperation(value = "Get a template instance", notes = "Get a template instance.", response = TemplateInstance.class)
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "A template instance", response = TemplateInstance.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response findTemplateInstance(
+      @ApiParam(value = "Template Instance identifier. Example: https://repo.metadatacenter.org/template-instances/"
+          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @PathParam(PP_TEMPLATE_INSTANCE_ID) String id,
+      @ApiParam(value = "Output format type to display the content of the template instance. The allowed values are: "
+          + "'jsonld', 'json', 'rdf-nquad'.")
+      @QueryParam(QP_FORMAT) Optional<String> format) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
@@ -68,11 +109,24 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/{id}/download")
+  @Path("/{template_instance_id}/download")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML})
-  public Response downloadTemplateInstance(@PathParam(PP_ID) String id,
-                                           @HeaderParam("Accept") String acceptHeader,
-                                           @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
+  @ApiOperation(value = "Download a template instance", notes = "Download a template instance as JSON or YAML, selected "
+      + "via the Accept header.")
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "The template instance content as an attachment"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response downloadTemplateInstance(
+      @ApiParam(value = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id,
+      @ApiParam(value = "Desired output format: 'application/json' or 'application/yaml'.")
+      @HeaderParam("Accept") String acceptHeader,
+      @ApiParam(value = "When downloading YAML, produce a compact representation.")
+      @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
@@ -131,8 +185,19 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}/details")
-  public Response findTemplateInstanceDetails(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_instance_id}/details")
+  @ApiOperation(value = "Get details of a template instance", notes = "Get details of a template instance.",
+      tags = {"Template Instances", "Resource Details"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response findTemplateInstanceDetails(
+      @ApiParam(value = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
@@ -143,8 +208,23 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{id}")
-  public Response updateTemplateInstance(@PathParam(PP_ID) String id, @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
+  @Path("/{template_instance_id}")
+  @ApiOperation(value = "Update a template instance", notes = "Update a template instance.", response = TemplateInstance.class)
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "template_instance", value = "The template instance to be updated", required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance", paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "A template instance", response = TemplateInstance.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response updateTemplateInstance(
+      @ApiParam(value = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id,
+      @ApiParam(value = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
@@ -155,8 +235,18 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @DELETE
   @Timed
-  @Path("/{id}")
-  public Response deleteTemplateInstance(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_instance_id}")
+  @ApiOperation(value = "Delete a template instance", notes = "Delete a template instance.")
+  @ApiResponses({
+      @ApiResponse(code = 204, message = "Successful operation (no content)"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response deleteTemplateInstance(
+      @ApiParam(value = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
@@ -167,8 +257,19 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}/permissions")
-  public Response getTemplateInstancePermissions(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_instance_id}/permissions")
+  @ApiOperation(value = "Get permissions of a template instance", notes = "Get permissions of a template instance.",
+      tags = {"Template Instances", "Permissions"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response getTemplateInstancePermissions(
+      @ApiParam(value = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
@@ -179,8 +280,19 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{id}/permissions")
-  public Response updateTemplateInstancePermissions(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_instance_id}/permissions")
+  @ApiOperation(value = "Update permissions of a template instance", notes = "Update permissions of a template instance.",
+      tags = {"Template Instances", "Permissions"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response updateTemplateInstancePermissions(
+      @ApiParam(value = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
@@ -191,8 +303,19 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}/report")
-  public Response getTemplateInstanceReport(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_instance_id}/report")
+  @ApiOperation(value = "Get report of a template instance", notes = "Get report of a template instance.",
+      tags = {"Template Instances", "Resource Report"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response getTemplateInstanceReport(
+      @ApiParam(value = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);

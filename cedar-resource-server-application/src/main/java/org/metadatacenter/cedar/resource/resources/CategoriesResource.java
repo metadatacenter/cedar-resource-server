@@ -3,7 +3,16 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+import io.swagger.annotations.Authorization;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.resources.swaggermodel.Category;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
@@ -46,7 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_CATEGORY_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_LIMIT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_OFFSET;
 import static org.metadatacenter.id.CedarCategoryId.CATEGORY_ID_ROOT;
@@ -54,6 +63,7 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.*;
 
 @Path("/categories")
 @Produces(MediaType.APPLICATION_JSON)
+@Api(value = "/categories", tags = "Categories", authorizations = {@Authorization("api_key")})
 public class CategoriesResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CategoriesResource.class);
@@ -64,8 +74,20 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  public Response getAllCategories(@QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-                                   @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
+  @ApiOperation(value = "Get all categories", notes = "Get the list of all categories.", response = Category.class)
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "A category", response = Category.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response getAllCategories(
+      @ApiParam(value = "Paging limit")
+      @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
+      @ApiParam(value = "Paging offset")
+      @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
 
@@ -111,6 +133,19 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
+  @ApiOperation(value = "Create a category", notes = "Create a category.", code = 201, response = Category.class)
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "category", value = "The category to be created", required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.Category", paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 201, message = "A category", response = Category.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
   public Response createCategory() throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
@@ -166,6 +201,15 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/root")
+  @ApiOperation(value = "Get root category", notes = "Get root category.", response = Category.class)
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "A category", response = Category.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
   public Response findRootCategory() throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
@@ -186,8 +230,20 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}")
-  public Response findCategory(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{category_id}")
+  @ApiOperation(value = "Get a category", notes = "Get a category.", response = Category.class)
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "A category", response = Category.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response findCategory(
+      @ApiParam(value = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
+          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
@@ -210,7 +266,19 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/tree")
-  public Response findCategoryTree(@PathParam(PP_ID) String id) throws CedarException {
+  @ApiOperation(value = "Get category tree", notes = "Get category tree.", response = Category.class)
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "A category", response = Category.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response findCategoryTree(
+      @ApiParam(value = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
+          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
@@ -225,8 +293,24 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{id}")
-  public Response updateCategory(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{category_id}")
+  @ApiOperation(value = "Update a category", notes = "Update a category.", response = Category.class)
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "category", value = "The category to be updated", required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.Category", paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "A category", response = Category.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response updateCategory(
+      @ApiParam(value = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
+          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
@@ -280,8 +364,20 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @DELETE
   @Timed
-  @Path("/{id}")
-  public Response deleteCategory(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{category_id}")
+  @ApiOperation(value = "Delete a category", notes = "Delete a category.")
+  @ApiResponses({
+      @ApiResponse(code = 204, message = "Successful operation (no content)"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response deleteCategory(
+      @ApiParam(value = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
+          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
@@ -330,8 +426,21 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}/permissions")
-  public Response getCategoryPermissions(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{category_id}/permissions")
+  @ApiOperation(value = "Get permissions of a category", notes = "Get permissions of a category.",
+      tags = {"Categories", "Permissions"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response getCategoryPermissions(
+      @ApiParam(value = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
+          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.CATEGORY_READ);
@@ -349,8 +458,21 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{id}/permissions")
-  public Response updateCategoryPermissions(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{category_id}/permissions")
+  @ApiOperation(value = "Update permissions of a category", notes = "Update permissions of a category.",
+      tags = {"Categories", "Permissions"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response updateCategoryPermissions(
+      @ApiParam(value = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
+          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.CATEGORY_UPDATE);

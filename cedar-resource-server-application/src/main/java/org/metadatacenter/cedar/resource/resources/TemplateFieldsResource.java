@@ -3,6 +3,14 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+import io.swagger.annotations.Authorization;
 import org.apache.commons.codec.CharEncoding;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -10,6 +18,7 @@ import org.apache.http.util.EntityUtils;
 import org.metadatacenter.artifacts.model.core.Artifact;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
 import org.metadatacenter.artifacts.model.tools.YamlSerializer;
+import org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateField;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
@@ -29,12 +38,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
 
-import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_FIELD_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/template-fields")
 @Produces(MediaType.APPLICATION_JSON)
+@Api(value = "/template-fields", tags = "Template Fields", authorizations = {@Authorization("api_key")})
 public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   public TemplateFieldsResource(CedarConfig cedarConfig) {
@@ -43,7 +53,23 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  public Response createTemplateField(@QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
+  @ApiOperation(value = "Create a template field", notes = "Create a template field.", code = 201, response = TemplateField.class)
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "template_field", value = "The template field to be created", required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateField", paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 201, message = "A template field", response = TemplateField.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response createTemplateField(
+      @ApiParam(value = "Folder identifier. The artifact will be created in this folder. The user must have write "
+          + "access to the folder. If not provided, the artifact will be created in the user's home folder.")
+      @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_CREATE);
@@ -52,8 +78,20 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}")
-  public Response findTemplateField(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_field_id}")
+  @ApiOperation(value = "Get a template field", notes = "Get a template field.", response = TemplateField.class)
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "A template field", response = TemplateField.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response findTemplateField(
+      @ApiParam(value = "Template Field identifier. Example: https://repo.metadatacenter.org/template-fields/"
+          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
@@ -66,11 +104,24 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/{id}/download")
+  @Path("/{template_field_id}/download")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML})
-  public Response downloadTemplateField(@PathParam(PP_ID) String id,
-                                   @HeaderParam("Accept") String acceptHeader,
-                                   @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
+  @ApiOperation(value = "Download a template field", notes = "Download a template field as JSON or YAML, selected via "
+      + "the Accept header.")
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "The template field content as an attachment"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response downloadTemplateField(
+      @ApiParam(value = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id,
+      @ApiParam(value = "Desired output format: 'application/json' or 'application/yaml'.")
+      @HeaderParam("Accept") String acceptHeader,
+      @ApiParam(value = "When downloading YAML, produce a compact representation.")
+      @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
@@ -128,8 +179,19 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}/details")
-  public Response findTemplateFieldDetails(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_field_id}/details")
+  @ApiOperation(value = "Get details of a template field", notes = "Get details of a template field.",
+      tags = {"Template Fields", "Resource Details"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response findTemplateFieldDetails(
+      @ApiParam(value = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
@@ -140,8 +202,23 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{id}")
-  public Response updateTemplateField(@PathParam(PP_ID) String id, @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
+  @Path("/{template_field_id}")
+  @ApiOperation(value = "Update a template field", notes = "Update a template field.", response = TemplateField.class)
+  @ApiImplicitParams({
+      @ApiImplicitParam(name = "template_field", value = "The template field to be updated", required = true,
+          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateField", paramType = "body")
+  })
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "A template field", response = TemplateField.class),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response updateTemplateField(
+      @ApiParam(value = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id,
+      @ApiParam(value = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
@@ -152,8 +229,18 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @DELETE
   @Timed
-  @Path("/{id}")
-  public Response deleteTemplateField(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_field_id}")
+  @ApiOperation(value = "Delete a template field", notes = "Delete a template field.")
+  @ApiResponses({
+      @ApiResponse(code = 204, message = "Successful operation (no content)"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response deleteTemplateField(
+      @ApiParam(value = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_DELETE);
@@ -164,8 +251,19 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}/permissions")
-  public Response getTemplateFieldPermissions(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_field_id}/permissions")
+  @ApiOperation(value = "Get permissions of a template field", notes = "Get permissions of a template field.",
+      tags = {"Template Fields", "Permissions"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response getTemplateFieldPermissions(
+      @ApiParam(value = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
@@ -176,8 +274,19 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{id}/permissions")
-  public Response updateTemplateFieldPermissions(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_field_id}/permissions")
+  @ApiOperation(value = "Update permissions of a template field", notes = "Update permissions of a template field.",
+      tags = {"Template Fields", "Permissions"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response updateTemplateFieldPermissions(
+      @ApiParam(value = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
@@ -188,8 +297,19 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}/report")
-  public Response getTemplateFieldInstanceReport(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_field_id}/report")
+  @ApiOperation(value = "Get report of a template field", notes = "Get report of a template field.",
+      tags = {"Template Fields", "Resource Report", "Versioning"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response getTemplateFieldInstanceReport(
+      @ApiParam(value = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
@@ -200,8 +320,19 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{id}/versions")
-  public Response getTemplateFieldVersions(@PathParam(PP_ID) String id) throws CedarException {
+  @Path("/{template_field_id}/versions")
+  @ApiOperation(value = "Get a list of versions of a template field", notes = "Get a list of versions of a template field.",
+      tags = {"Template Fields", "Resource Report", "Versioning"})
+  @ApiResponses({
+      @ApiResponse(code = 200, message = "Successful operation"),
+      @ApiResponse(code = 400, message = "Bad request"),
+      @ApiResponse(code = 401, message = "Unauthorized"),
+      @ApiResponse(code = 403, message = "Forbidden"),
+      @ApiResponse(code = 404, message = "Not found"),
+      @ApiResponse(code = 500, message = "Internal server error")
+  })
+  public Response getTemplateFieldVersions(
+      @ApiParam(value = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
