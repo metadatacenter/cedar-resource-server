@@ -71,10 +71,13 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiParam(value = "Folder identifier. The artifact will be created in this folder. The user must have write "
           + "access to the folder. If not provided, the artifact will be created in the user's home folder.")
       @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
+      @ApiParam(value = "Not supported on write operations; write responses always render the full form.")
+      @QueryParam("compact") Optional<Boolean> compactParam,
       @ApiParam(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_CREATE);
+    rejectCompactOnWriteOperations(compactParam);
     String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.TEMPLATE);
     Response artifactResponse = executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, Optional.empty(), folderId, content);
     return negotiateArtifactResponse(artifactResponse, CedarResourceType.TEMPLATE);
@@ -226,6 +229,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
   public Response updateTemplate(
       @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
       @ApiParam(value = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
+      @ApiParam(value = "Not supported on write operations; write responses always render the full form.")
+      @QueryParam("compact") Optional<Boolean> compactParam,
       @ApiParam(hidden = true) String requestBody) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
@@ -233,6 +238,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
+    rejectCompactOnWriteOperations(compactParam);
     String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.TEMPLATE);
     Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.TEMPLATE, tid, folderId, content);
     return negotiateArtifactResponse(artifactResponse, CedarResourceType.TEMPLATE);

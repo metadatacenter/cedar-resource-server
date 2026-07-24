@@ -2090,6 +2090,12 @@
           "required" : false,
           "type" : "string"
         }, {
+          "name" : "compact",
+          "in" : "query",
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "required" : false,
+          "type" : "boolean"
+        }, {
           "in" : "body",
           "name" : "template_element",
           "description" : "The template element to be created",
@@ -2197,6 +2203,12 @@
           "description" : "Folder identifier.",
           "required" : false,
           "type" : "string"
+        }, {
+          "name" : "compact",
+          "in" : "query",
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "required" : false,
+          "type" : "boolean"
         }, {
           "in" : "body",
           "name" : "template_element",
@@ -2529,6 +2541,12 @@
           "required" : false,
           "type" : "string"
         }, {
+          "name" : "compact",
+          "in" : "query",
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "required" : false,
+          "type" : "boolean"
+        }, {
           "in" : "body",
           "name" : "template_field",
           "description" : "The template field to be created",
@@ -2636,6 +2654,12 @@
           "description" : "Folder identifier.",
           "required" : false,
           "type" : "string"
+        }, {
+          "name" : "compact",
+          "in" : "query",
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "required" : false,
+          "type" : "boolean"
         }, {
           "in" : "body",
           "name" : "template_field",
@@ -2968,6 +2992,12 @@
           "required" : false,
           "type" : "string"
         }, {
+          "name" : "compact",
+          "in" : "query",
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "required" : false,
+          "type" : "boolean"
+        }, {
           "in" : "body",
           "name" : "template_instance",
           "description" : "The template instance to be created",
@@ -3081,6 +3111,12 @@
           "description" : "Folder identifier.",
           "required" : false,
           "type" : "string"
+        }, {
+          "name" : "compact",
+          "in" : "query",
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "required" : false,
+          "type" : "boolean"
         }, {
           "in" : "body",
           "name" : "template_instance",
@@ -3374,6 +3410,12 @@
           "required" : false,
           "type" : "string"
         }, {
+          "name" : "compact",
+          "in" : "query",
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "required" : false,
+          "type" : "boolean"
+        }, {
           "in" : "body",
           "name" : "template",
           "description" : "The template to be created",
@@ -3526,6 +3568,12 @@
           "description" : "Folder identifier.",
           "required" : false,
           "type" : "string"
+        }, {
+          "name" : "compact",
+          "in" : "query",
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "required" : false,
+          "type" : "boolean"
         }, {
           "in" : "body",
           "name" : "template",

@@ -17,6 +17,7 @@ import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.*;
@@ -365,6 +366,21 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .build();
     } catch (Exception e) {
       throw new CedarProcessingException(e);
+    }
+  }
+
+  /**
+   * Rejects the compact query parameter on write operations. On GET and download it selects the
+   * lossy compact YAML rendering; on a write it can only signal a misunderstanding, since write
+   * responses always render the full form and compact bodies are rejected, so ignoring it
+   * silently would suggest it took effect.
+   */
+  protected void rejectCompactOnWriteOperations(Optional<Boolean> compactParam) throws CedarBadRequestException {
+    if (compactParam.isPresent()) {
+      throw new CedarBadRequestException(new CedarErrorPack()
+          .message("The compact parameter is not supported on write operations: write responses always render "
+              + "the full form, and the compact form can not be stored. "
+              + "See https://metadatacenter.readthedocs.io/en/latest/yaml-spec/minimal-and-full/"));
     }
   }
 
