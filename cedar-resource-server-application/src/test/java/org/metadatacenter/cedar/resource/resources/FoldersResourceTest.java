@@ -42,10 +42,13 @@ public class FoldersResourceTest {
   static {
     // Must run before the application rule boots the server, which reads the Neo4j env vars.
     // Alternate server ports, so the test instance never collides with a running dev server.
+    // Redis is redirected to a dead port as well: queue writes are best-effort, and this
+    // enforces that no endpoint under test ever depends on a live Redis
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "19007",
         "CEDAR_RESOURCE_ADMIN_PORT", "19107",
-        "CEDAR_RESOURCE_STOP_PORT", "19207"));
+        "CEDAR_RESOURCE_STOP_PORT", "19207",
+        "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 
   @ClassRule
