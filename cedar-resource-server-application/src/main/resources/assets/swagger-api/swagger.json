@@ -2080,7 +2080,7 @@
       "post" : {
         "tags" : [ "Template Elements" ],
         "summary" : "Create a template element",
-        "description" : "Create a template element. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: the compact form is a lossy read-time convenience, and submitting it silently regenerates the omitted content.",
+        "description" : "Create a template element. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplateElement",
         "produces" : [ "application/json", "application/x-yaml", "application/yaml" ],
         "parameters" : [ {
@@ -2182,7 +2182,7 @@
       "put" : {
         "tags" : [ "Template Elements" ],
         "summary" : "Update a template element",
-        "description" : "Update a template element. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: the compact form is a lossy read-time convenience, and submitting it silently regenerates the omitted content.",
+        "description" : "Update a template element. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "updateTemplateElement",
         "produces" : [ "application/json", "application/x-yaml", "application/yaml" ],
         "parameters" : [ {
@@ -2519,7 +2519,7 @@
       "post" : {
         "tags" : [ "Template Fields" ],
         "summary" : "Create a template field",
-        "description" : "Create a template field. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: the compact form is a lossy read-time convenience, and submitting it silently regenerates the omitted content.",
+        "description" : "Create a template field. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplateField",
         "produces" : [ "application/json", "application/x-yaml", "application/yaml" ],
         "parameters" : [ {
@@ -2621,7 +2621,7 @@
       "put" : {
         "tags" : [ "Template Fields" ],
         "summary" : "Update a template field",
-        "description" : "Update a template field. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: the compact form is a lossy read-time convenience, and submitting it silently regenerates the omitted content.",
+        "description" : "Update a template field. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "updateTemplateField",
         "produces" : [ "application/json", "application/x-yaml", "application/yaml" ],
         "parameters" : [ {
@@ -2958,7 +2958,7 @@
       "post" : {
         "tags" : [ "Template Instances" ],
         "summary" : "Create a template instance",
-        "description" : "Create a template instance. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: the compact form is a lossy read-time convenience, and submitting it silently regenerates the omitted content.",
+        "description" : "Create a template instance. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplateInstance",
         "produces" : [ "application/json", "application/x-yaml", "application/yaml" ],
         "parameters" : [ {
@@ -3066,7 +3066,7 @@
       "put" : {
         "tags" : [ "Template Instances" ],
         "summary" : "Update a template instance",
-        "description" : "Update a template instance. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: the compact form is a lossy read-time convenience, and submitting it silently regenerates the omitted content.",
+        "description" : "Update a template instance. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "updateTemplateInstance",
         "produces" : [ "application/json", "application/x-yaml", "application/yaml" ],
         "parameters" : [ {
@@ -3364,7 +3364,7 @@
       "post" : {
         "tags" : [ "Templates" ],
         "summary" : "Create a template",
-        "description" : "Create a template. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: the compact form is a lossy read-time convenience, and submitting it silently regenerates the omitted content.",
+        "description" : "Create a template. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplate",
         "produces" : [ "application/json", "application/x-yaml", "application/yaml" ],
         "parameters" : [ {
@@ -3511,7 +3511,7 @@
       "put" : {
         "tags" : [ "Templates" ],
         "summary" : "Update a template",
-        "description" : "Update a template. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: the compact form is a lossy read-time convenience, and submitting it silently regenerates the omitted content.",
+        "description" : "Update a template. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "updateTemplate",
         "produces" : [ "application/json", "application/x-yaml", "application/yaml" ],
         "parameters" : [ {

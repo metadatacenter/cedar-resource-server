@@ -87,14 +87,44 @@ public final class ArtifactYamlTranscoder {
   }
 
   /**
+   * The keys the system records about a stored artifact. The compact YAML form strips all of
+   * them while keeping the id; the minimal authoring form carries none of them and no id
+   * either. An id with none of these present is therefore the signature of compact input.
+   */
+  private static final List<String> SYSTEM_RECORDED_KEYS =
+      List.of("modelVersion", "version", "status", "createdOn", "createdBy", "modifiedOn", "modifiedBy");
+
+  /**
+   * Thrown when a YAML request body is the compact form, which is a lossy read-time convenience
+   * and can not be stored.
+   */
+  public static final class CompactYamlBodyException extends RuntimeException {
+    private CompactYamlBodyException(String message) {
+      super(message);
+    }
+  }
+
+  /**
    * Converts a YAML artifact serialization into the JSON Schema/JSON-LD form expected by the
    * artifact server. The YAML is parsed, read into the artifact model, and rendered as JSON.
+   *
+   * The compact form is rejected: it carries the artifact's id but strips the system-recorded
+   * keys, so storing it would silently regenerate that content. The minimal authoring form -
+   * no id, the system supplies the rest - and the full form both pass through.
    */
   public static String yamlToJsonString(String yamlContent, CedarResourceType resourceType) throws IOException {
     LinkedHashMap<String, Object> yamlMap =
         YAML_MAPPER.readValue(yamlContent, new TypeReference<LinkedHashMap<String, Object>>() {
         });
-    YamlArtifactReader reader = new YamlArtifactReader();
+    if (yamlMap.get("id") != null && SYSTEM_RECORDED_KEYS.stream().noneMatch(yamlMap::containsKey)) {
+      throw new CompactYamlBodyException("The YAML body appears to be the compact form: it carries an id but none "
+          + "of the system-recorded keys (version, status, modelVersion, provenance). The compact form is a lossy "
+          + "read-time convenience and can not be stored. Submit the full form, or omit the id to author minimally. "
+          + "See https://metadatacenter.readthedocs.io/en/latest/yaml-spec/minimal-and-full/");
+    }
+    // The lenient reader tolerates an absent modelVersion and defaults it, which the minimal
+    // authoring form relies on; compact input never reaches the reader, it is rejected above
+    YamlArtifactReader reader = new YamlArtifactReader(true);
     JsonArtifactRenderer renderer = new JsonArtifactRenderer();
     ObjectNode rendered = switch (resourceType) {
       case TEMPLATE -> renderer.renderTemplateSchemaArtifact(reader.readTemplateSchemaArtifact(yamlMap));

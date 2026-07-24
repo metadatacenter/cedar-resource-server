@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -114,6 +115,38 @@ public class ArtifactYamlTranscoderConversionTest {
   @Test(expected = Exception.class)
   public void malformedYamlIsRejected() throws IOException {
     ArtifactYamlTranscoder.yamlToJsonString("this is: [not: valid template yaml", CedarResourceType.TEMPLATE);
+  }
+
+  @Test
+  public void minimalYamlIsAccepted() throws IOException {
+    // The minimal authoring form: no id, the system supplies the rest
+    String minimal = "type: template\n"
+        + "name: Minimal Study\n"
+        + "children:\n"
+        + "- key: study-name\n"
+        + "  type: text-field\n"
+        + "  name: Study Name\n";
+
+    String json = ArtifactYamlTranscoder.yamlToJsonString(minimal, CedarResourceType.TEMPLATE);
+
+    JsonNode node = JsonMapper.MAPPER.readTree(json);
+    assertEquals("Minimal Study", node.get("schema:name").asText());
+  }
+
+  @Test
+  public void compactYamlIsRejected() throws IOException {
+    // The compact form keeps the id but strips the system-recorded keys; storing it would
+    // silently regenerate that content
+    JsonNode template = JsonMapper.MAPPER.readTree(readFixture("SimpleTemplate.json"));
+    String compact = ArtifactYamlTranscoder.jsonToYaml(template, CedarResourceType.TEMPLATE, true);
+
+    try {
+      ArtifactYamlTranscoder.yamlToJsonString(compact, CedarResourceType.TEMPLATE);
+      fail("The compact form must be rejected");
+    } catch (ArtifactYamlTranscoder.CompactYamlBodyException e) {
+      assertTrue(e.getMessage().contains("compact form"));
+      assertTrue(e.getMessage().contains("minimal-and-full"));
+    }
   }
 
   @Test(expected = Exception.class)

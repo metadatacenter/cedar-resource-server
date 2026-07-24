@@ -52,9 +52,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @Timed
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @ApiOperation(value = "Create a template field", notes = "Create a template field. The body can be JSON or YAML, "
-      + "selected via the Content-Type header. A YAML body must be the full, expanded form: the "
-      + "compact form is a lossy read-time convenience, and submitting it silently regenerates the "
-      + "omitted content.", code = 201, response = TemplateField.class)
+      + "selected via the Content-Type header. A YAML body must be the full or minimal form: the "
+      + "compact form is a lossy read-time convenience and is rejected.", code = 201, response = TemplateField.class)
   @ApiImplicitParams({
       @ApiImplicitParam(name = "template_field", value = "The template field to be created", required = true,
           dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateField", paramType = "body")
@@ -211,9 +210,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @Path("/{template_field_id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @ApiOperation(value = "Update a template field", notes = "Update a template field. The body can be JSON or YAML, "
-      + "selected via the Content-Type header. A YAML body must be the full, expanded form: the "
-      + "compact form is a lossy read-time convenience, and submitting it silently regenerates the "
-      + "omitted content.", response = TemplateField.class)
+      + "selected via the Content-Type header. A YAML body must be the full or minimal form: the "
+      + "compact form is a lossy read-time convenience and is rejected.", response = TemplateField.class)
   @ApiImplicitParams({
       @ApiImplicitParam(name = "template_field", value = "The template field to be updated", required = true,
           dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateField", paramType = "body")

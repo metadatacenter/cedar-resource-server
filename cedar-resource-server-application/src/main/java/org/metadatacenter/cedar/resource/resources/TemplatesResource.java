@@ -53,8 +53,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @Timed
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @ApiOperation(value = "Create a template", notes = "Create a template. The body can be JSON or YAML, selected via "
-      + "the Content-Type header. A YAML body must be the full, expanded form: the compact form is "
-      + "a lossy read-time convenience, and submitting it silently regenerates the omitted content.", code = 201, response = Template.class)
+      + "the Content-Type header. A YAML body must be the full or minimal form: the compact form is "
+      + "a lossy read-time convenience and is rejected.", code = 201, response = Template.class)
   @ApiImplicitParams({
       @ApiImplicitParam(name = "template", value = "The template to be created", required = true,
           dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.Template", paramType = "body")
@@ -209,8 +209,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @Path("/{template_id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @ApiOperation(value = "Update a template", notes = "Update a template. The body can be JSON or YAML, selected via "
-      + "the Content-Type header. A YAML body must be the full, expanded form: the compact form is "
-      + "a lossy read-time convenience, and submitting it silently regenerates the omitted content.", response = Template.class)
+      + "the Content-Type header. A YAML body must be the full or minimal form: the compact form is "
+      + "a lossy read-time convenience and is rejected.", response = Template.class)
   @ApiImplicitParams({
       @ApiImplicitParam(name = "template", value = "The template to be updated", required = true,
           dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.Template", paramType = "body")

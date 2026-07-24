@@ -378,6 +378,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     if (ArtifactYamlTranscoder.isYaml(httpHeaders.getMediaType())) {
       try {
         return ArtifactYamlTranscoder.yamlToJsonString(requestBody, resourceType);
+      } catch (ArtifactYamlTranscoder.CompactYamlBodyException e) {
+        throw new CedarBadRequestException(e.getMessage(), e);
       } catch (Exception e) {
         throw new CedarBadRequestException("There was an error converting the YAML request body to JSON", e);
       }
