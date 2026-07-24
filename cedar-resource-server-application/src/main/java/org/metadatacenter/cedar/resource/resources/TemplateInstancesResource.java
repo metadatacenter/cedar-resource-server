@@ -54,7 +54,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Timed
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @ApiOperation(value = "Create a template instance", notes = "Create a template instance. The body can be JSON or "
-      + "YAML, selected via the Content-Type header.", code = 201, response = TemplateInstance.class)
+      + "YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: "
+      + "the compact form is a lossy read-time convenience, and submitting it silently regenerates "
+      + "the omitted content.", code = 201, response = TemplateInstance.class)
   @ApiImplicitParams({
       @ApiImplicitParam(name = "template_instance", value = "The template instance to be created", required = true,
           dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance", paramType = "body")
@@ -218,7 +220,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Path("/{template_instance_id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @ApiOperation(value = "Update a template instance", notes = "Update a template instance. The body can be JSON or "
-      + "YAML, selected via the Content-Type header.", response = TemplateInstance.class)
+      + "YAML, selected via the Content-Type header. A YAML body must be the full, expanded form: "
+      + "the compact form is a lossy read-time convenience, and submitting it silently regenerates "
+      + "the omitted content.", response = TemplateInstance.class)
   @ApiImplicitParams({
       @ApiImplicitParam(name = "template_instance", value = "The template instance to be updated", required = true,
           dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance", paramType = "body")

@@ -1751,7 +1751,9 @@ paths:
       - "Template Elements"
       summary: "Create a template element"
       description: "Create a template element. The body can be JSON or YAML, selected\
-        \ via the Content-Type header."
+        \ via the Content-Type header. A YAML body must be the full, expanded form:\
+        \ the compact form is a lossy read-time convenience, and submitting it silently\
+        \ regenerates the omitted content."
       operationId: "createTemplateElement"
       produces:
       - "application/json"
@@ -1837,7 +1839,9 @@ paths:
       - "Template Elements"
       summary: "Update a template element"
       description: "Update a template element. The body can be JSON or YAML, selected\
-        \ via the Content-Type header."
+        \ via the Content-Type header. A YAML body must be the full, expanded form:\
+        \ the compact form is a lossy read-time convenience, and submitting it silently\
+        \ regenerates the omitted content."
       operationId: "updateTemplateElement"
       produces:
       - "application/json"
@@ -2110,7 +2114,9 @@ paths:
       - "Template Fields"
       summary: "Create a template field"
       description: "Create a template field. The body can be JSON or YAML, selected\
-        \ via the Content-Type header."
+        \ via the Content-Type header. A YAML body must be the full, expanded form:\
+        \ the compact form is a lossy read-time convenience, and submitting it silently\
+        \ regenerates the omitted content."
       operationId: "createTemplateField"
       produces:
       - "application/json"
@@ -2196,7 +2202,9 @@ paths:
       - "Template Fields"
       summary: "Update a template field"
       description: "Update a template field. The body can be JSON or YAML, selected\
-        \ via the Content-Type header."
+        \ via the Content-Type header. A YAML body must be the full, expanded form:\
+        \ the compact form is a lossy read-time convenience, and submitting it silently\
+        \ regenerates the omitted content."
       operationId: "updateTemplateField"
       produces:
       - "application/json"
@@ -2469,7 +2477,9 @@ paths:
       - "Template Instances"
       summary: "Create a template instance"
       description: "Create a template instance. The body can be JSON or YAML, selected\
-        \ via the Content-Type header."
+        \ via the Content-Type header. A YAML body must be the full, expanded form:\
+        \ the compact form is a lossy read-time convenience, and submitting it silently\
+        \ regenerates the omitted content."
       operationId: "createTemplateInstance"
       produces:
       - "application/json"
@@ -2561,7 +2571,9 @@ paths:
       - "Template Instances"
       summary: "Update a template instance"
       description: "Update a template instance. The body can be JSON or YAML, selected\
-        \ via the Content-Type header."
+        \ via the Content-Type header. A YAML body must be the full, expanded form:\
+        \ the compact form is a lossy read-time convenience, and submitting it silently\
+        \ regenerates the omitted content."
       operationId: "updateTemplateInstance"
       produces:
       - "application/json"
@@ -2801,7 +2813,9 @@ paths:
       - "Templates"
       summary: "Create a template"
       description: "Create a template. The body can be JSON or YAML, selected via\
-        \ the Content-Type header."
+        \ the Content-Type header. A YAML body must be the full, expanded form: the\
+        \ compact form is a lossy read-time convenience, and submitting it silently\
+        \ regenerates the omitted content."
       operationId: "createTemplate"
       produces:
       - "application/json"
@@ -2923,7 +2937,9 @@ paths:
       - "Templates"
       summary: "Update a template"
       description: "Update a template. The body can be JSON or YAML, selected via\
-        \ the Content-Type header."
+        \ the Content-Type header. A YAML body must be the full, expanded form: the\
+        \ compact form is a lossy read-time convenience, and submitting it silently\
+        \ regenerates the omitted content."
       operationId: "updateTemplate"
       produces:
       - "application/json"
