@@ -370,17 +370,25 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   /**
    * Prepares a POST/PUT request body for the artifact server, which stores JSON only. A body sent
-   * with Content-Type application/yaml is converted to JSON; any other body is passed through
-   * unchanged, preserving the previous behavior of treating it as JSON.
+   * with Content-Type application/yaml (or application/x-yaml) is converted to JSON. Any other
+   * body is treated as JSON exactly as CedarRequestBody did before: an empty body reads as an
+   * empty object, a malformed body is a bad request, and the body is forwarded in normalized form.
    */
   protected String artifactRequestBodyAsJson(String requestBody, CedarResourceType resourceType) throws CedarException {
-    if (!ArtifactYamlTranscoder.isYaml(httpHeaders.getMediaType())) {
-      return requestBody;
+    if (ArtifactYamlTranscoder.isYaml(httpHeaders.getMediaType())) {
+      try {
+        return ArtifactYamlTranscoder.yamlToJsonString(requestBody, resourceType);
+      } catch (Exception e) {
+        throw new CedarBadRequestException("There was an error converting the YAML request body to JSON", e);
+      }
+    }
+    if (requestBody == null || requestBody.isEmpty()) {
+      return "{}";
     }
     try {
-      return ArtifactYamlTranscoder.yamlToJsonString(requestBody, resourceType);
-    } catch (Exception e) {
-      throw new CedarBadRequestException("There was an error converting the YAML request body to JSON", e);
+      return JsonMapper.MAPPER.writeValueAsString(JsonMapper.MAPPER.readTree(requestBody));
+    } catch (JsonProcessingException e) {
+      throw new CedarBadRequestException("There was an error deserializing the request body", e);
     }
   }
 
