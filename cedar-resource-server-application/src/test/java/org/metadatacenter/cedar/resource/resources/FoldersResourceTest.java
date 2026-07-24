@@ -8,7 +8,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.metadatacenter.bridge.CedarDataServices;
-import org.metadatacenter.cedar.resource.EmbeddedCedarNeo4j;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -21,6 +20,7 @@ import org.metadatacenter.server.search.permission.SearchPermissionEnqueueServic
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
+import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
 
 import java.net.URI;
@@ -40,8 +40,12 @@ import java.util.Map;
 public class FoldersResourceTest {
 
   static {
-    // Must run before the application rule boots the server, which reads the Neo4j env vars
-    EmbeddedCedarNeo4j.startAndRedirectEnvironment();
+    // Must run before the application rule boots the server, which reads the Neo4j env vars.
+    // Alternate server ports, so the test instance never collides with a running dev server.
+    EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
+        "CEDAR_RESOURCE_HTTP_PORT", "19007",
+        "CEDAR_RESOURCE_ADMIN_PORT", "19107",
+        "CEDAR_RESOURCE_STOP_PORT", "19207"));
   }
 
   @ClassRule

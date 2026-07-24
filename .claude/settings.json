@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn test)",
+      "Bash(mvn test *)",
+      "Bash(mvn -q test *)",
+      "Bash(mvn -q compile *)",
+      "Bash(export CEDAR_HOME=/Users/martin/CEDAR)",
+      "Bash(git fetch *)",
+      "Bash(source /Users/martin/CEDAR/cedar-profile-native-develop.sh)",
+      "Bash(source /Users/martin/CEDAR/cedar-cli/cli.sh *)",
+      "Bash(source $CEDAR_HOME/cedar-cli/cli.sh *)",
+      "Bash(nc -z *)",
+      "mcp__bioportal-term__find_class",
+      "mcp__bioportal-term__find_value_set",
+      "mcp__bioportal-term__find_ontology",
+      "mcp__cedar-artifact__set_literal_field_value",
+      "mcp__cedar-artifact__add_field",
+      "mcp__cedar-artifact__create_field",
+      "mcp__cedar-artifact__create_template"
+    ]
+  }
+}
