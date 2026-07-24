@@ -58,4 +58,26 @@
 
   </dependencies>
 
+  <build>
+    <plugins>
+      <!--
+        The delta-finder tests are named TestTemplateNN, which the parent's surefire includes
+        (*Spec.java, *Test.java) do not match, so they were silently skipped by every build. The
+        Test*.java include picks them up; abstract base classes such as SimpleTemplateTest are
+        skipped by surefire automatically.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <includes>
+            <include>**/*Spec.java</include>
+            <include>**/*Test.java</include>
+            <include>**/Test*.java</include>
+          </includes>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
 </project>

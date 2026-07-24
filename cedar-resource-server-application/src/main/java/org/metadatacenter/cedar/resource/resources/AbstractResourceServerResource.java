@@ -12,6 +12,7 @@ import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
+import org.metadatacenter.cedar.resource.util.ArtifactYamlTranscoder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
@@ -63,10 +64,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -324,6 +327,94 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected Response executeResourceGetByProxyFromArtifactServer(CedarResourceType resourceType, String id, CedarRequestContext context) throws CedarProcessingException {
     return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(microserviceUrlUtil, response, resourceType, id, Optional.empty(), context);
+  }
+
+  // YAML content negotiation
+
+  protected Optional<MediaType> negotiatedArtifactResponseType() {
+    return ArtifactYamlTranscoder.negotiateResponseType(httpHeaders.getAcceptableMediaTypes());
+  }
+
+  /**
+   * Serves an artifact GET honoring the Accept header: JSON is proxied through from the artifact
+   * server as before; YAML is produced by converting the stored JSON on the fly. An Accept header
+   * matching neither supported type yields 406 Not Acceptable.
+   */
+  protected Response executeArtifactGetNegotiated(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<Boolean> compact) throws CedarException {
+    Optional<MediaType> responseType = negotiatedArtifactResponseType();
+    if (responseType.isEmpty()) {
+      return notAcceptableArtifactFormatResponse();
+    }
+    if (ArtifactYamlTranscoder.isJson(responseType.get())) {
+      return executeResourceGetByProxyFromArtifactServer(resourceType, id.getId(), context);
+    }
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
+    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
+    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    if (statusCode != HttpStatus.SC_OK) {
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      return generateStatusResponse(proxyResponse);
+    }
+    try {
+      String artifactSource = EntityUtils.toString(proxyResponse.getEntity(), CharEncoding.UTF_8);
+      JsonNode artifactNode = JsonMapper.MAPPER.readTree(artifactSource);
+      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compact.isPresent() && compact.get());
+      return CedarResponse.ok()
+          .type(responseType.get().toString())
+          .entity(yamlContent)
+          .build();
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
+  }
+
+  /**
+   * Prepares a POST/PUT request body for the artifact server, which stores JSON only. A body sent
+   * with Content-Type application/yaml is converted to JSON; any other body is passed through
+   * unchanged, preserving the previous behavior of treating it as JSON.
+   */
+  protected String artifactRequestBodyAsJson(String requestBody, CedarResourceType resourceType) throws CedarException {
+    if (!ArtifactYamlTranscoder.isYaml(httpHeaders.getMediaType())) {
+      return requestBody;
+    }
+    try {
+      return ArtifactYamlTranscoder.yamlToJsonString(requestBody, resourceType);
+    } catch (Exception e) {
+      throw new CedarBadRequestException("There was an error converting the YAML request body to JSON", e);
+    }
+  }
+
+  /**
+   * Applies Accept-header negotiation to a POST/PUT response. When the client asked for YAML and
+   * the response carries the artifact's JSON, the entity is re-rendered as YAML. Responses whose
+   * entity is not artifact JSON (errors, graph metadata) are returned unchanged.
+   */
+  protected Response negotiateArtifactResponse(Response jsonResponse, CedarResourceType resourceType) {
+    Optional<MediaType> responseType = negotiatedArtifactResponseType();
+    if (responseType.isEmpty() || ArtifactYamlTranscoder.isJson(responseType.get())) {
+      return jsonResponse;
+    }
+    if (Response.Status.Family.familyOf(jsonResponse.getStatus()) != Response.Status.Family.SUCCESSFUL
+        || !(jsonResponse.getEntity() instanceof JsonNode artifactNode)) {
+      return jsonResponse;
+    }
+    try {
+      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, false);
+      return Response.fromResponse(jsonResponse)
+          .entity(yamlContent)
+          .type(responseType.get())
+          .build();
+    } catch (Exception e) {
+      log.warn("The artifact could not be rendered as YAML; returning the JSON response", e);
+      return jsonResponse;
+    }
+  }
+
+  protected Response notAcceptableArtifactFormatResponse() {
+    return CedarResponse.notAcceptable()
+        .errorMessage("None of the media types in the Accept header can be produced")
+        .parameter("allowed media types", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML}))
+        .build();
   }
 
   protected Response getDetails(CedarRequestContext context, CedarArtifactId id) throws CedarException {

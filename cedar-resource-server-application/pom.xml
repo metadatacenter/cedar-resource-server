@@ -164,6 +164,21 @@
     <plugins>
 
       <!--
+        TestUtil.setEnv injects the fake CEDAR_* environment used by CedarConfigResourceTest via
+        reflection into java.lang.ProcessEnvironment and java.util.Collections$UnmodifiableMap.
+        JDK 17 blocks that reflection unless these java.base packages are opened to the test JVM;
+        without the opens the injection fails silently and the test only passes on machines where
+        the real CEDAR environment variables happen to be exported.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+        </configuration>
+      </plugin>
+
+      <!--
         Generates the OpenAPI/Swagger 2.0 spec from the JAX-RS resource annotations.
 
         Output goes to src/main/resources/assets/swagger-api/ (the committed location). The

@@ -1750,10 +1750,13 @@ paths:
       tags:
       - "Template Elements"
       summary: "Create a template element"
-      description: "Create a template element."
+      description: "Create a template element. The body can be JSON or YAML, selected\
+        \ via the Content-Type header."
       operationId: "createTemplateElement"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "folder_id"
         in: "query"
@@ -1794,16 +1797,24 @@ paths:
       tags:
       - "Template Elements"
       summary: "Get a template element"
-      description: "Get a template element."
+      description: "Get a template element as JSON or YAML, selected via the Accept\
+        \ header."
       operationId: "findTemplateElement"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "template_element_id"
         in: "path"
         description: "Template Element identifier. Example: https://repo.metadatacenter.org/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         required: true
         type: "string"
+      - name: "compact"
+        in: "query"
+        description: "When requesting YAML, produce a compact representation."
+        required: false
+        type: "boolean"
       responses:
         200:
           description: "A template element"
@@ -1825,10 +1836,13 @@ paths:
       tags:
       - "Template Elements"
       summary: "Update a template element"
-      description: "Update a template element."
+      description: "Update a template element. The body can be JSON or YAML, selected\
+        \ via the Content-Type header."
       operationId: "updateTemplateElement"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "template_element_id"
         in: "path"
@@ -2095,10 +2109,13 @@ paths:
       tags:
       - "Template Fields"
       summary: "Create a template field"
-      description: "Create a template field."
+      description: "Create a template field. The body can be JSON or YAML, selected\
+        \ via the Content-Type header."
       operationId: "createTemplateField"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "folder_id"
         in: "query"
@@ -2139,16 +2156,24 @@ paths:
       tags:
       - "Template Fields"
       summary: "Get a template field"
-      description: "Get a template field."
+      description: "Get a template field as JSON or YAML, selected via the Accept\
+        \ header."
       operationId: "findTemplateField"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "template_field_id"
         in: "path"
         description: "Template Field identifier. Example: https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         required: true
         type: "string"
+      - name: "compact"
+        in: "query"
+        description: "When requesting YAML, produce a compact representation."
+        required: false
+        type: "boolean"
       responses:
         200:
           description: "A template field"
@@ -2170,10 +2195,13 @@ paths:
       tags:
       - "Template Fields"
       summary: "Update a template field"
-      description: "Update a template field."
+      description: "Update a template field. The body can be JSON or YAML, selected\
+        \ via the Content-Type header."
       operationId: "updateTemplateField"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "template_field_id"
         in: "path"
@@ -2440,10 +2468,13 @@ paths:
       tags:
       - "Template Instances"
       summary: "Create a template instance"
-      description: "Create a template instance."
+      description: "Create a template instance. The body can be JSON or YAML, selected\
+        \ via the Content-Type header."
       operationId: "createTemplateInstance"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "folder_id"
         in: "query"
@@ -2484,10 +2515,13 @@ paths:
       tags:
       - "Template Instances"
       summary: "Get a template instance"
-      description: "Get a template instance."
+      description: "Get a template instance. YAML can be requested via the Accept\
+        \ header; the format query parameter takes precedence."
       operationId: "findTemplateInstance"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "template_instance_id"
         in: "path"
@@ -2500,6 +2534,11 @@ paths:
           \ The allowed values are: 'jsonld', 'json', 'rdf-nquad'."
         required: false
         type: "string"
+      - name: "compact"
+        in: "query"
+        description: "When requesting YAML, produce a compact representation."
+        required: false
+        type: "boolean"
       responses:
         200:
           description: "A template instance"
@@ -2521,10 +2560,13 @@ paths:
       tags:
       - "Template Instances"
       summary: "Update a template instance"
-      description: "Update a template instance."
+      description: "Update a template instance. The body can be JSON or YAML, selected\
+        \ via the Content-Type header."
       operationId: "updateTemplateInstance"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "template_instance_id"
         in: "path"
@@ -2758,10 +2800,13 @@ paths:
       tags:
       - "Templates"
       summary: "Create a template"
-      description: "Create a template."
+      description: "Create a template. The body can be JSON or YAML, selected via\
+        \ the Content-Type header."
       operationId: "createTemplate"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "folder_id"
         in: "query"
@@ -2839,16 +2884,23 @@ paths:
       tags:
       - "Templates"
       summary: "Get a template"
-      description: "Get a template."
+      description: "Get a template as JSON or YAML, selected via the Accept header."
       operationId: "findTemplate"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "template_id"
         in: "path"
         description: "Template identifier. Example: https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         required: true
         type: "string"
+      - name: "compact"
+        in: "query"
+        description: "When requesting YAML, produce a compact representation."
+        required: false
+        type: "boolean"
       responses:
         200:
           description: "A template"
@@ -2870,10 +2922,13 @@ paths:
       tags:
       - "Templates"
       summary: "Update a template"
-      description: "Update a template."
+      description: "Update a template. The body can be JSON or YAML, selected via\
+        \ the Content-Type header."
       operationId: "updateTemplate"
       produces:
       - "application/json"
+      - "application/x-yaml"
+      - "application/yaml"
       parameters:
       - name: "template_id"
         in: "path"

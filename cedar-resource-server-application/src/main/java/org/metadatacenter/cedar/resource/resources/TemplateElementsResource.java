@@ -2,7 +2,6 @@ package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
@@ -15,10 +14,8 @@ import org.apache.commons.codec.CharEncoding;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
-import org.metadatacenter.artifacts.model.core.Artifact;
-import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
-import org.metadatacenter.artifacts.model.tools.YamlSerializer;
 import org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateElement;
+import org.metadatacenter.cedar.resource.util.ArtifactYamlTranscoder;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
@@ -53,7 +50,9 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @ApiOperation(value = "Create a template element", notes = "Create a template element.", code = 201, response = TemplateElement.class)
+  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @ApiOperation(value = "Create a template element", notes = "Create a template element. The body can be JSON or "
+      + "YAML, selected via the Content-Type header.", code = 201, response = TemplateElement.class)
   @ApiImplicitParams({
       @ApiImplicitParam(name = "template_element", value = "The template element to be created", required = true,
           dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateElement", paramType = "body")
@@ -69,17 +68,22 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   public Response createTemplateElement(
       @ApiParam(value = "Folder identifier. The artifact will be created in this folder. The user must have write "
           + "access to the folder. If not provided, the artifact will be created in the user's home folder.")
-      @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
+      @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
+      @ApiParam(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_CREATE);
-    return executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.ELEMENT, Optional.empty(), folderId);
+    String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.ELEMENT);
+    Response artifactResponse = executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.ELEMENT, Optional.empty(), folderId, content);
+    return negotiateArtifactResponse(artifactResponse, CedarResourceType.ELEMENT);
   }
 
   @GET
   @Timed
   @Path("/{template_element_id}")
-  @ApiOperation(value = "Get a template element", notes = "Get a template element.", response = TemplateElement.class)
+  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @ApiOperation(value = "Get a template element", notes = "Get a template element as JSON or YAML, selected via the "
+      + "Accept header.", response = TemplateElement.class)
   @ApiResponses({
       @ApiResponse(code = 200, message = "A template element", response = TemplateElement.class),
       @ApiResponse(code = 400, message = "Bad request"),
@@ -91,14 +95,16 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   public Response findTemplateElement(
       @ApiParam(value = "Template Element identifier. Example: https://repo.metadatacenter.org/template-elements/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
+      @PathParam(PP_TEMPLATE_ELEMENT_ID) String id,
+      @ApiParam(value = "When requesting YAML, produce a compact representation.")
+      @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
     CedarElementId eid = CedarElementId.build(id);
 
     userMustHaveReadAccessToArtifact(c, eid);
-    return executeResourceGetByProxyFromArtifactServer(CedarResourceType.ELEMENT, id, c);
+    return executeArtifactGetNegotiated(c, CedarResourceType.ELEMENT, eid, compactParam);
   }
 
   @POST
@@ -158,9 +164,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     // Handle YAML
     if (acceptHeader.contains(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)) {
       String fileName = elementUUID + ".yaml";
-      JsonArtifactReader reader = new JsonArtifactReader();
-      Artifact modelArtifact = reader.readElementSchemaArtifact((ObjectNode) elementNode);
-      String content = YamlSerializer.getYAML(modelArtifact, compactParam.isPresent() && compactParam.get(), true);
+      String content = ArtifactYamlTranscoder.jsonToYaml(elementNode, CedarResourceType.ELEMENT, compactParam.isPresent() && compactParam.get());
       return CedarResponse.ok()
           .type(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)
           .contentDispositionAttachment(fileName)
@@ -202,7 +206,9 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{template_element_id}")
-  @ApiOperation(value = "Update a template element", notes = "Update a template element.", response = TemplateElement.class)
+  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @ApiOperation(value = "Update a template element", notes = "Update a template element. The body can be JSON or "
+      + "YAML, selected via the Content-Type header.", response = TemplateElement.class)
   @ApiImplicitParams({
       @ApiImplicitParam(name = "template_element", value = "The template element to be updated", required = true,
           dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateElement", paramType = "body")
@@ -217,13 +223,16 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   })
   public Response updateTemplateElement(
       @ApiParam(value = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id,
-      @ApiParam(value = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId) throws CedarException {
+      @ApiParam(value = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
+      @ApiParam(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
     CedarElementId eid = CedarElementId.build(id);
 
-    return executeResourceCreateOrUpdateViaPut(c, CedarResourceType.ELEMENT, eid, folderId);
+    String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.ELEMENT);
+    Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.ELEMENT, eid, folderId, content);
+    return negotiateArtifactResponse(artifactResponse, CedarResourceType.ELEMENT);
   }
 
   @DELETE

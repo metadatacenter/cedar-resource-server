@@ -24,6 +24,8 @@ public class CedarConfigResourceTest {
 
     env.put(CedarEnvironmentVariable.CEDAR_ADMIN_USER_API_KEY.getName(), "1234");
 
+    env.put(CedarEnvironmentVariable.CEDAR_CADSR_ONTOLOGIES_FOLDER.getName(), "/tmp/cadsr-ontologies");
+
     env.put(CedarEnvironmentVariable.CEDAR_NEO4J_USER_NAME.getName(), "neo4j");
     env.put(CedarEnvironmentVariable.CEDAR_NEO4J_USER_PASSWORD.getName(), "password");
     env.put(CedarEnvironmentVariable.CEDAR_NEO4J_HOST.getName(), "127.0.0.1");
@@ -46,13 +48,16 @@ public class CedarConfigResourceTest {
         "{\\\"caDSR\\\":[\\\"https://repo.metadatacenter.orgx/folders/c3a7b03c-87bb-49c4-b311-2eb1bd398c4e\\\"]}");
 
     env.put(CedarEnvironmentVariable.CEDAR_OPENSEARCH_HOST.getName(), "127.0.0.1");
+    env.put(CedarEnvironmentVariable.CEDAR_OPENSEARCH_REST_PORT.getName(), "9200");
     env.put(CedarEnvironmentVariable.CEDAR_OPENSEARCH_TRANSPORT_PORT.getName(), "9300");
 
     env.put(CedarEnvironmentVariable.CEDAR_RESOURCE_HTTP_PORT.getName(), "9007");
     env.put(CedarEnvironmentVariable.CEDAR_RESOURCE_ADMIN_PORT.getName(), "9107");
     env.put(CedarEnvironmentVariable.CEDAR_RESOURCE_STOP_PORT.getName(), "9207");
 
+    env.put(CedarEnvironmentVariable.CEDAR_ARTIFACT_SERVER_HOST.getName(), "127.0.0.1");
     env.put(CedarEnvironmentVariable.CEDAR_ARTIFACT_HTTP_PORT.getName(), "9001");
+    env.put(CedarEnvironmentVariable.CEDAR_USER_SERVER_HOST.getName(), "127.0.0.1");
     env.put(CedarEnvironmentVariable.CEDAR_USER_HTTP_PORT.getName(), "9005");
 
     TestUtil.setEnv(env);
