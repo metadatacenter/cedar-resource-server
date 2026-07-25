@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.artifact;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.commons.lang.CharEncoding;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
@@ -15,6 +14,7 @@ import org.metadatacenter.util.json.JsonMapper;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Response;
+import java.nio.charset.StandardCharsets;
 
 public class ArtifactServerUtil {
 
@@ -27,7 +27,7 @@ public class ArtifactServerUtil {
         ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       }
       HttpEntity entity = proxyResponse.getEntity();
-      return EntityUtils.toString(entity, CharEncoding.UTF_8);
+      return EntityUtils.toString(entity, StandardCharsets.UTF_8);
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
@@ -42,7 +42,7 @@ public class ArtifactServerUtil {
     if (entity != null) {
       JsonNode responseNode = null;
       try {
-        String responseString = EntityUtils.toString(entity, CharEncoding.UTF_8);
+        String responseString = EntityUtils.toString(entity, StandardCharsets.UTF_8);
         responseNode = JsonMapper.MAPPER.readTree(responseString);
       } catch (Exception e) {
         Response.status(statusCode).build();

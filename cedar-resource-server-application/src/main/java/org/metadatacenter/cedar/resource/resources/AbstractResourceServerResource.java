@@ -3,7 +3,6 @@ package org.metadatacenter.cedar.resource.resources;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.commons.lang.CharEncoding;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -70,6 +69,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -107,7 +107,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static <T extends FileSystemResource> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz) throws CedarProcessingException {
     T resource = null;
     try {
-      String responseString = EntityUtils.toString(proxyResponse.getEntity(), CharEncoding.UTF_8);
+      String responseString = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
       resource = JsonMapper.MAPPER.readValue(responseString, klazz);
     } catch (IOException e) {
       throw new CedarProcessingException(e);
@@ -205,7 +205,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         // artifact was created
         HttpEntity templateProxyResponseEntity = templateProxyResponse.getEntity();
         if (templateProxyResponseEntity != null) {
-          String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity, CharEncoding.UTF_8);
+          String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity, StandardCharsets.UTF_8);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
           String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
@@ -357,7 +357,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       return generateStatusResponse(proxyResponse);
     }
     try {
-      String artifactSource = EntityUtils.toString(proxyResponse.getEntity(), CharEncoding.UTF_8);
+      String artifactSource = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
       JsonNode artifactNode = JsonMapper.MAPPER.readTree(artifactSource);
       String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compact.isPresent() && compact.get());
       return CedarResponse.ok()
@@ -515,14 +515,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
       int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
       if (statusCode != HttpConstants.CREATED && statusCode != HttpConstants.OK) {
-        String templateProxyResponseContent = EntityUtils.toString(templateProxyResponse.getEntity(), CharEncoding.UTF_8);
+        String templateProxyResponseContent = EntityUtils.toString(templateProxyResponse.getEntity(), StandardCharsets.UTF_8);
         return CedarResponse.status(CedarResponseStatus.fromStatusCode(statusCode)).entity(templateProxyResponseContent).build();
       }
 
       // artifact was updated
       HttpEntity templateEntity = templateProxyResponse.getEntity();
       if (templateEntity != null) {
-        String templateEntityContent = EntityUtils.toString(templateEntity, CharEncoding.UTF_8);
+        String templateEntityContent = EntityUtils.toString(templateEntity, StandardCharsets.UTF_8);
         JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
 
         String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue().trim();
