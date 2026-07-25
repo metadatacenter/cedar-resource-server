@@ -114,8 +114,8 @@ public class FoldersResourceTest {
   @Test
   public void homeFolderIsHiddenFromOtherUsers() throws Exception {
     HttpResponse<String> response = request("GET", "/folders/" + encode(homeFolderId), null, authHeaderUser2);
-    // Node-level access denial is reported as unauthorized in CEDAR, not forbidden
-    Assert.assertEquals(401, response.statusCode());
+    // The requester is authenticated but denied by the folder's ACL: forbidden, not unauthorized
+    Assert.assertEquals(403, response.statusCode());
     Assert.assertTrue(response.body().contains("You do not have read access to the folder"));
   }
 
@@ -148,10 +148,8 @@ public class FoldersResourceTest {
     HttpResponse<String> deleted = request("DELETE", "/folders/" + encode(folderId), null, authHeaderUser1);
     Assert.assertEquals(204, deleted.statusCode());
 
-    // The permission check runs before the existence check, so a deleted folder reads as
-    // "no access" (unauthorized), not as not-found
     HttpResponse<String> gone = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
-    Assert.assertEquals(401, gone.statusCode());
+    Assert.assertEquals(404, gone.statusCode());
   }
 
   @Test

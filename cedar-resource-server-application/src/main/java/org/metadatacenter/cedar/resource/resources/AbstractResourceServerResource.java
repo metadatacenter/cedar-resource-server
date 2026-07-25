@@ -670,10 +670,15 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return Response.noContent().build();
   }
 
+  // The permission reader reports "no access" for a node that does not exist, so on a denial the
+  // existence check must run first: a missing node is 404, a present-but-denied node is 403. The
+  // category helpers below follow the same order.
+
   protected void userMustHaveReadAccessToFolder(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
     ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
     boolean hasReadAccess = permissionSession.userHasReadAccessToResource(folderId);
     if (!hasReadAccess) {
+      folderMustExist(context, folderId);
       throw new CedarPermissionException("You do not have read access to the folder")
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
           .parameter("folderId", folderId);
@@ -684,6 +689,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
     boolean hasWriteAccess = permissionSession.userHasWriteAccessToResource(folderId);
     if (!hasWriteAccess) {
+      folderMustExist(context, folderId);
       throw new CedarPermissionException("You do not have write access to the folder")
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
           .parameter("folderId", folderId);
@@ -694,6 +700,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
     boolean hasReadAccess = permissionSession.userHasReadAccessToResource(artifactId);
     if (!hasReadAccess) {
+      artifactMustExist(context, artifactId);
       throw new CedarPermissionException("You do not have read access to the artifact")
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_ARTIFACT)
           .parameter("resourceId", artifactId);
@@ -704,8 +711,27 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
     boolean hasWriteAccess = permissionSession.userHasWriteAccessToResource(artifactId);
     if (!hasWriteAccess) {
+      artifactMustExist(context, artifactId);
       throw new CedarPermissionException("You do not have write access to the artifact")
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_ARTIFACT)
+          .parameter("resourceId", artifactId);
+    }
+  }
+
+  private void folderMustExist(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    if (folderSession.findFolderById(folderId) == null) {
+      throw new CedarObjectNotFoundException("Folder not found by id")
+          .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+          .parameter("folderId", folderId);
+    }
+  }
+
+  private void artifactMustExist(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    if (folderSession.findArtifactById(artifactId) == null) {
+      throw new CedarObjectNotFoundException("Artifact not found by id")
+          .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
           .parameter("resourceId", artifactId);
     }
   }
