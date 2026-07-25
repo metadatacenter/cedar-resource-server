@@ -1,7 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -34,22 +34,24 @@ public class ArtifactResourceSurfaceSnapshotTest {
     if (Boolean.getBoolean(REGENERATE_PROPERTY)) {
       Files.createDirectories(SNAPSHOT_SOURCE_FILE.getParent());
       Files.writeString(SNAPSHOT_SOURCE_FILE, current, StandardCharsets.UTF_8);
-      Assert.fail("Regenerated the surface snapshot at " + SNAPSHOT_SOURCE_FILE.toAbsolutePath()
+      Assertions.fail("Regenerated the surface snapshot at " + SNAPSHOT_SOURCE_FILE.toAbsolutePath()
           + ". Diff it against git, make sure every surface change is intentional, then rerun without -D"
           + REGENERATE_PROPERTY + "=true.");
     }
 
     String expected;
     try (InputStream in = getClass().getResourceAsStream(SNAPSHOT_RESOURCE)) {
-      Assert.assertNotNull("The surface snapshot " + SNAPSHOT_RESOURCE + " is missing from the test resources. "
-          + "Generate it deliberately with -D" + REGENERATE_PROPERTY + "=true and commit it.", in);
+      Assertions.assertNotNull(in,
+          "The surface snapshot " + SNAPSHOT_RESOURCE + " is missing from the test resources. "
+          + "Generate it deliberately with -D" + REGENERATE_PROPERTY + "=true and commit it.");
       expected = new String(in.readAllBytes(), StandardCharsets.UTF_8);
     }
 
-    Assert.assertEquals("The declared REST surface of the artifact-type resources no longer matches the "
+    Assertions.assertEquals(expected, current,
+        "The declared REST surface of the artifact-type resources no longer matches the "
         + "checked-in snapshot (" + SNAPSHOT_RESOURCE + "). If the change is intentional, regenerate the "
         + "snapshot with -D" + REGENERATE_PROPERTY + "=true, diff it against git, and commit the new "
-        + "snapshot together with the resource change.", expected, current);
+        + "snapshot together with the resource change.");
   }
 
 }

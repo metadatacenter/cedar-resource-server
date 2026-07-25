@@ -1,12 +1,12 @@
 package org.metadatacenter.cedar.deltafinder;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.deltafinder.change.Change;
 import org.metadatacenter.cedar.deltafinder.change.OrderChange;
 
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestTemplate10 extends SimpleTemplateTest {
 
@@ -18,7 +18,7 @@ public class TestTemplate10 extends SimpleTemplateTest {
     List<Change> nonDestructive = delta.getNonDestructiveChanges();
 
     // Assert no destructive changes
-    assertTrue("Should not contain destructive changes", destructive.isEmpty());
+    assertTrue(destructive.isEmpty(), "Should not contain destructive changes");
 
     // Assert there is exactly one non-destructive OrderChange
     assertEquals(1, nonDestructive.size());

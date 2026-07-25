@@ -1,11 +1,11 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
-import io.dropwizard.testing.junit.DropwizardAppRule;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
 public class ArtifactRoutesRespondTest {
 
   static {
-    // Must run before the application rule boots the server. Alternate ports, distinct from the
+    // Must run before the test support boots the server. Alternate ports, distinct from the
     // dev server and from the other booting test classes; Redis on a dead port, since queue
     // writes are best-effort.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
@@ -50,9 +50,8 @@ public class ArtifactRoutesRespondTest {
         "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 
-  @ClassRule
-  public static final DropwizardAppRule<ResourceServerConfiguration> SERVER =
-      new DropwizardAppRule<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
+  public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
+      new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
 
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
@@ -71,12 +70,18 @@ public class ArtifactRoutesRespondTest {
     }
   }
 
-  @BeforeClass
+  @BeforeAll
   public static void oneTimeSetUp() throws Exception {
+    SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
     CedarConfig cedarConfig = CedarConfig.getInstance(environment);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
+  }
+
+  @AfterAll
+  public static void oneTimeTearDown() {
+    SERVER.after();
   }
 
   @Test
@@ -109,7 +114,7 @@ public class ArtifactRoutesRespondTest {
       }
     }
 
-    Assert.assertEquals("Route responses diverged from the pinned expectations:\n" + failures, 0, failures.length());
+    Assertions.assertEquals(0, failures.length(), "Route responses diverged from the pinned expectations:\n" + failures);
   }
 
   private int probe(ArtifactResourceSurface.Endpoint endpoint) throws Exception {

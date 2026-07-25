@@ -3,7 +3,7 @@ package org.metadatacenter.cedar.deltafinder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.junit.Before;
+import org.junit.jupiter.api.BeforeEach;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
 
@@ -13,7 +13,7 @@ abstract public class SimpleTemplateTest {
 
   protected ObjectMapper objectMapper;
 
-  @Before
+  @BeforeEach
   public void setEnvironment() {
     objectMapper = new ObjectMapper();
   }

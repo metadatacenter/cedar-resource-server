@@ -1,11 +1,11 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
-import io.dropwizard.testing.junit.DropwizardAppRule;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -28,7 +28,7 @@ import java.util.Map;
 public class TemplatesResourceWriteRejectionTest {
 
   static {
-    // Must run before the application rule boots the server. Alternate ports, so the test
+    // Must run before the test support boots the server. Alternate ports, so the test
     // instance never collides with a running dev server; Redis on a dead port, since queue
     // writes are best-effort.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
@@ -38,21 +38,26 @@ public class TemplatesResourceWriteRejectionTest {
         "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 
-  @ClassRule
-  public static final DropwizardAppRule<ResourceServerConfiguration> SERVER =
-      new DropwizardAppRule<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
+  public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
+      new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
 
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
   private static String authHeaderUser1;
 
-  @BeforeClass
+  @BeforeAll
   public static void oneTimeSetUp() throws Exception {
+    SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
     CedarConfig cedarConfig = CedarConfig.getInstance(environment);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     authHeaderUser1 = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
+  }
+
+  @AfterAll
+  public static void oneTimeTearDown() {
+    SERVER.after();
   }
 
   private HttpResponse<String> post(String query, String body, String contentType) throws Exception {
@@ -68,14 +73,14 @@ public class TemplatesResourceWriteRejectionTest {
   @Test
   public void compactParameterIsRejectedOnWrite() throws Exception {
     HttpResponse<String> response = post("?compact=true", "type: template\nname: X\n", "application/yaml");
-    Assert.assertEquals(400, response.statusCode());
-    Assert.assertTrue(response.body().contains("not supported on write operations"));
+    Assertions.assertEquals(400, response.statusCode());
+    Assertions.assertTrue(response.body().contains("not supported on write operations"));
   }
 
   @Test
   public void compactParameterIsRejectedOnWriteEvenWhenFalse() throws Exception {
     HttpResponse<String> response = post("?compact=false", "type: template\nname: X\n", "application/yaml");
-    Assert.assertEquals(400, response.statusCode());
+    Assertions.assertEquals(400, response.statusCode());
   }
 
   @Test
@@ -89,8 +94,8 @@ public class TemplatesResourceWriteRejectionTest {
         + "  type: text-field\n"
         + "  name: Study Name\n";
     HttpResponse<String> response = post("", compactBody, "application/yaml");
-    Assert.assertEquals(400, response.statusCode());
-    Assert.assertTrue(response.body().contains("compact form"));
+    Assertions.assertEquals(400, response.statusCode());
+    Assertions.assertTrue(response.body().contains("compact form"));
   }
 
 }

@@ -1,7 +1,7 @@
 package org.metadatacenter.cedar.resource.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.util.json.JsonMapper;
 
@@ -9,10 +9,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Round-trip tests for the YAML/JSON conversion of ArtifactYamlTranscoder. The fixtures are copies
@@ -23,7 +24,7 @@ public class ArtifactYamlTranscoderConversionTest {
 
   private String readFixture(String name) throws IOException {
     try (InputStream is = getClass().getResourceAsStream("/artifacts/" + name)) {
-      assertNotNull("Missing test fixture: " + name, is);
+      assertNotNull(is, "Missing test fixture: " + name);
       return new String(is.readAllBytes(), StandardCharsets.UTF_8);
     }
   }
@@ -38,8 +39,8 @@ public class ArtifactYamlTranscoderConversionTest {
     assertEquals("https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c723",
         node.get("@id").asText());
     assertEquals("Simple Template", node.get("schema:name").asText());
-    assertTrue("The JSON Schema form should carry a properties object", node.has("properties"));
-    assertTrue("The JSON-LD form should carry a context", node.has("@context"));
+    assertTrue(node.has("properties"), "The JSON Schema form should carry a properties object");
+    assertTrue(node.has("@context"), "The JSON-LD form should carry a context");
   }
 
   @Test
@@ -112,9 +113,10 @@ public class ArtifactYamlTranscoderConversionTest {
     assertTrue(compact.length() < full.length());
   }
 
-  @Test(expected = Exception.class)
-  public void malformedYamlIsRejected() throws IOException {
-    ArtifactYamlTranscoder.yamlToJsonString("this is: [not: valid template yaml", CedarResourceType.TEMPLATE);
+  @Test
+  public void malformedYamlIsRejected() {
+    assertThrows(Exception.class,
+        () -> ArtifactYamlTranscoder.yamlToJsonString("this is: [not: valid template yaml", CedarResourceType.TEMPLATE));
   }
 
   @Test
@@ -149,10 +151,10 @@ public class ArtifactYamlTranscoderConversionTest {
     }
   }
 
-  @Test(expected = Exception.class)
+  @Test
   public void yamlOfTheWrongArtifactTypeIsRejected() throws IOException {
     String yaml = readFixture("SimpleTemplate.yaml");
-    ArtifactYamlTranscoder.yamlToJsonString(yaml, CedarResourceType.FIELD);
+    assertThrows(Exception.class, () -> ArtifactYamlTranscoder.yamlToJsonString(yaml, CedarResourceType.FIELD));
   }
 
 }
