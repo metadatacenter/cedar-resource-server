@@ -195,23 +195,16 @@
     <plugins>
 
       <!--
-        TestUtil.setEnv injects the fake CEDAR_* environment used by CedarConfigResourceTest via
-        reflection into java.lang.ProcessEnvironment and java.util.Collections$UnmodifiableMap.
-        JDK 17 blocks that reflection unless these java.base packages are opened to the test JVM;
-        without the opens the injection fails silently and the test only passes on machines where
-        the real CEDAR environment variables happen to be exported.
+        The tests redirect the CEDAR environment variables (embedded Neo4j, alternate server
+        ports) through a CedarEnvironmentSource override instead of reflective environment
+        rewriting, so no add-opens flags are needed and the test classes share a JVM
+        (reuseForks true): CedarConfig.getInstance rebuilds whenever the override changes.
       -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <argLine>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
-          <!--
-            Each test class runs in its own JVM: CedarConfig is a singleton built from the
-            environment on first use, and the embedded-Neo4j tests must redirect the environment
-            before it is built.
-          -->
-          <reuseForks>false</reuseForks>
+          <reuseForks>true</reuseForks>
         </configuration>
       </plugin>
 
