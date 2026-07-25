@@ -240,10 +240,13 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           }
         }
       } catch (Exception e) {
-        log.error("Error while publishing artifact: " + e.getMessage());
+        log.error("Error while publishing the artifact", e);
       }
     }
-    return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
+    return CedarResponse.internalServerError()
+        .errorMessage("There was an error while publishing the artifact")
+        .parameter("id", aid)
+        .build();
   }
 
   private void createCopyOfInstancesWithNewTemplate(CedarRequestContext context, CedarTemplateId oldId,
@@ -466,10 +469,13 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           }
         }
       } catch (Exception e) {
-        e.printStackTrace();
+        log.error("Error while creating the draft version of the artifact", e);
       }
     }
-    return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
+    return CedarResponse.internalServerError()
+        .errorMessage("There was an error while creating the draft version of the artifact")
+        .parameter("id", aid)
+        .build();
   }
 
   @POST
@@ -543,7 +549,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         throw new CedarObjectNotFoundException(tid.getId());
       }
     }
-    return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
+    return CedarResponse.internalServerError()
+        .errorMessage("There was an error while checking the template for update")
+        .parameter("id", tid)
+        .build();
   }
 
   @POST
@@ -619,6 +628,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         throw new CedarObjectNotFoundException(tid.getId());
       }
     }
-    return Response.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
+    return CedarResponse.internalServerError()
+        .errorMessage("There was an error while publishing the template and creating its draft")
+        .parameter("id", tid)
+        .build();
   }
 }
