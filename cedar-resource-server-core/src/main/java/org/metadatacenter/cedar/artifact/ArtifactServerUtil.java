@@ -12,8 +12,8 @@ import org.metadatacenter.server.url.MicroserviceUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
-import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.core.Response;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.ws.rs.core.Response;
 import java.nio.charset.StandardCharsets;
 
 public class ArtifactServerUtil {

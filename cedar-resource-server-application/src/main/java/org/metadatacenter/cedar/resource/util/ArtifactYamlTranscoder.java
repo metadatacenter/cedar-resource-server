@@ -13,7 +13,7 @@ import org.metadatacenter.artifacts.model.tools.YamlSerializer;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.util.json.JsonMapper;
 
-import javax.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MediaType;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;

@@ -2,7 +2,7 @@ package org.metadatacenter.cedar.resource.util;
 
 import org.junit.jupiter.api.Test;
 
-import javax.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MediaType;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
