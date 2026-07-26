@@ -3,14 +3,15 @@ package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.commons.codec.CharEncoding;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -43,7 +44,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/templates")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/templates", tags = "Templates", authorizations = {@Authorization("api_key")})
+@Tag(name = "Templates")
+@SecurityRequirement(name = "api_key")
 public class TemplatesResource extends AbstractResourceServerResource {
 
   public TemplatesResource(CedarConfig cedarConfig) {
@@ -53,28 +55,25 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
-  @ApiOperation(value = "Create a template", notes = "Create a template. The body can be JSON or YAML, selected via "
+  @Operation(summary = "Create a template", description = "Create a template. The body can be JSON or YAML, selected via "
       + "the Content-Type header. A YAML body must be the full or minimal form: the compact form is "
-      + "a lossy read-time convenience and is rejected.", code = 201, response = Template.class)
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "template", value = "The template to be created", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.Template", paramType = "body")
-  })
+      + "a lossy read-time convenience and is rejected.")
+  @RequestBody(description = "The template to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Template.class)))
   @ApiResponses({
-      @ApiResponse(code = 201, message = "A template", response = Template.class),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "201", description = "A template", content = @Content(schema = @Schema(implementation = Template.class))),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response createTemplate(
-      @ApiParam(value = "Folder identifier. The artifact will be created in this folder. The user must have write "
+      @Parameter(description = "Folder identifier. The artifact will be created in this folder. The user must have write "
           + "access to the folder. If not provided, the artifact will be created in the user's home folder.")
       @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
-      @ApiParam(value = "Not supported on write operations; write responses always render the full form.")
+      @Parameter(description = "Not supported on write operations; write responses always render the full form.")
       @QueryParam("compact") Optional<Boolean> compactParam,
-      @ApiParam(hidden = true) String requestBody) throws CedarException {
+      @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_CREATE);
@@ -88,21 +87,20 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{template_id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
-  @ApiOperation(value = "Get a template", notes = "Get a template as JSON or YAML, selected via the Accept header.",
-      response = Template.class)
+  @Operation(summary = "Get a template", description = "Get a template as JSON or YAML, selected via the Accept header.")
   @ApiResponses({
-      @ApiResponse(code = 200, message = "A template", response = Template.class),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "A template", content = @Content(schema = @Schema(implementation = Template.class))),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response findTemplate(
-      @ApiParam(value = "Template identifier. Example: https://repo.metadatacenter.org/templates/"
+      @Parameter(description = "Template identifier. Example: https://repo.metadatacenter.org/templates/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_TEMPLATE_ID) String id,
-      @ApiParam(value = "When requesting YAML, produce a compact representation.")
+      @Parameter(description = "When requesting YAML, produce a compact representation.")
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -117,21 +115,21 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{template_id}/download")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML})
-  @ApiOperation(value = "Download a template", notes = "Download a template as JSON or YAML, selected via the Accept "
+  @Operation(summary = "Download a template", description = "Download a template as JSON or YAML, selected via the Accept "
       + "header.")
   @ApiResponses({
-      @ApiResponse(code = 200, message = "The template content as an attachment"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "The template content as an attachment"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response downloadTemplate(
-      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
-      @ApiParam(value = "Desired output format: 'application/json' or 'application/yaml'.")
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
+      @Parameter(description = "Desired output format: 'application/json' or 'application/yaml'.")
       @HeaderParam("Accept") String acceptHeader,
-      @ApiParam(value = "When downloading YAML, produce a compact representation.")
+      @Parameter(description = "When downloading YAML, produce a compact representation.")
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -189,17 +187,17 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{template_id}/details")
-  @ApiOperation(value = "Get details of a template", notes = "Get details of a template.", tags = {"Templates", "Resource Details"})
+  @Operation(summary = "Get details of a template", description = "Get details of a template.", tags = {"Templates", "Resource Details"})
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response findTemplateDetails(
-      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
@@ -212,27 +210,24 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{template_id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
-  @ApiOperation(value = "Update a template", notes = "Update a template. The body can be JSON or YAML, selected via "
+  @Operation(summary = "Update a template", description = "Update a template. The body can be JSON or YAML, selected via "
       + "the Content-Type header. A YAML body must be the full or minimal form: the compact form is "
-      + "a lossy read-time convenience and is rejected.", response = Template.class)
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "template", value = "The template to be updated", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.Template", paramType = "body")
-  })
+      + "a lossy read-time convenience and is rejected.")
+  @RequestBody(description = "The template to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Template.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "A template", response = Template.class),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "A template", content = @Content(schema = @Schema(implementation = Template.class))),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateTemplate(
-      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
-      @ApiParam(value = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
-      @ApiParam(value = "Not supported on write operations; write responses always render the full form.")
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
+      @Parameter(description = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
+      @Parameter(description = "Not supported on write operations; write responses always render the full form.")
       @QueryParam("compact") Optional<Boolean> compactParam,
-      @ApiParam(hidden = true) String requestBody) throws CedarException {
+      @Parameter(hidden = true) String requestBody) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -248,17 +243,17 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{template_id}")
-  @ApiOperation(value = "Delete a template", notes = "Delete a template.")
+  @Operation(summary = "Delete a template", description = "Delete a template.")
   @ApiResponses({
-      @ApiResponse(code = 204, message = "Successful operation (no content)"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response deleteTemplate(
-      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_DELETE);
@@ -270,17 +265,17 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{template_id}/permissions")
-  @ApiOperation(value = "Get permissions of a template", notes = "Get permissions of a template.", tags = {"Templates", "Permissions"})
+  @Operation(summary = "Get permissions of a template", description = "Get permissions of a template.", tags = {"Templates", "Permissions"})
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response getTemplatePermissions(
-      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
@@ -292,17 +287,17 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{template_id}/permissions")
-  @ApiOperation(value = "Update permissions of a template", notes = "Update permissions of a template.", tags = {"Templates", "Permissions"})
+  @Operation(summary = "Update permissions of a template", description = "Update permissions of a template.", tags = {"Templates", "Permissions"})
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateTemplatePermissions(
-      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
@@ -314,17 +309,17 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{template_id}/report")
-  @ApiOperation(value = "Get report of a template", notes = "Get report of a template.", tags = {"Templates", "Resource Report", "Versioning"})
+  @Operation(summary = "Get report of a template", description = "Get report of a template.", tags = {"Templates", "Resource Report", "Versioning"})
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response getTemplateReport(
-      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
@@ -336,18 +331,17 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{template_id}/versions")
-  @ApiOperation(value = "Get a list of versions of a template", notes = "Get a list of versions of a template.",
-      tags = {"Templates", "Resource Report", "Versioning"})
+  @Operation(summary = "Get a list of versions of a template", description = "Get a list of versions of a template.", tags = {"Templates", "Resource Report", "Versioning"})
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response getTemplateVersions(
-      @ApiParam(value = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);

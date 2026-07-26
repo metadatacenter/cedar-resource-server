@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for the parameters of a move operation.
@@ -12,14 +11,13 @@ import io.swagger.annotations.ApiModelProperty;
  * identifiers (e.g. {@code @id}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@ApiModel(value = "MoveRequest", description = "Parameters of the move operation.")
+@Schema(name = "MoveRequest", description = "Parameters of the move operation.")
 public class MoveRequest {
 
-  @ApiModelProperty(name = "@id", value = "Unique URL identifier representing the source resource.")
+  @Schema(name = "@id", description = "Unique URL identifier representing the source resource.")
   private String id;
 
-  @ApiModelProperty(name = "targetFolderId",
-      value = "Unique URL identifier representing the target folder where the resource will be moved.")
+  @Schema(name = "targetFolderId", description = "Unique URL identifier representing the target folder where the resource will be moved.")
   private String targetFolderId;
 
   public String getId() {

@@ -1,13 +1,14 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.opensearch.search.SearchHit;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -40,7 +41,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/templates")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/templates", tags = "Recommendations", authorizations = {@Authorization("api_key")})
+@Tag(name = "Recommendations")
+@SecurityRequirement(name = "api_key")
 public class RecommendResource extends AbstractSearchResource {
 
   public RecommendResource(CedarConfig cedarConfig) {
@@ -53,24 +55,15 @@ public class RecommendResource extends AbstractSearchResource {
   @Timed
   @Path("/recommend")
   @Consumes(MediaType.APPLICATION_JSON)
-  @ApiOperation(value = "Get recommendations on the templates that best match an input metadata record",
-      notes = "Get a ranked list of recommended templates.",
-      response = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateRecommendationResponse.class,
-      tags = {"Templates", "Recommendations"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "metadata record", value = "The metadata record to get recommendations for",
-          required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateRecommendationRequest",
-          paramType = "body")
-  })
+  @Operation(summary = "Get recommendations on the templates that best match an input metadata record", description = "Get a ranked list of recommended templates.", tags = {"Templates", "Recommendations"})
+  @RequestBody(description = "The metadata record to get recommendations for", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateRecommendationRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "A ranked list of recommended templates",
-          response = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateRecommendationResponse.class),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "A ranked list of recommended templates", content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateRecommendationResponse.class))),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response recommendTemplates() throws CedarException, IOException {
 

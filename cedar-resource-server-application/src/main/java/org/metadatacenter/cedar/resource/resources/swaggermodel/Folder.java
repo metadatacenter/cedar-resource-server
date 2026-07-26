@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for a CEDAR folder.
@@ -11,10 +10,10 @@ import io.swagger.annotations.ApiModelProperty;
  * exposed. It mirrors that schema exactly: a single {@code id} property. Extend it here if/when
  * the folder schema is documented further.</p>
  */
-@ApiModel(value = "Folder", description = "A CEDAR folder.")
+@Schema(name = "Folder", description = "A CEDAR folder.")
 public class Folder {
 
-  @ApiModelProperty(name = "id", value = "Unique URL identifier representing a specific folder.")
+  @Schema(name = "id", description = "Unique URL identifier representing a specific folder.")
   private String id;
 
   public String getId() {

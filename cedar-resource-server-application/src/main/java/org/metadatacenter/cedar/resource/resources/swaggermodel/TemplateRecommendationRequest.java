@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Map;
 
@@ -13,11 +12,10 @@ import java.util.Map;
  * hand-authored spec exposed. It mirrors that schema exactly: a single free-form
  * {@code metadataRecord} object (e.g. {@code {"tissue": "lung", "disease": "influenza"}}).</p>
  */
-@ApiModel(value = "TemplateRecommendationRequest", description = "The metadata record to get recommendations for.")
+@Schema(name = "TemplateRecommendationRequest", description = "The metadata record to get recommendations for.")
 public class TemplateRecommendationRequest {
 
-  @ApiModelProperty(name = "metadataRecord",
-      value = "The input metadata record. Example: {\"tissue\": \"lung\", \"disease\": \"influenza\"}")
+  @Schema(name = "metadataRecord", description = "The input metadata record. Example: {\"tissue\": \"lung\", \"disease\": \"influenza\"}")
   private Map<String, Object> metadataRecord;
 
   public Map<String, Object> getMetadataRecord() {

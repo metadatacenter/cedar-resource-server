@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for a CEDAR template instance.
@@ -11,10 +10,10 @@ import io.swagger.annotations.ApiModelProperty;
  * {@code TemplateInstance} schema that the hand-authored spec exposed. It mirrors that schema exactly:
  * a single {@code @id} property. Extend it here if/when the template instance schema is documented further.</p>
  */
-@ApiModel(value = "TemplateInstance", description = "A CEDAR template instance (open JSON-LD document).")
+@Schema(name = "TemplateInstance", description = "A CEDAR template instance (open JSON-LD document).")
 public class TemplateInstance {
 
-  @ApiModelProperty(name = "@id", value = "Unique URL identifier representing a specific template instance.")
+  @Schema(name = "@id", description = "Unique URL identifier representing a specific template instance.")
   private String id;
 
   public String getId() {

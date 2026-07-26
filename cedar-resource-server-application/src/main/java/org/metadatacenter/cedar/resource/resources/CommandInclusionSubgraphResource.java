@@ -2,11 +2,11 @@ package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
 import org.metadatacenter.config.CedarConfig;
@@ -37,7 +37,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/command", tags = "Command", authorizations = {@Authorization("api_key")})
+@Tag(name = "Command")
+@SecurityRequirement(name = "api_key")
 public class CommandInclusionSubgraphResource extends AbstractResourceServerResource {
 
   public CommandInclusionSubgraphResource(CedarConfig cedarConfig) {
@@ -47,16 +48,15 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
   @POST
   @Timed
   @Path("/inclusions-subgraph-preview")
-  @ApiOperation(value = "Preview the inclusion subgraph of an artifact",
-      notes = "Build a preview of the tree of artifacts affected by a change to the given artifact, without "
+  @Operation(summary = "Preview the inclusion subgraph of an artifact", description = "Build a preview of the tree of artifacts affected by a change to the given artifact, without "
           + "applying any update.")
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response previewInclusionSubgraph() throws CedarException, IOException {
     CedarRequestContext c = buildRequestContext();
@@ -87,16 +87,15 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
   @POST
   @Timed
   @Path("/inclusions-subgraph-update")
-  @ApiOperation(value = "Update the inclusion subgraph of an artifact",
-      notes = "Propagate a change to the given artifact across the tree of affected artifacts, updating each "
+  @Operation(summary = "Update the inclusion subgraph of an artifact", description = "Propagate a change to the given artifact across the tree of affected artifacts, updating each "
           + "referencing artifact on the artifact server.")
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateInclusionSubgraph() throws CedarException, IOException {
     CedarRequestContext c = buildRequestContext();

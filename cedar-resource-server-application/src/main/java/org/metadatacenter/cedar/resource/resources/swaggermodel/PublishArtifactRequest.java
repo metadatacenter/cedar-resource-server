@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for the info about the publishing process.
@@ -12,14 +11,13 @@ import io.swagger.annotations.ApiModelProperty;
  * identifiers (e.g. {@code @id}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@ApiModel(value = "PublishArtifactRequest", description = "Info about the publishing process.")
+@Schema(name = "PublishArtifactRequest", description = "Info about the publishing process.")
 public class PublishArtifactRequest {
 
-  @ApiModelProperty(name = "@id", value = "Unique URL identifier of the artifact.")
+  @Schema(name = "@id", description = "Unique URL identifier of the artifact.")
   private String id;
 
-  @ApiModelProperty(name = "newVersion",
-      value = "Version string. Must have three positive decimal numbers, separated by period.")
+  @Schema(name = "newVersion", description = "Version string. Must have three positive decimal numbers, separated by period.")
   private String newVersion;
 
   public String getId() {

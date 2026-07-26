@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for the parameters of a copy operation.
@@ -12,18 +11,16 @@ import io.swagger.annotations.ApiModelProperty;
  * identifiers (e.g. {@code @id}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@ApiModel(value = "CopyRequest", description = "Parameters of the copy operation.")
+@Schema(name = "CopyRequest", description = "Parameters of the copy operation.")
 public class CopyRequest {
 
-  @ApiModelProperty(name = "@id", value = "Unique URL identifier representing the source artifact.")
+  @Schema(name = "@id", description = "Unique URL identifier representing the source artifact.")
   private String id;
 
-  @ApiModelProperty(name = "targetFolderId",
-      value = "Unique URL identifier representing the target folder that the new artifact will be created in.")
+  @Schema(name = "targetFolderId", description = "Unique URL identifier representing the target folder that the new artifact will be created in.")
   private String targetFolderId;
 
-  @ApiModelProperty(name = "nameTemplate",
-      value = "Template that will be used to name the new artifact. The variables in the template will be "
+  @Schema(name = "nameTemplate", description = "Template that will be used to name the new artifact. The variables in the template will be "
           + "interpolated. Currently only one variable is supported, the name of the source artifact as "
           + "'{{name}}'. If no interpolatioin is needed, the new name should be passed.")
   private String nameTemplate;

@@ -1,13 +1,14 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -29,7 +30,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/command", tags = "Command", authorizations = {@Authorization("api_key")})
+@Tag(name = "Command")
+@SecurityRequirement(name = "api_key")
 public class CommandOpenResource extends AbstractResourceServerResource {
 
   public CommandOpenResource(CedarConfig cedarConfig) {
@@ -39,18 +41,15 @@ public class CommandOpenResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/make-artifact-open")
-  @ApiOperation(value = "Make artifact open", notes = "Make artifact open.", tags = {"Command", "OpenView"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "idRequest", value = "Id of the artifact to make open", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest", paramType = "body")
-  })
+  @Operation(summary = "Make artifact open", description = "Make artifact open.", tags = {"Command", "OpenView"})
+  @RequestBody(description = "Id of the artifact to make open", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response makeArtifactOpen() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -71,18 +70,15 @@ public class CommandOpenResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/make-artifact-not-open")
-  @ApiOperation(value = "Make artifact not open", notes = "Make artifact not open.", tags = {"Command", "OpenView"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "idRequest", value = "Id of the artifact to make open", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest", paramType = "body")
-  })
+  @Operation(summary = "Make artifact not open", description = "Make artifact not open.", tags = {"Command", "OpenView"})
+  @RequestBody(description = "Id of the artifact to make open", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response makeArtifactNotOpen() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -103,18 +99,15 @@ public class CommandOpenResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/make-folder-open")
-  @ApiOperation(value = "Make folder open", notes = "Make folder open.", tags = {"Command", "OpenView"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "idRequest", value = "Id of the folder to make open", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest", paramType = "body")
-  })
+  @Operation(summary = "Make folder open", description = "Make folder open.", tags = {"Command", "OpenView"})
+  @RequestBody(description = "Id of the folder to make open", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response makeFolderOpen() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -135,18 +128,15 @@ public class CommandOpenResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/make-folder-not-open")
-  @ApiOperation(value = "Make folder not open", notes = "Make folder not open.", tags = {"Command", "OpenView"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "idRequest", value = "Id of the folder to make open", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest", paramType = "body")
-  })
+  @Operation(summary = "Make folder not open", description = "Make folder not open.", tags = {"Command", "OpenView"})
+  @RequestBody(description = "Id of the folder to make open", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response makeFolderNotOpen() throws CedarException {
     CedarRequestContext c = buildRequestContext();

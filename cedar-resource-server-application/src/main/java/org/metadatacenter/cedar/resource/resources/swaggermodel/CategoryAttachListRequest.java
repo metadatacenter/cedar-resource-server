@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
@@ -12,13 +11,13 @@ import java.util.List;
  * this thin bean exists purely to reproduce the {@code CategoryAttachListRequest} schema that the
  * hand-authored spec exposed. It mirrors that schema exactly.</p>
  */
-@ApiModel(value = "CategoryAttachListRequest", description = "Parameters of the attach operation.")
+@Schema(name = "CategoryAttachListRequest", description = "Parameters of the attach operation.")
 public class CategoryAttachListRequest {
 
-  @ApiModelProperty(name = "artifactId", value = "Unique URL identifier representing the artifact.")
+  @Schema(name = "artifactId", description = "Unique URL identifier representing the artifact.")
   private String artifactId;
 
-  @ApiModelProperty(name = "categoryIds", value = "Unique URL identifier list representing the categories.")
+  @Schema(name = "categoryIds", description = "Unique URL identifier list representing the categories.")
   private List<String> categoryIds;
 
   public String getArtifactId() {

@@ -3,13 +3,14 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -62,7 +63,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/command", tags = "Command", authorizations = {@Authorization("api_key")})
+@Tag(name = "Command")
+@SecurityRequirement(name = "api_key")
 public class CommandFileSystemResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CommandFileSystemResource.class);
@@ -74,21 +76,16 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/copy-artifact-to-folder")
-  @ApiOperation(value = "Copy artifact",
-      notes = "Copy artifact to a given folder. A copy of the given artifact will be created in the given folder, "
-          + "with a new name Only artifacts (fields, elements, templates, instances) can be copied.",
-      tags = {"Command", "File Operations"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "copyRequest", value = "Parameters of the copy operation", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.CopyRequest", paramType = "body")
-  })
+  @Operation(summary = "Copy artifact", description = "Copy artifact to a given folder. A copy of the given artifact will be created in the given folder, "
+          + "with a new name Only artifacts (fields, elements, templates, instances) can be copied.", tags = {"Command", "File Operations"})
+  @RequestBody(description = "Parameters of the copy operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CopyRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response copyResourceToFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -297,21 +294,16 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/move-resource-to-folder")
-  @ApiOperation(value = "Move resource",
-      notes = "Move resource to a given folder. Folders or artifacts (fields, elements, templates, instances) can "
-          + "be moved.",
-      tags = {"Command", "File Operations"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "moveRequest", value = "Parameters of the move operation", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.MoveRequest", paramType = "body")
-  })
+  @Operation(summary = "Move resource", description = "Move resource to a given folder. Folders or artifacts (fields, elements, templates, instances) can "
+          + "be moved.", tags = {"Command", "File Operations"})
+  @RequestBody(description = "Parameters of the move operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.MoveRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response moveResourceToFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -441,21 +433,16 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/rename-resource")
-  @ApiOperation(value = "Rename resource",
-      notes = "Change name and/or description of a resource. Folders or artifacts (fields, elements, templates, "
-          + "instances) can be altered.",
-      tags = {"Command", "File Operations"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "renameRequest", value = "Parameters of the rename operation", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.RenameRequest", paramType = "body")
-  })
+  @Operation(summary = "Rename resource", description = "Change name and/or description of a resource. Folders or artifacts (fields, elements, templates, "
+          + "instances) can be altered.", tags = {"Command", "File Operations"})
+  @RequestBody(description = "Parameters of the rename operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.RenameRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response renameResource() throws CedarException {
     CedarRequestContext c = buildRequestContext();

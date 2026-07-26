@@ -1,6 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
-import io.swagger.annotations.ApiOperation;
+import io.swagger.v3.oas.annotations.Operation;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
@@ -100,8 +100,8 @@ final class ArtifactResourceSurface {
           }
           parameterFacts.add("param[" + i + "]=" + fact);
         }
-        ApiOperation apiOperation = method.getAnnotation(ApiOperation.class);
-        String apiOperationValue = apiOperation == null ? null : apiOperation.value();
+        Operation apiOperation = method.getAnnotation(Operation.class);
+        String apiOperationValue = apiOperation == null ? null : apiOperation.summary();
         endpoints.add(new Endpoint(method.getDeclaringClass().getSimpleName(), method.getName(), verb, fullPath,
             produces, consumes, parameterFacts, apiOperationValue, acceptsBody));
       }
