@@ -3,10 +3,11 @@ package org.metadatacenter.cedar.resource.resources;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
@@ -104,12 +105,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     AbstractResourceServerResource.valuerecommenderReindexQueueService = valuerecommenderReindexQueueService;
   }
 
-  protected static <T extends FileSystemResource> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz) throws CedarProcessingException {
+  protected static <T extends FileSystemResource> T deserializeResource(ClassicHttpResponse proxyResponse, Class<T> klazz) throws CedarProcessingException {
     T resource = null;
     try {
       String responseString = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
       resource = JsonMapper.MAPPER.readValue(responseString, klazz);
-    } catch (IOException e) {
+    } catch (IOException | ParseException e) {
       throw new CedarProcessingException(e);
     }
     return resource;
@@ -127,16 +128,16 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
-      HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
+      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpStatus.SC_CREATED) {
         // artifact was not created
         return generateStatusResponse(templateProxyResponse);
       } else {
         HttpEntity entity = templateProxyResponse.getEntity();
-        String mediaType = entity.getContentType().getValue();
+        String mediaType = entity.getContentType();
         String location = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION).getValue();
         URI locationURI = new URI(location);
         return Response.created(locationURI).type(mediaType).entity(entity.getContent()).build();
@@ -185,7 +186,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     try {
       String url;
-      HttpResponse templateProxyResponse;
+      ClassicHttpResponse templateProxyResponse;
       if (artifactId.isEmpty()) {
         // Create by POST, empty @id
         url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
@@ -197,7 +198,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpStatus.SC_CREATED) {
         // artifact was not created
         return generateStatusResponse(templateProxyResponse);
@@ -312,8 +313,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response generateStatusResponse(HttpResponse proxyResponse) throws CedarProcessingException {
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+  protected Response generateStatusResponse(ClassicHttpResponse proxyResponse) throws CedarProcessingException {
+    int statusCode = proxyResponse.getCode();
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
       try {
@@ -350,8 +351,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       return executeResourceGetByProxyFromArtifactServer(resourceType, id.getId(), context);
     }
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+    ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
+    int statusCode = proxyResponse.getCode();
     if (statusCode != HttpStatus.SC_OK) {
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       return generateStatusResponse(proxyResponse);
@@ -511,9 +512,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
 
-      HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
+      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpConstants.CREATED && statusCode != HttpConstants.OK) {
         String templateProxyResponseContent = EntityUtils.toString(templateProxyResponse.getEntity(), StandardCharsets.UTF_8);
         return CedarResponse.status(CedarResponseStatus.fromStatusCode(statusCode)).entity(templateProxyResponseContent).build();
@@ -606,9 +607,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     // Delete from artifact server
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-      HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
+      ClassicHttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      int statusCode = proxyResponse.getCode();
       if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
         // artifact was not deleted
         return generateStatusResponse(proxyResponse);

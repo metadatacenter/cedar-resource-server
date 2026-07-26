@@ -10,11 +10,12 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Authorization;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.LinkedData;
@@ -158,10 +159,10 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     String originalDocument = null;
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, sourceArtifactId);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
+      ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      int statusCode = proxyResponse.getCode();
       if (entity != null) {
         originalDocument = EntityUtils.toString(entity, StandardCharsets.UTF_8);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
@@ -193,10 +194,10 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
-      HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, c, originalDocument);
+      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, c, originalDocument);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpStatus.SC_CREATED) {
         // artifact was not created
         return generateStatusResponse(templateProxyResponse);
@@ -521,8 +522,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     } else {
       String artifactServerUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, (CedarArtifactId) fsResourceId);
 
-      HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(artifactServerUrl, c);
-      int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();
+      ClassicHttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(artifactServerUrl, c);
+      int currentStatusCode = templateCurrentProxyResponse.getCode();
       if (currentStatusCode != HttpStatus.SC_OK) {
         // artifact was not created
         return generateStatusResponse(templateCurrentProxyResponse);
@@ -567,7 +568,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
                   .parameter(SCHEMA_ORG_DESCRIPTION, description)
                   .build();
             }
-          } catch (IOException e) {
+          } catch (IOException | ParseException e) {
             throw new CedarProcessingException(e);
           }
         }

@@ -1,9 +1,9 @@
 package org.metadatacenter.cedar.artifact;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.CedarSchemaArtifactId;
 import org.metadatacenter.model.CedarResourceType;
@@ -22,7 +22,7 @@ public class ArtifactServerUtil {
                                                            HttpServletResponse response) throws CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
+      ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
       if (response != null) {
         ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       }
@@ -36,9 +36,9 @@ public class ArtifactServerUtil {
   public static Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, String content,
                                                            MicroserviceUrlUtil microserviceUrlUtil) throws CedarProcessingException {
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-    HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
+    ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
     HttpEntity entity = templateProxyResponse.getEntity();
-    int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+    int statusCode = templateProxyResponse.getCode();
     if (entity != null) {
       JsonNode responseNode = null;
       try {

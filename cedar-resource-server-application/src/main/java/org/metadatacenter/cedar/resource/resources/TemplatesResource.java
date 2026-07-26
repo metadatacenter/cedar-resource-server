@@ -12,9 +12,10 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Authorization;
 import org.apache.commons.codec.CharEncoding;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.cedar.resource.resources.swaggermodel.Template;
 import org.metadatacenter.cedar.resource.util.ArtifactYamlTranscoder;
 import org.metadatacenter.config.CedarConfig;
@@ -140,9 +141,9 @@ public class TemplatesResource extends AbstractResourceServerResource {
     userMustHaveReadAccessToArtifact(c, tid);
 
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.TEMPLATE, tid);
-    HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
+    ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
     // If error while retrieving artifact, re-run and return proxy call directly
-    if (proxyResponse.getStatusLine().getStatusCode() != Response.Status.OK.getStatusCode()) {
+    if (proxyResponse.getCode() != Response.Status.OK.getStatusCode()) {
       return executeResourceGetByProxyFromArtifactServer(CedarResourceType.TEMPLATE, id, c);
     }
     HttpEntity entity = proxyResponse.getEntity();
@@ -151,7 +152,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     try {
       String templateSource = EntityUtils.toString(entity, CharEncoding.UTF_8);
       templateNode = JsonMapper.MAPPER.readTree(templateSource);
-    } catch (IOException e) {
+    } catch (IOException | ParseException e) {
       throw new RuntimeException(e);
     }
 

@@ -9,8 +9,8 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Authorization;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.keycloak.events.Event;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
@@ -233,7 +233,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     String url = microserviceUrlUtil.getArtifact().getValidateCommand(resourceType);
 
     try {
-      HttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
+      ClassicHttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       return createServiceResponse(proxyResponse);
     } catch (Exception e) {
@@ -241,10 +241,10 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     }
   }
 
-  private Response createServiceResponse(HttpResponse proxyResponse) throws IOException {
+  private Response createServiceResponse(ClassicHttpResponse proxyResponse) throws IOException {
     HttpEntity entity = proxyResponse.getEntity();
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
-    String mediaType = entity.getContentType().getValue();
+    int statusCode = proxyResponse.getCode();
+    String mediaType = entity.getContentType();
     return Response.status(statusCode).type(mediaType).entity(entity.getContent()).build();
   }
 
