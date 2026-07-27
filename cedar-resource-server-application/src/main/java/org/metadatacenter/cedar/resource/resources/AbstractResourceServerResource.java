@@ -571,6 +571,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         return Response.ok().build();
       }
 
+    } catch (CedarException e) {
+      // As on the create path: an already-classified CedarException (from the graph, index or
+      // instance-propagation helpers below) carries its own status. Wrapping it in a
+      // CedarProcessingException would report it as a 500. Rethrow it unchanged.
+      throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
