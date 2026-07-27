@@ -16,7 +16,12 @@ import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
+import org.metadatacenter.model.folderserver.basic.FolderServerElement;
+import org.metadatacenter.model.folderserver.basic.FolderServerField;
+import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
+import org.metadatacenter.model.folderserver.basic.FolderServerSchemaArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
@@ -35,6 +40,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.ANONYMOUS;
@@ -42,26 +48,32 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OTHER_USER;
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
 
 /**
- * The authorization grids for a template and for a category, completing the coverage the folder
- * matrix began. Templates are where the metadata schemas live and categories are how artifacts are
- * classified for discovery, so a denial that stops working in either place exposes one user's work
- * to another — the same class of silent failure {@link FoldersAuthorizationMatrixTest} exists to
- * prevent, on the two surfaces it did not reach.
+ * The authorization grids for every artifact type — template, element, field and instance — and for a
+ * category, completing the coverage the folder matrix began. These are where metadata actually lives
+ * and how it is classified, so a denial that stops working here exposes one user's work to another:
+ * the same class of silent failure {@link FoldersAuthorizationMatrixTest} exists to prevent, on the
+ * surfaces it did not reach.
  *
- * <p>Both fixtures are owned by test user 1 and neither is shared, so user 2 has no grant on either.
- * Each row asserts that an unauthenticated caller is refused, that user 2 is refused, and — for the
- * reads — that the owner succeeds. The owner's success is what gives the denials their meaning: it
- * shows the endpoint works and is discriminating by identity rather than being broken for everybody,
- * which a table of 401s and 403s alone cannot distinguish.
+ * <p>Every fixture is owned by test user 1 and shared with nobody, so user 2 has no grant on any of
+ * them. Each row asserts that an unauthenticated caller is refused, that user 2 is refused, and — for
+ * the reads — that the owner succeeds. The owner's success is what gives the denials their meaning:
+ * it shows the endpoint works and is discriminating by identity rather than being broken for
+ * everybody, which a table of 401s and 403s alone cannot distinguish.
  *
- * <p>The template rows deliberately cover only the endpoints the resource server answers from the
- * workspace graph: details, permissions, report and versions. The content endpoints
- * (<code>GET /templates/{id}</code> and the write paths) proxy to the artifact server, which this
- * suite does not run — the whole resource-server suite is backend-free — so a row for them would
- * assert the proxy failing rather than the authorization decision. Covering those needs the
- * cross-service contract tests the roadmap describes, not this table. The permission check happens
- * before the proxy in every case, so the security contract itself is fully covered here; what is
- * missing is only the owner's happy path on the content routes.
+ * <p>The four artifact types are driven from one table rather than copied per type. They delegate to
+ * the same superclass methods, so their behaviour ought to be identical — but that is a claim about
+ * the code, and each type has its own resource class that could gate differently, or not at all. The
+ * one asymmetry is real and encoded: instances expose no {@code /versions}, because they are not
+ * versioned.
+ *
+ * <p>The artifact rows cover only the endpoints the resource server answers from the workspace graph:
+ * details, permissions, report and versions. The content endpoints (<code>GET /templates/{id}</code>
+ * and the write paths) proxy to the artifact server, which this suite does not run — the whole
+ * resource-server suite is backend-free — so a row for them would assert the proxy failing rather
+ * than the authorization decision. Covering those needs the cross-service contract tests the roadmap
+ * describes, not this table. The permission check happens before the proxy in every case, so the
+ * security contract itself is fully covered here; what is missing is only the owner's happy path on
+ * the content routes.
  *
  * <p>Categories have no such gap, since every category endpoint is answered from the graph. Their
  * contract turns out to differ from folders in two ways worth stating, both established by running
@@ -88,11 +100,22 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
   private static Map<PermissionMatrix.Actor, String> actors;
-  private static String templatePath;
+  private static List<Artifact> artifacts;
   private static String categoryPath;
   private static String rootCategoryPath;
-  private static String templateName;
   private static String categoryName;
+
+  /**
+   * One artifact fixture: where its endpoints live, what it is called, and whether it is versioned.
+   *
+   * @param label     the type, for assertion messages
+   * @param path      the encoded path to this artifact, e.g. {@code /template-elements/<encoded id>}
+   * @param name      its {@code schema:name}, so a denied write can be shown to have changed nothing
+   * @param versioned whether the type exposes {@code /versions}: instances do not, since they are
+   *                  not versioned, while templates, elements and fields are
+   */
+  private record Artifact(String label, String path, String name, boolean versioned) {
+  }
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -116,24 +139,19 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
     CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
 
-    // A template node in the workspace graph, under user 1's home folder. Created through the graph
-    // session rather than the REST API on purpose: POST /templates would proxy the content to the
+    // One node per artifact type in the workspace graph, under user 1's home folder. Created through
+    // the graph session rather than the REST API on purpose: a POST would proxy the content to the
     // artifact server, which is not running, while every endpoint under test reads only the graph.
     CedarFolderId user1HomeId = CedarDataServices.getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
-    templateName = "Matrix Template";
-    FolderServerTemplate template = new FolderServerTemplate();
-    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
-    template.setName(templateName);
-    template.setDescription("Created by ArtifactsAndCategoriesAuthorizationMatrixTest");
-    template.setVersion("1.0.0");
-    template.setPublicationStatus("bibo:draft");
-    template.setLatestVersion(true);
-    template.setLatestDraftVersion(true);
-    template.setLatestPublishedVersion(false);
-    String templateId = CedarDataServices.getFolderServiceSession(user1Context)
-        .createResourceAsChildOfId(template, user1HomeId).getId();
-    Assertions.assertNotNull(templateId, "the fixture template should have been created");
-    templatePath = "/templates/" + URLEncoder.encode(templateId, StandardCharsets.UTF_8);
+    artifacts = List.of(
+        createSchemaArtifact(cedarConfig, user1Context, user1HomeId,
+            new FolderServerTemplate(), CedarResourceType.TEMPLATE, "/templates", "template"),
+        createSchemaArtifact(cedarConfig, user1Context, user1HomeId,
+            new FolderServerElement(), CedarResourceType.ELEMENT, "/template-elements", "element"),
+        createSchemaArtifact(cedarConfig, user1Context, user1HomeId,
+            new FolderServerField(), CedarResourceType.FIELD, "/template-fields", "field"),
+        createInstanceArtifact(cedarConfig, user1Context, user1HomeId,
+            "/template-instances", "instance"));
 
     // A category owned by user 1, under the root category that seeding creates.
     FolderServerCategory rootCategory = CedarDataServices.getCategoryServiceSession(user1Context).getRootCategory();
@@ -153,51 +171,112 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     SERVER.after();
   }
 
+  /**
+   * Creates a versioned artifact — template, element or field. The version and publication fields
+   * live on {@code FolderServerSchemaArtifact}, so they are set here and not for instances.
+   */
+  private static Artifact createSchemaArtifact(CedarConfig cedarConfig, CedarRequestContext context,
+                                               CedarFolderId parent, FolderServerSchemaArtifact artifact,
+                                               CedarResourceType type, String pathPrefix, String label) {
+    String name = "Matrix " + label;
+    artifact.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(type));
+    artifact.setName(name);
+    artifact.setDescription("Created by ArtifactsAndCategoriesAuthorizationMatrixTest");
+    artifact.setVersion("1.0.0");
+    artifact.setPublicationStatus("bibo:draft");
+    artifact.setLatestVersion(true);
+    artifact.setLatestDraftVersion(true);
+    artifact.setLatestPublishedVersion(false);
+    return store(context, parent, artifact, pathPrefix, label, name, true);
+  }
+
+  /** Creates an instance, which carries neither a version nor a publication status. */
+  private static Artifact createInstanceArtifact(CedarConfig cedarConfig, CedarRequestContext context,
+                                                 CedarFolderId parent, String pathPrefix, String label) {
+    String name = "Matrix " + label;
+    FolderServerInstance instance = new FolderServerInstance();
+    instance.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.INSTANCE));
+    instance.setName(name);
+    instance.setDescription("Created by ArtifactsAndCategoriesAuthorizationMatrixTest");
+    return store(context, parent, instance, pathPrefix, label, name, false);
+  }
+
+  private static Artifact store(CedarRequestContext context, CedarFolderId parent,
+                                FolderServerArtifact artifact, String pathPrefix, String label,
+                                String name, boolean versioned) {
+    FolderServerArtifact created = CedarDataServices.getFolderServiceSession(context)
+        .createResourceAsChildOfId(artifact, parent);
+    Assertions.assertNotNull(created, "the fixture " + label + " should have been created");
+    String path = pathPrefix + "/" + URLEncoder.encode(created.getId(), StandardCharsets.UTF_8);
+    return new Artifact(label, path, name, versioned);
+  }
+
+  /**
+   * The same grid over all four artifact types, in one table. The four resources delegate to the same
+   * superclass methods, so the expectation is that their authorization behaviour is identical — but
+   * "they share a superclass" is a claim about the code, not about the routes, and each type has its
+   * own resource class that could gate differently or forget to gate at all. Driving them from one
+   * table is what turns that assumption into an assertion, and keeps a new artifact type from being
+   * added with no grid of its own.
+   *
+   * <p>One table rather than four tests on purpose: {@code PermissionMatrix} collects every failing
+   * cell, so a single run reports the complete divergence across all types instead of stopping at
+   * whichever type happens to run first. The paths carry the type, so attribution is not lost.
+   */
   @Test
-  public void aSecondUserCannotReachAnotherUsersTemplate() throws Exception {
+  public void aSecondUserCannotReachAnotherUsersArtifacts() throws Exception {
     String permissionsBody = "{\"userPermissions\": [], \"groupPermissions\": []}";
     PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
 
-    // The node's own metadata: name, description, owner, folder. Readable by the owner, not by a
-    // stranger — leaking this would disclose what schemas a user is working on.
-    matrix.when("GET", templatePath + "/details")
-        .expect(ANONYMOUS, 401)
-        .expect(OWNER, 200)
-        .expect(OTHER_USER, 403);
+    for (Artifact artifact : artifacts) {
+      // The node's own metadata: name, description, owner, folder. Leaking it would disclose what a
+      // user is working on even without the content.
+      matrix.when("GET", artifact.path() + "/details")
+          .expect(ANONYMOUS, 401)
+          .expect(OWNER, 200)
+          .expect(OTHER_USER, 403);
 
-    // The ACL: who a template is shared with is as sensitive as the template.
-    matrix.when("GET", templatePath + "/permissions")
-        .expect(ANONYMOUS, 401)
-        .expect(OWNER, 200)
-        .expect(OTHER_USER, 403);
+      // The ACL is as sensitive as the artifact: it names who else can see it.
+      matrix.when("GET", artifact.path() + "/permissions")
+          .expect(ANONYMOUS, 401)
+          .expect(OWNER, 200)
+          .expect(OTHER_USER, 403);
 
-    // The version chain. A stranger must not be able to enumerate a user's drafts.
-    matrix.when("GET", templatePath + "/versions")
-        .expect(ANONYMOUS, 401)
-        .expect(OWNER, 200)
-        .expect(OTHER_USER, 403);
+      matrix.when("GET", artifact.path() + "/report")
+          .expect(ANONYMOUS, 401)
+          .expect(OWNER, 200)
+          .expect(OTHER_USER, 403);
 
-    matrix.when("GET", templatePath + "/report")
-        .expect(ANONYMOUS, 401)
-        .expect(OWNER, 200)
-        .expect(OTHER_USER, 403);
+      // Only the schema types are versioned, so only they expose /versions. Asserting it for an
+      // instance would pin a 404 that says nothing about authorization.
+      if (artifact.versioned()) {
+        // The version chain: a stranger must not be able to enumerate a user's drafts.
+        matrix.when("GET", artifact.path() + "/versions")
+            .expect(ANONYMOUS, 401)
+            .expect(OWNER, 200)
+            .expect(OTHER_USER, 403);
+      }
 
-    // Taking over the ACL is the most valuable single request an attacker could make here: it would
-    // convert read denial into permanent access. See the note on the category row below about the
-    // status this currently answers.
-    matrix.when("PUT", templatePath + "/permissions", permissionsBody)
-        .expect(ANONYMOUS, 401)
-        .expect(OTHER_USER, 401);
+      // Taking over the ACL is the most valuable single request available here: it would convert a
+      // read denial into permanent access. The 401 for an authenticated user is the anomaly described
+      // on the category row below — these types reach the call-result path, categories do not.
+      matrix.when("PUT", artifact.path() + "/permissions", permissionsBody)
+          .expect(ANONYMOUS, 401)
+          .expect(OTHER_USER, 401);
+    }
 
     matrix.verify();
 
-    // Statuses alone would not show the refusals had no effect. Re-read as the owner and confirm the
-    // template is untouched.
-    HttpResponse<String> after = request("GET", templatePath + "/details", null, actors.get(OWNER));
-    Assertions.assertEquals(200, after.statusCode(), "the owner's template should have survived the denied requests");
-    JsonNode details = JsonMapper.MAPPER.readTree(after.body());
-    Assertions.assertEquals(templateName, details.path("schema:name").asText(),
-        "a denied request changed the template: " + after.body());
+    // Statuses alone would not show the refusals had no effect. Re-read each as the owner and confirm
+    // it is untouched.
+    for (Artifact artifact : artifacts) {
+      HttpResponse<String> after = request("GET", artifact.path() + "/details", null, actors.get(OWNER));
+      Assertions.assertEquals(200, after.statusCode(),
+          "the owner's " + artifact.label() + " should have survived the denied requests");
+      JsonNode details = JsonMapper.MAPPER.readTree(after.body());
+      Assertions.assertEquals(artifact.name(), details.path("schema:name").asText(),
+          "a denied request changed the " + artifact.label() + ": " + after.body());
+    }
   }
 
   @Test
