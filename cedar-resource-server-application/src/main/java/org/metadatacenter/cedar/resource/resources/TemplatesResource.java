@@ -114,7 +114,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/{template_id}/download")
-  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML})
+  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Download a template", description = "Download a template as JSON or YAML, selected via the Accept "
       + "header.")
   @ApiResponses({
@@ -166,7 +166,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
           .build();
     }
     // Handle YAML
-    if (acceptHeader.contains(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)) {
+    if (acceptHeader.contains("yaml")) {  // matches both application/yaml and application/x-yaml
       String fileName = templateUUID + ".yaml";
       String content = ArtifactYamlTranscoder.jsonToYaml(templateNode, CedarResourceType.TEMPLATE, compactParam.isPresent() && compactParam.get());
       return CedarResponse.ok()
