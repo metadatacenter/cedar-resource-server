@@ -1,6 +1,5 @@
 package org.metadatacenter.cedar.resource.resources;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
@@ -12,9 +11,17 @@ import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
+import org.metadatacenter.id.CedarFilesystemResourceId;
 import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.model.folderserver.basic.FolderServerElement;
+import org.metadatacenter.model.folderserver.basic.FolderServerField;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
+import org.metadatacenter.model.folderserver.basic.FolderServerSchemaArtifact;
+import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.model.folderserver.basic.FolderServerGroup;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
@@ -46,11 +53,18 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
- * Sharing, performed the way a user performs it: over HTTP.
+ * Sharing and ownership transfer, performed the way a user performs them: over HTTP.
+ *
+ * <p>Both live here because both are the same request — {@code PUT .../permissions} carries the whole
+ * permission set, owner included, so giving someone read access and giving them the resource outright
+ * differ only in which field of the body changes. Keeping them in one class also keeps one server boot
+ * rather than two, which this module is short of: see the note on the class below.
  *
  * <p>The permission-level matrices establish what a grant buys, but they apply the grant through the
  * graph session, so they assert the <em>effect</em> of sharing and never the <em>act</em>. Every
@@ -71,16 +85,23 @@ import java.util.Map;
  * what was granted, and does <em>not</em> have what was not. Asserting only that a reader can read
  * would pass just as happily if they had been given write.
  *
- * <p>The user-grant cases read the ACL back through the API and deserialize it into the type the
- * endpoint returns, rather than matching text, so a field rename cannot make the assertion silently
- * vacuous. The group case cannot do that, and the reason is a finding in itself:
- * {@code CedarNodePermissionsWithExtract} is not deserializable once it contains a group, because
- * {@code CedarGroupExtract} declares only a two-argument constructor and no default one, while
- * {@code CedarUserExtract} has both. The response is half round-trippable through the shared model, so
- * that case reads a tree instead. Recorded on the roadmap rather than papered over.
+ * <p>Every case reads the ACL back through the API and deserializes it into the type the endpoint
+ * returns, rather than matching text, so a field rename cannot make the assertion silently vacuous.
+ * Writing this test is what found that the group case could not do that: a permissions response
+ * containing a group grant was undeserializable, because {@code CedarGroupExtract} had no no-argument
+ * constructor while {@code CedarUserExtract} did. That is fixed, and the typed read below is its
+ * regression test.
  */
 public class SharingRoundTripTest {
 
+  // A note for whoever adds the next test class here. This module runs its tests in one shared JVM,
+  // and each class that boots a server also creates a Neo4j driver whose Netty event-loop threads are
+  // not reclaimed between classes. Nine such classes exhausted the JVM: a later one failed with
+  // "failed to create a child event loop", an exhaustion error that appears only in the full run and
+  // never when the class is run alone, and which names whichever class happened to boot last rather
+  // than the cause. Eight is the number that currently passes. If you need another, merge into an
+  // existing class as this one merges sharing with ownership, or take up the roadmap item that fixes
+  // it properly by isolating forks or closing the drivers.
   static {
     // Must run before the test support boots the server, which reads the Neo4j env vars. Ports are
     // distinct from the dev server and from every other booting test class in this module.
@@ -103,6 +124,7 @@ public class SharingRoundTripTest {
   private static CedarRequestContext user2Context;
   private static CedarFolderId user1HomeId;
   private static String user1Header;
+  private static String user2Header;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -122,6 +144,7 @@ public class SharingRoundTripTest {
     user1 = TestAuthUtil.getTestUser1(cedarConfig);
     user2 = TestAuthUtil.getTestUser2(cedarConfig);
     user1Header = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
+    user2Header = TestAuthUtil.getTestUser2AuthHeader(cedarConfig);
     user1Context = CedarRequestContextFactory.fromUser(user1);
     user2Context = CedarRequestContextFactory.fromUser(user2);
     user1HomeId = CedarDataServices.getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
@@ -161,20 +184,17 @@ public class SharingRoundTripTest {
         JsonMapper.MAPPER.writeValueAsString(request), user1Header);
     Assertions.assertEquals(200, shared.statusCode(), "sharing with a group should succeed: " + shared.body());
 
-    // Read back as a tree rather than as CedarNodePermissionsWithExtract, because that type cannot be
-    // deserialized when the ACL contains a group: CedarGroupExtract declares only a two-argument
-    // constructor and no default one, so Jackson refuses it, while CedarUserExtract has both and works.
-    // The response is therefore only half round-trippable through the shared model, which is recorded
-    // on the roadmap rather than worked around silently here.
-    JsonNode acl = JsonMapper.MAPPER.readTree(rawAcl(folder));
-    JsonNode groupGrants = acl.path("groupPermissions");
-    Assertions.assertEquals(1, groupGrants.size(),
-        "the ACL should hold exactly the one group grant that was asked for: " + acl);
-    Assertions.assertEquals(FilesystemResourcePermission.READ.getValue(),
-        groupGrants.get(0).path("permission").asText(),
-        "the group's granted level is not the one that was requested: " + acl);
-    Assertions.assertEquals(group.getId(), groupGrants.get(0).path("group").path("@id").asText(),
-        "the grant is recorded against the wrong group: " + acl);
+    // Read back through the typed model, which also stands as the regression test for the fix that
+    // made it possible: CedarGroupExtract had no no-argument constructor, so deserializing a
+    // permissions response containing a group grant failed outright. If that constructor is ever
+    // removed, this line throws rather than quietly falling back to text matching.
+    CedarNodePermissionsWithExtract acl = readAcl(folder);
+    Assertions.assertEquals(1, acl.getGroupPermissions().size(),
+        "the ACL should hold exactly the one group grant that was asked for");
+    Assertions.assertEquals(FilesystemResourcePermission.READ, acl.getGroupPermissions().get(0).getPermission(),
+        "the group's granted level is not the one that was requested");
+    Assertions.assertEquals(group.getId(), acl.getGroupPermissions().get(0).getGroup().getId(),
+        "the grant is recorded against the wrong group");
 
     // The member gains read through the group, and no more than that.
     Assertions.assertTrue(user2Permissions().userHasReadAccessToResource(folder.getResourceId()),
@@ -267,7 +287,189 @@ public class SharingRoundTripTest {
             + response.statusCode() + ": " + response.body());
   }
 
+
+  // ── ownership: who may hand a resource over ───────────────────────────────
+
+  /**
+   * A WRITE grantee may rewrite the ACL but must not be able to write themselves into the owner slot.
+   * Checked on a folder and on every artifact type, because each reaches the shared validator through
+   * its own resource class and could in principle skip it.
+   */
+  @Test
+  public void aWriteGranteeCannotTakeOwnership() throws Exception {
+    List<Target> targets = new ArrayList<>();
+    targets.add(folderTarget("Ownership Theft Folder"));
+    targets.addAll(artifactTargets("theft"));
+
+    for (Target target : targets) {
+      grantToUser2(target, FilesystemResourcePermission.WRITE);
+      Assertions.assertTrue(user2Permissions().userHasWriteAccessToResource(target.id()),
+          "the WRITE grant on the " + target.label() + " should have taken, or the test proves nothing");
+
+      // User 2 asks to become the owner, keeping their own write grant.
+      ResourcePermissionsRequest theft = new ResourcePermissionsRequest();
+      theft.setOwner(new ResourcePermissionUser(user2.getId()));
+      theft.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
+          new ResourcePermissionUser(user2.getId()), FilesystemResourcePermission.WRITE));
+
+      HttpResponse<String> attempt = send("PUT", target.permissionsPath(),
+          JsonMapper.MAPPER.writeValueAsString(theft), user2Header);
+      Assertions.assertTrue(attempt.statusCode() >= 400,
+          "a WRITE grantee taking ownership of the " + target.label() + " should be refused, but got "
+              + attempt.statusCode() + ": " + attempt.body());
+
+      // The status is not the whole story. Confirm the graph still names user 1 as owner.
+      Assertions.assertTrue(user1Permissions().userIsOwnerOfResource(target.id()),
+          "the " + target.label() + " changed hands despite the refusal");
+      Assertions.assertFalse(user2Permissions().userIsOwnerOfResource(target.id()),
+          "the WRITE grantee became owner of the " + target.label() + " despite the refusal");
+    }
+  }
+
+  /**
+   * A READ grantee is refused earlier — they cannot update the ACL at all — but assert it, because
+   * "refused for a different reason" is still the answer that matters here.
+   */
+  @Test
+  public void aReadGranteeCannotTakeOwnership() throws Exception {
+    Target target = folderTarget("Ownership Read Grantee Folder");
+    grantToUser2(target, FilesystemResourcePermission.READ);
+
+    ResourcePermissionsRequest theft = new ResourcePermissionsRequest();
+    theft.setOwner(new ResourcePermissionUser(user2.getId()));
+
+    HttpResponse<String> attempt = send("PUT", target.permissionsPath(),
+        JsonMapper.MAPPER.writeValueAsString(theft), user2Header);
+    Assertions.assertTrue(attempt.statusCode() >= 400,
+        "a READ grantee taking ownership should be refused, but got " + attempt.statusCode());
+    Assertions.assertTrue(user1Permissions().userIsOwnerOfResource(target.id()),
+        "the folder changed hands despite the refusal");
+  }
+
+  /**
+   * The owner may hand a resource over — and keeps reaching it afterwards, if it stays in their tree.
+   * The owner field moves; effective access does not, because the donor still owns the parent and
+   * permissions inherit downwards.
+   */
+  @Test
+  public void transferMovesOwnershipButNotInheritedAccess() throws Exception {
+    Target target = folderTarget("Ownership Transfer Folder");
+
+    // Transfer to user 2, listing nobody else — the shape a caller writes when thinking only about who
+    // should own it next.
+    ResourcePermissionsRequest transfer = new ResourcePermissionsRequest();
+    transfer.setOwner(new ResourcePermissionUser(user2.getId()));
+
+    HttpResponse<String> handover = send("PUT", target.permissionsPath(),
+        JsonMapper.MAPPER.writeValueAsString(transfer), user1Header);
+    Assertions.assertEquals(200, handover.statusCode(),
+        "the owner should be able to transfer ownership: " + handover.body());
+
+    Assertions.assertTrue(user2Permissions().userIsOwnerOfResource(target.id()),
+        "user 2 should own the folder after the transfer");
+    Assertions.assertTrue(user2Permissions().userHasWriteAccessToResource(target.id()),
+        "the new owner should have write access");
+
+    Assertions.assertFalse(user1Permissions().userIsOwnerOfResource(target.id()),
+        "the previous owner should no longer be the owner");
+
+    // But they have not lost access, and this is the part worth knowing. The request listed no user
+    // permissions, so nothing was granted back to user 1 directly — yet the folder still sits inside
+    // user 1's home folder, which user 1 still owns, and permissions inherit down
+    // (WorkspacePermissionInheritanceIntegrationTest.readGrantOnTopFolderReachesEveryDescendant). So
+    // transferring ownership of something inside your own tree moves the owner field without moving
+    // effective control: the recipient owns it, and the donor still reaches it through the parent.
+    //
+    // "Transfer ownership" therefore does not mean "give it away" unless the resource also leaves the
+    // donor's tree. Worth stating plainly in a permissions document, because both parties are likely
+    // to assume otherwise — the donor that they have relinquished it, the recipient that they now have
+    // it to themselves.
+    Assertions.assertTrue(user1Permissions().userHasReadAccessToResource(target.id()),
+        "the previous owner should still reach the folder through the home folder they own");
+    Assertions.assertTrue(user1Permissions().userHasWriteAccessToResource(target.id()),
+        "inherited access from the owned parent should still carry write");
+
+    // Which means the previous owner can still read the ACL, unlike a stranger.
+    HttpResponse<String> asOldOwner = send("GET", target.permissionsPath(), null, user1Header);
+    Assertions.assertEquals(200, asOldOwner.statusCode(),
+        "the previous owner still has inherited access, so the ACL should still be readable to them: "
+            + asOldOwner.body());
+
+    HttpResponse<String> asNewOwner = send("GET", target.permissionsPath(), null, user2Header);
+    Assertions.assertEquals(200, asNewOwner.statusCode(),
+        "the new owner should be able to read the ACL: " + asNewOwner.body());
+    CedarNodePermissionsWithExtract acl =
+        JsonMapper.MAPPER.readValue(asNewOwner.body(), CedarNodePermissionsWithExtract.class);
+    Assertions.assertEquals(user2.getId(), acl.getOwner().getId(),
+        "the ACL should name the new owner");
+  }
+
   // ── fixtures and helpers ───────────────────────────────────────────────────
+
+  /** A resource under test: its permissions path and the graph id to check ownership against. */
+  private record Target(String label, String permissionsPath, CedarFilesystemResourceId id) {
+  }
+
+  private static Target folderTarget(String name) {
+    FolderServerFolder newFolder = new FolderServerFolder();
+    newFolder.setName(name);
+    newFolder.setDescription("Created by OwnershipTransferTest");
+    CedarFolderId newFolderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    FolderServerFolder created = CedarDataServices.getFolderServiceSession(user1Context)
+        .createFolderAsChildOfId(newFolder, user1HomeId, newFolderId);
+    Assertions.assertNotNull(created, "the fixture folder should be created");
+    return new Target("folder", "/folders/"
+        + URLEncoder.encode(created.getId(), StandardCharsets.UTF_8) + "/permissions", created.getResourceId());
+  }
+
+  /** One artifact of each type, owned by user 1. */
+  private static List<Target> artifactTargets(String tag) {
+    record Type(String label, String prefix, CedarResourceType type, Supplier<FolderServerArtifact> factory) {
+    }
+    List<Type> types = List.of(
+        new Type("template", "/templates", CedarResourceType.TEMPLATE, FolderServerTemplate::new),
+        new Type("element", "/template-elements", CedarResourceType.ELEMENT, FolderServerElement::new),
+        new Type("field", "/template-fields", CedarResourceType.FIELD, FolderServerField::new),
+        new Type("instance", "/template-instances", CedarResourceType.INSTANCE, FolderServerInstance::new));
+
+    List<Target> targets = new ArrayList<>();
+    for (Type type : types) {
+      FolderServerArtifact artifact = type.factory().get();
+      artifact.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(type.type()));
+      artifact.setName("Ownership " + tag + " " + type.label());
+      artifact.setDescription("Created by OwnershipTransferTest");
+      if (artifact instanceof FolderServerSchemaArtifact schema) {
+        schema.setVersion("1.0.0");
+        schema.setPublicationStatus("bibo:draft");
+        schema.setLatestVersion(true);
+        schema.setLatestDraftVersion(true);
+        schema.setLatestPublishedVersion(false);
+      }
+      FolderServerArtifact created = CedarDataServices.getFolderServiceSession(user1Context)
+          .createResourceAsChildOfId(artifact, user1HomeId);
+      Assertions.assertNotNull(created, "the fixture " + type.label() + " should be created");
+      targets.add(new Target(type.label(), type.prefix() + "/"
+          + URLEncoder.encode(created.getId(), StandardCharsets.UTF_8) + "/permissions",
+          created.getResourceId()));
+    }
+    return targets;
+  }
+
+  private static void grantToUser2(Target target, FilesystemResourcePermission permission) {
+    ResourcePermissionsRequest request = new ResourcePermissionsRequest();
+    request.setOwner(new ResourcePermissionUser(user1.getId()));
+    request.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
+        new ResourcePermissionUser(user2.getId()), permission));
+    BackendCallResult result = CedarDataServices.getResourcePermissionServiceSession(user1Context)
+        .updateResourcePermissions(target.id(), request);
+    Assertions.assertFalse(result.isError(), "the grant on the " + target.label() + " should succeed");
+  }
+
+  private static ResourcePermissionServiceSession user1Permissions() {
+    return CedarDataServices.getResourcePermissionServiceSession(user1Context);
+  }
+
+
 
   private static ResourcePermissionsRequest ownedByUser1() {
     ResourcePermissionsRequest request = new ResourcePermissionsRequest();
@@ -281,15 +483,10 @@ public class SharingRoundTripTest {
 
   /** The ACL as the endpoint serves it, deserialized into the type it returns. */
   private static CedarNodePermissionsWithExtract readAcl(FolderServerFolder folder) throws Exception {
-    return JsonMapper.MAPPER.readValue(rawAcl(folder), CedarNodePermissionsWithExtract.class);
-  }
-
-  /** The ACL as raw JSON, for the group case the typed read cannot handle. */
-  private static String rawAcl(FolderServerFolder folder) throws Exception {
     HttpResponse<String> response = send("GET", permissionsPath(folder), null, user1Header);
     Assertions.assertEquals(200, response.statusCode(),
         "the owner should be able to read the ACL back: " + response.body());
-    return response.body();
+    return JsonMapper.MAPPER.readValue(response.body(), CedarNodePermissionsWithExtract.class);
   }
 
   private static FolderServerFolder folder(String name) {
