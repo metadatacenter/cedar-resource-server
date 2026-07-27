@@ -60,6 +60,7 @@ import java.util.Optional;
 
 import static org.metadatacenter.model.ModelNodeNames.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
@@ -91,11 +92,18 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    JsonNode jsonBody = c.request().getRequestBody().asJson();
+    // Read through CedarParameter rather than straight off the JsonNode: a missing field used to be a
+    // null dereference, which reached the caller as 500 for what is plainly a bad request.
+    CedarParameter idParam = c.request().getRequestBody().get("@id");
+    CedarParameter targetFolderParam = c.request().getRequestBody().get("targetFolderId");
+    CedarParameter nameTemplateParam = c.request().getRequestBody().get("nameTemplate");
+    c.must(idParam).be(NonEmpty);
+    c.must(targetFolderParam).be(NonEmpty);
+    c.must(nameTemplateParam).be(NonEmpty);
 
-    String id = jsonBody.get("@id").asText();
-    String folderId = jsonBody.get("targetFolderId").asText();
-    String nameTemplate = jsonBody.get("nameTemplate").asText();
+    String id = idParam.stringValue();
+    String folderId = targetFolderParam.stringValue();
+    String nameTemplate = nameTemplateParam.stringValue();
 
 
     CedarUntypedArtifactId untypedSourceArtifactId = CedarUntypedArtifactId.build(id);
@@ -309,10 +317,14 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    JsonNode jsonBody = c.request().getRequestBody().asJson();
+    // As above: a missing field is a bad request, not a server fault.
+    CedarParameter sourceParam = c.request().getRequestBody().get(LinkedData.ID);
+    CedarParameter targetParam = c.request().getRequestBody().get("targetFolderId");
+    c.must(sourceParam).be(NonEmpty);
+    c.must(targetParam).be(NonEmpty);
 
-    String sId = jsonBody.get(LinkedData.ID).asText();
-    String fId = jsonBody.get("targetFolderId").asText();
+    String sId = sourceParam.stringValue();
+    String fId = targetParam.stringValue();
 
     CedarFolderId targetFolderId = CedarFolderId.build(fId);
 
@@ -451,6 +463,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     CedarParameter nameParam = c.request().getRequestBody().get(SCHEMA_ORG_NAME);
     CedarParameter descriptionParam = c.request().getRequestBody().get(SCHEMA_ORG_DESCRIPTION);
     CedarParameter idParam = c.request().getRequestBody().get(LinkedData.ID);
+    // Was read without checking, so a body with no identifier became a 500 further down.
+    c.must(idParam).be(NonEmpty);
 
     String id = idParam.stringValue();
 
