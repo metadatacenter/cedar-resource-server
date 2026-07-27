@@ -258,11 +258,12 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
       }
 
       // Taking over the ACL is the most valuable single request available here: it would convert a
-      // read denial into permanent access. The 401 for an authenticated user is the anomaly described
-      // on the category row below — these types reach the call-result path, categories do not.
+      // read denial into permanent access. An authenticated stranger is refused with 403, like every
+      // other write row. This denial reaches the call-result path, which once defaulted to 401 (see
+      // the category row below); it now carries CedarErrorType.PERMISSION, so it answers 403 to match.
       matrix.when("PUT", artifact.path() + "/permissions", permissionsBody)
           .expect(ANONYMOUS, 401)
-          .expect(OTHER_USER, 401);
+          .expect(OTHER_USER, 403);
     }
 
     matrix.verify();
@@ -326,13 +327,11 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     matrix.when("POST", "/categories", createBody)
         .expect(ANONYMOUS, 401);
 
-    // 403, which is correct — and worth dwelling on, because folders and templates answer 401 to the
-    // very same request. Categories get it right by gating on userMustHaveWriteAccessToCategory,
-    // which raises an exception carrying an explicit status, so the denial never reaches the
-    // BackendCallResult path whose CedarErrorType.AUTHORIZATION default is UNAUTHORIZED. That makes
-    // this row the reference behaviour for fixing the other two rather than another instance of the
-    // bug: the roadmap item can narrow to the resource permission path, since the category validator
-    // already does the right thing.
+    // 403, which is correct — and was the reference behaviour the folder and artifact rows were
+    // brought into line with. Categories reach it two ways over: gating on userMustHaveWriteAccessTo-
+    // Category, which raises an exception carrying an explicit 403 status before the validator runs;
+    // and, for the owner-change path that does reach the call-result validator, the same
+    // CedarErrorType.PERMISSION (403) the resource path now uses. The whole write-denial family is 403.
     matrix.when("PUT", categoryPath + "/permissions", permissionsBody)
         .expect(ANONYMOUS, 401)
         .expect(OTHER_USER, 403);

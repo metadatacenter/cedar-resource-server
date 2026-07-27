@@ -301,6 +301,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           return CedarResponse.internalServerError().errorKey(CedarErrorKey.RESOURCE_NOT_CREATED).build();
         }
       }
+    } catch (CedarException e) {
+      // Already classified: the error pack carries its own status and message (for example the
+      // NonEmpty check on a versioned artifact created without pav:version, which is a 400). Wrapping
+      // it in a CedarProcessingException would discard that status and report the client's mistake as
+      // a 500 — the field-with-no-version case did exactly that, because the artifact server accepts a
+      // field with no version where it rejects a template or element. Rethrow it unchanged.
+      throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
