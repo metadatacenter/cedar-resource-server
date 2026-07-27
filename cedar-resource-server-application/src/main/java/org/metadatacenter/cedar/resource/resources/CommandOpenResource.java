@@ -16,6 +16,7 @@ import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
+import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
@@ -27,6 +28,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
@@ -56,7 +58,12 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
-    String id = requestBody.get("@id").stringValue();
+    // Guard the identifier: read without checking, a body with no @id became a lookup for the null id
+    // and answered 404 instead of telling the caller their request was malformed. Mirrors the guards
+    // in CommandFileSystemResource.
+    CedarParameter idParam = requestBody.get("@id");
+    c.must(idParam).be(NonEmpty);
+    String id = idParam.stringValue();
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
@@ -85,7 +92,12 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
-    String id = requestBody.get("@id").stringValue();
+    // Guard the identifier: read without checking, a body with no @id became a lookup for the null id
+    // and answered 404 instead of telling the caller their request was malformed. Mirrors the guards
+    // in CommandFileSystemResource.
+    CedarParameter idParam = requestBody.get("@id");
+    c.must(idParam).be(NonEmpty);
+    String id = idParam.stringValue();
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
@@ -114,7 +126,12 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
-    String id = requestBody.get("@id").stringValue();
+    // Guard the identifier: read without checking, a body with no @id became a lookup for the null id
+    // and answered 404 instead of telling the caller their request was malformed. Mirrors the guards
+    // in CommandFileSystemResource.
+    CedarParameter idParam = requestBody.get("@id");
+    c.must(idParam).be(NonEmpty);
+    String id = idParam.stringValue();
     CedarFolderId folderId = CedarFolderId.build(id);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 
@@ -143,7 +160,12 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
-    String id = requestBody.get("@id").stringValue();
+    // Guard the identifier: read without checking, a body with no @id became a lookup for the null id
+    // and answered 404 instead of telling the caller their request was malformed. Mirrors the guards
+    // in CommandFileSystemResource.
+    CedarParameter idParam = requestBody.get("@id");
+    c.must(idParam).be(NonEmpty);
+    String id = idParam.stringValue();
     CedarFolderId folderId = CedarFolderId.build(id);
     FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
 

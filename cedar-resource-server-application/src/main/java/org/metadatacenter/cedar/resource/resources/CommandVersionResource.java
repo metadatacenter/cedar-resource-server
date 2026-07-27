@@ -185,6 +185,20 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 .build();
           }
 
+          // Only a draft may be published. The isCanPublish() flag checked above is computed upstream
+          // and is wrongly true for an already-published artifact (the status guard behind it is
+          // skipped when the object does not carry publication status), so re-publishing slipped
+          // through. Check the real status read back from the artifact server, which is the source of
+          // truth.
+          JsonNode oldStatusNode = getJsonNode.get(BIBO_STATUS);
+          if (oldStatusNode != null && BiboStatus.PUBLISHED.getValue().equals(oldStatusNode.textValue())) {
+            return CedarResponse.badRequest()
+                .errorKey(CedarErrorKey.PUBLISH_ONLY_DRAFT)
+                .errorMessage("Only a draft artifact can be published; this artifact is already published.")
+                .parameter("id", aid.getId())
+                .build();
+          }
+
           //publish on the artifact server
           ((ObjectNode) getJsonNode).put(PAV_VERSION, newVersion.getValue());
           ((ObjectNode) getJsonNode).put(BIBO_STATUS, BiboStatus.PUBLISHED.getValue());

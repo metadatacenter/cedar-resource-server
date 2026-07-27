@@ -17,6 +17,7 @@ import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.http.CedarResponseStatus;
@@ -591,18 +592,20 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       isSchemaArtifact = true;
     }
 
-    // Check whether it is published
-//    if (isSchemaArtifact) {
-//      if (schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
-//        return CedarResponse.badRequest()
-//            .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
-//            .errorMessage("Published artifacts can not be deleted!")
-//            .parameter("id", id)
-//            .parameter("name", schemaArtifact.getName())
-//            .parameter(BIBO_STATUS, schemaArtifact.getPublicationStatus())
-//            .build();
-//      }
-//    }
+    // A published artifact is immutable, so it cannot be deleted — the docs say so, and the update
+    // path already refuses to change it (PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED). This guard was
+    // commented out, so deletion went straight through. The filesystem administrator keeps a cleanup
+    // path through the same WRITE_NOT_WRITABLE_NODE override that lets it write any node, so published
+    // artifacts are not un-removable by anyone (which would also strand the folders that hold them).
+    if (isSchemaArtifact && schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED
+        && !c.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE)) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
+          .errorMessage("Published artifacts can not be deleted!")
+          .parameter("id", id)
+          .parameter("name", schemaArtifact.getName())
+          .build();
+    }
 
     // Delete from artifact server
     try {
@@ -948,6 +951,19 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             .errorMessage("The folder name contains invalid characters!")
             .operation(CedarOperations.update(FolderServerFolder.class, "id", folderId.getId()))
             .parameter("name", name.stringValue())
+            .build();
+      }
+      // A user's home folder and the system folders carry meaningful, fixed names, and delete already
+      // refuses to remove them. Renaming one was still possible, which left the instance in a state
+      // its own conventions do not expect. Only the name is guarded; a description change is harmless.
+      if (!nameV.equals(oldName) && (folderServerFolder.isUserHome() || folderServerFolder.isSystem())) {
+        return CedarResponse.badRequest()
+            .id(folderId)
+            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_CHANGED)
+            .errorReasonKey(folderServerFolder.isUserHome()
+                ? CedarErrorReasonKey.USER_HOME_FOLDER : CedarErrorReasonKey.SYSTEM_FOLDER)
+            .errorMessage("Home and system folders can not be renamed")
+            .parameter("name", nameV)
             .build();
       }
     }
