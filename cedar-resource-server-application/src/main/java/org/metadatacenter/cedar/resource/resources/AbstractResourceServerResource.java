@@ -3,19 +3,22 @@ package org.metadatacenter.cedar.resource.resources;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.commons.lang.CharEncoding;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
+import org.metadatacenter.cedar.resource.util.ArtifactYamlTranscoder;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorReasonKey;
+import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.exception.*;
 import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.*;
@@ -62,11 +65,14 @@ import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,12 +106,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     AbstractResourceServerResource.valuerecommenderReindexQueueService = valuerecommenderReindexQueueService;
   }
 
-  protected static <T extends FileSystemResource> T deserializeResource(HttpResponse proxyResponse, Class<T> klazz) throws CedarProcessingException {
+  protected static <T extends FileSystemResource> T deserializeResource(ClassicHttpResponse proxyResponse, Class<T> klazz) throws CedarProcessingException {
     T resource = null;
     try {
-      String responseString = EntityUtils.toString(proxyResponse.getEntity(), CharEncoding.UTF_8);
+      String responseString = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
       resource = JsonMapper.MAPPER.readValue(responseString, klazz);
-    } catch (IOException e) {
+    } catch (IOException | ParseException e) {
       throw new CedarProcessingException(e);
     }
     return resource;
@@ -123,16 +129,16 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
-      HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
+      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpStatus.SC_CREATED) {
         // artifact was not created
         return generateStatusResponse(templateProxyResponse);
       } else {
         HttpEntity entity = templateProxyResponse.getEntity();
-        String mediaType = entity.getContentType().getValue();
+        String mediaType = entity.getContentType();
         String location = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION).getValue();
         URI locationURI = new URI(location);
         return Response.created(locationURI).type(mediaType).entity(entity.getContent()).build();
@@ -181,7 +187,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     try {
       String url;
-      HttpResponse templateProxyResponse;
+      ClassicHttpResponse templateProxyResponse;
       if (artifactId.isEmpty()) {
         // Create by POST, empty @id
         url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
@@ -193,7 +199,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpStatus.SC_CREATED) {
         // artifact was not created
         return generateStatusResponse(templateProxyResponse);
@@ -201,7 +207,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         // artifact was created
         HttpEntity templateProxyResponseEntity = templateProxyResponse.getEntity();
         if (templateProxyResponseEntity != null) {
-          String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity, CharEncoding.UTF_8);
+          String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity, StandardCharsets.UTF_8);
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
           String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
@@ -308,8 +314,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected Response generateStatusResponse(HttpResponse proxyResponse) throws CedarProcessingException {
-    int statusCode = proxyResponse.getStatusLine().getStatusCode();
+  protected Response generateStatusResponse(ClassicHttpResponse proxyResponse) throws CedarProcessingException {
+    int statusCode = proxyResponse.getCode();
     HttpEntity entity = proxyResponse.getEntity();
     if (entity != null) {
       try {
@@ -324,6 +330,119 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   protected Response executeResourceGetByProxyFromArtifactServer(CedarResourceType resourceType, String id, CedarRequestContext context) throws CedarProcessingException {
     return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(microserviceUrlUtil, response, resourceType, id, Optional.empty(), context);
+  }
+
+  // YAML content negotiation
+
+  protected Optional<MediaType> negotiatedArtifactResponseType() {
+    return ArtifactYamlTranscoder.negotiateResponseType(httpHeaders.getAcceptableMediaTypes());
+  }
+
+  /**
+   * Serves an artifact GET honoring the Accept header: JSON is proxied through from the artifact
+   * server as before; YAML is produced by converting the stored JSON on the fly. An Accept header
+   * matching neither supported type yields 406 Not Acceptable.
+   */
+  protected Response executeArtifactGetNegotiated(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<Boolean> compact) throws CedarException {
+    Optional<MediaType> responseType = negotiatedArtifactResponseType();
+    if (responseType.isEmpty()) {
+      return notAcceptableArtifactFormatResponse();
+    }
+    if (ArtifactYamlTranscoder.isJson(responseType.get())) {
+      return executeResourceGetByProxyFromArtifactServer(resourceType, id.getId(), context);
+    }
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
+    ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
+    int statusCode = proxyResponse.getCode();
+    if (statusCode != HttpStatus.SC_OK) {
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+      return generateStatusResponse(proxyResponse);
+    }
+    try {
+      String artifactSource = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
+      JsonNode artifactNode = JsonMapper.MAPPER.readTree(artifactSource);
+      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compact.isPresent() && compact.get());
+      return CedarResponse.ok()
+          .type(responseType.get().toString())
+          .entity(yamlContent)
+          .build();
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
+  }
+
+  /**
+   * Rejects the compact query parameter on write operations. On GET and download it selects the
+   * lossy compact YAML rendering; on a write it can only signal a misunderstanding, since write
+   * responses always render the full form and compact bodies are rejected, so ignoring it
+   * silently would suggest it took effect.
+   */
+  protected void rejectCompactOnWriteOperations(Optional<Boolean> compactParam) throws CedarBadRequestException {
+    if (compactParam.isPresent()) {
+      throw new CedarBadRequestException(new CedarErrorPack()
+          .message("The compact parameter is not supported on write operations: write responses always render "
+              + "the full form, and the compact form can not be stored. "
+              + "See https://metadatacenter.readthedocs.io/en/latest/yaml-spec/minimal-and-full/"));
+    }
+  }
+
+  /**
+   * Prepares a POST/PUT request body for the artifact server, which stores JSON only. A body sent
+   * with Content-Type application/yaml (or application/x-yaml) is converted to JSON. Any other
+   * body is treated as JSON exactly as CedarRequestBody did before: an empty body reads as an
+   * empty object, a malformed body is a bad request, and the body is forwarded in normalized form.
+   */
+  protected String artifactRequestBodyAsJson(String requestBody, CedarResourceType resourceType) throws CedarException {
+    if (ArtifactYamlTranscoder.isYaml(httpHeaders.getMediaType())) {
+      try {
+        return ArtifactYamlTranscoder.yamlToJsonString(requestBody, resourceType);
+      } catch (ArtifactYamlTranscoder.CompactYamlBodyException e) {
+        throw new CedarBadRequestException(e.getMessage(), e);
+      } catch (Exception e) {
+        throw new CedarBadRequestException("There was an error converting the YAML request body to JSON", e);
+      }
+    }
+    if (requestBody == null || requestBody.isEmpty()) {
+      return "{}";
+    }
+    try {
+      return JsonMapper.MAPPER.writeValueAsString(JsonMapper.MAPPER.readTree(requestBody));
+    } catch (JsonProcessingException e) {
+      throw new CedarBadRequestException("There was an error deserializing the request body", e);
+    }
+  }
+
+  /**
+   * Applies Accept-header negotiation to a POST/PUT response. When the client asked for YAML and
+   * the response carries the artifact's JSON, the entity is re-rendered as YAML. Responses whose
+   * entity is not artifact JSON (errors, graph metadata) are returned unchanged.
+   */
+  protected Response negotiateArtifactResponse(Response jsonResponse, CedarResourceType resourceType) {
+    Optional<MediaType> responseType = negotiatedArtifactResponseType();
+    if (responseType.isEmpty() || ArtifactYamlTranscoder.isJson(responseType.get())) {
+      return jsonResponse;
+    }
+    if (Response.Status.Family.familyOf(jsonResponse.getStatus()) != Response.Status.Family.SUCCESSFUL
+        || !(jsonResponse.getEntity() instanceof JsonNode artifactNode)) {
+      return jsonResponse;
+    }
+    try {
+      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, false);
+      return Response.fromResponse(jsonResponse)
+          .entity(yamlContent)
+          .type(responseType.get())
+          .build();
+    } catch (Exception e) {
+      log.warn("The artifact could not be rendered as YAML; returning the JSON response", e);
+      return jsonResponse;
+    }
+  }
+
+  protected Response notAcceptableArtifactFormatResponse() {
+    return CedarResponse.notAcceptable()
+        .errorMessage("None of the media types in the Accept header can be produced")
+        .parameter("allowed media types", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML}))
+        .build();
   }
 
   protected Response getDetails(CedarRequestContext context, CedarArtifactId id) throws CedarException {
@@ -394,18 +513,18 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
 
-      HttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
+      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpConstants.CREATED && statusCode != HttpConstants.OK) {
-        String templateProxyResponseContent = EntityUtils.toString(templateProxyResponse.getEntity(), CharEncoding.UTF_8);
+        String templateProxyResponseContent = EntityUtils.toString(templateProxyResponse.getEntity(), StandardCharsets.UTF_8);
         return CedarResponse.status(CedarResponseStatus.fromStatusCode(statusCode)).entity(templateProxyResponseContent).build();
       }
 
       // artifact was updated
       HttpEntity templateEntity = templateProxyResponse.getEntity();
       if (templateEntity != null) {
-        String templateEntityContent = EntityUtils.toString(templateEntity, CharEncoding.UTF_8);
+        String templateEntityContent = EntityUtils.toString(templateEntity, StandardCharsets.UTF_8);
         JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
 
         String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue().trim();
@@ -473,25 +592,27 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       isSchemaArtifact = true;
     }
 
-    // Check whether it is published
-//    if (isSchemaArtifact) {
-//      if (schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
-//        return CedarResponse.badRequest()
-//            .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
-//            .errorMessage("Published artifacts can not be deleted!")
-//            .parameter("id", id)
-//            .parameter("name", schemaArtifact.getName())
-//            .parameter(BIBO_STATUS, schemaArtifact.getPublicationStatus())
-//            .build();
-//      }
-//    }
+    // Deliberately NOT blocking deletion of a published artifact. Commit 3f26ee7 (2021, "Allow users
+    // to delete published resources") disabled this guard on purpose, and that decision stands: making
+    // published artifacts un-deletable strands them and their folders with no cleanup path. This
+    // contradicts the documentation, which says published artifacts are permanent; that discrepancy is
+    // tracked on the roadmap ("Decide whether a published artifact may be deleted"). The re-publish
+    // guard is separate and IS enforced (see CommandVersionResource).
+    // if (isSchemaArtifact && schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
+    //   return CedarResponse.badRequest()
+    //       .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
+    //       .errorMessage("Published artifacts can not be deleted!")
+    //       .parameter("id", id)
+    //       .parameter("name", schemaArtifact.getName())
+    //       .build();
+    // }
 
     // Delete from artifact server
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-      HttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
+      ClassicHttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      int statusCode = proxyResponse.getCode();
       if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
         // artifact was not deleted
         return generateStatusResponse(proxyResponse);
@@ -553,10 +674,15 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     return Response.noContent().build();
   }
 
+  // The permission reader reports "no access" for a node that does not exist, so on a denial the
+  // existence check must run first: a missing node is 404, a present-but-denied node is 403. The
+  // category helpers below follow the same order.
+
   protected void userMustHaveReadAccessToFolder(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
     ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
     boolean hasReadAccess = permissionSession.userHasReadAccessToResource(folderId);
     if (!hasReadAccess) {
+      folderMustExist(context, folderId);
       throw new CedarPermissionException("You do not have read access to the folder")
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
           .parameter("folderId", folderId);
@@ -567,6 +693,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
     boolean hasWriteAccess = permissionSession.userHasWriteAccessToResource(folderId);
     if (!hasWriteAccess) {
+      folderMustExist(context, folderId);
       throw new CedarPermissionException("You do not have write access to the folder")
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
           .parameter("folderId", folderId);
@@ -577,6 +704,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
     boolean hasReadAccess = permissionSession.userHasReadAccessToResource(artifactId);
     if (!hasReadAccess) {
+      artifactMustExist(context, artifactId);
       throw new CedarPermissionException("You do not have read access to the artifact")
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_ARTIFACT)
           .parameter("resourceId", artifactId);
@@ -587,8 +715,27 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
     boolean hasWriteAccess = permissionSession.userHasWriteAccessToResource(artifactId);
     if (!hasWriteAccess) {
+      artifactMustExist(context, artifactId);
       throw new CedarPermissionException("You do not have write access to the artifact")
           .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_ARTIFACT)
+          .parameter("resourceId", artifactId);
+    }
+  }
+
+  private void folderMustExist(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    if (folderSession.findFolderById(folderId) == null) {
+      throw new CedarObjectNotFoundException("Folder not found by id")
+          .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+          .parameter("folderId", folderId);
+    }
+  }
+
+  private void artifactMustExist(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
+    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    if (folderSession.findArtifactById(artifactId) == null) {
+      throw new CedarObjectNotFoundException("Artifact not found by id")
+          .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
           .parameter("resourceId", artifactId);
     }
   }
@@ -804,6 +951,19 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             .errorMessage("The folder name contains invalid characters!")
             .operation(CedarOperations.update(FolderServerFolder.class, "id", folderId.getId()))
             .parameter("name", name.stringValue())
+            .build();
+      }
+      // A user's home folder and the system folders carry meaningful, fixed names, and delete already
+      // refuses to remove them. Renaming one was still possible, which left the instance in a state
+      // its own conventions do not expect. Only the name is guarded; a description change is harmless.
+      if (!nameV.equals(oldName) && (folderServerFolder.isUserHome() || folderServerFolder.isSystem())) {
+        return CedarResponse.badRequest()
+            .id(folderId)
+            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_CHANGED)
+            .errorReasonKey(folderServerFolder.isUserHome()
+                ? CedarErrorReasonKey.USER_HOME_FOLDER : CedarErrorReasonKey.SYSTEM_FOLDER)
+            .errorMessage("Home and system folders can not be renamed")
+            .parameter("name", nameV)
             .build();
       }
     }

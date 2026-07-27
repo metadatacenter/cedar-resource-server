@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model carrying the id of an artifact.
@@ -12,10 +11,10 @@ import io.swagger.annotations.ApiModelProperty;
  * identifiers (e.g. {@code @id}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@ApiModel(value = "IdRequest", description = "Id of the artifact.")
+@Schema(name = "IdRequest", description = "Id of the artifact.")
 public class IdRequest {
 
-  @ApiModelProperty(name = "@id", value = "Unique URL identifier representing an artifact.")
+  @Schema(name = "@id", description = "Unique URL identifier representing an artifact.")
   private String id;
 
   public String getId() {

@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for the parameters of a rename operation.
@@ -12,16 +11,16 @@ import io.swagger.annotations.ApiModelProperty;
  * identifiers (e.g. {@code @id}, {@code schema:name}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@ApiModel(value = "RenameRequest", description = "Parameters of the rename operation.")
+@Schema(name = "RenameRequest", description = "Parameters of the rename operation.")
 public class RenameRequest {
 
-  @ApiModelProperty(name = "@id", value = "Unique URL identifier representing the resource.")
+  @Schema(name = "@id", description = "Unique URL identifier representing the resource.")
   private String id;
 
-  @ApiModelProperty(name = "schema:name", value = "New name of the resource.")
+  @Schema(name = "schema:name", description = "New name of the resource.")
   private String name;
 
-  @ApiModelProperty(name = "schema:description", value = "New description of the resource.")
+  @Schema(name = "schema:description", description = "New description of the resource.")
   private String description;
 
   public String getId() {

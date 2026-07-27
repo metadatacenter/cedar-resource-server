@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for the parameters of an attach/detach category operation.
@@ -10,13 +9,13 @@ import io.swagger.annotations.ApiModelProperty;
  * wire, so this thin bean exists purely to reproduce the {@code CategoryAttachRequest} schema that
  * the hand-authored spec exposed. It mirrors that schema exactly.</p>
  */
-@ApiModel(value = "CategoryAttachRequest", description = "Parameters of the attach/detach operation.")
+@Schema(name = "CategoryAttachRequest", description = "Parameters of the attach/detach operation.")
 public class CategoryAttachRequest {
 
-  @ApiModelProperty(name = "artifactId", value = "Unique URL identifier representing the artifact.")
+  @Schema(name = "artifactId", description = "Unique URL identifier representing the artifact.")
   private String artifactId;
 
-  @ApiModelProperty(name = "categoryId", value = "Unique URL identifier representing the category.")
+  @Schema(name = "categoryId", description = "Unique URL identifier representing the category.")
   private String categoryId;
 
   public String getArtifactId() {

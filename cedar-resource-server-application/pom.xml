@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-resource-server</artifactId>
-    <version>2.8.4</version>
+    <version>2.9.0</version>
   </parent>
 
   <artifactId>cedar-resource-server-application</artifactId>
@@ -13,11 +13,22 @@
 
   <name>CEDAR Resource Server Dropwizard Application</name>
 
+  <properties>
+    <!-- Opt in to the cedar-shade execution managed in cedar-parent. -->
+    <cedar.shade.phase>package</cedar.shade.phase>
+    <cedar.shade.main.class>org.metadatacenter.cedar.resource.ResourceServerApplication</cedar.shade.main.class>
+  </properties>
+
   <dependencies>
 
     <dependency>
       <groupId>org.metadatacenter</groupId>
       <artifactId>cedar-server-rest-library</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+      <artifactId>httpclient5</artifactId>
     </dependency>
 
     <dependency>
@@ -121,19 +132,34 @@
     </dependency>
 
     <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
     </dependency>
 
     <dependency>
-      <groupId>javax.annotation</groupId>
-      <artifactId>javax.annotation-api</artifactId>
+      <groupId>io.dropwizard</groupId>
+      <artifactId>dropwizard-testing</artifactId>
+      <scope>test</scope>
     </dependency>
 
+    <!-- In-process Neo4j and graph seeding for integration tests -->
     <dependency>
-      <groupId>javax.xml.ws</groupId>
-      <artifactId>jaxws-api</artifactId>
+      <groupId>org.metadatacenter</groupId>
+      <artifactId>cedar-test-support-library</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      Direct declaration required: the server stack transitively pins JNA 4.2.1 (no arm64
+      slice), and only a direct dependency wins Maven's mediation for the test classpath. The
+      version must match the one cedar-test-support-library declares.
+    -->
+    <dependency>
+      <groupId>net.java.dev.jna</groupId>
+      <artifactId>jna</artifactId>
+      <version>5.13.0</version>
+      <scope>test</scope>
     </dependency>
 
     <dependency>
@@ -151,10 +177,10 @@
       <artifactId>fuzzywuzzy</artifactId>
     </dependency>
 
-    <!-- Swagger 1.5.x annotations (@Api, @ApiOperation, ...) used to generate the OpenAPI 2.0 spec at build time -->
+    <!-- Swagger v3 annotations (@Operation, @Tag, @ApiResponse, ...) used to generate the OpenAPI 3.0 spec at build time -->
     <dependency>
-      <groupId>io.swagger</groupId>
-      <artifactId>swagger-annotations</artifactId>
+      <groupId>io.swagger.core.v3</groupId>
+      <artifactId>swagger-annotations-jakarta</artifactId>
     </dependency>
 
   </dependencies>
@@ -164,86 +190,86 @@
     <plugins>
 
       <!--
-        Generates the OpenAPI/Swagger 2.0 spec from the JAX-RS resource annotations.
-
-        Output goes to src/main/resources/assets/swagger-api/ (the committed location). The
-        generated swagger.json/yaml are tracked in git (visible/diffable/recoverable), and Maven
-        copies them onto the classpath (target/classes -> runnable jar), which is what the
-        Dropwizard AssetsBundle serves. The execution is bound to prepare-package, so any build
-        that reaches package/install (e.g. `mvn clean install`, cedarcli build all) regenerates
-        the committed spec in place, so commit the result like any tracked generated artifact.
-
-        kongchen's mojo uses the "include-project-dependencies" configurator, so the project's
-        compile+runtime classpath is on the plugin classloader. This is required here: the
-        resource classes extend cedar-* library base classes, and the generator must be able to
-        load them to introspect their annotations. (io.openapitools 1.0.3 only put target/classes
-        on the classloader, so resource classes failed to load and produced zero paths.)
-
-        Swagger spec version is 2.0 (swagger-core 1.5.x), matching the existing cedar-swagger-ui.
+        The tests redirect the CEDAR environment variables (embedded Neo4j, alternate server
+        ports) through a CedarEnvironmentSource override instead of reflective environment
+        rewriting, so no add-opens flags are needed and the test classes share a JVM
+        (reuseForks true): CedarConfig.getInstance rebuilds whenever the override changes.
       -->
       <plugin>
-        <groupId>com.github.kongchen</groupId>
-        <artifactId>swagger-maven-plugin</artifactId>
-        <version>3.1.8</version>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <apiSources>
-            <apiSource>
-              <springmvc>false</springmvc>
-              <locations>
-                <location>org.metadatacenter.cedar.resource.resources</location>
-              </locations>
-              <schemes>
-                <scheme>https</scheme>
-              </schemes>
-              <info>
-                <title>CEDAR Resource Server API</title>
-                <description>Better Metadata - Better Science</description>
-                <!-- Version is stamped from the POM on every build, so it can never drift again -->
-                <version>${project.version}</version>
-              </info>
-              <!--
-                The api_key security scheme is loaded from a small JSON file. kongchen's inline
-                <securityDefinition> reuses <name> as both the scheme id and the apiKey header
-                name, so it cannot express "scheme api_key -> header Authorization"; the JSON file
-                lets us set the scheme key (api_key, which every @Authorization references) and the
-                header name (Authorization) independently. kongchen does NOT honor @SwaggerDefinition.
-              -->
-              <securityDefinitions>
-                <securityDefinition>
-                  <jsonPath>${project.basedir}/src/main/swagger/security-definitions.json</jsonPath>
-                </securityDefinition>
-              </securityDefinitions>
-              <swaggerDirectory>${project.basedir}/src/main/resources/assets/swagger-api</swaggerDirectory>
-              <swaggerFileName>swagger</swaggerFileName>
-              <outputFormats>json,yaml</outputFormats>
-            </apiSource>
-          </apiSources>
-          <!--
-            Sort every map (paths, definitions, responses) by key so the generated spec is
-            byte-stable across builds/machines. Without this, kongchen emits paths in reflection
-            scan order (a HashSet of Class objects), which can shuffle between JVM runs and produce
-            noisy git diffs on the committed spec.
-          -->
-          <enabledObjectMapperFeatures>
-            <feature>com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS</feature>
-          </enabledObjectMapperFeatures>
+          <reuseForks>true</reuseForks>
         </configuration>
-        <dependencies>
-          <!--
-            Override the ancient transitive javassist (3.21.0-GA: broken POM, and cannot parse
-            Java 17 (v61) bytecode). 3.29.x understands Java 17 class files.
-          -->
-          <dependency>
-            <groupId>org.javassist</groupId>
-            <artifactId>javassist</artifactId>
-            <version>3.29.2-GA</version>
-          </dependency>
-        </dependencies>
+      </plugin>
+
+      <!--
+        Filters the base OpenAPI document (src/main/swagger/openapi-base.yaml) so ${project.version}
+        is stamped into info.version, then writes it to target/. The swagger-maven-plugin reads the
+        filtered copy to seed the generated spec's info block and the api_key security scheme.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>filter-openapi-base</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/generated-swagger</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${project.basedir}/src/main/swagger</directory>
+                  <includes>
+                    <include>openapi-base.yaml</include>
+                  </includes>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!--
+        Generates the OpenAPI 3.0 spec from the JAX-RS (jakarta.ws.rs) resource annotations.
+
+        Output goes to src/main/resources/assets/swagger-api/ as swagger.json + swagger.yaml (the
+        committed location). The generated files are tracked in git (visible/diffable/recoverable),
+        and Maven copies them onto the classpath (target/classes -> runnable jar), which is what the
+        Dropwizard AssetsBundle serves. The execution is bound to prepare-package, so any build that
+        reaches package/install (e.g. `mvn clean install`, cedarcli build all) regenerates the
+        committed spec in place; commit the result like any tracked generated artifact.
+
+        The official io.swagger.core.v3 plugin (jakarta line) resolves the mojo with the project's
+        compile+runtime classpath, so resource classes that extend cedar-* library base classes load
+        and their annotations are introspected. sortOutput keeps the emitted maps key-sorted so the
+        committed spec is byte-stable across builds. The info block and the api_key security scheme
+        come from the filtered openapi-base.yaml.
+      -->
+      <plugin>
+        <groupId>io.swagger.core.v3</groupId>
+        <artifactId>swagger-maven-plugin-jakarta</artifactId>
+        <version>${swagger.version}</version>
+        <configuration>
+          <outputPath>${project.basedir}/src/main/resources/assets/swagger-api</outputPath>
+          <outputFileName>swagger</outputFileName>
+          <outputFormat>JSONANDYAML</outputFormat>
+          <prettyPrint>true</prettyPrint>
+          <sortOutput>true</sortOutput>
+          <resourcePackages>
+            <package>org.metadatacenter.cedar.resource.resources</package>
+          </resourcePackages>
+          <openapiFilePath>${project.build.directory}/generated-swagger/openapi-base.yaml</openapiFilePath>
+        </configuration>
         <executions>
           <execution>
             <phase>prepare-package</phase>
             <goals>
-              <goal>generate</goal>
+              <goal>resolve</goal>
             </goals>
           </execution>
         </executions>
@@ -252,35 +278,6 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <configuration>
-          <createDependencyReducedPom>true</createDependencyReducedPom>
-          <filters>
-            <filter>
-              <artifact>*:*</artifact>
-              <excludes>
-                <exclude>META-INF/*.SF</exclude>
-                <exclude>META-INF/*.DSA</exclude>
-                <exclude>META-INF/*.RSA</exclude>
-              </excludes>
-            </filter>
-          </filters>
-        </configuration>
-        <executions>
-          <execution>
-            <phase>package</phase>
-            <goals>
-              <goal>shade</goal>
-            </goals>
-            <configuration>
-              <transformers>
-                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <mainClass>org.metadatacenter.cedar.resource.ResourceServerApplication</mainClass>
-                </transformer>
-              </transformers>
-            </configuration>
-          </execution>
-        </executions>
       </plugin>
 
     </plugins>

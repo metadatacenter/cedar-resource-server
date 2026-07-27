@@ -1,13 +1,13 @@
 package org.metadatacenter.cedar.deltafinder;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.deltafinder.change.Addition;
 import org.metadatacenter.cedar.deltafinder.change.Change;
 import org.metadatacenter.cedar.deltafinder.change.OrderChange;
 
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestTemplate09 extends SimpleTemplateTest {
 
@@ -19,7 +19,7 @@ public class TestTemplate09 extends SimpleTemplateTest {
     List<Change> nonDestructive = delta.getNonDestructiveChanges();
 
     // Assert no destructive changes
-    assertTrue("Should not contain destructive changes", destructive.isEmpty());
+    assertTrue(destructive.isEmpty(), "Should not contain destructive changes");
 
     // Assert there is one Addition and one OrderChange
     boolean hasAddition = nonDestructive.stream()
@@ -27,7 +27,7 @@ public class TestTemplate09 extends SimpleTemplateTest {
     boolean hasOrderChange = nonDestructive.stream()
         .anyMatch(c -> c instanceof OrderChange);
 
-    assertTrue("Should contain an Addition on Field 0", hasAddition);
-    assertTrue("Should contain an OrderChange", hasOrderChange);
+    assertTrue(hasAddition, "Should contain an Addition on Field 0");
+    assertTrue(hasOrderChange, "Should contain an OrderChange");
   }
 }

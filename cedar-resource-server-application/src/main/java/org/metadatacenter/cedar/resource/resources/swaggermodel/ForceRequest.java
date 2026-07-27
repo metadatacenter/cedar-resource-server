@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model indicating whether to force an operation.
@@ -10,10 +9,10 @@ import io.swagger.annotations.ApiModelProperty;
  * this thin bean exists purely to reproduce the {@code ForceRequest} schema that the hand-authored
  * spec exposed. It mirrors that schema exactly.</p>
  */
-@ApiModel(value = "ForceRequest", description = "Force or not.")
+@Schema(name = "ForceRequest", description = "Force or not.")
 public class ForceRequest {
 
-  @ApiModelProperty(name = "force", value = "Force the regeneration, or not")
+  @Schema(name = "force", description = "Force the regeneration, or not")
   private Boolean force;
 
   public Boolean getForce() {

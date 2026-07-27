@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
@@ -13,16 +12,16 @@ import java.util.List;
  * schema that the hand-authored spec exposed. It mirrors that schema's shape and descriptions
  * exactly via the nested {@link Request} and {@link Recommendation} models.</p>
  */
-@ApiModel(value = "TemplateRecommendationResponse", description = "A ranked list of recommended templates.")
+@Schema(name = "TemplateRecommendationResponse", description = "A ranked list of recommended templates.")
 public class TemplateRecommendationResponse {
 
-  @ApiModelProperty(name = "totalCount", value = "total number of recommendations returned", example = "1")
+  @Schema(name = "totalCount", description = "total number of recommendations returned", example = "1")
   private Double totalCount;
 
-  @ApiModelProperty(name = "request")
+  @Schema(name = "request")
   private Request request;
 
-  @ApiModelProperty(name = "recommendations")
+  @Schema(name = "recommendations")
   private List<Recommendation> recommendations;
 
   public Double getTotalCount() {
@@ -49,11 +48,10 @@ public class TemplateRecommendationResponse {
     this.recommendations = recommendations;
   }
 
-  @ApiModel(value = "TemplateRecommendationResponseRequest")
+  @Schema(name = "TemplateRecommendationResponseRequest")
   public static class Request {
 
-    @ApiModelProperty(name = "sourceFieldsCount",
-        value = "number of fields in the input metadata record")
+    @Schema(name = "sourceFieldsCount", description = "number of fields in the input metadata record")
     private Integer sourceFieldsCount;
 
     public Integer getSourceFieldsCount() {
@@ -65,21 +63,19 @@ public class TemplateRecommendationResponse {
     }
   }
 
-  @ApiModel(value = "TemplateRecommendation")
+  @Schema(name = "TemplateRecommendation")
   public static class Recommendation {
 
-    @ApiModelProperty(name = "recommendationScore", value = "recommendation score")
+    @Schema(name = "recommendationScore", description = "recommendation score")
     private Double recommendationScore;
 
-    @ApiModelProperty(name = "sourceFieldsMatched",
-        value = "number of fields in the template that match fields in the input metadata record")
+    @Schema(name = "sourceFieldsMatched", description = "number of fields in the template that match fields in the input metadata record")
     private Integer sourceFieldsMatched;
 
-    @ApiModelProperty(name = "targetFieldsCount",
-        value = "total number of fields in the recommended template")
+    @Schema(name = "targetFieldsCount", description = "total number of fields in the recommended template")
     private Integer targetFieldsCount;
 
-    @ApiModelProperty(name = "resourceExtract")
+    @Schema(name = "resourceExtract")
     private Template resourceExtract;
 
     public Double getRecommendationScore() {

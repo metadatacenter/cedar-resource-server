@@ -1,0 +1,22 @@
+server:
+  # Small pools on purpose. The suite shares one JVM across nine test classes that each boot a full
+  # server, and Dropwizard's default maxThreads of 1024 per server put that JVM close enough to its
+  # thread ceiling that a later class failed to start with Netty's "failed to create a child event
+  # loop" — an exhaustion error, not a logic one, and one that appeared only in the full run and never
+  # when the class was run alone. These tests issue a handful of sequential requests each, so a few
+  # threads is ample, and the headroom is worth more than the concurrency.
+  minThreads: 4
+  maxThreads: 16
+  applicationConnectors:
+  - type: http
+  adminConnectors:
+  - type: http
+logging:
+  level: INFO
+  loggers:
+    org.metadatacenter: DEBUG
+  appenders:
+    - type: console
+      threshold: ALL
+      timeZone: UTC
+      target: stdout

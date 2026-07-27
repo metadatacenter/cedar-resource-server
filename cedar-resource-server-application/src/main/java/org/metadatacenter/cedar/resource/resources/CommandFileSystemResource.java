@@ -3,19 +3,20 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
-import org.apache.commons.lang.CharEncoding;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.util.EntityUtils;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.LinkedData;
@@ -45,23 +46,26 @@ import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 import static org.metadatacenter.model.ModelNodeNames.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/command", tags = "Command", authorizations = {@Authorization("api_key")})
+@Tag(name = "Command")
+@SecurityRequirement(name = "api_key")
 public class CommandFileSystemResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CommandFileSystemResource.class);
@@ -73,31 +77,33 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/copy-artifact-to-folder")
-  @ApiOperation(value = "Copy artifact",
-      notes = "Copy artifact to a given folder. A copy of the given artifact will be created in the given folder, "
-          + "with a new name Only artifacts (fields, elements, templates, instances) can be copied.",
-      tags = {"Command", "File Operations"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "copyRequest", value = "Parameters of the copy operation", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.CopyRequest", paramType = "body")
-  })
+  @Operation(summary = "Copy artifact", description = "Copy artifact to a given folder. A copy of the given artifact will be created in the given folder, "
+          + "with a new name Only artifacts (fields, elements, templates, instances) can be copied.", tags = {"Command", "File Operations"})
+  @RequestBody(description = "Parameters of the copy operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CopyRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response copyResourceToFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    JsonNode jsonBody = c.request().getRequestBody().asJson();
+    // Read through CedarParameter rather than straight off the JsonNode: a missing field used to be a
+    // null dereference, which reached the caller as 500 for what is plainly a bad request.
+    CedarParameter idParam = c.request().getRequestBody().get("@id");
+    CedarParameter targetFolderParam = c.request().getRequestBody().get("targetFolderId");
+    CedarParameter nameTemplateParam = c.request().getRequestBody().get("nameTemplate");
+    c.must(idParam).be(NonEmpty);
+    c.must(targetFolderParam).be(NonEmpty);
+    c.must(nameTemplateParam).be(NonEmpty);
 
-    String id = jsonBody.get("@id").asText();
-    String folderId = jsonBody.get("targetFolderId").asText();
-    String nameTemplate = jsonBody.get("nameTemplate").asText();
+    String id = idParam.stringValue();
+    String folderId = targetFolderParam.stringValue();
+    String nameTemplate = nameTemplateParam.stringValue();
 
 
     CedarUntypedArtifactId untypedSourceArtifactId = CedarUntypedArtifactId.build(id);
@@ -158,12 +164,12 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     String originalDocument = null;
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, sourceArtifactId);
-      HttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
+      ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       HttpEntity entity = proxyResponse.getEntity();
-      int statusCode = proxyResponse.getStatusLine().getStatusCode();
+      int statusCode = proxyResponse.getCode();
       if (entity != null) {
-        originalDocument = EntityUtils.toString(entity, CharEncoding.UTF_8);
+        originalDocument = EntityUtils.toString(entity, StandardCharsets.UTF_8);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
         ((ObjectNode) jsonNode).remove("@id");
         String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
@@ -193,10 +199,10 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
-      HttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, c, originalDocument);
+      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, c, originalDocument);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
-      int statusCode = templateProxyResponse.getStatusLine().getStatusCode();
+      int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpStatus.SC_CREATED) {
         // artifact was not created
         return generateStatusResponse(templateProxyResponse);
@@ -204,7 +210,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         // artifact was created
         HttpEntity entity = templateProxyResponse.getEntity();
         Header locationHeader = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION);
-        String entityContent = EntityUtils.toString(entity, CharEncoding.UTF_8);
+        String entityContent = EntityUtils.toString(entity, StandardCharsets.UTF_8);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(entityContent);
         String createdId = jsonNode.get("@id").asText();
         CedarArtifactId newId = CedarArtifactId.build(createdId, resourceType);
@@ -296,30 +302,29 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/move-resource-to-folder")
-  @ApiOperation(value = "Move resource",
-      notes = "Move resource to a given folder. Folders or artifacts (fields, elements, templates, instances) can "
-          + "be moved.",
-      tags = {"Command", "File Operations"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "moveRequest", value = "Parameters of the move operation", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.MoveRequest", paramType = "body")
-  })
+  @Operation(summary = "Move resource", description = "Move resource to a given folder. Folders or artifacts (fields, elements, templates, instances) can "
+          + "be moved.", tags = {"Command", "File Operations"})
+  @RequestBody(description = "Parameters of the move operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.MoveRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response moveResourceToFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    JsonNode jsonBody = c.request().getRequestBody().asJson();
+    // As above: a missing field is a bad request, not a server fault.
+    CedarParameter sourceParam = c.request().getRequestBody().get(LinkedData.ID);
+    CedarParameter targetParam = c.request().getRequestBody().get("targetFolderId");
+    c.must(sourceParam).be(NonEmpty);
+    c.must(targetParam).be(NonEmpty);
 
-    String sId = jsonBody.get(LinkedData.ID).asText();
-    String fId = jsonBody.get("targetFolderId").asText();
+    String sId = sourceParam.stringValue();
+    String fId = targetParam.stringValue();
 
     CedarFolderId targetFolderId = CedarFolderId.build(fId);
 
@@ -440,21 +445,16 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/rename-resource")
-  @ApiOperation(value = "Rename resource",
-      notes = "Change name and/or description of a resource. Folders or artifacts (fields, elements, templates, "
-          + "instances) can be altered.",
-      tags = {"Command", "File Operations"})
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "renameRequest", value = "Parameters of the rename operation", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.RenameRequest", paramType = "body")
-  })
+  @Operation(summary = "Rename resource", description = "Change name and/or description of a resource. Folders or artifacts (fields, elements, templates, "
+          + "instances) can be altered.", tags = {"Command", "File Operations"})
+  @RequestBody(description = "Parameters of the rename operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.RenameRequest.class)))
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response renameResource() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -463,6 +463,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     CedarParameter nameParam = c.request().getRequestBody().get(SCHEMA_ORG_NAME);
     CedarParameter descriptionParam = c.request().getRequestBody().get(SCHEMA_ORG_DESCRIPTION);
     CedarParameter idParam = c.request().getRequestBody().get(LinkedData.ID);
+    // Was read without checking, so a body with no identifier became a 500 further down.
+    c.must(idParam).be(NonEmpty);
 
     String id = idParam.stringValue();
 
@@ -521,8 +523,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     } else {
       String artifactServerUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, (CedarArtifactId) fsResourceId);
 
-      HttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(artifactServerUrl, c);
-      int currentStatusCode = templateCurrentProxyResponse.getStatusLine().getStatusCode();
+      ClassicHttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(artifactServerUrl, c);
+      int currentStatusCode = templateCurrentProxyResponse.getCode();
       if (currentStatusCode != HttpStatus.SC_OK) {
         // artifact was not created
         return generateStatusResponse(templateCurrentProxyResponse);
@@ -530,7 +532,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
         if (currentTemplateEntity != null) {
           try {
-            String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, CharEncoding.UTF_8);
+            String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
             JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
             String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
             String currentDescription = ModelUtil.extractDescriptionFromResource(resourceType, currentTemplateJsonNode).getValue();
@@ -567,7 +569,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
                   .parameter(SCHEMA_ORG_DESCRIPTION, description)
                   .build();
             }
-          } catch (IOException e) {
+          } catch (IOException | ParseException e) {
             throw new CedarProcessingException(e);
           }
         }

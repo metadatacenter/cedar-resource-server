@@ -1,10 +1,10 @@
 package org.metadatacenter.cedar.resource;
 
-import io.dropwizard.setup.Bootstrap;
-import io.dropwizard.setup.Environment;
-import org.metadatacenter.cedar.resource.health.ResourceServerHealthCheck;
+import io.dropwizard.core.setup.Bootstrap;
+import io.dropwizard.core.setup.Environment;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.IndexCreator;
+import org.metadatacenter.cedar.util.dw.CedarDefaultHealthCheck;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
@@ -119,7 +119,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final RecommendResource recommend = new RecommendResource(cedarConfig);
     environment.jersey().register(recommend);
 
-    final ResourceServerHealthCheck healthCheck = new ResourceServerHealthCheck();
+    final CedarDefaultHealthCheck healthCheck = new CedarDefaultHealthCheck();
     environment.healthChecks().register("message", healthCheck);
   }
 }

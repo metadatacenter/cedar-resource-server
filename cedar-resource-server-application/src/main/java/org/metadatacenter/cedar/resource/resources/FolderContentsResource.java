@@ -1,12 +1,12 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.config.CedarConfig;
@@ -34,10 +34,10 @@ import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedSortedTypedQuery;
 
-import javax.ws.rs.*;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 import java.util.*;
 
@@ -47,7 +47,8 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/folders")
 @Produces(MediaType.APPLICATION_JSON)
-@Api(value = "/folders", tags = "Folder Contents", authorizations = {@Authorization("api_key")})
+@Tag(name = "Folder Contents")
+@SecurityRequirement(name = "api_key")
 public class FolderContentsResource extends AbstractResourceServerResource {
 
   public FolderContentsResource(CedarConfig cedarConfig) {
@@ -57,35 +58,34 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{folder_id}/contents")
-  @ApiOperation(value = "Get the contents of a folder", notes = "Get the contents of a folder.",
-      tags = {"Folders", "Folder Contents", "Versioning"})
+  @Operation(summary = "Get the contents of a folder", description = "Get the contents of a folder.", tags = {"Folders", "Folder Contents", "Versioning"})
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response findFolderContentsById(
-      @ApiParam(value = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
+      @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id,
-      @ApiParam(value = "Resource types as comma separated values. The allowed values are: 'folder', 'field', "
+      @Parameter(description = "Resource types as comma separated values. The allowed values are: 'folder', 'field', "
           + "'element', 'template', 'instance'")
       @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
-      @ApiParam(value = "Version selector. It is only handled for template-fields, template-elements and templates. "
+      @Parameter(description = "Version selector. It is only handled for template-fields, template-elements and templates. "
           + "The allowed values are: 'latest', 'all'")
       @QueryParam(QP_VERSION) Optional<String> versionParam,
-      @ApiParam(value = "Publication status selector. It is only handled for template-fields, template-elements and "
+      @Parameter(description = "Publication status selector. It is only handled for template-fields, template-elements and "
           + "templates. The allowed values are: 'bibo:draft', 'bibo:published', 'all'")
       @QueryParam(QP_PUBLICATION_STATUS) Optional<String> publicationStatusParam,
-      @ApiParam(value = "Sort field names as comma separated values. Prepending a field with '-' means descending "
+      @Parameter(description = "Sort field names as comma separated values. Prepending a field with '-' means descending "
           + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'")
       @QueryParam(QP_SORT) Optional<String> sortParam,
-      @ApiParam(value = "Paging limit")
+      @Parameter(description = "Paging limit")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-      @ApiParam(value = "Paging offset")
+      @Parameter(description = "Paging offset")
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
@@ -153,39 +153,38 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{folder_id}/contents-extract")
-  @ApiOperation(value = "Get the content extracts of a folder", notes = "Get the content extracts of a folder. Only "
+  @Operation(summary = "Get the content extracts of a folder", description = "Get the content extracts of a folder. Only "
       + "the enumerated fields will be returned. Multilevel field paths are not supported. It is intended to return "
-      + "smaller payload if a lot of artifacts are expected to be returned.",
-      tags = {"Folders", "Folder Contents", "Versioning"})
+      + "smaller payload if a lot of artifacts are expected to be returned.", tags = {"Folders", "Folder Contents", "Versioning"})
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response findFolderContentsExtractById(
-      @ApiParam(value = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
+      @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id,
-      @ApiParam(value = "Resource types as comma separated values. The allowed values are: 'folder', 'field', "
+      @Parameter(description = "Resource types as comma separated values. The allowed values are: 'folder', 'field', "
           + "'element', 'template', 'instance'")
       @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
-      @ApiParam(value = "Version selector. It is only handled for template-fields, template-elements and templates. "
+      @Parameter(description = "Version selector. It is only handled for template-fields, template-elements and templates. "
           + "The allowed values are: 'latest', 'all'")
       @QueryParam(QP_VERSION) Optional<String> versionParam,
-      @ApiParam(value = "Publication status selector. It is only handled for template-fields, template-elements and "
+      @Parameter(description = "Publication status selector. It is only handled for template-fields, template-elements and "
           + "templates. The allowed values are: 'bibo:draft', 'bibo:published', 'all'")
       @QueryParam(QP_PUBLICATION_STATUS) Optional<String> publicationStatusParam,
-      @ApiParam(value = "Sort field names as comma separated values. Prepending a field with '-' means descending "
+      @Parameter(description = "Sort field names as comma separated values. Prepending a field with '-' means descending "
           + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'")
       @QueryParam(QP_SORT) Optional<String> sortParam,
-      @ApiParam(value = "Paging limit")
+      @Parameter(description = "Paging limit")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-      @ApiParam(value = "Paging offset")
+      @Parameter(description = "Paging offset")
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
-      @ApiParam(value = "Field name list, separated by comma.")
+      @Parameter(description = "Field name list, separated by comma.")
       @QueryParam(QP_FIELD_NAMES) Optional<String> fieldNamesParam) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();

@@ -1,6 +1,6 @@
 package org.metadatacenter.cedar.deltafinder;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.deltafinder.change.Addition;
 import org.metadatacenter.cedar.deltafinder.change.Change;
 import org.metadatacenter.cedar.deltafinder.change.Deletion;
@@ -8,7 +8,7 @@ import org.metadatacenter.cedar.deltafinder.change.Rename;
 
 import java.util.List;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestTemplate17 extends SimpleTemplateTest {
 
@@ -20,10 +20,10 @@ public class TestTemplate17 extends SimpleTemplateTest {
     List<Change> nonDestructive = delta.getNonDestructiveChanges();
 
     // Assert no deletions
-    assertTrue("Should not contain deletions", destructive.stream().noneMatch(c -> c instanceof Deletion));
+    assertTrue(destructive.stream().noneMatch(c -> c instanceof Deletion), "Should not contain deletions");
 
     // Assert no additions
-    assertTrue("Should not contain additions", nonDestructive.stream().noneMatch(c -> c instanceof Addition));
+    assertTrue(nonDestructive.stream().noneMatch(c -> c instanceof Addition), "Should not contain additions");
 
     // Assert a rename occurred
     boolean hasRename = nonDestructive.stream().anyMatch(c ->
@@ -31,6 +31,6 @@ public class TestTemplate17 extends SimpleTemplateTest {
             c.getFieldName().equals("Test Field for Inclusion") &&
             ((Rename) c).getNewFieldName().equals("Test Field for Inclusion Renamed")
     );
-    assertTrue("Should contain Rename from Test Field for Inclusion to Test Field for Inclusion Renamed", hasRename);
+    assertTrue(hasRename, "Should contain Rename from Test Field for Inclusion to Test Field for Inclusion Renamed");
   }
 }

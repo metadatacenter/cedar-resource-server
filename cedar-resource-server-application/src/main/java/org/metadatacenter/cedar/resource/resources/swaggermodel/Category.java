@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for a CEDAR category.
@@ -12,23 +11,22 @@ import io.swagger.annotations.ApiModelProperty;
  * identifiers (e.g. {@code @id}, {@code schema:name}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@ApiModel(value = "Category", description = "A CEDAR category.")
+@Schema(name = "Category", description = "A CEDAR category.")
 public class Category {
 
-  @ApiModelProperty(name = "@id", value = "Unique URL identifier representing a specific category.")
+  @Schema(name = "@id", description = "Unique URL identifier representing a specific category.")
   private String id;
 
-  @ApiModelProperty(name = "schema:name", value = "Name of the category.")
+  @Schema(name = "schema:name", description = "Name of the category.")
   private String name;
 
-  @ApiModelProperty(name = "schema:description", value = "Description of the category.")
+  @Schema(name = "schema:description", description = "Description of the category.")
   private String description;
 
-  @ApiModelProperty(name = "parentCategoryId", value = "Unique URL identifier representing a specific parent category.")
+  @Schema(name = "parentCategoryId", description = "Unique URL identifier representing a specific parent category.")
   private String parentCategoryId;
 
-  @ApiModelProperty(name = "schema:identifier",
-      value = "Identifier, used for identifying this object in outside-to-CEDAR systems.")
+  @Schema(name = "schema:identifier", description = "Identifier, used for identifying this object in outside-to-CEDAR systems.")
   private String identifier;
 
   public String getId() {

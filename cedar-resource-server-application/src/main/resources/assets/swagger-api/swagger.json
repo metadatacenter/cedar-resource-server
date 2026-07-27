@@ -1,81 +1,42 @@
 {
-  "swagger" : "2.0",
+  "openapi" : "3.0.1",
   "info" : {
     "description" : "Better Metadata - Better Science",
-    "version" : "2.8.4",
-    "title" : "CEDAR Resource Server API"
+    "title" : "CEDAR Resource Server API",
+    "version" : "2.9.0"
   },
-  "tags" : [ {
-    "name" : "Administration"
-  }, {
-    "name" : "Categories"
-  }, {
-    "name" : "Category Operations"
-  }, {
-    "name" : "Command"
-  }, {
-    "name" : "File Operations"
-  }, {
-    "name" : "Folder Contents"
-  }, {
-    "name" : "Folders"
-  }, {
-    "name" : "OpenView"
-  }, {
-    "name" : "Permissions"
-  }, {
-    "name" : "Recommendations"
-  }, {
-    "name" : "Resource Details"
-  }, {
-    "name" : "Resource Report"
-  }, {
-    "name" : "Search"
-  }, {
-    "name" : "Template Elements"
-  }, {
-    "name" : "Template Fields"
-  }, {
-    "name" : "Template Instances"
-  }, {
-    "name" : "Templates"
-  }, {
-    "name" : "Users"
-  }, {
-    "name" : "Validation"
-  }, {
-    "name" : "Versioning"
-  } ],
-  "schemes" : [ "https" ],
   "paths" : {
     "/categories" : {
       "get" : {
-        "tags" : [ "Categories" ],
-        "summary" : "Get all categories",
         "description" : "Get the list of all categories.",
         "operationId" : "getAllCategories",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "limit",
-          "in" : "query",
           "description" : "Paging limit",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
-        }, {
-          "name" : "offset",
           "in" : "query",
+          "name" : "limit",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
           "description" : "Paging offset",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
+          "in" : "query",
+          "name" : "offset",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
         } ],
         "responses" : {
           "200" : {
-            "description" : "A category",
-            "schema" : {
-              "$ref" : "#/definitions/Category"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Category"
+                }
+              }
+            },
+            "description" : "A category"
           },
           "400" : {
             "description" : "Bad request"
@@ -95,35 +56,34 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get all categories",
+        "tags" : [ "Categories" ]
       },
       "post" : {
-        "tags" : [ "Categories" ],
-        "summary" : "Create a category",
         "description" : "Create a category.",
         "operationId" : "createCategory",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "category",
-          "description" : "The category to be created",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/Category"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "successful operation",
-            "schema" : {
-              "$ref" : "#/definitions/Category"
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Category"
+              }
             }
           },
+          "description" : "The category to be created",
+          "required" : true
+        },
+        "responses" : {
           "201" : {
-            "description" : "A category",
-            "schema" : {
-              "$ref" : "#/definitions/Category"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Category"
+                }
+              }
+            },
+            "description" : "A category"
           },
           "400" : {
             "description" : "Bad request"
@@ -143,22 +103,25 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Create a category",
+        "tags" : [ "Categories" ]
       }
     },
     "/categories/root" : {
       "get" : {
-        "tags" : [ "Categories" ],
-        "summary" : "Get root category",
         "description" : "Get root category.",
         "operationId" : "findRootCategory",
-        "produces" : [ "application/json" ],
         "responses" : {
           "200" : {
-            "description" : "A category",
-            "schema" : {
-              "$ref" : "#/definitions/Category"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Category"
+                }
+              }
+            },
+            "description" : "A category"
           },
           "400" : {
             "description" : "Bad request"
@@ -178,29 +141,34 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get root category",
+        "tags" : [ "Categories" ]
       }
     },
     "/categories/tree" : {
       "get" : {
-        "tags" : [ "Categories" ],
-        "summary" : "Get category tree",
         "description" : "Get category tree.",
         "operationId" : "findCategoryTree",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "category_id",
-          "in" : "path",
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "category_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
-            "description" : "A category",
-            "schema" : {
-              "$ref" : "#/definitions/Category"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Category"
+                }
+              }
+            },
+            "description" : "A category"
           },
           "400" : {
             "description" : "Bad request"
@@ -220,110 +188,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get category tree",
+        "tags" : [ "Categories" ]
       }
     },
     "/categories/{category_id}" : {
-      "get" : {
-        "tags" : [ "Categories" ],
-        "summary" : "Get a category",
-        "description" : "Get a category.",
-        "operationId" : "findCategory",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "category_id",
-          "in" : "path",
-          "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-          "required" : true,
-          "type" : "string"
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A category",
-            "schema" : {
-              "$ref" : "#/definitions/Category"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
-      "put" : {
-        "tags" : [ "Categories" ],
-        "summary" : "Update a category",
-        "description" : "Update a category.",
-        "operationId" : "updateCategory",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "category_id",
-          "in" : "path",
-          "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-          "required" : true,
-          "type" : "string"
-        }, {
-          "in" : "body",
-          "name" : "category",
-          "description" : "The category to be updated",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/Category"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A category",
-            "schema" : {
-              "$ref" : "#/definitions/Category"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
       "delete" : {
-        "tags" : [ "Categories" ],
-        "summary" : "Delete a category",
         "description" : "Delete a category.",
         "operationId" : "deleteCategory",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "category_id",
-          "in" : "path",
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "category_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "204" : {
@@ -347,22 +228,124 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Delete a category",
+        "tags" : [ "Categories" ]
+      },
+      "get" : {
+        "description" : "Get a category.",
+        "operationId" : "findCategory",
+        "parameters" : [ {
+          "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "category_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Category"
+                }
+              }
+            },
+            "description" : "A category"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Get a category",
+        "tags" : [ "Categories" ]
+      },
+      "put" : {
+        "description" : "Update a category.",
+        "operationId" : "updateCategory",
+        "parameters" : [ {
+          "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "category_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Category"
+              }
+            }
+          },
+          "description" : "The category to be updated",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Category"
+                }
+              }
+            },
+            "description" : "A category"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Update a category",
+        "tags" : [ "Categories" ]
       }
     },
     "/categories/{category_id}/permissions" : {
       "get" : {
-        "tags" : [ "Categories", "Permissions" ],
-        "summary" : "Get permissions of a category",
         "description" : "Get permissions of a category.",
         "operationId" : "getCategoryPermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "category_id",
-          "in" : "path",
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "category_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -386,20 +369,21 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get permissions of a category",
+        "tags" : [ "Categories", "Permissions" ]
       },
       "put" : {
-        "tags" : [ "Categories", "Permissions" ],
-        "summary" : "Update permissions of a category",
         "description" : "Update permissions of a category.",
         "operationId" : "updateCategoryPermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "category_id",
-          "in" : "path",
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "category_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -423,16 +407,15 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Update permissions of a category",
+        "tags" : [ "Categories", "Permissions" ]
       }
     },
     "/command/annotations/doi" : {
       "post" : {
-        "tags" : [ "Command" ],
-        "summary" : "Set the DOI of an artifact",
         "description" : "Set the DOI annotation of an artifact. The user must have 'write' access to the artifact. The resource type must support DOIs, and an existing DOI can not be altered.",
         "operationId" : "setDOI",
-        "produces" : [ "application/json" ],
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -455,25 +438,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Set the DOI of an artifact",
+        "tags" : [ "Command" ]
       }
     },
     "/command/attach-categories" : {
       "post" : {
-        "tags" : [ "Command", "Categories", "Category Operations" ],
-        "summary" : "Attach multiple categories to an artifact",
         "description" : "Attach a list of existing categories to an existing artifact. The user must have 'write' access to the artifact. The user must have 'attach' access to all the categories. The call will exit at the firts category without 'attach' access",
         "operationId" : "attachCategoriesToArtifact",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "categoryAttachListRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CategoryAttachListRequest"
+              }
+            }
+          },
           "description" : "Parameters of the attach operation",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/CategoryAttachListRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -496,25 +480,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Attach multiple categories to an artifact",
+        "tags" : [ "Command", "Categories", "Category Operations" ]
       }
     },
     "/command/attach-category" : {
       "post" : {
-        "tags" : [ "Command", "Categories", "Category Operations" ],
-        "summary" : "Attach category to an artifact",
         "description" : "Attach an existing category to an existing artifact. The user must have 'write' access to the artifact. The user must have 'attach' access to the category.",
         "operationId" : "attachCategoryToArtifact",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "categoryAttachRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CategoryAttachRequest"
+              }
+            }
+          },
           "description" : "Parameters of the attach operation",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/CategoryAttachRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -537,16 +522,15 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Attach category to an artifact",
+        "tags" : [ "Command", "Categories", "Category Operations" ]
       }
     },
     "/command/auth-user-callback" : {
       "post" : {
-        "tags" : [ "Command" ],
-        "summary" : "Authentication user callback",
         "description" : "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home folder, group membership) upon authentication.",
         "operationId" : "authUserCallback",
-        "produces" : [ "application/json" ],
         "responses" : {
           "201" : {
             "description" : "Successful operation"
@@ -569,22 +553,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Authentication user callback",
+        "tags" : [ "Command" ]
       }
     },
     "/command/check-update-template/{template_id}" : {
       "post" : {
-        "tags" : [ "Command", "Versioning" ],
-        "summary" : "Check whether a template can be updated",
         "description" : "Check whether an existing template can be updated with the supplied template definition. The destructive and non-destructive changes between the stored template and the supplied template are computed, and the number of affected instances is reported.",
         "operationId" : "checkUpdateTemplate",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
           "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -608,22 +593,22 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Check whether a template can be updated",
+        "tags" : [ "Command", "Versioning" ]
       }
     },
     "/command/convert" : {
       "post" : {
-        "tags" : [ "Command" ],
-        "summary" : "Convert a resource",
         "description" : "Convert the resource supplied in the request body to the requested output format.",
         "operationId" : "convertResource",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "format",
-          "in" : "query",
           "description" : "Output format type to display the content of the template instance. The allowed values are: 'jsonld', 'json', 'rdf-nquad'",
-          "required" : false,
-          "type" : "string"
+          "in" : "query",
+          "name" : "format",
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -647,25 +632,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Convert a resource",
+        "tags" : [ "Command" ]
       }
     },
     "/command/copy-artifact-to-folder" : {
       "post" : {
-        "tags" : [ "Command", "File Operations" ],
-        "summary" : "Copy artifact",
         "description" : "Copy artifact to a given folder. A copy of the given artifact will be created in the given folder, with a new name Only artifacts (fields, elements, templates, instances) can be copied.",
         "operationId" : "copyResourceToFolder",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "copyRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CopyRequest"
+              }
+            }
+          },
           "description" : "Parameters of the copy operation",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/CopyRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -688,25 +674,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Copy artifact",
+        "tags" : [ "Command", "File Operations" ]
       }
     },
     "/command/create-draft-artifact" : {
       "post" : {
-        "tags" : [ "Validation", "Command", "Versioning" ],
-        "summary" : "Create draft artifact.",
         "description" : "Create draft artifact out of a published artifact. A new artifact will be created in the supplied folder. The version of the new artifact must be set, and must follow the current published version. The sharing settings of the old artifact can be copied over to the new artifact..",
         "operationId" : "createDraftArtifact",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "createDraftArtifactRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateDraftArtifactRequest"
+              }
+            }
+          },
           "description" : "Info about the creation process",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/CreateDraftArtifactRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -729,25 +716,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Create draft artifact.",
+        "tags" : [ "Validation", "Command", "Versioning" ]
       }
     },
     "/command/detach-category" : {
       "post" : {
-        "tags" : [ "Command", "Categories", "Category Operations" ],
-        "summary" : "Detach category from an artifact",
         "description" : "Detach an existing category from an existing artifact. The user must have 'write' access to the artifact. The user must have 'attach' access to the category.",
         "operationId" : "detachCategoryFromArtifact",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "categoryAttachRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CategoryAttachRequest"
+              }
+            }
+          },
           "description" : "Parameters of the detach operation",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/CategoryAttachRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -770,16 +758,15 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Detach category from an artifact",
+        "tags" : [ "Command", "Categories", "Category Operations" ]
       }
     },
     "/command/generate-empty-rules-index" : {
       "post" : {
-        "tags" : [ "Command", "Administration" ],
-        "summary" : "Empty rules index.",
         "description" : "Regenerate rules index. This is an administrative command, you need special permission to run it. The old index will be deleted and replaced by a new empty one. The recommendations will work, but will not return results, since the index will be empty.",
         "operationId" : "generateEmptyRulesIndex",
-        "produces" : [ "application/json" ],
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -802,16 +789,15 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Empty rules index.",
+        "tags" : [ "Command", "Administration" ]
       }
     },
     "/command/generate-empty-search-index" : {
       "post" : {
-        "tags" : [ "Command", "Administration" ],
-        "summary" : "Empty search index.",
         "description" : "Empty search index. This is an administrative command, you need special permission to run it. The old index will be deleted and replaced by a new empty one. The search will work, but will not return results, since the index will be empty.",
         "operationId" : "generateEmptySearchIndex",
-        "produces" : [ "application/json" ],
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -834,16 +820,15 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Empty search index.",
+        "tags" : [ "Command", "Administration" ]
       }
     },
     "/command/inclusions-subgraph-preview" : {
       "post" : {
-        "tags" : [ "Command" ],
-        "summary" : "Preview the inclusion subgraph of an artifact",
         "description" : "Build a preview of the tree of artifacts affected by a change to the given artifact, without applying any update.",
         "operationId" : "previewInclusionSubgraph",
-        "produces" : [ "application/json" ],
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -866,16 +851,15 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Preview the inclusion subgraph of an artifact",
+        "tags" : [ "Command" ]
       }
     },
     "/command/inclusions-subgraph-update" : {
       "post" : {
-        "tags" : [ "Command" ],
-        "summary" : "Update the inclusion subgraph of an artifact",
         "description" : "Propagate a change to the given artifact across the tree of affected artifacts, updating each referencing artifact on the artifact server.",
         "operationId" : "updateInclusionSubgraph",
-        "produces" : [ "application/json" ],
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -898,16 +882,15 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Update the inclusion subgraph of an artifact",
+        "tags" : [ "Command" ]
       }
     },
     "/command/load-valuesets-ontology" : {
       "post" : {
-        "tags" : [ "Command" ],
-        "summary" : "Load the OWL value sets ontology generated by the caDSR CDE injestor.",
         "description" : "Load the OWL value sets ontology generated by the NCI caDSR CDE injestor. Each time the ingestor runs (typically nightly) and new value sets ontology is created, which descibed the value sets used by caDSR CDEs.",
         "operationId" : "loadValueSetsOntology",
-        "produces" : [ "application/json" ],
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -930,16 +913,15 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Load the OWL value sets ontology generated by the caDSR CDE injestor.",
+        "tags" : [ "Command" ]
       }
     },
     "/command/load-valuesets-ontology-status" : {
       "get" : {
-        "tags" : [ "Command" ],
-        "summary" : "Get the status of the value sets ontology loading",
         "description" : "Get the current status of the value sets ontology loading process.",
         "operationId" : "loadValueSetsOntologyStatus",
-        "produces" : [ "application/json" ],
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -962,25 +944,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get the status of the value sets ontology loading",
+        "tags" : [ "Command" ]
       }
     },
     "/command/make-artifact-not-open" : {
       "post" : {
-        "tags" : [ "Command", "OpenView" ],
-        "summary" : "Make artifact not open",
         "description" : "Make artifact not open.",
         "operationId" : "makeArtifactNotOpen",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "idRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/IdRequest"
+              }
+            }
+          },
           "description" : "Id of the artifact to make open",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/IdRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -1003,25 +986,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Make artifact not open",
+        "tags" : [ "Command", "OpenView" ]
       }
     },
     "/command/make-artifact-open" : {
       "post" : {
-        "tags" : [ "Command", "OpenView" ],
-        "summary" : "Make artifact open",
         "description" : "Make artifact open.",
         "operationId" : "makeArtifactOpen",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "idRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/IdRequest"
+              }
+            }
+          },
           "description" : "Id of the artifact to make open",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/IdRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -1044,25 +1028,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Make artifact open",
+        "tags" : [ "Command", "OpenView" ]
       }
     },
     "/command/make-folder-not-open" : {
       "post" : {
-        "tags" : [ "Command", "OpenView" ],
-        "summary" : "Make folder not open",
         "description" : "Make folder not open.",
         "operationId" : "makeFolderNotOpen",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "idRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/IdRequest"
+              }
+            }
+          },
           "description" : "Id of the folder to make open",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/IdRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -1085,25 +1070,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Make folder not open",
+        "tags" : [ "Command", "OpenView" ]
       }
     },
     "/command/make-folder-open" : {
       "post" : {
-        "tags" : [ "Command", "OpenView" ],
-        "summary" : "Make folder open",
         "description" : "Make folder open.",
         "operationId" : "makeFolderOpen",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "idRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/IdRequest"
+              }
+            }
+          },
           "description" : "Id of the folder to make open",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/IdRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -1126,25 +1112,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Make folder open",
+        "tags" : [ "Command", "OpenView" ]
       }
     },
     "/command/move-resource-to-folder" : {
       "post" : {
-        "tags" : [ "Command", "File Operations" ],
-        "summary" : "Move resource",
         "description" : "Move resource to a given folder. Folders or artifacts (fields, elements, templates, instances) can be moved.",
         "operationId" : "moveResourceToFolder",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "moveRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoveRequest"
+              }
+            }
+          },
           "description" : "Parameters of the move operation",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/MoveRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -1167,25 +1154,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Move resource",
+        "tags" : [ "Command", "File Operations" ]
       }
     },
     "/command/publish-artifact" : {
       "post" : {
-        "tags" : [ "Validation", "Command", "Versioning" ],
-        "summary" : "Publish artifact.",
         "description" : "Publish artifact. The 'bibo:status' of the artifact will be changed from 'bibo:draft' to 'bibo:published'. The 'pav:version' will be also set.",
         "operationId" : "publishArtifact",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "publishArtifactRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PublishArtifactRequest"
+              }
+            }
+          },
           "description" : "Info about the publishing process",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/PublishArtifactRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -1208,28 +1196,30 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Publish artifact.",
+        "tags" : [ "Validation", "Command", "Versioning" ]
       }
     },
     "/command/publish-create-draft-template/{template_id}" : {
       "post" : {
-        "tags" : [ "Command", "Versioning" ],
-        "summary" : "Publish a template and create a new draft",
         "description" : "Publish the given template, then create a new draft version from it and apply the supplied template definition. Instances of the source template can be copied into a new folder.",
         "operationId" : "publishCreateDraftTemplate",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
           "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "folder_name",
-          "in" : "query",
           "description" : "Name of the folder to copy the template instances into.",
-          "required" : false,
-          "type" : "string"
+          "in" : "query",
+          "name" : "folder_name",
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1253,25 +1243,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Publish a template and create a new draft",
+        "tags" : [ "Command", "Versioning" ]
       }
     },
     "/command/regenerate-rules-index" : {
       "post" : {
-        "tags" : [ "Command", "Administration" ],
-        "summary" : "Regenerate rules index.",
         "description" : "Regenerate rules index. This is an administrative command, you need special permission to run it. If there is no need for reindexing, the task will not run. It can be forced using the force parameter. A background task will be started. The status of the task can be monitored in the resource server log files. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time.",
         "operationId" : "regenerateRulesIndex",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "forceRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ForceRequest"
+              }
+            }
+          },
           "description" : "Force or not",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/ForceRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -1294,25 +1285,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Regenerate rules index.",
+        "tags" : [ "Command", "Administration" ]
       }
     },
     "/command/regenerate-search-index" : {
       "post" : {
-        "tags" : [ "Command", "Administration" ],
-        "summary" : "Regenerate search index.",
         "description" : "Regenerate search index. This is an administrative command, you need special permission to run it. If there is no need for reindexing, the task will not run. It can be forced using the force parameter. A background task will be started. The status of the task can be monitored in the resource server log files. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time.",
         "operationId" : "regenerateSearchIndex",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "forceRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ForceRequest"
+              }
+            }
+          },
           "description" : "Force or not",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/ForceRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -1335,25 +1327,26 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Regenerate search index.",
+        "tags" : [ "Command", "Administration" ]
       }
     },
     "/command/rename-resource" : {
       "post" : {
-        "tags" : [ "Command", "File Operations" ],
-        "summary" : "Rename resource",
         "description" : "Change name and/or description of a resource. Folders or artifacts (fields, elements, templates, instances) can be altered.",
         "operationId" : "renameResource",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "renameRequest",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RenameRequest"
+              }
+            }
+          },
           "description" : "Parameters of the rename operation",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/RenameRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -1376,22 +1369,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Rename resource",
+        "tags" : [ "Command", "File Operations" ]
       }
     },
     "/command/validate" : {
       "post" : {
-        "tags" : [ "Validation", "Command" ],
-        "summary" : "Validate resources",
         "description" : "Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model. To use this service you will need to append the resource text in the request body as the payload. However, in the case of validating the template instance, you have an additional option to include the template text by organizing them as follows: { \"schema\": <template text>, \"instance\": <instance text> }. The validation service will return a report in JSON format as follows: { \"validates\": \"\", \"warnings\": [], \"errors\": [] }",
         "operationId" : "validateResource",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "resource_type",
-          "in" : "query",
           "description" : "The type of CEDAR resource. The allowed values are: 'field', 'element', 'template', 'instance'",
+          "in" : "query",
+          "name" : "resource_type",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1415,37 +1409,36 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Validate resources",
+        "tags" : [ "Validation", "Command" ]
       }
     },
     "/folders" : {
       "post" : {
-        "tags" : [ "Folders" ],
-        "summary" : "Create a folder",
         "description" : "Create a folder.",
         "operationId" : "createFolder",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "folder",
-          "description" : "The folder to be created",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/Folder"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "successful operation",
-            "schema" : {
-              "$ref" : "#/definitions/Folder"
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Folder"
+              }
             }
           },
+          "description" : "The folder to be created",
+          "required" : true
+        },
+        "responses" : {
           "201" : {
-            "description" : "A folder",
-            "schema" : {
-              "$ref" : "#/definitions/Folder"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Folder"
+                }
+              }
+            },
+            "description" : "A folder"
           },
           "400" : {
             "description" : "Bad request"
@@ -1465,102 +1458,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Create a folder",
+        "tags" : [ "Folders" ]
       }
     },
     "/folders/{folder_id}" : {
-      "get" : {
-        "tags" : [ "Folders" ],
-        "summary" : "Get a folder",
-        "description" : "Get a folder.",
-        "operationId" : "findFolder",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "path",
-          "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-          "required" : true,
-          "type" : "string"
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A folder",
-            "schema" : {
-              "$ref" : "#/definitions/Folder"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
-      "put" : {
-        "tags" : [ "Folders" ],
-        "summary" : "Update a folder",
-        "description" : "Update a folder.",
-        "operationId" : "createOrUpdateFolder",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "path",
-          "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-          "required" : true,
-          "type" : "string"
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A folder",
-            "schema" : {
-              "$ref" : "#/definitions/Folder"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
       "delete" : {
-        "tags" : [ "Folders" ],
-        "summary" : "Delete a folder",
         "description" : "Delete a folder.",
         "operationId" : "deleteFolder",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "path",
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "folder_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "204" : {
@@ -1584,60 +1498,157 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Delete a folder",
+        "tags" : [ "Folders" ]
+      },
+      "get" : {
+        "description" : "Get a folder.",
+        "operationId" : "findFolder",
+        "parameters" : [ {
+          "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "folder_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Folder"
+                }
+              }
+            },
+            "description" : "A folder"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Get a folder",
+        "tags" : [ "Folders" ]
+      },
+      "put" : {
+        "description" : "Update a folder.",
+        "operationId" : "createOrUpdateFolder",
+        "parameters" : [ {
+          "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "folder_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Folder"
+                }
+              }
+            },
+            "description" : "A folder"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Update a folder",
+        "tags" : [ "Folders" ]
       }
     },
     "/folders/{folder_id}/contents" : {
       "get" : {
-        "tags" : [ "Folders", "Folder Contents", "Versioning" ],
-        "summary" : "Get the contents of a folder",
         "description" : "Get the contents of a folder.",
         "operationId" : "findFolderContentsById",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "path",
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "folder_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "resource_types",
-          "in" : "query",
           "description" : "Resource types as comma separated values. The allowed values are: 'folder', 'field', 'element', 'template', 'instance'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "version",
           "in" : "query",
+          "name" : "resource_types",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Version selector. It is only handled for template-fields, template-elements and templates. The allowed values are: 'latest', 'all'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "publication_status",
           "in" : "query",
+          "name" : "version",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Publication status selector. It is only handled for template-fields, template-elements and templates. The allowed values are: 'bibo:draft', 'bibo:published', 'all'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "sort",
           "in" : "query",
+          "name" : "publication_status",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Sort field names as comma separated values. Prepending a field with '-' means descending order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "limit",
           "in" : "query",
+          "name" : "sort",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Paging limit",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
-        }, {
-          "name" : "offset",
           "in" : "query",
+          "name" : "limit",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
           "description" : "Paging offset",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
+          "in" : "query",
+          "name" : "offset",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1661,66 +1672,74 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get the contents of a folder",
+        "tags" : [ "Folders", "Folder Contents", "Versioning" ]
       }
     },
     "/folders/{folder_id}/contents-extract" : {
       "get" : {
-        "tags" : [ "Folders", "Folder Contents", "Versioning" ],
-        "summary" : "Get the content extracts of a folder",
         "description" : "Get the content extracts of a folder. Only the enumerated fields will be returned. Multilevel field paths are not supported. It is intended to return smaller payload if a lot of artifacts are expected to be returned.",
         "operationId" : "findFolderContentsExtractById",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "path",
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "folder_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "resource_types",
-          "in" : "query",
           "description" : "Resource types as comma separated values. The allowed values are: 'folder', 'field', 'element', 'template', 'instance'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "version",
           "in" : "query",
+          "name" : "resource_types",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Version selector. It is only handled for template-fields, template-elements and templates. The allowed values are: 'latest', 'all'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "publication_status",
           "in" : "query",
+          "name" : "version",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Publication status selector. It is only handled for template-fields, template-elements and templates. The allowed values are: 'bibo:draft', 'bibo:published', 'all'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "sort",
           "in" : "query",
+          "name" : "publication_status",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Sort field names as comma separated values. Prepending a field with '-' means descending order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "limit",
           "in" : "query",
+          "name" : "sort",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Paging limit",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
-        }, {
-          "name" : "offset",
           "in" : "query",
+          "name" : "limit",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
           "description" : "Paging offset",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
-        }, {
-          "name" : "field_names",
           "in" : "query",
+          "name" : "offset",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
           "description" : "Field name list, separated by comma.",
-          "required" : false,
-          "type" : "string"
+          "in" : "query",
+          "name" : "field_names",
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1744,22 +1763,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get the content extracts of a folder",
+        "tags" : [ "Folders", "Folder Contents", "Versioning" ]
       }
     },
     "/folders/{folder_id}/details" : {
       "get" : {
-        "tags" : [ "Folders" ],
-        "summary" : "Get the details of a folder",
         "description" : "Get the details of a folder.",
         "operationId" : "findFolderDetails",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "path",
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "folder_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1783,22 +1803,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get the details of a folder",
+        "tags" : [ "Folders" ]
       }
     },
     "/folders/{folder_id}/permissions" : {
       "get" : {
-        "tags" : [ "Folders", "Permissions" ],
-        "summary" : "Get permissions of a folder",
         "description" : "Get permissions of a folder.",
         "operationId" : "getFolderPermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "path",
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "folder_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1822,20 +1843,21 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get permissions of a folder",
+        "tags" : [ "Folders", "Permissions" ]
       },
       "put" : {
-        "tags" : [ "Folders", "Permissions" ],
-        "summary" : "Update permissions of a folder",
         "description" : "Update permissions of a folder.",
         "operationId" : "updateFolderPermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "path",
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "folder_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1859,90 +1881,101 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Update permissions of a folder",
+        "tags" : [ "Folders", "Permissions" ]
       }
     },
     "/search" : {
       "get" : {
-        "tags" : [ "Search", "Template Fields", "Template Elements", "Templates", "Template Instances", "Folders", "Folder Contents", "Versioning" ],
-        "summary" : "Search resources",
         "description" : "Search resources using different criteria. All of the parameters are optional, but you need to provide at least one search criteria. The parameters can be combined, but not all of the combinations will work. You can see the type of the executed search in the response body.",
         "operationId" : "search",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "q",
-          "in" : "query",
           "description" : "Search term. It will be looked up in the artifact names",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "id",
           "in" : "query",
+          "name" : "q",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Artifact id. If passed, only the artifact or folder with the given id will be returned.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "resource_types",
           "in" : "query",
+          "name" : "id",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Resource types as comma separated values. The allowed values are: 'folder', 'field', 'element', 'template', 'instance'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "version",
           "in" : "query",
+          "name" : "resource_types",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Version selector. It is only handled for template-fields, template-elements and templates. The allowed values are: 'latest', 'all'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "publication_status",
           "in" : "query",
+          "name" : "version",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Publication status selector. It is only handled for template-fields, template-elements and templates. The allowed values are: 'bibo:draft', 'bibo:published', 'all'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "is_based_on",
           "in" : "query",
+          "name" : "publication_status",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Template identifier. All the instances with this template id will be returned",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "sort",
           "in" : "query",
+          "name" : "is_based_on",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Sort field names as comma separated values. Prepending a field with '-' means descending order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "limit",
           "in" : "query",
+          "name" : "sort",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Paging limit",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
-        }, {
-          "name" : "offset",
           "in" : "query",
+          "name" : "limit",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
           "description" : "Paging offset",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
-        }, {
-          "name" : "sharing",
           "in" : "query",
+          "name" : "offset",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
           "description" : "Sharing modifier for the search. Only the artifacts and folder matching the criteria will be returned.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "mode",
           "in" : "query",
+          "name" : "sharing",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Search mode. The only value currently supported is 'special-folders'. If passed, the list of special folders will be returned ('/Shared', etc.)",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "category_id",
           "in" : "query",
+          "name" : "mode",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Category Id. All the artifacts in the given category will be returned.",
-          "required" : false,
-          "type" : "string"
+          "in" : "query",
+          "name" : "category_id",
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1966,90 +1999,101 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Search resources",
+        "tags" : [ "Search", "Template Fields", "Template Elements", "Templates", "Template Instances", "Folders", "Folder Contents", "Versioning" ]
       }
     },
     "/search-deep" : {
       "get" : {
-        "tags" : [ "Search", "Template Fields", "Template Elements", "Templates", "Template Instances", "Folders", "Folder Contents", "Versioning" ],
-        "summary" : "Search resources",
         "description" : "Search resources using different criteria. This call can go further than 10.000 resources. It is not intended for everyday use. All of the parameters are optional, but you need to provide at least one search criteria. The parameters can be combined, but not all of the combinations will work. You can see the type of the executed search in the response body.",
         "operationId" : "searchDeep",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "q",
-          "in" : "query",
           "description" : "Search term. It will be looked up in the artifact names",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "id",
           "in" : "query",
+          "name" : "q",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Artifact id. If passed, only the artifact or folder with the given id will be returned.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "resource_types",
           "in" : "query",
+          "name" : "id",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Resource types as comma separated values. The allowed values are: 'folder', 'field', 'element', 'template', 'instance'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "version",
           "in" : "query",
+          "name" : "resource_types",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Version selector. It is only handled for template-fields, template-elements and templates. The allowed values are: 'latest', 'all'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "publication_status",
           "in" : "query",
+          "name" : "version",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Publication status selector. It is only handled for template-fields, template-elements and templates. The allowed values are: 'bibo:draft', 'bibo:published', 'all'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "is_based_on",
           "in" : "query",
+          "name" : "publication_status",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Template identifier. All the instances with this template id will be returned",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "sort",
           "in" : "query",
+          "name" : "is_based_on",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Sort field names as comma separated values. Prepending a field with '-' means descending order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "limit",
           "in" : "query",
+          "name" : "sort",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Paging limit",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
-        }, {
-          "name" : "offset",
           "in" : "query",
+          "name" : "limit",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
           "description" : "Paging offset",
-          "required" : false,
-          "type" : "integer",
-          "format" : "int32"
-        }, {
-          "name" : "sharing",
           "in" : "query",
+          "name" : "offset",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
           "description" : "Sharing modifier for the search. Only the artifacts and folder matching the criteria will be returned.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "mode",
           "in" : "query",
+          "name" : "sharing",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Search mode. The only value currently supported is 'special-folders'. If passed, the list of special folders will be returned ('/Shared', etc.)",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "name" : "category_id",
           "in" : "query",
+          "name" : "mode",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "description" : "Category Id. All the artifacts in the given category will be returned.",
-          "required" : false,
-          "type" : "string"
+          "in" : "query",
+          "name" : "category_id",
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2073,43 +2117,61 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Search resources",
+        "tags" : [ "Search", "Template Fields", "Template Elements", "Templates", "Template Instances", "Folders", "Folder Contents", "Versioning" ]
       }
     },
     "/template-elements" : {
       "post" : {
-        "tags" : [ "Template Elements" ],
-        "summary" : "Create a template element",
-        "description" : "Create a template element.",
+        "description" : "Create a template element. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplateElement",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "query",
           "description" : "Folder identifier. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "in" : "body",
-          "name" : "template_element",
-          "description" : "The template element to be created",
-          "required" : true,
+          "in" : "query",
+          "name" : "folder_id",
           "schema" : {
-            "$ref" : "#/definitions/TemplateElement"
+            "type" : "string"
+          }
+        }, {
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
           }
         } ],
-        "responses" : {
-          "200" : {
-            "description" : "successful operation",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateElement"
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateElement"
+              }
             }
           },
+          "description" : "The template element to be created",
+          "required" : true
+        },
+        "responses" : {
           "201" : {
-            "description" : "A template element",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateElement"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateElement"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateElement"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateElement"
+                }
+              }
+            },
+            "description" : "A template element"
           },
           "400" : {
             "description" : "Bad request"
@@ -2129,116 +2191,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Create a template element",
+        "tags" : [ "Template Elements" ]
       }
     },
     "/template-elements/{template_element_id}" : {
-      "get" : {
-        "tags" : [ "Template Elements" ],
-        "summary" : "Get a template element",
-        "description" : "Get a template element.",
-        "operationId" : "findTemplateElement",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "template_element_id",
-          "in" : "path",
-          "description" : "Template Element identifier. Example: https://repo.metadatacenter.org/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-          "required" : true,
-          "type" : "string"
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A template element",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateElement"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
-      "put" : {
-        "tags" : [ "Template Elements" ],
-        "summary" : "Update a template element",
-        "description" : "Update a template element.",
-        "operationId" : "updateTemplateElement",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "template_element_id",
-          "in" : "path",
-          "description" : "Template Element identifier.",
-          "required" : true,
-          "type" : "string"
-        }, {
-          "name" : "folder_id",
-          "in" : "query",
-          "description" : "Folder identifier.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "in" : "body",
-          "name" : "template_element",
-          "description" : "The template element to be updated",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/TemplateElement"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A template element",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateElement"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
       "delete" : {
-        "tags" : [ "Template Elements" ],
-        "summary" : "Delete a template element",
         "description" : "Delete a template element.",
         "operationId" : "deleteTemplateElement",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_element_id",
-          "in" : "path",
           "description" : "Template Element identifier.",
+          "in" : "path",
+          "name" : "template_element_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "204" : {
@@ -2262,22 +2231,165 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Delete a template element",
+        "tags" : [ "Template Elements" ]
+      },
+      "get" : {
+        "description" : "Get a template element as JSON or YAML, selected via the Accept header.",
+        "operationId" : "findTemplateElement",
+        "parameters" : [ {
+          "description" : "Template Element identifier. Example: https://repo.metadatacenter.org/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "template_element_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "When requesting YAML, produce a compact representation.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateElement"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateElement"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateElement"
+                }
+              }
+            },
+            "description" : "A template element"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Get a template element",
+        "tags" : [ "Template Elements" ]
+      },
+      "put" : {
+        "description" : "Update a template element. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
+        "operationId" : "updateTemplateElement",
+        "parameters" : [ {
+          "description" : "Template Element identifier.",
+          "in" : "path",
+          "name" : "template_element_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Folder identifier.",
+          "in" : "query",
+          "name" : "folder_id",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateElement"
+              }
+            }
+          },
+          "description" : "The template element to be updated",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateElement"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateElement"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateElement"
+                }
+              }
+            },
+            "description" : "A template element"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Update a template element",
+        "tags" : [ "Template Elements" ]
       }
     },
     "/template-elements/{template_element_id}/details" : {
       "get" : {
-        "tags" : [ "Template Elements", "Resource Details" ],
-        "summary" : "Get details of a template element",
         "description" : "Get details of a template element.",
         "operationId" : "findTemplateElementDetails",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_element_id",
-          "in" : "path",
           "description" : "Template Element identifier.",
+          "in" : "path",
+          "name" : "template_element_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2301,34 +2413,37 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get details of a template element",
+        "tags" : [ "Template Elements", "Resource Details" ]
       }
     },
     "/template-elements/{template_element_id}/download" : {
       "post" : {
-        "tags" : [ "Template Elements" ],
-        "summary" : "Download a template element",
         "description" : "Download a template element as JSON or YAML, selected via the Accept header.",
         "operationId" : "downloadTemplateElement",
-        "produces" : [ "application/json", "application/x-yaml" ],
         "parameters" : [ {
-          "name" : "template_element_id",
-          "in" : "path",
           "description" : "Template Element identifier.",
+          "in" : "path",
+          "name" : "template_element_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "Accept",
-          "in" : "header",
           "description" : "Desired output format: 'application/json' or 'application/yaml'.",
-          "required" : false,
-          "type" : "string"
+          "in" : "header",
+          "name" : "Accept",
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "compact",
-          "in" : "query",
           "description" : "When downloading YAML, produce a compact representation.",
-          "required" : false,
-          "type" : "boolean"
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2352,22 +2467,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Download a template element",
+        "tags" : [ "Template Elements" ]
       }
     },
     "/template-elements/{template_element_id}/permissions" : {
       "get" : {
-        "tags" : [ "Template Elements", "Permissions" ],
-        "summary" : "Get permissions of a template element",
         "description" : "Get permissions of a template element.",
         "operationId" : "getTemplateElementPermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_element_id",
-          "in" : "path",
           "description" : "Template Element identifier.",
+          "in" : "path",
+          "name" : "template_element_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2391,20 +2507,21 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get permissions of a template element",
+        "tags" : [ "Template Elements", "Permissions" ]
       },
       "put" : {
-        "tags" : [ "Template Elements", "Permissions" ],
-        "summary" : "Update permissions of a template element",
         "description" : "Update permissions of a template element.",
         "operationId" : "updateTemplateElementPermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_element_id",
-          "in" : "path",
           "description" : "Template Element identifier.",
+          "in" : "path",
+          "name" : "template_element_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2428,22 +2545,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Update permissions of a template element",
+        "tags" : [ "Template Elements", "Permissions" ]
       }
     },
     "/template-elements/{template_element_id}/report" : {
       "get" : {
-        "tags" : [ "Template Elements", "Resource Report", "Versioning" ],
-        "summary" : "Get report of a template element",
         "description" : "Get report of a template element.",
         "operationId" : "getTemplateElementInstanceReport",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_element_id",
-          "in" : "path",
           "description" : "Template Element identifier.",
+          "in" : "path",
+          "name" : "template_element_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2467,22 +2585,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get report of a template element",
+        "tags" : [ "Template Elements", "Resource Report", "Versioning" ]
       }
     },
     "/template-elements/{template_element_id}/versions" : {
       "get" : {
-        "tags" : [ "Template Elements", "Resource Report", "Versioning" ],
-        "summary" : "Get a list of versions of a template element",
         "description" : "Get a list of versions of a template element.",
         "operationId" : "getTemplateElementVersions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_element_id",
-          "in" : "path",
           "description" : "Template Element identifier.",
+          "in" : "path",
+          "name" : "template_element_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2506,43 +2625,61 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get a list of versions of a template element",
+        "tags" : [ "Template Elements", "Resource Report", "Versioning" ]
       }
     },
     "/template-fields" : {
       "post" : {
-        "tags" : [ "Template Fields" ],
-        "summary" : "Create a template field",
-        "description" : "Create a template field.",
+        "description" : "Create a template field. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplateField",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "query",
           "description" : "Folder identifier. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "in" : "body",
-          "name" : "template_field",
-          "description" : "The template field to be created",
-          "required" : true,
+          "in" : "query",
+          "name" : "folder_id",
           "schema" : {
-            "$ref" : "#/definitions/TemplateField"
+            "type" : "string"
+          }
+        }, {
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
           }
         } ],
-        "responses" : {
-          "200" : {
-            "description" : "successful operation",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateField"
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateField"
+              }
             }
           },
+          "description" : "The template field to be created",
+          "required" : true
+        },
+        "responses" : {
           "201" : {
-            "description" : "A template field",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateField"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateField"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateField"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateField"
+                }
+              }
+            },
+            "description" : "A template field"
           },
           "400" : {
             "description" : "Bad request"
@@ -2562,116 +2699,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Create a template field",
+        "tags" : [ "Template Fields" ]
       }
     },
     "/template-fields/{template_field_id}" : {
-      "get" : {
-        "tags" : [ "Template Fields" ],
-        "summary" : "Get a template field",
-        "description" : "Get a template field.",
-        "operationId" : "findTemplateField",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "template_field_id",
-          "in" : "path",
-          "description" : "Template Field identifier. Example: https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-          "required" : true,
-          "type" : "string"
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A template field",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateField"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
-      "put" : {
-        "tags" : [ "Template Fields" ],
-        "summary" : "Update a template field",
-        "description" : "Update a template field.",
-        "operationId" : "updateTemplateField",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "template_field_id",
-          "in" : "path",
-          "description" : "Template Field identifier.",
-          "required" : true,
-          "type" : "string"
-        }, {
-          "name" : "folder_id",
-          "in" : "query",
-          "description" : "Folder identifier.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "in" : "body",
-          "name" : "template_field",
-          "description" : "The template field to be updated",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/TemplateField"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A template field",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateField"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
       "delete" : {
-        "tags" : [ "Template Fields" ],
-        "summary" : "Delete a template field",
         "description" : "Delete a template field.",
         "operationId" : "deleteTemplateField",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_field_id",
-          "in" : "path",
           "description" : "Template Field identifier.",
+          "in" : "path",
+          "name" : "template_field_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "204" : {
@@ -2695,22 +2739,165 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Delete a template field",
+        "tags" : [ "Template Fields" ]
+      },
+      "get" : {
+        "description" : "Get a template field as JSON or YAML, selected via the Accept header.",
+        "operationId" : "findTemplateField",
+        "parameters" : [ {
+          "description" : "Template Field identifier. Example: https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "template_field_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "When requesting YAML, produce a compact representation.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateField"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateField"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateField"
+                }
+              }
+            },
+            "description" : "A template field"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Get a template field",
+        "tags" : [ "Template Fields" ]
+      },
+      "put" : {
+        "description" : "Update a template field. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
+        "operationId" : "updateTemplateField",
+        "parameters" : [ {
+          "description" : "Template Field identifier.",
+          "in" : "path",
+          "name" : "template_field_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Folder identifier.",
+          "in" : "query",
+          "name" : "folder_id",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateField"
+              }
+            }
+          },
+          "description" : "The template field to be updated",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateField"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateField"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateField"
+                }
+              }
+            },
+            "description" : "A template field"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Update a template field",
+        "tags" : [ "Template Fields" ]
       }
     },
     "/template-fields/{template_field_id}/details" : {
       "get" : {
-        "tags" : [ "Template Fields", "Resource Details" ],
-        "summary" : "Get details of a template field",
         "description" : "Get details of a template field.",
         "operationId" : "findTemplateFieldDetails",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_field_id",
-          "in" : "path",
           "description" : "Template Field identifier.",
+          "in" : "path",
+          "name" : "template_field_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2734,34 +2921,37 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get details of a template field",
+        "tags" : [ "Template Fields", "Resource Details" ]
       }
     },
     "/template-fields/{template_field_id}/download" : {
       "post" : {
-        "tags" : [ "Template Fields" ],
-        "summary" : "Download a template field",
         "description" : "Download a template field as JSON or YAML, selected via the Accept header.",
         "operationId" : "downloadTemplateField",
-        "produces" : [ "application/json", "application/x-yaml" ],
         "parameters" : [ {
-          "name" : "template_field_id",
-          "in" : "path",
           "description" : "Template Field identifier.",
+          "in" : "path",
+          "name" : "template_field_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "Accept",
-          "in" : "header",
           "description" : "Desired output format: 'application/json' or 'application/yaml'.",
-          "required" : false,
-          "type" : "string"
+          "in" : "header",
+          "name" : "Accept",
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "compact",
-          "in" : "query",
           "description" : "When downloading YAML, produce a compact representation.",
-          "required" : false,
-          "type" : "boolean"
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2785,22 +2975,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Download a template field",
+        "tags" : [ "Template Fields" ]
       }
     },
     "/template-fields/{template_field_id}/permissions" : {
       "get" : {
-        "tags" : [ "Template Fields", "Permissions" ],
-        "summary" : "Get permissions of a template field",
         "description" : "Get permissions of a template field.",
         "operationId" : "getTemplateFieldPermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_field_id",
-          "in" : "path",
           "description" : "Template Field identifier.",
+          "in" : "path",
+          "name" : "template_field_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2824,20 +3015,21 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get permissions of a template field",
+        "tags" : [ "Template Fields", "Permissions" ]
       },
       "put" : {
-        "tags" : [ "Template Fields", "Permissions" ],
-        "summary" : "Update permissions of a template field",
         "description" : "Update permissions of a template field.",
         "operationId" : "updateTemplateFieldPermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_field_id",
-          "in" : "path",
           "description" : "Template Field identifier.",
+          "in" : "path",
+          "name" : "template_field_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2861,22 +3053,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Update permissions of a template field",
+        "tags" : [ "Template Fields", "Permissions" ]
       }
     },
     "/template-fields/{template_field_id}/report" : {
       "get" : {
-        "tags" : [ "Template Fields", "Resource Report", "Versioning" ],
-        "summary" : "Get report of a template field",
         "description" : "Get report of a template field.",
         "operationId" : "getTemplateFieldInstanceReport",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_field_id",
-          "in" : "path",
           "description" : "Template Field identifier.",
+          "in" : "path",
+          "name" : "template_field_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2900,22 +3093,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get report of a template field",
+        "tags" : [ "Template Fields", "Resource Report", "Versioning" ]
       }
     },
     "/template-fields/{template_field_id}/versions" : {
       "get" : {
-        "tags" : [ "Template Fields", "Resource Report", "Versioning" ],
-        "summary" : "Get a list of versions of a template field",
         "description" : "Get a list of versions of a template field.",
         "operationId" : "getTemplateFieldVersions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_field_id",
-          "in" : "path",
           "description" : "Template Field identifier.",
+          "in" : "path",
+          "name" : "template_field_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2939,43 +3133,61 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get a list of versions of a template field",
+        "tags" : [ "Template Fields", "Resource Report", "Versioning" ]
       }
     },
     "/template-instances" : {
       "post" : {
-        "tags" : [ "Template Instances" ],
-        "summary" : "Create a template instance",
-        "description" : "Create a template instance.",
+        "description" : "Create a template instance. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplateInstance",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "query",
           "description" : "Folder identifier. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "in" : "body",
-          "name" : "template_instance",
-          "description" : "The template instance to be created",
-          "required" : true,
+          "in" : "query",
+          "name" : "folder_id",
           "schema" : {
-            "$ref" : "#/definitions/TemplateInstance"
+            "type" : "string"
+          }
+        }, {
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
           }
         } ],
-        "responses" : {
-          "200" : {
-            "description" : "successful operation",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateInstance"
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateInstance"
+              }
             }
           },
+          "description" : "The template instance to be created",
+          "required" : true
+        },
+        "responses" : {
           "201" : {
-            "description" : "A template instance",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateInstance"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateInstance"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateInstance"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateInstance"
+                }
+              }
+            },
+            "description" : "A template instance"
           },
           "400" : {
             "description" : "Bad request"
@@ -2995,122 +3207,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Create a template instance",
+        "tags" : [ "Template Instances" ]
       }
     },
     "/template-instances/{template_instance_id}" : {
-      "get" : {
-        "tags" : [ "Template Instances" ],
-        "summary" : "Get a template instance",
-        "description" : "Get a template instance.",
-        "operationId" : "findTemplateInstance",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "template_instance_id",
-          "in" : "path",
-          "description" : "Template Instance identifier. Example: https://repo.metadatacenter.org/template-instances/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-          "required" : true,
-          "type" : "string"
-        }, {
-          "name" : "format",
-          "in" : "query",
-          "description" : "Output format type to display the content of the template instance. The allowed values are: 'jsonld', 'json', 'rdf-nquad'.",
-          "required" : false,
-          "type" : "string"
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A template instance",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateInstance"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
-      "put" : {
-        "tags" : [ "Template Instances" ],
-        "summary" : "Update a template instance",
-        "description" : "Update a template instance.",
-        "operationId" : "updateTemplateInstance",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "template_instance_id",
-          "in" : "path",
-          "description" : "Template Instance identifier.",
-          "required" : true,
-          "type" : "string"
-        }, {
-          "name" : "folder_id",
-          "in" : "query",
-          "description" : "Folder identifier.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "in" : "body",
-          "name" : "template_instance",
-          "description" : "The template instance to be updated",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/TemplateInstance"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A template instance",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateInstance"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
       "delete" : {
-        "tags" : [ "Template Instances" ],
-        "summary" : "Delete a template instance",
         "description" : "Delete a template instance.",
         "operationId" : "deleteTemplateInstance",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_instance_id",
-          "in" : "path",
           "description" : "Template Instance identifier.",
+          "in" : "path",
+          "name" : "template_instance_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "204" : {
@@ -3134,22 +3247,172 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Delete a template instance",
+        "tags" : [ "Template Instances" ]
+      },
+      "get" : {
+        "description" : "Get a template instance. YAML can be requested via the Accept header; the format query parameter takes precedence.",
+        "operationId" : "findTemplateInstance",
+        "parameters" : [ {
+          "description" : "Template Instance identifier. Example: https://repo.metadatacenter.org/template-instances/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "template_instance_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Output format type to display the content of the template instance. The allowed values are: 'jsonld', 'json', 'rdf-nquad'.",
+          "in" : "query",
+          "name" : "format",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "When requesting YAML, produce a compact representation.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateInstance"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateInstance"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateInstance"
+                }
+              }
+            },
+            "description" : "A template instance"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Get a template instance",
+        "tags" : [ "Template Instances" ]
+      },
+      "put" : {
+        "description" : "Update a template instance. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
+        "operationId" : "updateTemplateInstance",
+        "parameters" : [ {
+          "description" : "Template Instance identifier.",
+          "in" : "path",
+          "name" : "template_instance_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Folder identifier.",
+          "in" : "query",
+          "name" : "folder_id",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateInstance"
+              }
+            }
+          },
+          "description" : "The template instance to be updated",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateInstance"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateInstance"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateInstance"
+                }
+              }
+            },
+            "description" : "A template instance"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Update a template instance",
+        "tags" : [ "Template Instances" ]
       }
     },
     "/template-instances/{template_instance_id}/details" : {
       "get" : {
-        "tags" : [ "Template Instances", "Resource Details" ],
-        "summary" : "Get details of a template instance",
         "description" : "Get details of a template instance.",
         "operationId" : "findTemplateInstanceDetails",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_instance_id",
-          "in" : "path",
           "description" : "Template Instance identifier.",
+          "in" : "path",
+          "name" : "template_instance_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3173,34 +3436,37 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get details of a template instance",
+        "tags" : [ "Template Instances", "Resource Details" ]
       }
     },
     "/template-instances/{template_instance_id}/download" : {
       "post" : {
-        "tags" : [ "Template Instances" ],
-        "summary" : "Download a template instance",
         "description" : "Download a template instance as JSON or YAML, selected via the Accept header.",
         "operationId" : "downloadTemplateInstance",
-        "produces" : [ "application/json", "application/x-yaml" ],
         "parameters" : [ {
-          "name" : "template_instance_id",
-          "in" : "path",
           "description" : "Template Instance identifier.",
+          "in" : "path",
+          "name" : "template_instance_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "Accept",
-          "in" : "header",
           "description" : "Desired output format: 'application/json' or 'application/yaml'.",
-          "required" : false,
-          "type" : "string"
+          "in" : "header",
+          "name" : "Accept",
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "compact",
-          "in" : "query",
           "description" : "When downloading YAML, produce a compact representation.",
-          "required" : false,
-          "type" : "boolean"
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3224,22 +3490,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Download a template instance",
+        "tags" : [ "Template Instances" ]
       }
     },
     "/template-instances/{template_instance_id}/permissions" : {
       "get" : {
-        "tags" : [ "Template Instances", "Permissions" ],
-        "summary" : "Get permissions of a template instance",
         "description" : "Get permissions of a template instance.",
         "operationId" : "getTemplateInstancePermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_instance_id",
-          "in" : "path",
           "description" : "Template Instance identifier.",
+          "in" : "path",
+          "name" : "template_instance_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3263,20 +3530,21 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get permissions of a template instance",
+        "tags" : [ "Template Instances", "Permissions" ]
       },
       "put" : {
-        "tags" : [ "Template Instances", "Permissions" ],
-        "summary" : "Update permissions of a template instance",
         "description" : "Update permissions of a template instance.",
         "operationId" : "updateTemplateInstancePermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_instance_id",
-          "in" : "path",
           "description" : "Template Instance identifier.",
+          "in" : "path",
+          "name" : "template_instance_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3300,22 +3568,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Update permissions of a template instance",
+        "tags" : [ "Template Instances", "Permissions" ]
       }
     },
     "/template-instances/{template_instance_id}/report" : {
       "get" : {
-        "tags" : [ "Template Instances", "Resource Report" ],
-        "summary" : "Get report of a template instance",
         "description" : "Get report of a template instance.",
         "operationId" : "getTemplateInstanceReport",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_instance_id",
-          "in" : "path",
           "description" : "Template Instance identifier.",
+          "in" : "path",
+          "name" : "template_instance_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3339,43 +3608,61 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get report of a template instance",
+        "tags" : [ "Template Instances", "Resource Report" ]
       }
     },
     "/templates" : {
       "post" : {
-        "tags" : [ "Templates" ],
-        "summary" : "Create a template",
-        "description" : "Create a template.",
+        "description" : "Create a template. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplate",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "folder_id",
-          "in" : "query",
           "description" : "Folder identifier. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "in" : "body",
-          "name" : "template",
-          "description" : "The template to be created",
-          "required" : true,
+          "in" : "query",
+          "name" : "folder_id",
           "schema" : {
-            "$ref" : "#/definitions/Template"
+            "type" : "string"
+          }
+        }, {
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
           }
         } ],
-        "responses" : {
-          "200" : {
-            "description" : "successful operation",
-            "schema" : {
-              "$ref" : "#/definitions/Template"
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Template"
+              }
             }
           },
+          "description" : "The template to be created",
+          "required" : true
+        },
+        "responses" : {
           "201" : {
-            "description" : "A template",
-            "schema" : {
-              "$ref" : "#/definitions/Template"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Template"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Template"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Template"
+                }
+              }
+            },
+            "description" : "A template"
           },
           "400" : {
             "description" : "Bad request"
@@ -3395,32 +3682,36 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Create a template",
+        "tags" : [ "Templates" ]
       }
     },
     "/templates/recommend" : {
       "post" : {
-        "tags" : [ "Templates", "Recommendations" ],
-        "summary" : "Get recommendations on the templates that best match an input metadata record",
         "description" : "Get a ranked list of recommended templates.",
         "operationId" : "recommendTemplates",
-        "consumes" : [ "application/json" ],
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "in" : "body",
-          "name" : "metadata record",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateRecommendationRequest"
+              }
+            }
+          },
           "description" : "The metadata record to get recommendations for",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/TemplateRecommendationRequest"
-          }
-        } ],
+          "required" : true
+        },
         "responses" : {
           "200" : {
-            "description" : "A ranked list of recommended templates",
-            "schema" : {
-              "$ref" : "#/definitions/TemplateRecommendationResponse"
-            }
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateRecommendationResponse"
+                }
+              }
+            },
+            "description" : "A ranked list of recommended templates"
           },
           "400" : {
             "description" : "Bad request"
@@ -3440,116 +3731,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get recommendations on the templates that best match an input metadata record",
+        "tags" : [ "Templates", "Recommendations" ]
       }
     },
     "/templates/{template_id}" : {
-      "get" : {
-        "tags" : [ "Templates" ],
-        "summary" : "Get a template",
-        "description" : "Get a template.",
-        "operationId" : "findTemplate",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
-          "description" : "Template identifier. Example: https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
-          "required" : true,
-          "type" : "string"
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A template",
-            "schema" : {
-              "$ref" : "#/definitions/Template"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
-      "put" : {
-        "tags" : [ "Templates" ],
-        "summary" : "Update a template",
-        "description" : "Update a template.",
-        "operationId" : "updateTemplate",
-        "produces" : [ "application/json" ],
-        "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
-          "description" : "Template identifier.",
-          "required" : true,
-          "type" : "string"
-        }, {
-          "name" : "folder_id",
-          "in" : "query",
-          "description" : "Folder identifier.",
-          "required" : false,
-          "type" : "string"
-        }, {
-          "in" : "body",
-          "name" : "template",
-          "description" : "The template to be updated",
-          "required" : true,
-          "schema" : {
-            "$ref" : "#/definitions/Template"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "A template",
-            "schema" : {
-              "$ref" : "#/definitions/Template"
-            }
-          },
-          "400" : {
-            "description" : "Bad request"
-          },
-          "401" : {
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "description" : "Not found"
-          },
-          "500" : {
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ]
-      },
       "delete" : {
-        "tags" : [ "Templates" ],
-        "summary" : "Delete a template",
         "description" : "Delete a template.",
         "operationId" : "deleteTemplate",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
           "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "204" : {
@@ -3573,22 +3771,165 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Delete a template",
+        "tags" : [ "Templates" ]
+      },
+      "get" : {
+        "description" : "Get a template as JSON or YAML, selected via the Accept header.",
+        "operationId" : "findTemplate",
+        "parameters" : [ {
+          "description" : "Template identifier. Example: https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "in" : "path",
+          "name" : "template_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "When requesting YAML, produce a compact representation.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Template"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Template"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Template"
+                }
+              }
+            },
+            "description" : "A template"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Get a template",
+        "tags" : [ "Templates" ]
+      },
+      "put" : {
+        "description" : "Update a template. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
+        "operationId" : "updateTemplate",
+        "parameters" : [ {
+          "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Folder identifier.",
+          "in" : "query",
+          "name" : "folder_id",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Not supported on write operations; write responses always render the full form.",
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Template"
+              }
+            }
+          },
+          "description" : "The template to be updated",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Template"
+                }
+              },
+              "application/x-yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Template"
+                }
+              },
+              "application/yaml" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Template"
+                }
+              }
+            },
+            "description" : "A template"
+          },
+          "400" : {
+            "description" : "Bad request"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "description" : "Not found"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Update a template",
+        "tags" : [ "Templates" ]
       }
     },
     "/templates/{template_id}/details" : {
       "get" : {
-        "tags" : [ "Templates", "Resource Details" ],
-        "summary" : "Get details of a template",
         "description" : "Get details of a template.",
         "operationId" : "findTemplateDetails",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
           "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3612,34 +3953,37 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get details of a template",
+        "tags" : [ "Templates", "Resource Details" ]
       }
     },
     "/templates/{template_id}/download" : {
       "post" : {
-        "tags" : [ "Templates" ],
-        "summary" : "Download a template",
         "description" : "Download a template as JSON or YAML, selected via the Accept header.",
         "operationId" : "downloadTemplate",
-        "produces" : [ "application/json", "application/x-yaml" ],
         "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
           "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "Accept",
-          "in" : "header",
           "description" : "Desired output format: 'application/json' or 'application/yaml'.",
-          "required" : false,
-          "type" : "string"
+          "in" : "header",
+          "name" : "Accept",
+          "schema" : {
+            "type" : "string"
+          }
         }, {
-          "name" : "compact",
-          "in" : "query",
           "description" : "When downloading YAML, produce a compact representation.",
-          "required" : false,
-          "type" : "boolean"
+          "in" : "query",
+          "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3663,22 +4007,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Download a template",
+        "tags" : [ "Templates" ]
       }
     },
     "/templates/{template_id}/permissions" : {
       "get" : {
-        "tags" : [ "Templates", "Permissions" ],
-        "summary" : "Get permissions of a template",
         "description" : "Get permissions of a template.",
         "operationId" : "getTemplatePermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
           "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3702,20 +4047,21 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get permissions of a template",
+        "tags" : [ "Templates", "Permissions" ]
       },
       "put" : {
-        "tags" : [ "Templates", "Permissions" ],
-        "summary" : "Update permissions of a template",
         "description" : "Update permissions of a template.",
         "operationId" : "updateTemplatePermissions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
           "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3739,22 +4085,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Update permissions of a template",
+        "tags" : [ "Templates", "Permissions" ]
       }
     },
     "/templates/{template_id}/report" : {
       "get" : {
-        "tags" : [ "Templates", "Resource Report", "Versioning" ],
-        "summary" : "Get report of a template",
         "description" : "Get report of a template.",
         "operationId" : "getTemplateReport",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
           "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3778,22 +4125,23 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get report of a template",
+        "tags" : [ "Templates", "Resource Report", "Versioning" ]
       }
     },
     "/templates/{template_id}/versions" : {
       "get" : {
-        "tags" : [ "Templates", "Resource Report", "Versioning" ],
-        "summary" : "Get a list of versions of a template",
         "description" : "Get a list of versions of a template.",
         "operationId" : "getTemplateVersions",
-        "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "template_id",
-          "in" : "path",
           "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "template_id",
           "required" : true,
-          "type" : "string"
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -3817,25 +4165,25 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Get a list of versions of a template",
+        "tags" : [ "Templates", "Resource Report", "Versioning" ]
       }
     },
     "/users" : {
       "get" : {
-        "tags" : [ "Users" ],
-        "summary" : "Users",
         "description" : "The Users endpoint returns information about the users of the system.",
         "operationId" : "findUsers",
-        "produces" : [ "application/json" ],
         "responses" : {
           "200" : {
-            "description" : "An array of users",
-            "schema" : {
-              "type" : "array",
-              "items" : {
-                "$ref" : "#/definitions/User"
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/User"
+                }
               }
-            }
+            },
+            "description" : "An array of users"
           },
           "400" : {
             "description" : "Bad request"
@@ -3855,359 +4203,362 @@
         },
         "security" : [ {
           "api_key" : [ ]
-        } ]
+        } ],
+        "summary" : "Users",
+        "tags" : [ "Users" ]
       }
     }
   },
-  "securityDefinitions" : {
-    "api_key" : {
-      "description" : "Your CEDAR API key, using the format 'apiKey <yourApiKey>'",
-      "type" : "apiKey",
-      "name" : "Authorization",
-      "in" : "header"
-    }
-  },
-  "definitions" : {
-    "Category" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing a specific category."
-        },
-        "parentCategoryId" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing a specific parent category."
-        },
-        "schema:description" : {
-          "type" : "string",
-          "description" : "Description of the category."
-        },
-        "schema:identifier" : {
-          "type" : "string",
-          "description" : "Identifier, used for identifying this object in outside-to-CEDAR systems."
-        },
-        "schema:name" : {
-          "type" : "string",
-          "description" : "Name of the category."
-        }
-      },
-      "description" : "A CEDAR category."
-    },
-    "CategoryAttachListRequest" : {
-      "type" : "object",
-      "properties" : {
-        "artifactId" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the artifact."
-        },
-        "categoryIds" : {
-          "type" : "array",
-          "description" : "Unique URL identifier list representing the categories.",
-          "items" : {
-            "type" : "string"
+  "components" : {
+    "schemas" : {
+      "Category" : {
+        "type" : "object",
+        "description" : "A CEDAR category.",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific category."
+          },
+          "parentCategoryId" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific parent category."
+          },
+          "schema:description" : {
+            "type" : "string",
+            "description" : "Description of the category."
+          },
+          "schema:identifier" : {
+            "type" : "string",
+            "description" : "Identifier, used for identifying this object in outside-to-CEDAR systems."
+          },
+          "schema:name" : {
+            "type" : "string",
+            "description" : "Name of the category."
           }
         }
       },
-      "description" : "Parameters of the attach operation."
-    },
-    "CategoryAttachRequest" : {
-      "type" : "object",
-      "properties" : {
-        "artifactId" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the artifact."
-        },
-        "categoryId" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the category."
+      "CategoryAttachListRequest" : {
+        "type" : "object",
+        "description" : "Parameters of the attach operation.",
+        "properties" : {
+          "artifactId" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the artifact."
+          },
+          "categoryIds" : {
+            "type" : "array",
+            "description" : "Unique URL identifier list representing the categories.",
+            "items" : {
+              "type" : "string",
+              "description" : "Unique URL identifier list representing the categories."
+            }
+          }
         }
       },
-      "description" : "Parameters of the attach/detach operation."
-    },
-    "CopyRequest" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the source artifact."
-        },
-        "nameTemplate" : {
-          "type" : "string",
-          "description" : "Template that will be used to name the new artifact. The variables in the template will be interpolated. Currently only one variable is supported, the name of the source artifact as '{{name}}'. If no interpolatioin is needed, the new name should be passed."
-        },
-        "targetFolderId" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the target folder that the new artifact will be created in."
+      "CategoryAttachRequest" : {
+        "type" : "object",
+        "description" : "Parameters of the attach/detach operation.",
+        "properties" : {
+          "artifactId" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the artifact."
+          },
+          "categoryId" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the category."
+          }
         }
       },
-      "description" : "Parameters of the copy operation."
-    },
-    "CreateDraftArtifactRequest" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the source artifact."
-        },
-        "folderId" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the target folder that the new artifact will be created in."
-        },
-        "newVersion" : {
-          "type" : "string",
-          "description" : "Version string. Must have three positive decimal numbers, separated by period."
-        },
-        "propagateSharing" : {
-          "type" : "boolean",
-          "description" : "Copy sharing settings, or leave the new artifact unshared"
+      "CopyRequest" : {
+        "type" : "object",
+        "description" : "Parameters of the copy operation.",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the source artifact."
+          },
+          "nameTemplate" : {
+            "type" : "string",
+            "description" : "Template that will be used to name the new artifact. The variables in the template will be interpolated. Currently only one variable is supported, the name of the source artifact as '{{name}}'. If no interpolatioin is needed, the new name should be passed."
+          },
+          "targetFolderId" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the target folder that the new artifact will be created in."
+          }
         }
       },
-      "description" : "Info about the creation process."
-    },
-    "Folder" : {
-      "type" : "object",
-      "properties" : {
-        "id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing a specific folder."
+      "CreateDraftArtifactRequest" : {
+        "type" : "object",
+        "description" : "Info about the creation process.",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the source artifact."
+          },
+          "folderId" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the target folder that the new artifact will be created in."
+          },
+          "newVersion" : {
+            "type" : "string",
+            "description" : "Version string. Must have three positive decimal numbers, separated by period."
+          },
+          "propagateSharing" : {
+            "type" : "boolean",
+            "description" : "Copy sharing settings, or leave the new artifact unshared"
+          }
         }
       },
-      "description" : "A CEDAR folder."
-    },
-    "ForceRequest" : {
-      "type" : "object",
-      "properties" : {
-        "force" : {
-          "type" : "boolean",
-          "description" : "Force the regeneration, or not"
+      "Folder" : {
+        "type" : "object",
+        "description" : "A CEDAR folder.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific folder."
+          }
         }
       },
-      "description" : "Force or not."
-    },
-    "IdRequest" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing an artifact."
+      "ForceRequest" : {
+        "type" : "object",
+        "description" : "Force or not.",
+        "properties" : {
+          "force" : {
+            "type" : "boolean",
+            "description" : "Force the regeneration, or not"
+          }
         }
       },
-      "description" : "Id of the artifact."
-    },
-    "MoveRequest" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the source resource."
-        },
-        "targetFolderId" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the target folder where the resource will be moved."
+      "IdRequest" : {
+        "type" : "object",
+        "description" : "Id of the artifact.",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing an artifact."
+          }
         }
       },
-      "description" : "Parameters of the move operation."
-    },
-    "Number" : {
-      "type" : "object"
-    },
-    "PublishArtifactRequest" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier of the artifact."
-        },
-        "newVersion" : {
-          "type" : "string",
-          "description" : "Version string. Must have three positive decimal numbers, separated by period."
+      "MoveRequest" : {
+        "type" : "object",
+        "description" : "Parameters of the move operation.",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the source resource."
+          },
+          "targetFolderId" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the target folder where the resource will be moved."
+          }
         }
       },
-      "description" : "Info about the publishing process."
-    },
-    "RenameRequest" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing the resource."
-        },
-        "schema:description" : {
-          "type" : "string",
-          "description" : "New description of the resource."
-        },
-        "schema:name" : {
-          "type" : "string",
-          "description" : "New name of the resource."
+      "PublishArtifactRequest" : {
+        "type" : "object",
+        "description" : "Info about the publishing process.",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier of the artifact."
+          },
+          "newVersion" : {
+            "type" : "string",
+            "description" : "Version string. Must have three positive decimal numbers, separated by period."
+          }
         }
       },
-      "description" : "Parameters of the rename operation."
-    },
-    "Template" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing a specific template."
+      "RenameRequest" : {
+        "type" : "object",
+        "description" : "Parameters of the rename operation.",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing the resource."
+          },
+          "schema:description" : {
+            "type" : "string",
+            "description" : "New description of the resource."
+          },
+          "schema:name" : {
+            "type" : "string",
+            "description" : "New name of the resource."
+          }
         }
       },
-      "description" : "A CEDAR template (open JSON-LD document)."
-    },
-    "TemplateElement" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing a specific template element."
+      "Template" : {
+        "type" : "object",
+        "description" : "A CEDAR template (open JSON-LD document).",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific template."
+          }
         }
       },
-      "description" : "A CEDAR template element (open JSON-LD document)."
-    },
-    "TemplateField" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing a specific template field."
+      "TemplateElement" : {
+        "type" : "object",
+        "description" : "A CEDAR template element (open JSON-LD document).",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific template element."
+          }
         }
       },
-      "description" : "A CEDAR template field (open JSON-LD document)."
-    },
-    "TemplateInstance" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing a specific template instance."
+      "TemplateField" : {
+        "type" : "object",
+        "description" : "A CEDAR template field (open JSON-LD document).",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific template field."
+          }
         }
       },
-      "description" : "A CEDAR template instance (open JSON-LD document)."
-    },
-    "TemplateRecommendation" : {
-      "type" : "object",
-      "properties" : {
-        "recommendationScore" : {
-          "type" : "number",
-          "format" : "double",
-          "description" : "recommendation score"
-        },
-        "resourceExtract" : {
-          "$ref" : "#/definitions/Template"
-        },
-        "sourceFieldsMatched" : {
-          "type" : "integer",
-          "format" : "int32",
-          "description" : "number of fields in the template that match fields in the input metadata record"
-        },
-        "targetFieldsCount" : {
-          "type" : "integer",
-          "format" : "int32",
-          "description" : "total number of fields in the recommended template"
+      "TemplateInstance" : {
+        "type" : "object",
+        "description" : "A CEDAR template instance (open JSON-LD document).",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific template instance."
+          }
+        }
+      },
+      "TemplateRecommendation" : {
+        "type" : "object",
+        "properties" : {
+          "recommendationScore" : {
+            "type" : "number",
+            "format" : "double",
+            "description" : "recommendation score"
+          },
+          "resourceExtract" : {
+            "$ref" : "#/components/schemas/Template"
+          },
+          "sourceFieldsMatched" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "number of fields in the template that match fields in the input metadata record"
+          },
+          "targetFieldsCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "total number of fields in the recommended template"
+          }
+        }
+      },
+      "TemplateRecommendationRequest" : {
+        "type" : "object",
+        "description" : "The metadata record to get recommendations for.",
+        "properties" : {
+          "metadataRecord" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "object",
+              "description" : "The input metadata record. Example: {\"tissue\": \"lung\", \"disease\": \"influenza\"}"
+            },
+            "description" : "The input metadata record. Example: {\"tissue\": \"lung\", \"disease\": \"influenza\"}"
+          }
+        }
+      },
+      "TemplateRecommendationResponse" : {
+        "type" : "object",
+        "description" : "A ranked list of recommended templates.",
+        "properties" : {
+          "recommendations" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TemplateRecommendation"
+            }
+          },
+          "request" : {
+            "$ref" : "#/components/schemas/TemplateRecommendationResponseRequest"
+          },
+          "totalCount" : {
+            "type" : "number",
+            "format" : "double",
+            "description" : "total number of recommendations returned",
+            "example" : 1
+          }
+        }
+      },
+      "TemplateRecommendationResponseRequest" : {
+        "type" : "object",
+        "properties" : {
+          "sourceFieldsCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "number of fields in the input metadata record"
+          }
+        }
+      },
+      "User" : {
+        "type" : "object",
+        "description" : "A CEDAR user.",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific user."
+          },
+          "createdOnTS" : {
+            "type" : "number",
+            "description" : "Creation time as Unix timestamp."
+          },
+          "email" : {
+            "type" : "string",
+            "description" : "Email."
+          },
+          "firstName" : {
+            "type" : "string",
+            "description" : "First name."
+          },
+          "lastName" : {
+            "type" : "string",
+            "description" : "Last name."
+          },
+          "lastUpdatedOnTS" : {
+            "type" : "string",
+            "description" : "Last update time as Unix timestamp."
+          },
+          "pav:createdOn" : {
+            "type" : "string",
+            "description" : "Creation time in xsd:dateTime format."
+          },
+          "pav:lastUpdatedOn" : {
+            "type" : "string",
+            "description" : "Last update time in xsd:dateTime format."
+          },
+          "resourceType" : {
+            "type" : "string",
+            "description" : "The value \"user\""
+          },
+          "schema:description" : {
+            "type" : "string",
+            "description" : "Reserved for further use. Currently null."
+          },
+          "schema:identifier" : {
+            "type" : "string",
+            "description" : "Reserved for further use. Currently null."
+          },
+          "schema:name" : {
+            "type" : "string",
+            "description" : "Display name."
+          },
+          "sourceHash" : {
+            "type" : "string",
+            "description" : "Reserved for further use. Currently null."
+          }
         }
       }
     },
-    "TemplateRecommendationRequest" : {
-      "type" : "object",
-      "properties" : {
-        "metadataRecord" : {
-          "type" : "object",
-          "description" : "The input metadata record. Example: {\"tissue\": \"lung\", \"disease\": \"influenza\"}",
-          "additionalProperties" : {
-            "type" : "object"
-          }
-        }
-      },
-      "description" : "The metadata record to get recommendations for."
-    },
-    "TemplateRecommendationResponse" : {
-      "type" : "object",
-      "properties" : {
-        "recommendations" : {
-          "type" : "array",
-          "items" : {
-            "$ref" : "#/definitions/TemplateRecommendation"
-          }
-        },
-        "request" : {
-          "$ref" : "#/definitions/TemplateRecommendationResponseRequest"
-        },
-        "totalCount" : {
-          "type" : "number",
-          "format" : "double",
-          "example" : 1.0,
-          "description" : "total number of recommendations returned"
-        }
-      },
-      "description" : "A ranked list of recommended templates."
-    },
-    "TemplateRecommendationResponseRequest" : {
-      "type" : "object",
-      "properties" : {
-        "sourceFieldsCount" : {
-          "type" : "integer",
-          "format" : "int32",
-          "description" : "number of fields in the input metadata record"
-        }
+    "securitySchemes" : {
+      "api_key" : {
+        "description" : "Your CEDAR API key, using the format 'apiKey <yourApiKey>'",
+        "in" : "header",
+        "name" : "Authorization",
+        "type" : "apiKey"
       }
-    },
-    "User" : {
-      "type" : "object",
-      "properties" : {
-        "@id" : {
-          "type" : "string",
-          "description" : "Unique URL identifier representing a specific user."
-        },
-        "createdOnTS" : {
-          "description" : "Creation time as Unix timestamp.",
-          "$ref" : "#/definitions/Number"
-        },
-        "email" : {
-          "type" : "string",
-          "description" : "Email."
-        },
-        "firstName" : {
-          "type" : "string",
-          "description" : "First name."
-        },
-        "lastName" : {
-          "type" : "string",
-          "description" : "Last name."
-        },
-        "lastUpdatedOnTS" : {
-          "type" : "string",
-          "description" : "Last update time as Unix timestamp."
-        },
-        "pav:createdOn" : {
-          "type" : "string",
-          "description" : "Creation time in xsd:dateTime format."
-        },
-        "pav:lastUpdatedOn" : {
-          "type" : "string",
-          "description" : "Last update time in xsd:dateTime format."
-        },
-        "resourceType" : {
-          "type" : "string",
-          "description" : "The value \"user\""
-        },
-        "schema:description" : {
-          "type" : "string",
-          "description" : "Reserved for further use. Currently null."
-        },
-        "schema:identifier" : {
-          "type" : "string",
-          "description" : "Reserved for further use. Currently null."
-        },
-        "schema:name" : {
-          "type" : "string",
-          "description" : "Display name."
-        },
-        "sourceHash" : {
-          "type" : "string",
-          "description" : "Reserved for further use. Currently null."
-        }
-      },
-      "description" : "A CEDAR user."
     }
   }
 }

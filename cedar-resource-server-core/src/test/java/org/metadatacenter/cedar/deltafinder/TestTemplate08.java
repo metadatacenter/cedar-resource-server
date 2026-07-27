@@ -1,12 +1,12 @@
 package org.metadatacenter.cedar.deltafinder;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.deltafinder.change.Change;
 import org.metadatacenter.cedar.deltafinder.change.ConstraintChange;
 
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestTemplate08 extends SimpleTemplateTest {
 
@@ -18,18 +18,18 @@ public class TestTemplate08 extends SimpleTemplateTest {
     List<Change> nonDestructive = delta.getNonDestructiveChanges();
 
     // Assert only one destructive ConstraintChange exists
-    assertEquals("Should contain exactly one destructive change", 1, destructive.size());
+    assertEquals(1, destructive.size(), "Should contain exactly one destructive change");
     Change change = destructive.get(0);
-    assertTrue("Change should be a ConstraintChange", change instanceof ConstraintChange);
+    assertTrue(change instanceof ConstraintChange, "Change should be a ConstraintChange");
     assertEquals("Field 2", change.getFieldName());
 
     ConstraintChange constraintChange = (ConstraintChange) change;
-    assertTrue("Change should be destructive", constraintChange.isDestructive());
-    assertTrue("Change description should mention defaultValue", constraintChange.getOldConstraint().contains("defaultValue"));
-    assertTrue("Change description should mention minLength", constraintChange.getOldConstraint().contains("minLength"));
-    assertTrue("Change description should mention maxLength", constraintChange.getOldConstraint().contains("maxLength"));
+    assertTrue(constraintChange.isDestructive(), "Change should be destructive");
+    assertTrue(constraintChange.getOldConstraint().contains("defaultValue"), "Change description should mention defaultValue");
+    assertTrue(constraintChange.getOldConstraint().contains("minLength"), "Change description should mention minLength");
+    assertTrue(constraintChange.getOldConstraint().contains("maxLength"), "Change description should mention maxLength");
 
     // Assert no non-destructive changes
-    assertTrue("Should not contain non-destructive changes", nonDestructive.isEmpty());
+    assertTrue(nonDestructive.isEmpty(), "Should not contain non-destructive changes");
   }
 }

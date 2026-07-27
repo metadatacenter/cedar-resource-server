@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for the info about the draft creation process.
@@ -12,22 +11,19 @@ import io.swagger.annotations.ApiModelProperty;
  * legal Java identifiers (e.g. {@code @id}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@ApiModel(value = "CreateDraftArtifactRequest", description = "Info about the creation process.")
+@Schema(name = "CreateDraftArtifactRequest", description = "Info about the creation process.")
 public class CreateDraftArtifactRequest {
 
-  @ApiModelProperty(name = "@id", value = "Unique URL identifier representing the source artifact.")
+  @Schema(name = "@id", description = "Unique URL identifier representing the source artifact.")
   private String id;
 
-  @ApiModelProperty(name = "newVersion",
-      value = "Version string. Must have three positive decimal numbers, separated by period.")
+  @Schema(name = "newVersion", description = "Version string. Must have three positive decimal numbers, separated by period.")
   private String newVersion;
 
-  @ApiModelProperty(name = "folderId",
-      value = "Unique URL identifier representing the target folder that the new artifact will be created in.")
+  @Schema(name = "folderId", description = "Unique URL identifier representing the target folder that the new artifact will be created in.")
   private String folderId;
 
-  @ApiModelProperty(name = "propagateSharing",
-      value = "Copy sharing settings, or leave the new artifact unshared")
+  @Schema(name = "propagateSharing", description = "Copy sharing settings, or leave the new artifact unshared")
   private Boolean propagateSharing;
 
   public String getId() {

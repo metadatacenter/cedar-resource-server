@@ -1,13 +1,13 @@
 package org.metadatacenter.cedar.deltafinder;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.deltafinder.change.Addition;
 import org.metadatacenter.cedar.deltafinder.change.Change;
 import org.metadatacenter.cedar.deltafinder.change.Deletion;
 
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestTemplate12 extends SimpleTemplateTest {
 
@@ -24,7 +24,7 @@ public class TestTemplate12 extends SimpleTemplateTest {
             c.getFieldName().equals("element-12-v1") &&
             ((Deletion) c).getArtifactType().equals("element")
     );
-    assertTrue("Should contain deletion of element-12-v1", hasDeletion);
+    assertTrue(hasDeletion, "Should contain deletion of element-12-v1");
 
     // Check for the addition of element-12-v2
     boolean hasAddition = nonDestructive.stream().anyMatch(c ->
@@ -32,6 +32,6 @@ public class TestTemplate12 extends SimpleTemplateTest {
             c.getFieldName().equals("element-12-v2") &&
             ((Addition) c).getArtifactType().equals("element")
     );
-    assertTrue("Should contain addition of element-12-v2", hasAddition);
+    assertTrue(hasAddition, "Should contain addition of element-12-v2");
   }
 }

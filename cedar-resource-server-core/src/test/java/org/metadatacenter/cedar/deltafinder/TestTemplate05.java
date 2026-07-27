@@ -1,11 +1,11 @@
 package org.metadatacenter.cedar.deltafinder;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.deltafinder.change.*;
 
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestTemplate05 extends SimpleTemplateTest {
 
@@ -21,9 +21,9 @@ public class TestTemplate05 extends SimpleTemplateTest {
         c instanceof Deletion &&
             c.getFieldName().equals("Field 1") &&
             ((Deletion) c).getArtifactType().equals("field"));
-    assertTrue("Expected Deletion on field: Field 1", hasExpectedDeletion);
+    assertTrue(hasExpectedDeletion, "Expected Deletion on field: Field 1");
 
     // Assert no non-destructive changes
-    assertTrue("Expected no non-destructive changes", nonDestructive.isEmpty());
+    assertTrue(nonDestructive.isEmpty(), "Expected no non-destructive changes");
   }
 }

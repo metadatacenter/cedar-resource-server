@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources.swaggermodel;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Documentation-only model for a CEDAR user.
@@ -12,46 +11,46 @@ import io.swagger.annotations.ApiModelProperty;
  * identifiers (e.g. {@code @id}, {@code schema:name}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@ApiModel(value = "User", description = "A CEDAR user.")
+@Schema(name = "User", description = "A CEDAR user.")
 public class User {
 
-  @ApiModelProperty(name = "@id", value = "Unique URL identifier representing a specific user.")
+  @Schema(name = "@id", description = "Unique URL identifier representing a specific user.")
   private String id;
 
-  @ApiModelProperty(name = "firstName", value = "First name.")
+  @Schema(name = "firstName", description = "First name.")
   private String firstName;
 
-  @ApiModelProperty(name = "lastName", value = "Last name.")
+  @Schema(name = "lastName", description = "Last name.")
   private String lastName;
 
-  @ApiModelProperty(name = "email", value = "Email.")
+  @Schema(name = "email", description = "Email.")
   private String email;
 
-  @ApiModelProperty(name = "pav:createdOn", value = "Creation time in xsd:dateTime format.")
+  @Schema(name = "pav:createdOn", description = "Creation time in xsd:dateTime format.")
   private String createdOn;
 
-  @ApiModelProperty(name = "createdOnTS", value = "Creation time as Unix timestamp.")
+  @Schema(name = "createdOnTS", description = "Creation time as Unix timestamp.")
   private Number createdOnTS;
 
-  @ApiModelProperty(name = "pav:lastUpdatedOn", value = "Last update time in xsd:dateTime format.")
+  @Schema(name = "pav:lastUpdatedOn", description = "Last update time in xsd:dateTime format.")
   private String lastUpdatedOn;
 
-  @ApiModelProperty(name = "lastUpdatedOnTS", value = "Last update time as Unix timestamp.")
+  @Schema(name = "lastUpdatedOnTS", description = "Last update time as Unix timestamp.")
   private String lastUpdatedOnTS;
 
-  @ApiModelProperty(name = "sourceHash", value = "Reserved for further use. Currently null.")
+  @Schema(name = "sourceHash", description = "Reserved for further use. Currently null.")
   private String sourceHash;
 
-  @ApiModelProperty(name = "schema:identifier", value = "Reserved for further use. Currently null.")
+  @Schema(name = "schema:identifier", description = "Reserved for further use. Currently null.")
   private String identifier;
 
-  @ApiModelProperty(name = "schema:name", value = "Display name.")
+  @Schema(name = "schema:name", description = "Display name.")
   private String name;
 
-  @ApiModelProperty(name = "schema:description", value = "Reserved for further use. Currently null.")
+  @Schema(name = "schema:description", description = "Reserved for further use. Currently null.")
   private String description;
 
-  @ApiModelProperty(name = "resourceType", value = "The value \"user\"")
+  @Schema(name = "resourceType", description = "The value \"user\"")
   private String resourceType;
 
   public String getId() {

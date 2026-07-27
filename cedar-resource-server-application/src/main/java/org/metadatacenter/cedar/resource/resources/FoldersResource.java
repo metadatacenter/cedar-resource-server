@@ -1,14 +1,15 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.resources.swaggermodel.Folder;
 import org.metadatacenter.config.CedarConfig;
@@ -30,16 +31,17 @@ import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 
-import javax.ws.rs.*;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.*;
 
 @Path("/folders")
-@Api(value = "/folders", tags = "Folders", authorizations = {@Authorization("api_key")})
+@Tag(name = "Folders")
+@SecurityRequirement(name = "api_key")
 public class FoldersResource extends AbstractResourceServerResource {
 
   public FoldersResource(CedarConfig cedarConfig) {
@@ -48,18 +50,15 @@ public class FoldersResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @ApiOperation(value = "Create a folder", notes = "Create a folder.", code = 201, response = Folder.class)
-  @ApiImplicitParams({
-      @ApiImplicitParam(name = "folder", value = "The folder to be created", required = true,
-          dataType = "org.metadatacenter.cedar.resource.resources.swaggermodel.Folder", paramType = "body")
-  })
+  @Operation(summary = "Create a folder", description = "Create a folder.")
+  @RequestBody(description = "The folder to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Folder.class)))
   @ApiResponses({
-      @ApiResponse(code = 201, message = "A folder", response = Folder.class),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "201", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class))),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response createFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -70,17 +69,17 @@ public class FoldersResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{folder_id}")
-  @ApiOperation(value = "Get a folder", notes = "Get a folder.", response = Folder.class)
+  @Operation(summary = "Get a folder", description = "Get a folder.")
   @ApiResponses({
-      @ApiResponse(code = 200, message = "A folder", response = Folder.class),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class))),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response findFolder(
-      @ApiParam(value = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
+      @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -97,17 +96,17 @@ public class FoldersResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{folder_id}/details")
-  @ApiOperation(value = "Get the details of a folder", notes = "Get the details of a folder.")
+  @Operation(summary = "Get the details of a folder", description = "Get the details of a folder.")
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response findFolderDetails(
-      @ApiParam(value = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
+      @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     return findFolder(id);
@@ -116,17 +115,17 @@ public class FoldersResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{folder_id}")
-  @ApiOperation(value = "Update a folder", notes = "Update a folder.", response = Folder.class)
+  @Operation(summary = "Update a folder", description = "Update a folder.")
   @ApiResponses({
-      @ApiResponse(code = 200, message = "A folder", response = Folder.class),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class))),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response createOrUpdateFolder(
-      @ApiParam(value = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
+      @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -165,17 +164,17 @@ public class FoldersResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{folder_id}")
-  @ApiOperation(value = "Delete a folder", notes = "Delete a folder.")
+  @Operation(summary = "Delete a folder", description = "Delete a folder.")
   @ApiResponses({
-      @ApiResponse(code = 204, message = "Successful operation (no content)"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response deleteFolder(
-      @ApiParam(value = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
+      @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -236,18 +235,17 @@ public class FoldersResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{folder_id}/permissions")
-  @ApiOperation(value = "Get permissions of a folder", notes = "Get permissions of a folder.",
-      tags = {"Folders", "Permissions"})
+  @Operation(summary = "Get permissions of a folder", description = "Get permissions of a folder.", tags = {"Folders", "Permissions"})
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response getFolderPermissions(
-      @ApiParam(value = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
+      @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -261,18 +259,17 @@ public class FoldersResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{folder_id}/permissions")
-  @ApiOperation(value = "Update permissions of a folder", notes = "Update permissions of a folder.",
-      tags = {"Folders", "Permissions"})
+  @Operation(summary = "Update permissions of a folder", description = "Update permissions of a folder.", tags = {"Folders", "Permissions"})
   @ApiResponses({
-      @ApiResponse(code = 200, message = "Successful operation"),
-      @ApiResponse(code = 400, message = "Bad request"),
-      @ApiResponse(code = 401, message = "Unauthorized"),
-      @ApiResponse(code = 403, message = "Forbidden"),
-      @ApiResponse(code = 404, message = "Not found"),
-      @ApiResponse(code = 500, message = "Internal server error")
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateFolderPermissions(
-      @ApiParam(value = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
+      @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -371,7 +368,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServerFolder newFolder = null;
     FileSystemResource newFolderCandidate = folderSession.findFilesystemResourceByParentFolderIdAndName(parentFolder.getResourceId(), nameV);
     if (newFolderCandidate != null) {
-      return CedarResponse.badRequest()
+      return CedarResponse.conflict()
           .parameter("parentFolderId", parentFolder.getId())
           .parameter("name", name)
           .errorKey(CedarErrorKey.NODE_ALREADY_PRESENT)
