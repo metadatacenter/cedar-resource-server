@@ -592,20 +592,20 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       isSchemaArtifact = true;
     }
 
-    // A published artifact is immutable, so it cannot be deleted — the docs say so, and the update
-    // path already refuses to change it (PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED). This guard was
-    // commented out, so deletion went straight through. The filesystem administrator keeps a cleanup
-    // path through the same WRITE_NOT_WRITABLE_NODE override that lets it write any node, so published
-    // artifacts are not un-removable by anyone (which would also strand the folders that hold them).
-    if (isSchemaArtifact && schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED
-        && !c.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE)) {
-      return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
-          .errorMessage("Published artifacts can not be deleted!")
-          .parameter("id", id)
-          .parameter("name", schemaArtifact.getName())
-          .build();
-    }
+    // Deliberately NOT blocking deletion of a published artifact. Commit 3f26ee7 (2021, "Allow users
+    // to delete published resources") disabled this guard on purpose, and that decision stands: making
+    // published artifacts un-deletable strands them and their folders with no cleanup path. This
+    // contradicts the documentation, which says published artifacts are permanent; that discrepancy is
+    // tracked on the roadmap ("Decide whether a published artifact may be deleted"). The re-publish
+    // guard is separate and IS enforced (see CommandVersionResource).
+    // if (isSchemaArtifact && schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
+    //   return CedarResponse.badRequest()
+    //       .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
+    //       .errorMessage("Published artifacts can not be deleted!")
+    //       .parameter("id", id)
+    //       .parameter("name", schemaArtifact.getName())
+    //       .build();
+    // }
 
     // Delete from artifact server
     try {
