@@ -368,7 +368,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServerFolder newFolder = null;
     FileSystemResource newFolderCandidate = folderSession.findFilesystemResourceByParentFolderIdAndName(parentFolder.getResourceId(), nameV);
     if (newFolderCandidate != null) {
-      return CedarResponse.badRequest()
+      return CedarResponse.conflict()
           .parameter("parentFolderId", parentFolder.getId())
           .parameter("name", name)
           .errorKey(CedarErrorKey.NODE_ALREADY_PRESENT)
