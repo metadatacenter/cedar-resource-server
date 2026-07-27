@@ -1,0 +1,283 @@
+package org.metadatacenter.cedar.resource.resources;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import io.dropwizard.testing.DropwizardTestSupport;
+import io.dropwizard.testing.ResourceHelpers;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ResourceServerApplication;
+import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
+import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
+import org.metadatacenter.id.CedarCategoryId;
+import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
+import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
+import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.util.IndexUtils;
+import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
+import org.metadatacenter.util.json.JsonMapper;
+import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
+import org.metadatacenter.util.test.PermissionMatrix;
+import org.metadatacenter.util.test.TestAuthUtil;
+
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+import static org.metadatacenter.util.test.PermissionMatrix.Actor.ANONYMOUS;
+import static org.metadatacenter.util.test.PermissionMatrix.Actor.OTHER_USER;
+import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
+
+/**
+ * The authorization grids for a template and for a category, completing the coverage the folder
+ * matrix began. Templates are where the metadata schemas live and categories are how artifacts are
+ * classified for discovery, so a denial that stops working in either place exposes one user's work
+ * to another — the same class of silent failure {@link FoldersAuthorizationMatrixTest} exists to
+ * prevent, on the two surfaces it did not reach.
+ *
+ * <p>Both fixtures are owned by test user 1 and neither is shared, so user 2 has no grant on either.
+ * Each row asserts that an unauthenticated caller is refused, that user 2 is refused, and — for the
+ * reads — that the owner succeeds. The owner's success is what gives the denials their meaning: it
+ * shows the endpoint works and is discriminating by identity rather than being broken for everybody,
+ * which a table of 401s and 403s alone cannot distinguish.
+ *
+ * <p>The template rows deliberately cover only the endpoints the resource server answers from the
+ * workspace graph: details, permissions, report and versions. The content endpoints
+ * (<code>GET /templates/{id}</code> and the write paths) proxy to the artifact server, which this
+ * suite does not run — the whole resource-server suite is backend-free — so a row for them would
+ * assert the proxy failing rather than the authorization decision. Covering those needs the
+ * cross-service contract tests the roadmap describes, not this table. The permission check happens
+ * before the proxy in every case, so the security contract itself is fully covered here; what is
+ * missing is only the owner's happy path on the content routes.
+ *
+ * <p>Categories have no such gap, since every category endpoint is answered from the graph. Their
+ * contract turns out to differ from folders in two ways worth stating, both established by running
+ * this table rather than by reading the code: a category is <em>readable</em> by any authenticated
+ * user holding the CATEGORY_READ role, because it is a shared classification vocabulary rather than
+ * private data; and its ACL requires <em>write</em> access to read, which is stricter than folders.
+ * Writes are owner-only as expected.
+ */
+public class ArtifactsAndCategoriesAuthorizationMatrixTest {
+
+  static {
+    // Must run before the test support boots the server, which reads the Neo4j env vars. Ports are
+    // distinct from the dev server and from every other booting test class in this module.
+    EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
+        "CEDAR_RESOURCE_HTTP_PORT", "19037",
+        "CEDAR_RESOURCE_ADMIN_PORT", "19137",
+        "CEDAR_RESOURCE_STOP_PORT", "19237",
+        "CEDAR_REDIS_PERSISTENT_PORT", "1"));
+  }
+
+  public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
+      new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
+
+  private static final HttpClient CLIENT = HttpClient.newHttpClient();
+
+  private static Map<PermissionMatrix.Actor, String> actors;
+  private static String templatePath;
+  private static String categoryPath;
+  private static String rootCategoryPath;
+  private static String templateName;
+  private static String categoryName;
+
+  @BeforeAll
+  public static void oneTimeSetUp() throws Exception {
+    SERVER.before();
+    Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
+    CedarConfig cedarConfig = CedarConfig.getInstance(environment);
+
+    TestAuthUtil.installInMemoryUserService(cedarConfig);
+    actors = Map.of(
+        OWNER, TestAuthUtil.getTestUser1AuthHeader(cedarConfig),
+        OTHER_USER, TestAuthUtil.getTestUser2AuthHeader(cedarConfig));
+
+    EmbeddedCedarNeo4j.seed(cedarConfig);
+
+    // No OpenSearch: indexing is a no-op and none of these endpoints search.
+    AbstractResourceServerResource.injectServices(
+        new NoOpNodeIndexingService(cedarConfig),
+        new IndexUtils(cedarConfig).getNodeSearchingService(),
+        new SearchPermissionEnqueueService(cedarConfig),
+        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+
+    CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+
+    // A template node in the workspace graph, under user 1's home folder. Created through the graph
+    // session rather than the REST API on purpose: POST /templates would proxy the content to the
+    // artifact server, which is not running, while every endpoint under test reads only the graph.
+    CedarFolderId user1HomeId = CedarDataServices.getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
+    templateName = "Matrix Template";
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName(templateName);
+    template.setDescription("Created by ArtifactsAndCategoriesAuthorizationMatrixTest");
+    template.setVersion("1.0.0");
+    template.setPublicationStatus("bibo:draft");
+    template.setLatestVersion(true);
+    template.setLatestDraftVersion(true);
+    template.setLatestPublishedVersion(false);
+    String templateId = CedarDataServices.getFolderServiceSession(user1Context)
+        .createResourceAsChildOfId(template, user1HomeId).getId();
+    Assertions.assertNotNull(templateId, "the fixture template should have been created");
+    templatePath = "/templates/" + URLEncoder.encode(templateId, StandardCharsets.UTF_8);
+
+    // A category owned by user 1, under the root category that seeding creates.
+    FolderServerCategory rootCategory = CedarDataServices.getCategoryServiceSession(user1Context).getRootCategory();
+    Assertions.assertNotNull(rootCategory, "the seeded graph should contain the root category");
+    CedarCategoryId rootCategoryId = rootCategory.getResourceId();
+    categoryName = "Matrix Category";
+    FolderServerCategory category = CedarDataServices.getCategoryServiceSession(user1Context)
+        .createCategory(rootCategoryId, categoryName,
+            "Created by ArtifactsAndCategoriesAuthorizationMatrixTest", null);
+    Assertions.assertNotNull(category, "the fixture category should have been created");
+    categoryPath = "/categories/" + URLEncoder.encode(category.getId(), StandardCharsets.UTF_8);
+    rootCategoryPath = "/categories/" + URLEncoder.encode(rootCategoryId.getId(), StandardCharsets.UTF_8);
+  }
+
+  @AfterAll
+  public static void oneTimeTearDown() {
+    SERVER.after();
+  }
+
+  @Test
+  public void aSecondUserCannotReachAnotherUsersTemplate() throws Exception {
+    String permissionsBody = "{\"userPermissions\": [], \"groupPermissions\": []}";
+    PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
+
+    // The node's own metadata: name, description, owner, folder. Readable by the owner, not by a
+    // stranger — leaking this would disclose what schemas a user is working on.
+    matrix.when("GET", templatePath + "/details")
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 200)
+        .expect(OTHER_USER, 403);
+
+    // The ACL: who a template is shared with is as sensitive as the template.
+    matrix.when("GET", templatePath + "/permissions")
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 200)
+        .expect(OTHER_USER, 403);
+
+    // The version chain. A stranger must not be able to enumerate a user's drafts.
+    matrix.when("GET", templatePath + "/versions")
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 200)
+        .expect(OTHER_USER, 403);
+
+    matrix.when("GET", templatePath + "/report")
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 200)
+        .expect(OTHER_USER, 403);
+
+    // Taking over the ACL is the most valuable single request an attacker could make here: it would
+    // convert read denial into permanent access. See the note on the category row below about the
+    // status this currently answers.
+    matrix.when("PUT", templatePath + "/permissions", permissionsBody)
+        .expect(ANONYMOUS, 401)
+        .expect(OTHER_USER, 401);
+
+    matrix.verify();
+
+    // Statuses alone would not show the refusals had no effect. Re-read as the owner and confirm the
+    // template is untouched.
+    HttpResponse<String> after = request("GET", templatePath + "/details", null, actors.get(OWNER));
+    Assertions.assertEquals(200, after.statusCode(), "the owner's template should have survived the denied requests");
+    JsonNode details = JsonMapper.MAPPER.readTree(after.body());
+    Assertions.assertEquals(templateName, details.path("schema:name").asText(),
+        "a denied request changed the template: " + after.body());
+  }
+
+  @Test
+  public void aSecondUserCannotReachAnotherUsersCategory() throws Exception {
+    String renameBody = "{\"schema:name\": \"Renamed By An Intruder\", \"schema:description\": \"nope\"}";
+    String permissionsBody = "{\"userPermissions\": [], \"groupPermissions\": []}";
+    String createBody = "{\"schema:name\": \"Created By An Intruder\", \"schema:description\": \"nope\","
+        + " \"parentCategoryId\": null}";
+    PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
+
+    // Reading a category is open to any authenticated user holding the CATEGORY_READ role: the
+    // endpoint gates on the role and does no per-category check. That is the design rather than a
+    // gap — categories are a shared classification vocabulary, and a tree only its owner could read
+    // would be useless for classifying anything. This row records that contract so a later change
+    // that quietly makes reads private, breaking the picker for everyone else, fails here. Asserted
+    // for both a private category and the root below.
+    matrix.when("GET", categoryPath)
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 200)
+        .expect(OTHER_USER, 200);
+
+    matrix.when("GET", rootCategoryPath)
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 200)
+        .expect(OTHER_USER, 200);
+
+    // The ACL is not open, and it is stricter than the folder equivalent: reading a category's
+    // permissions requires WRITE access to it (userMustHaveWriteAccessToCategory), not merely read.
+    // Defensible — who may change a category is only of use to someone who may change it — but worth
+    // pinning, since it differs from how folders treat their own ACL.
+    matrix.when("GET", categoryPath + "/permissions")
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 200)
+        .expect(OTHER_USER, 403);
+
+    // Renaming and deleting someone else's category would corrupt how their artifacts are classified
+    // without touching the artifacts themselves, which makes it a quiet kind of damage.
+    matrix.when("PUT", categoryPath, renameBody)
+        .expect(ANONYMOUS, 401)
+        .expect(OTHER_USER, 403);
+
+    matrix.when("DELETE", categoryPath)
+        .expect(ANONYMOUS, 401)
+        .expect(OTHER_USER, 403);
+
+    // Attaching a child to another user's category is a write to that category.
+    matrix.when("POST", "/categories", createBody)
+        .expect(ANONYMOUS, 401);
+
+    // 403, which is correct — and worth dwelling on, because folders and templates answer 401 to the
+    // very same request. Categories get it right by gating on userMustHaveWriteAccessToCategory,
+    // which raises an exception carrying an explicit status, so the denial never reaches the
+    // BackendCallResult path whose CedarErrorType.AUTHORIZATION default is UNAUTHORIZED. That makes
+    // this row the reference behaviour for fixing the other two rather than another instance of the
+    // bug: the roadmap item can narrow to the resource permission path, since the category validator
+    // already does the right thing.
+    matrix.when("PUT", categoryPath + "/permissions", permissionsBody)
+        .expect(ANONYMOUS, 401)
+        .expect(OTHER_USER, 403);
+
+    matrix.verify();
+
+    HttpResponse<String> after = request("GET", categoryPath, null, actors.get(OWNER));
+    Assertions.assertEquals(200, after.statusCode(), "the owner's category should have survived the denied requests");
+    JsonNode category = JsonMapper.MAPPER.readTree(after.body());
+    Assertions.assertEquals(categoryName, category.path("schema:name").asText(),
+        "a denied request renamed the category: " + after.body());
+  }
+
+  private HttpResponse<String> request(String method, String path, String body, String authHeader) throws Exception {
+    HttpRequest.Builder builder = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
+        .header("Content-Type", "application/json");
+    if (authHeader != null) {
+      builder.header("Authorization", authHeader);
+    }
+    builder.method(method, body == null
+        ? HttpRequest.BodyPublishers.noBody()
+        : HttpRequest.BodyPublishers.ofString(body));
+    return CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+}
