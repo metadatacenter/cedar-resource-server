@@ -108,12 +108,25 @@ public class FoldersResourceTest {
     return URLEncoder.encode(id, StandardCharsets.UTF_8);
   }
 
+  /**
+   * Also the regression guard for provenance-name degradation. Reading a folder decorates it with
+   * the creator's, owner's and last-updater's display names, which UserSummaryCache resolves by
+   * calling the user server. No user server runs here, so no summary can be resolved — and this
+   * request must still succeed, serving the folder without those names. It previously answered 500:
+   * Guava's cache reports "loader returned null" with an unchecked exception, which escaped
+   * UserSummaryCache.getUser and reached the generic exception mapper. In production the same fault
+   * turned every read of a resource whose owner could not be resolved — a user server blip, a
+   * deleted account — into a 500.
+   */
   @Test
   public void homeFolderIsServedToItsOwner() throws Exception {
     HttpResponse<String> response = request("GET", "/folders/" + encode(homeFolderId), null, authHeaderUser1);
     Assertions.assertEquals(200, response.statusCode());
     JsonNode folder = JsonMapper.MAPPER.readTree(response.body());
     Assertions.assertTrue(folder.get("isUserHome").asBoolean());
+    // The unresolvable display names are omitted rather than failing the read.
+    Assertions.assertTrue(folder.path("ownedByUserName").isMissingNode() || folder.path("ownedByUserName").isNull(),
+        "expected no provenance display name when the user summary cannot be resolved: " + response.body());
   }
 
   @Test
