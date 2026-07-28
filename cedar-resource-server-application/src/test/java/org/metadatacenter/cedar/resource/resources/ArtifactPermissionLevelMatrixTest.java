@@ -161,11 +161,12 @@ public class ArtifactPermissionLevelMatrixTest {
       }
     }
 
-    // Refused, so these fixtures are not mutated and need no isolation beyond their own set. The 401
-    // rather than 403 is the CedarErrorType anomaly the roadmap tracks.
+    // Refused, so these fixtures are not mutated and need no isolation beyond their own set. An
+    // authenticated re-sharer is refused with 403 (permission denial via CedarErrorType.PERMISSION);
+    // an anonymous caller is refused with 401 by the authentication layer.
     for (Fixture f : resharable) {
       matrix.when("PUT", f.path() + "/permissions", resharePermissionsBody())
-          .expect(ANONYMOUS, 401).expect(OTHER_USER, 401);
+          .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
     }
 
     matrix.verify();
