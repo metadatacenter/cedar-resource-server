@@ -18,8 +18,8 @@ import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.cedar.resource.security.AdminCommand;
 import org.metadatacenter.server.search.util.*;
-import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.json.JsonMapper;
@@ -70,8 +70,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   })
   public Response loadValueSetsOntology() throws CedarException {
     CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
+    AdminCommand.LOAD_VALUESETS_ONTOLOGY.enforce(c);
 
     if (ValueSetsImportStatusManager.getInstance().getImportStatus() == ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS) {
       return CedarResponse.badRequest().errorMessage("Value set loading already in progress").build();
@@ -137,8 +136,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   })
   public Response regenerateSearchIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
+    AdminCommand.REGENERATE_SEARCH_INDEX.enforce(c);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
@@ -190,8 +188,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   })
   public Response generateEmptySearchIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
+    AdminCommand.GENERATE_EMPTY_SEARCH_INDEX.enforce(c);
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
@@ -229,8 +226,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   })
   public Response regenerateRulesIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.RULES_INDEX_REINDEX);
+    AdminCommand.REGENERATE_RULES_INDEX.enforce(c);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
@@ -267,8 +263,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   })
   public Response generateEmptyRulesIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.RULES_INDEX_REINDEX);
+    AdminCommand.GENERATE_EMPTY_RULES_INDEX.enforce(c);
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
