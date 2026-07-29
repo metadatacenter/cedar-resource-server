@@ -2143,7 +2143,17 @@
         } ],
         "requestBody" : {
           "content" : {
-            "*/*" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateElement"
+              }
+            },
+            "application/x-yaml" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateElement"
+              }
+            },
+            "application/yaml" : {
               "schema" : {
                 "$ref" : "#/components/schemas/TemplateElement"
               }
@@ -2325,7 +2335,17 @@
         } ],
         "requestBody" : {
           "content" : {
-            "*/*" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateElement"
+              }
+            },
+            "application/x-yaml" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateElement"
+              }
+            },
+            "application/yaml" : {
               "schema" : {
                 "$ref" : "#/components/schemas/TemplateElement"
               }
@@ -2651,7 +2671,17 @@
         } ],
         "requestBody" : {
           "content" : {
-            "*/*" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateField"
+              }
+            },
+            "application/x-yaml" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateField"
+              }
+            },
+            "application/yaml" : {
               "schema" : {
                 "$ref" : "#/components/schemas/TemplateField"
               }
@@ -2833,7 +2863,17 @@
         } ],
         "requestBody" : {
           "content" : {
-            "*/*" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateField"
+              }
+            },
+            "application/x-yaml" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateField"
+              }
+            },
+            "application/yaml" : {
               "schema" : {
                 "$ref" : "#/components/schemas/TemplateField"
               }
@@ -3159,7 +3199,17 @@
         } ],
         "requestBody" : {
           "content" : {
-            "*/*" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateInstance"
+              }
+            },
+            "application/x-yaml" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateInstance"
+              }
+            },
+            "application/yaml" : {
               "schema" : {
                 "$ref" : "#/components/schemas/TemplateInstance"
               }
@@ -3348,7 +3398,17 @@
         } ],
         "requestBody" : {
           "content" : {
-            "*/*" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateInstance"
+              }
+            },
+            "application/x-yaml" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TemplateInstance"
+              }
+            },
+            "application/yaml" : {
               "schema" : {
                 "$ref" : "#/components/schemas/TemplateInstance"
               }
@@ -3634,7 +3694,17 @@
         } ],
         "requestBody" : {
           "content" : {
-            "*/*" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Template"
+              }
+            },
+            "application/x-yaml" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Template"
+              }
+            },
+            "application/yaml" : {
               "schema" : {
                 "$ref" : "#/components/schemas/Template"
               }
@@ -3865,7 +3935,17 @@
         } ],
         "requestBody" : {
           "content" : {
-            "*/*" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Template"
+              }
+            },
+            "application/x-yaml" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Template"
+              }
+            },
+            "application/yaml" : {
               "schema" : {
                 "$ref" : "#/components/schemas/Template"
               }

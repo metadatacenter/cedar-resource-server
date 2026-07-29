@@ -56,6 +56,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Create a template instance", description = "Create a template instance. The body can be JSON or "
       + "YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: "
       + "the compact form is a lossy read-time convenience and is rejected.")
@@ -220,6 +221,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{template_instance_id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Update a template instance", description = "Update a template instance. The body can be JSON or "
       + "YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: "
       + "the compact form is a lossy read-time convenience and is rejected.")
