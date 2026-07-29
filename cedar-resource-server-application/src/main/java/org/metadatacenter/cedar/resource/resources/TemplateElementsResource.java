@@ -54,6 +54,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Create a template element", description = "Create a template element. The body can be JSON or "
       + "YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: "
       + "the compact form is a lossy read-time convenience and is rejected.")
@@ -210,6 +211,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{template_element_id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Update a template element", description = "Update a template element. The body can be JSON or "
       + "YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: "
       + "the compact form is a lossy read-time convenience and is rejected.")

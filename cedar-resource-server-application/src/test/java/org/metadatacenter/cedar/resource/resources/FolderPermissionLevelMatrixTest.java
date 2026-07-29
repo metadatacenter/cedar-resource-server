@@ -181,9 +181,10 @@ public class FolderPermissionLevelMatrixTest {
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
 
     // Re-sharing is its own permission (CHANGEPERMISSIONS), so a reader must not be able to widen
-    // access. The 401 rather than 403 is the CedarErrorType anomaly the roadmap tracks.
+    // access. An authenticated reader is refused with 403 (permission denial via CedarErrorType
+    // .PERMISSION); an anonymous caller is refused with 401 by the authentication layer.
     matrix.when("PUT", path(resharable) + "/permissions", resharePermissionsBody())
-        .expect(ANONYMOUS, 401).expect(OTHER_USER, 401);
+        .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
 
     matrix.verify();
 

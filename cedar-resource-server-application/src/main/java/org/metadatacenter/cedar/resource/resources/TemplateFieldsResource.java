@@ -54,6 +54,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Create a template field", description = "Create a template field. The body can be JSON or YAML, "
       + "selected via the Content-Type header. A YAML body must be the full or minimal form: the "
       + "compact form is a lossy read-time convenience and is rejected.")
@@ -211,6 +212,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{template_field_id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Update a template field", description = "Update a template field. The body can be JSON or YAML, "
       + "selected via the Content-Type header. A YAML body must be the full or minimal form: the "
       + "compact form is a lossy read-time convenience and is rejected.")

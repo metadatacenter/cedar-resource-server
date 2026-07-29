@@ -143,22 +143,16 @@ public class FoldersAuthorizationMatrixTest {
         .expect(ANONYMOUS, 401)
         .expect(OTHER_USER, 403);
 
-    // NOTE: 401 here is CEDAR's current behaviour and it is inconsistent with every other row —
-    // this actor is authenticated, so the refusal should be 403 Forbidden. The cause is that the
-    // permission denial travels as a BackendCallResult error of type CedarErrorType.AUTHORIZATION,
-    // and that type's default status is UNAUTHORIZED (401). The exception-based denials get it right
-    // because they set the status explicitly, which is why the GET rows above are 403.
-    //
-    // The enum cannot simply be remapped: the same AUTHORIZATION type also carries genuine
-    // authentication failures (CedarAccessException, including the missing-header case), which must
-    // stay 401. Fixing it means distinguishing the two — a separate error type for permission
-    // denials, or an explicit status at the validator sites.
-    //
-    // Pinned as-is so this suite is green and the anomaly is recorded rather than hidden. When it is
-    // fixed, this row fails and should become 403.
+    // Taking over the ACL, refused with 403 for an authenticated stranger like every other write row.
+    // This denial travels as a BackendCallResult error rather than an exception, and once carried the
+    // AUTHORIZATION type whose default status is 401 — so it answered 401 where the exception-based
+    // rows above answered 403. The fix split the type: permission denials now carry CedarErrorType
+    // .PERMISSION (403), leaving AUTHORIZATION (401) for genuine authentication failures such as the
+    // missing-header case, which must stay 401. The validator sites in ResourcePermissionRequest-
+    // Validator were moved onto PERMISSION accordingly.
     matrix.when("PUT", folderPath + "/permissions", permissionsBody)
         .expect(ANONYMOUS, 401)
-        .expect(OTHER_USER, 401);
+        .expect(OTHER_USER, 403);
 
     matrix.verify();
 

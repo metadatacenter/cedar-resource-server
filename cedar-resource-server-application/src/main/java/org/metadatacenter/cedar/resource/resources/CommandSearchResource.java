@@ -71,7 +71,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   public Response loadValueSetsOntology() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
-    //c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
+    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
 
     if (ValueSetsImportStatusManager.getInstance().getImportStatus() == ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS) {
       return CedarResponse.badRequest().errorMessage("Value set loading already in progress").build();
@@ -92,6 +92,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           log.error("Error in load value sets ontology executor", e);
         }
       });
+      executor.shutdown();
       return Response.ok().build();
     }
   }
@@ -168,6 +169,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         log.error("Error in index regeneration executor", e);
       }
     });
+    executor.shutdown();
 
     return Response.ok().build();
   }
@@ -202,6 +204,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         log.error("Error in index regeneration executor", e);
       }
     });
+    executor.shutdown();
 
     return Response.ok().build();
   }
@@ -243,6 +246,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         log.error("Error in index regeneration executor", e);
       }
     });
+    executor.shutdown();
 
     return Response.ok().build();
   }
@@ -264,7 +268,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   public Response generateEmptyRulesIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.SEARCH_INDEX_REINDEX);
+    c.must(c.user()).have(CedarPermission.RULES_INDEX_REINDEX);
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
@@ -277,6 +281,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         log.error("Error in index regeneration executor", e);
       }
     });
+    executor.shutdown();
 
     return Response.ok().build();
   }

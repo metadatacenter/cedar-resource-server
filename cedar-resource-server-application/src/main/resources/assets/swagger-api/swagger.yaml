@@ -2,7 +2,7 @@ openapi: 3.0.1
 info:
   description: Better Metadata - Better Science
   title: CEDAR Resource Server API
-  version: 2.9.0
+  version: 2.9.1
 paths:
   /categories:
     get:
@@ -1670,7 +1670,13 @@ paths:
           type: boolean
       requestBody:
         content:
-          '*/*':
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateElement"
+          application/x-yaml:
+            schema:
+              $ref: "#/components/schemas/TemplateElement"
+          application/yaml:
             schema:
               $ref: "#/components/schemas/TemplateElement"
         description: The template element to be created
@@ -1801,7 +1807,13 @@ paths:
           type: boolean
       requestBody:
         content:
-          '*/*':
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateElement"
+          application/x-yaml:
+            schema:
+              $ref: "#/components/schemas/TemplateElement"
+          application/yaml:
             schema:
               $ref: "#/components/schemas/TemplateElement"
         description: The template element to be updated
@@ -2047,7 +2059,13 @@ paths:
           type: boolean
       requestBody:
         content:
-          '*/*':
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateField"
+          application/x-yaml:
+            schema:
+              $ref: "#/components/schemas/TemplateField"
+          application/yaml:
             schema:
               $ref: "#/components/schemas/TemplateField"
         description: The template field to be created
@@ -2178,7 +2196,13 @@ paths:
           type: boolean
       requestBody:
         content:
-          '*/*':
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateField"
+          application/x-yaml:
+            schema:
+              $ref: "#/components/schemas/TemplateField"
+          application/yaml:
             schema:
               $ref: "#/components/schemas/TemplateField"
         description: The template field to be updated
@@ -2424,7 +2448,13 @@ paths:
           type: boolean
       requestBody:
         content:
-          '*/*':
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateInstance"
+          application/x-yaml:
+            schema:
+              $ref: "#/components/schemas/TemplateInstance"
+          application/yaml:
             schema:
               $ref: "#/components/schemas/TemplateInstance"
         description: The template instance to be created
@@ -2561,7 +2591,13 @@ paths:
           type: boolean
       requestBody:
         content:
-          '*/*':
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateInstance"
+          application/x-yaml:
+            schema:
+              $ref: "#/components/schemas/TemplateInstance"
+          application/yaml:
             schema:
               $ref: "#/components/schemas/TemplateInstance"
         description: The template instance to be updated
@@ -2775,7 +2811,13 @@ paths:
           type: boolean
       requestBody:
         content:
-          '*/*':
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Template"
+          application/x-yaml:
+            schema:
+              $ref: "#/components/schemas/Template"
+          application/yaml:
             schema:
               $ref: "#/components/schemas/Template"
         description: The template to be created
@@ -2940,7 +2982,13 @@ paths:
           type: boolean
       requestBody:
         content:
-          '*/*':
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Template"
+          application/x-yaml:
+            schema:
+              $ref: "#/components/schemas/Template"
+          application/yaml:
             schema:
               $ref: "#/components/schemas/Template"
         description: The template to be updated
