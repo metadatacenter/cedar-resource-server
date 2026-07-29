@@ -92,6 +92,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           log.error("Error in load value sets ontology executor", e);
         }
       });
+      executor.shutdown();
       return Response.ok().build();
     }
   }
@@ -168,6 +169,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         log.error("Error in index regeneration executor", e);
       }
     });
+    executor.shutdown();
 
     return Response.ok().build();
   }
@@ -202,6 +204,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         log.error("Error in index regeneration executor", e);
       }
     });
+    executor.shutdown();
 
     return Response.ok().build();
   }
@@ -243,6 +246,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         log.error("Error in index regeneration executor", e);
       }
     });
+    executor.shutdown();
 
     return Response.ok().build();
   }
@@ -277,6 +281,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         log.error("Error in index regeneration executor", e);
       }
     });
+    executor.shutdown();
 
     return Response.ok().build();
   }
