@@ -50,7 +50,7 @@ public class TerminologyVersionResolver implements ControlledTermVersionFreezer.
 
   @Override
   public Optional<VersionSpec> currentVersionByValueSetCollection(String vsCollection) {
-    return Optional.empty(); // value-set-collection resolution not yet available (tracked ingest task)
+    return get("bioportal/vs-collections/version-current?collection=" + enc(vsCollection));
   }
 
   private Optional<VersionSpec> get(String path) {
