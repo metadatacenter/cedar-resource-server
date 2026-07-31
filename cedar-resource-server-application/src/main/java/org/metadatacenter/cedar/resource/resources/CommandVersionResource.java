@@ -15,6 +15,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.hc.core5.http.HttpStatus;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
+import org.metadatacenter.artifacts.util.TemplateVersionFreezer;
+import org.metadatacenter.cedar.resource.util.TerminologyVersionResolver;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
@@ -202,6 +204,20 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           //publish on the artifact server
           ((ObjectNode) getJsonNode).put(PAV_VERSION, newVersion.getValue());
           ((ObjectNode) getJsonNode).put(BIBO_STATUS, BiboStatus.PUBLISHED.getValue());
+
+          // Freeze-on-publish (VERSIONING-DESIGN §7): pin every unpinned controlled-term constraint to
+          // its vocabulary's current version, so the published artifact reproduces its exact term
+          // state instead of drifting with "latest". Fully fail-safe -- a resolver error, or an
+          // unreachable/off terminology store, leaves the artifact unchanged and never blocks publish.
+          try {
+            String terminologyBase = "http://" + System.getenv("CEDAR_TERMINOLOGY_SERVER_HOST") + ":"
+                + System.getenv("CEDAR_TERMINOLOGY_HTTP_PORT") + "/";
+            TemplateVersionFreezer.freeze(getJsonNode,
+                new TerminologyVersionResolver(terminologyBase, c.getAuthorizationHeader()));
+          } catch (Exception freezeSkipped) {
+            log.warn("Freeze-on-publish skipped for {} (non-fatal)", aid.getId(), freezeSkipped);
+          }
+
           String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);
           Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, aid, c, content,
               microserviceUrlUtil);
