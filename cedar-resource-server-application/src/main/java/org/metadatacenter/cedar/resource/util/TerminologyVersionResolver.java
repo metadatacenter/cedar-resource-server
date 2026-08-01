@@ -30,12 +30,21 @@ public class TerminologyVersionResolver implements ControlledTermVersionFreezer.
 
   private final String base;          // terminology base URL, trailing slash guaranteed
   private final String authorization; // the publishing user's Authorization header (or null)
-  private final HttpClient http =
-      HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+  private final RequestSender sender;
+
+  @FunctionalInterface
+  interface RequestSender {
+    HttpResponse<String> send(HttpRequest request) throws Exception;
+  }
 
   public TerminologyVersionResolver(String terminologyBaseUrl, String authorizationHeader) {
+    this(terminologyBaseUrl, authorizationHeader, defaultSender());
+  }
+
+  TerminologyVersionResolver(String terminologyBaseUrl, String authorizationHeader, RequestSender sender) {
     this.base = terminologyBaseUrl.endsWith("/") ? terminologyBaseUrl : terminologyBaseUrl + "/";
     this.authorization = authorizationHeader;
+    this.sender = sender;
   }
 
   @Override
@@ -60,7 +69,7 @@ public class TerminologyVersionResolver implements ControlledTermVersionFreezer.
       if (authorization != null) {
         request.header("Authorization", authorization);
       }
-      HttpResponse<String> response = http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+      HttpResponse<String> response = sender.send(request.build());
       if (response.statusCode() != 200) {
         return Optional.empty();
       }
@@ -83,5 +92,10 @@ public class TerminologyVersionResolver implements ControlledTermVersionFreezer.
 
   private static String enc(String value) {
     return URLEncoder.encode(value, StandardCharsets.UTF_8);
+  }
+
+  private static RequestSender defaultSender() {
+    HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+    return request -> http.send(request, HttpResponse.BodyHandlers.ofString());
   }
 }
