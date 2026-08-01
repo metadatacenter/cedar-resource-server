@@ -206,7 +206,7 @@ public class FolderPermissionLevelMatrixTest {
    * like a passing denial while establishing nothing. See {@link #resharePermissionsBody()}.
    */
   @Test
-  public void aWriteGrantBuysWritingButNotResharing() throws Exception {
+  public void aWriteGrantBuysWritingAndResharing() throws Exception {
     FolderServerFolder writable = folder("Write Grant Writable");
     FolderServerFolder renameable = folder("Write Grant Renameable");
     FolderServerFolder resharable = folder("Write Grant Resharable");
