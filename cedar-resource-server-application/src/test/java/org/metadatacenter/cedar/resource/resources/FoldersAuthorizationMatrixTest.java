@@ -95,7 +95,7 @@ public class FoldersAuthorizationMatrixTest {
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
 
     CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
-    homeFolderId = CedarDataServices.getFolderServiceSession(user1Context).findHomeFolderOf().getId();
+    homeFolderId = CedarDataServices.getInstance().getFolderServiceSession(user1Context).findHomeFolderOf().getId();
     folderPath = "/folders/" + URLEncoder.encode(homeFolderId, StandardCharsets.UTF_8);
   }
 

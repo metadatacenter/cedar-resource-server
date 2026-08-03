@@ -126,10 +126,10 @@ public class CommandGenericResource extends AbstractResourceServerResource {
           CedarUser user = createUserRelatedObjects(userService, targetUser);
           CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
 
-          UserServiceSession userSession = CedarDataServices.getUserServiceSession(userContext);
+          UserServiceSession userSession = dataServices.getUserServiceSession(userContext);
           userSession.addUserToEverybodyGroup(user.getResourceId());
 
-          FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(userContext);
+          FolderServiceSession folderSession = dataServices.getFolderServiceSession(userContext);
           folderSession.ensureUserHomeExists();
 
           updateHomeFolderId(userContext, userService, user);
@@ -161,7 +161,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   }
 
   private void updateHomeFolderId(CedarRequestContext cedarRequestContext, UserService userService, CedarUser user) {
-    FolderServiceSession neoSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
+    FolderServiceSession neoSession = dataServices.getFolderServiceSession(cedarRequestContext);
 
     FolderServerFolder userHomeFolder = neoSession.findHomeFolderOf();
 

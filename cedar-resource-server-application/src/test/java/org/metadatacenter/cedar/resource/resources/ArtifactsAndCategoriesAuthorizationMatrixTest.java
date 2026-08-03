@@ -142,7 +142,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     // One node per artifact type in the workspace graph, under user 1's home folder. Created through
     // the graph session rather than the REST API on purpose: a POST would proxy the content to the
     // artifact server, which is not running, while every endpoint under test reads only the graph.
-    CedarFolderId user1HomeId = CedarDataServices.getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
+    CedarFolderId user1HomeId = CedarDataServices.getInstance().getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
     artifacts = List.of(
         createSchemaArtifact(cedarConfig, user1Context, user1HomeId,
             new FolderServerTemplate(), CedarResourceType.TEMPLATE, "/templates", "template"),
@@ -154,11 +154,11 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
             "/template-instances", "instance"));
 
     // A category owned by user 1, under the root category that seeding creates.
-    FolderServerCategory rootCategory = CedarDataServices.getCategoryServiceSession(user1Context).getRootCategory();
+    FolderServerCategory rootCategory = CedarDataServices.getInstance().getCategoryServiceSession(user1Context).getRootCategory();
     Assertions.assertNotNull(rootCategory, "the seeded graph should contain the root category");
     CedarCategoryId rootCategoryId = rootCategory.getResourceId();
     categoryName = "Matrix Category";
-    FolderServerCategory category = CedarDataServices.getCategoryServiceSession(user1Context)
+    FolderServerCategory category = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
         .createCategory(rootCategoryId, categoryName,
             "Created by ArtifactsAndCategoriesAuthorizationMatrixTest", null);
     Assertions.assertNotNull(category, "the fixture category should have been created");
@@ -204,7 +204,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   private static Artifact store(CedarRequestContext context, CedarFolderId parent,
                                 FolderServerArtifact artifact, String pathPrefix, String label,
                                 String name, boolean versioned) {
-    FolderServerArtifact created = CedarDataServices.getFolderServiceSession(context)
+    FolderServerArtifact created = CedarDataServices.getInstance().getFolderServiceSession(context)
         .createResourceAsChildOfId(artifact, parent);
     Assertions.assertNotNull(created, "the fixture " + label + " should have been created");
     String path = pathPrefix + "/" + URLEncoder.encode(created.getId(), StandardCharsets.UTF_8);

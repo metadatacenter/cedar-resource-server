@@ -135,7 +135,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.request().getRequestBody()).be(NonEmpty);
     CedarFolderId folderId = CedarFolderId.build(id);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(folderId);
     if (folder != null) {
       return updateFolderNameAndDescriptionInGraphDb(c, folderId);
@@ -184,7 +184,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     userMustHaveWriteAccessToFolder(c, fid);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(fid);
 
     if (folder == null) {
@@ -309,7 +309,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           .build();
     }
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder parentFolder = null;
 
     String pathV = null;

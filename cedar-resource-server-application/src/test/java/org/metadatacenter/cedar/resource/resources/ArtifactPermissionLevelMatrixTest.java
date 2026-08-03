@@ -129,7 +129,7 @@ public class ArtifactPermissionLevelMatrixTest {
     user2 = TestAuthUtil.getTestUser2(cedarConfig);
     user1Context = CedarRequestContextFactory.fromUser(user1);
     user2Context = CedarRequestContextFactory.fromUser(user2);
-    user1HomeId = CedarDataServices.getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
+    user1HomeId = CedarDataServices.getInstance().getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
   }
 
   @AfterAll
@@ -232,7 +232,7 @@ public class ArtifactPermissionLevelMatrixTest {
         schema.setLatestDraftVersion(true);
         schema.setLatestPublishedVersion(false);
       }
-      FolderServerArtifact created = CedarDataServices.getFolderServiceSession(user1Context)
+      FolderServerArtifact created = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
           .createResourceAsChildOfId(artifact, user1HomeId);
       Assertions.assertNotNull(created, "the fixture " + type.label() + " should have been created");
 
@@ -249,7 +249,7 @@ public class ArtifactPermissionLevelMatrixTest {
     request.setOwner(new ResourcePermissionUser(user1.getId()));
     request.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
         new ResourcePermissionUser(user2.getId()), permission));
-    BackendCallResult result = CedarDataServices.getResourcePermissionServiceSession(user1Context)
+    BackendCallResult result = CedarDataServices.getInstance().getResourcePermissionServiceSession(user1Context)
         .updateResourcePermissions(artifact.getResourceId(), request);
     Assertions.assertFalse(result.isError(), "the grant should succeed");
   }
@@ -267,7 +267,7 @@ public class ArtifactPermissionLevelMatrixTest {
   }
 
   private static ResourcePermissionServiceSession user2Permissions() {
-    return CedarDataServices.getResourcePermissionServiceSession(user2Context);
+    return CedarDataServices.getInstance().getResourcePermissionServiceSession(user2Context);
   }
 
 }

@@ -225,7 +225,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           if (putStatus == HttpStatus.SC_OK) {
             // publish in Neo4j server
-            FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+            FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
             if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport) {
               FolderServerSchemaArtifactCurrentUserReport schemaArtifact =
@@ -277,7 +277,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   private void createCopyOfInstancesWithNewTemplate(CedarRequestContext context, CedarTemplateId oldId,
                                                     CedarTemplateId newId, String newFolderName) {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(oldId.getId()));
     if (instanceCount > 0) {
       cloneInstanceEnqueueService.cloneInstances(oldId, newId, newFolderName);
@@ -366,7 +366,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     // Check update permission
     c.must(c.user()).have(updatePermission);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     userMustHaveWriteAccessToFolder(c, fid);
 
@@ -450,7 +450,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             } else {
               if (propagateSharing) {
                 ResourcePermissionServiceSession permissionSession =
-                    CedarDataServices.getResourcePermissionServiceSession(c);
+                    dataServices.getResourcePermissionServiceSession(c);
                 CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(aid);
                 ResourcePermissionsRequest permissionsRequest = permissions.toRequest();
                 ResourcePermissionUser newOwner = new ResourcePermissionUser();
@@ -522,7 +522,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     Map<String, Object> resp = new HashMap<>();
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(id));
 
     if (instanceCount == 0) {
@@ -615,8 +615,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           ResourceVersion newVersion = oldVersion.nextPatchVersion();
 
-          FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-          ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
+          FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+          ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
           FileSystemResource artifact = folderSession.findArtifactById(tid);
           List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession,

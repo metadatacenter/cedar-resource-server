@@ -75,7 +75,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     c.must(artifactIdParam).be(NonEmpty);
     c.must(categoryIdParam).be(NonEmpty);
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     String artifactId = artifactIdParam.stringValue();
     String categoryId = categoryIdParam.stringValue();
@@ -92,7 +92,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     boolean attached = categorySession.attachCategoryToArtifact(ccid, aid);
     if (attached) {
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
       updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();
@@ -130,7 +130,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     c.must(artifactIdParam).be(NonEmpty);
     c.must(categoryIdParam).be(NonEmpty);
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     String artifactId = artifactIdParam.stringValue();
     String categoryId = categoryIdParam.stringValue();
@@ -147,7 +147,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     boolean attached = categorySession.detachCategoryFromArtifact(ccid, aid);
     if (attached) {
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
       updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();
@@ -194,7 +194,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
           .build();
     }
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     String artifactId = categoryRequest.getArtifactId();
     CedarParameter artifactIdParam = new CedarInPlaceParameter("artifactId", artifactId);
@@ -216,7 +216,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
       }
     }
     if (changed) {
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
       updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();

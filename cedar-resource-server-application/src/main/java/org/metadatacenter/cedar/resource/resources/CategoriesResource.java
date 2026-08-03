@@ -104,7 +104,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     int limit = pagedQuery.getLimit();
     int offset = pagedQuery.getOffset();
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
     List<FolderServerCategory> categories = categorySession.getAllCategories(limit, offset);
     long total = categorySession.getCategoryCount();
 
@@ -160,7 +160,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     c.should(categoryName, categoryDescription, parentCategoryId).be(NonNull).otherwiseBadRequest();
     CedarCategoryId ccParentId = CedarCategoryId.build(parentCategoryId.stringValue());
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     FolderServerCategory parentCategory = categorySession.getCategoryById(ccParentId);
     c.should(parentCategory).be(NonNull).otherwiseBadRequest(
@@ -215,7 +215,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     FolderServerCategory category = categorySession.getRootCategory();
     c.should(category).be(NonNull).otherwiseNotFound(
@@ -248,7 +248,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     CedarCategoryId ccid = CedarCategoryId.build(id);
     FolderServerCategory category = categorySession.getCategoryById(ccid);
@@ -283,7 +283,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     FolderServerCategoryExtractWithChildren category = categorySession.getCategoryTree();
 
@@ -315,7 +315,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     CedarRequestBody requestBody = c.request().getRequestBody();
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     FolderServerCategory existingCategory = categorySession.getCategoryById(ccid);
     c.should(existingCategory).be(NonNull).otherwiseNotFound(
@@ -380,7 +380,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.CATEGORY_DELETE);
     CedarCategoryId ccid = CedarCategoryId.build(id);
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
     FolderServerCategory existingCategory = categorySession.getCategoryById(ccid);
 
     c.should(existingCategory).be(NonNull).otherwiseNotFound(
@@ -441,7 +441,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
     CategoryPermissionServiceSession categoryPermissionSession =
-        CedarDataServices.getCategoryPermissionServiceSession(c);
+        dataServices.getCategoryPermissionServiceSession(c);
 
     CedarCategoryId categoryId = CedarCategoryId.build(id);
     userMustHaveWriteAccessToCategory(c, categoryId);
@@ -478,7 +478,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     userMustHaveWriteAccessToCategory(c, categoryId);
 
     CategoryPermissionServiceSession categoryPermissionSession =
-        CedarDataServices.getCategoryPermissionServiceSession(c);
+        dataServices.getCategoryPermissionServiceSession(c);
 
     CategoryPermissionRequest permissionsRequest = null;
     try {

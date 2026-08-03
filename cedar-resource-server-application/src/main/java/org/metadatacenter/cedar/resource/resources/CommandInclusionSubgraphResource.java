@@ -75,7 +75,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
 
     userMustHaveReadAccessToArtifact(c, aid);
 
-    InclusionSubgraphServiceSession inclusionSubgraphSession = CedarDataServices.getInclusionSubgraphServiceSession(c);
+    InclusionSubgraphServiceSession inclusionSubgraphSession = dataServices.getInclusionSubgraphServiceSession(c);
 
     InclusionSubgraphResponse treeResponse = InclusionSubgraphUtil.buildAffectedTree(treeRequest, inclusionSubgraphSession);
 
@@ -114,7 +114,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
 
     userMustHaveReadAccessToArtifact(c, aid);
 
-    InclusionSubgraphServiceSession inclusionSubgraphSession = CedarDataServices.getInclusionSubgraphServiceSession(c);
+    InclusionSubgraphServiceSession inclusionSubgraphSession = dataServices.getInclusionSubgraphServiceSession(c);
 
     InclusionSubgraphResponse treeResponse = InclusionSubgraphUtil.buildAffectedTree(treeRequest, inclusionSubgraphSession);
 

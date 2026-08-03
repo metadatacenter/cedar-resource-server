@@ -92,8 +92,19 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
   protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
 
+  // The workspace/graph services, received as a field rather than reached as a global from each
+  // method. The one-argument constructor supplies the single managed instance from the sanctioned
+  // composition-root accessor; the two-argument constructor lets a test inject a specific one. Every
+  // subclass keeps calling super(cedarConfig) unchanged.
+  protected final CedarDataServices dataServices;
+
   protected AbstractResourceServerResource(CedarConfig cedarConfig) {
+    this(cedarConfig, CedarDataServices.getInstance());
+  }
+
+  protected AbstractResourceServerResource(CedarConfig cedarConfig, CedarDataServices dataServices) {
     super(cedarConfig);
+    this.dataServices = dataServices;
   }
 
   public static void injectServices(NodeIndexingService nodeIndexingService,
@@ -216,7 +227,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode);
           JsonPointerValuePair identifierPair = ModelUtil.extractIdentifierFromResource(resourceType, templateJsonNode);
 
-          FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+          FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
 
           CedarParameter name = new CedarInPlaceParameter("name", namePair.getValue());
           name.trim();
@@ -315,7 +326,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private void updateInclusionSubgraphIfNeeded(CedarRequestContext context, FolderServerArtifact resource, JsonNode templateJsonNode) {
     if (resource.getType() == CedarResourceType.ELEMENT || resource.getType() == CedarResourceType.TEMPLATE) {
-      InclusionSubgraphServiceSession inclusionSubgraphSession = CedarDataServices.getInclusionSubgraphServiceSession(context);
+      InclusionSubgraphServiceSession inclusionSubgraphSession = dataServices.getInclusionSubgraphServiceSession(context);
       FolderServerResourceExtract resourceExtract = FolderServerResourceExtract.fromNode(resource);
       InclusionSubgraphUtil.updateResourceInclusionInfo(resourceExtract, inclusionSubgraphSession, templateJsonNode);
     }
@@ -455,7 +466,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response getDetails(CedarRequestContext context, CedarArtifactId id) throws CedarException {
     userMustHaveReadAccessToArtifact(context, id);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact resource = folderSession.findArtifactById(id);
 
     ProvenanceNameUtil.addProvenanceDisplayName(resource);
@@ -467,7 +478,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId, String content) throws CedarException {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
     if (folderServerOldResource != null) {
@@ -479,7 +490,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content) throws CedarException {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
     if (folderServerOldResource == null) {
@@ -583,7 +594,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private void triggerInstanceUpdatesForTemplate(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id) {
     if (resourceType == CedarResourceType.TEMPLATE) {
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
       long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(id.getId()));
       if (instanceCount > 0) {
         log.warn("Template " + id + " has " + instanceCount + " instances that need to be updated");
@@ -594,7 +605,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id) throws CedarException {
     // Check delete preconditions
     userMustHaveWriteAccessToArtifact(c, id);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerArtifact artifact = folderSession.findArtifactById(id);
 
     FolderServerSchemaArtifact schemaArtifact = null;
@@ -691,7 +702,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   // category helpers below follow the same order.
 
   protected void userMustHaveReadAccessToFolder(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     boolean hasReadAccess = permissionSession.userHasReadAccessToResource(folderId);
     if (!hasReadAccess) {
       folderMustExist(context, folderId);
@@ -702,7 +713,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected void userMustHaveWriteAccessToFolder(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     boolean hasWriteAccess = permissionSession.userHasWriteAccessToResource(folderId);
     if (!hasWriteAccess) {
       folderMustExist(context, folderId);
@@ -713,7 +724,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected void userMustHaveReadAccessToArtifact(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     boolean hasReadAccess = permissionSession.userHasReadAccessToResource(artifactId);
     if (!hasReadAccess) {
       artifactMustExist(context, artifactId);
@@ -724,7 +735,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected void userMustHaveWriteAccessToArtifact(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     boolean hasWriteAccess = permissionSession.userHasWriteAccessToResource(artifactId);
     if (!hasWriteAccess) {
       artifactMustExist(context, artifactId);
@@ -735,7 +746,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   private void folderMustExist(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     if (folderSession.findFolderById(folderId) == null) {
       throw new CedarObjectNotFoundException("Folder not found by id")
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
@@ -744,7 +755,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   private void artifactMustExist(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     if (folderSession.findArtifactById(artifactId) == null) {
       throw new CedarObjectNotFoundException("Artifact not found by id")
           .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
@@ -763,7 +774,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       } catch (Exception e) {
         genericException = e;
       }
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
       resource = folderSession.findFolderById(resourceId.asFolderId());
     } else {
       try {
@@ -773,7 +784,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       } catch (Exception e) {
         genericException = e;
       }
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
       resource = folderSession.findArtifactById(resourceId.asArtifactId());
     }
     if (genericException != null) {
@@ -793,7 +804,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         throw e;
       } catch (Exception e) {
         genericException = e;
-        FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+        FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
         resource = folderSession.findFolderById(resourceId.asFolderId());
       }
     } else {
@@ -804,7 +815,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       } catch (Exception e) {
         genericException = e;
       }
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
       resource = folderSession.findArtifactById(resourceId.asArtifactId());
     }
     if (genericException != null) {
@@ -814,7 +825,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response generateResourcePermissionsResponse(CedarRequestContext c, CedarFilesystemResourceId resourceId) throws CedarException {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     FileSystemResource node = folderSession.findResourceById(resourceId);
     if (node == null) {
@@ -825,7 +836,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .build();
     }
 
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
     userMustHaveReadAccess(permissionSession, resourceId);
 
@@ -838,8 +849,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     c.must(c.request().getRequestBody()).be(NonEmpty);
     JsonNode permissionUpdateRequest = c.request().getRequestBody().asJson();
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
     ResourcePermissionsRequest permissionsRequest = null;
     try {
@@ -945,7 +956,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response updateFolderNameAndDescriptionInGraphDb(CedarRequestContext c, CedarFolderId folderId) throws CedarException {
     userMustHaveWriteAccessToFolder(c, folderId);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folderServerFolder = folderSession.findFolderById(folderId);
 
     String oldName = folderServerFolder.getName();
@@ -1032,7 +1043,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response generateNodeVersionsResponse(CedarRequestContext c, CedarSchemaArtifactId artifactId) throws CedarException {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     FolderServerArtifact artifact = folderSession.findArtifactById(artifactId);
     if (artifact == null) {
@@ -1043,7 +1054,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .build();
     }
 
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
     userMustHaveReadAccess(permissionSession, artifactId);
 
@@ -1087,7 +1098,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
 
   protected Response generateArtifactReportResponse(CedarRequestContext c, CedarArtifactId artifactId) throws CedarException {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     FolderServerArtifact artifact = folderSession.findArtifactById(artifactId);
     if (artifact == null) {
@@ -1098,11 +1109,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .build();
     }
 
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
     userMustHaveReadAccess(permissionSession, artifactId);
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
     folderSession.addPathAndParentId(artifact);
 
     artifact.setPathInfo(PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, artifact));
@@ -1118,9 +1129,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected FolderServerCategory userMustHaveWriteAccessToCategory(CedarRequestContext context, CedarCategoryId categoryId) throws CedarException {
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(context);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(context);
     CategoryPermissionServiceSession categoryPermissionSession =
-        CedarDataServices.getCategoryPermissionServiceSession(context);
+        dataServices.getCategoryPermissionServiceSession(context);
 
     FolderServerCategoryCurrentUserReport fsCategory = GraphDbPermissionReader.getCategoryCurrentUserReport(categorySession,
         categoryPermissionSession, categoryId);
@@ -1140,8 +1151,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected FolderServerCategory userMustHaveAttachAccessToCategory(CedarRequestContext context, CedarCategoryId categoryId) throws CedarException {
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(context);
-    CategoryPermissionServiceSession categoryPermissionSession = CedarDataServices.getCategoryPermissionServiceSession(context);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(context);
+    CategoryPermissionServiceSession categoryPermissionSession = dataServices.getCategoryPermissionServiceSession(context);
 
     FolderServerCategoryCurrentUserReport fsCategory = GraphDbPermissionReader.getCategoryCurrentUserReport(categorySession,
         categoryPermissionSession, categoryId);
@@ -1162,14 +1173,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected FolderServerArtifactCurrentUserReport getArtifactReport(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     return GraphDbPermissionReader.getArtifactCurrentUserReport(context, folderSession, permissionSession, cedarConfig, artifactId);
   }
 
   protected FolderServerFolderCurrentUserReport getFolderReport(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(context);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     return GraphDbPermissionReader.getFolderCurrentUserReport(context, folderSession, permissionSession, folderId);
   }
 

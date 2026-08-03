@@ -69,7 +69,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     String id = requestBody.get("@id").stringValue();
     String doiInRequest = requestBody.get("doi").stringValue();
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     userMustHaveWriteAccessToArtifact(c, artifactId);
 

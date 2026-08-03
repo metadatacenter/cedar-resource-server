@@ -147,7 +147,7 @@ public class SharingRoundTripTest {
     user2Header = TestAuthUtil.getTestUser2AuthHeader(cedarConfig);
     user1Context = CedarRequestContextFactory.fromUser(user1);
     user2Context = CedarRequestContextFactory.fromUser(user2);
-    user1HomeId = CedarDataServices.getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
+    user1HomeId = CedarDataServices.getInstance().getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
   }
 
   @AfterAll
@@ -415,7 +415,7 @@ public class SharingRoundTripTest {
     newFolder.setName(name);
     newFolder.setDescription("Created by OwnershipTransferTest");
     CedarFolderId newFolderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
-    FolderServerFolder created = CedarDataServices.getFolderServiceSession(user1Context)
+    FolderServerFolder created = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
         .createFolderAsChildOfId(newFolder, user1HomeId, newFolderId);
     Assertions.assertNotNull(created, "the fixture folder should be created");
     return new Target("folder", "/folders/"
@@ -445,7 +445,7 @@ public class SharingRoundTripTest {
         schema.setLatestDraftVersion(true);
         schema.setLatestPublishedVersion(false);
       }
-      FolderServerArtifact created = CedarDataServices.getFolderServiceSession(user1Context)
+      FolderServerArtifact created = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
           .createResourceAsChildOfId(artifact, user1HomeId);
       Assertions.assertNotNull(created, "the fixture " + type.label() + " should be created");
       targets.add(new Target(type.label(), type.prefix() + "/"
@@ -460,13 +460,13 @@ public class SharingRoundTripTest {
     request.setOwner(new ResourcePermissionUser(user1.getId()));
     request.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
         new ResourcePermissionUser(user2.getId()), permission));
-    BackendCallResult result = CedarDataServices.getResourcePermissionServiceSession(user1Context)
+    BackendCallResult result = CedarDataServices.getInstance().getResourcePermissionServiceSession(user1Context)
         .updateResourcePermissions(target.id(), request);
     Assertions.assertFalse(result.isError(), "the grant on the " + target.label() + " should succeed");
   }
 
   private static ResourcePermissionServiceSession user1Permissions() {
-    return CedarDataServices.getResourcePermissionServiceSession(user1Context);
+    return CedarDataServices.getInstance().getResourcePermissionServiceSession(user1Context);
   }
 
 
@@ -494,14 +494,14 @@ public class SharingRoundTripTest {
     newFolder.setName(name);
     newFolder.setDescription("Created by SharingRoundTripTest");
     CedarFolderId newFolderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
-    FolderServerFolder created = CedarDataServices.getFolderServiceSession(user1Context)
+    FolderServerFolder created = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
         .createFolderAsChildOfId(newFolder, user1HomeId, newFolderId);
     Assertions.assertNotNull(created, "the fixture folder should be created");
     return created;
   }
 
   private static FolderServerGroup group(String name) {
-    GroupServiceSession groups = CedarDataServices.getGroupServiceSession(user1Context);
+    GroupServiceSession groups = CedarDataServices.getInstance().getGroupServiceSession(user1Context);
     FolderServerGroup created = groups.createGroup(name, "Created by SharingRoundTripTest");
     Assertions.assertNotNull(created, "the fixture group should be created");
 
@@ -514,7 +514,7 @@ public class SharingRoundTripTest {
   }
 
   private static ResourcePermissionServiceSession user2Permissions() {
-    return CedarDataServices.getResourcePermissionServiceSession(user2Context);
+    return CedarDataServices.getInstance().getResourcePermissionServiceSession(user2Context);
   }
 
   private static HttpResponse<String> send(String method, String path, String body, String authHeader)
