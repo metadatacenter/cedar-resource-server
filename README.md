@@ -1,6 +1,6 @@
 # cedar-resource-server
 
-[![Build Status](https://travis-ci.com/metadatacenter/cedar-resource-server.svg?branch=master)](https://travis-ci.com/metadatacenter/cedar-resource-server)
+[![CI](https://github.com/metadatacenter/cedar-resource-server/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/metadatacenter/cedar-resource-server/actions/workflows/ci.yml)
 
 Server to support handling of all CEDAR resources
 
