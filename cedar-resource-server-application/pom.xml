@@ -158,7 +158,6 @@
     <dependency>
       <groupId>net.java.dev.jna</groupId>
       <artifactId>jna</artifactId>
-      <version>5.13.0</version>
       <scope>test</scope>
     </dependency>
 
@@ -253,7 +252,6 @@
       <plugin>
         <groupId>io.swagger.core.v3</groupId>
         <artifactId>swagger-maven-plugin-jakarta</artifactId>
-        <version>${swagger.version}</version>
         <configuration>
           <outputPath>${project.basedir}/src/main/resources/assets/swagger-api</outputPath>
           <outputFileName>swagger</outputFileName>
