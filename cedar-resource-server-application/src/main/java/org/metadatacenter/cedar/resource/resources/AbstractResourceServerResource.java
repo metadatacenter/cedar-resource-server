@@ -493,6 +493,20 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       logPrivilegedWrite(context, id, folderServerOldResource);
       return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, expectedLastUpdatedOn);
     } else {
+      // A PUT to an identifier that resolves to nothing creates, which is what a client choosing its
+      // own identifier wants. Naming an expected version says the opposite: that the artifact exists
+      // and was read at that version. Refuse rather than create, so a mistyped identifier in a repair
+      // script answers 404 instead of leaving a valid-looking copy under an identifier nothing refers
+      // to. The creation path does not carry the expectation, so this is the only place it can be seen.
+      if (expectedLastUpdatedOn != null && expectedLastUpdatedOn.isPresent()
+          && !expectedLastUpdatedOn.get().isBlank()) {
+        return CedarResponse.notFound()
+            .id(id)
+            .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+            .errorMessage("The artifact named an expected version but does not exist")
+            .parameter("expectedLastUpdatedOn", expectedLastUpdatedOn.get().trim())
+            .build();
+      }
       return executeResourceCreationOnArtifactServerAndGraphDb(context, resourceType, Optional.of(id.getId()), folderId, content);
     }
   }
