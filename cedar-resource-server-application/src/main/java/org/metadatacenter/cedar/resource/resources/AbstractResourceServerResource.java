@@ -71,7 +71,6 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -80,7 +79,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.metadatacenter.constant.CedarQueryParameters.QP_EXPECTED_LAST_UPDATED_ON;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_DESCRIPTION;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
@@ -481,41 +479,19 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId, String content) throws CedarException {
-    return executeResourceCreateOrUpdateViaPut(context, resourceType, id, folderId, content, Optional.empty());
-  }
-
-  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId, String content, Optional<String> expectedLastUpdatedOn) throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
     if (folderServerOldResource != null) {
       userMustHaveWriteAccessToArtifact(context, id);
       logPrivilegedWrite(context, id, folderServerOldResource);
-      return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, expectedLastUpdatedOn);
+      return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content);
     } else {
-      // A PUT to an identifier that resolves to nothing creates, which is what a client choosing its
-      // own identifier wants. Naming an expected version says the opposite: that the artifact exists
-      // and was read at that version. Refuse rather than create, so a mistyped identifier in a repair
-      // script answers 404 instead of leaving a valid-looking copy under an identifier nothing refers
-      // to. The creation path does not carry the expectation, so this is the only place it can be seen.
-      if (expectedLastUpdatedOn != null && expectedLastUpdatedOn.isPresent()
-          && !expectedLastUpdatedOn.get().isBlank()) {
-        return CedarResponse.notFound()
-            .id(id)
-            .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
-            .errorMessage("The artifact named an expected version but does not exist")
-            .parameter("expectedLastUpdatedOn", expectedLastUpdatedOn.get().trim())
-            .build();
-      }
       return executeResourceCreationOnArtifactServerAndGraphDb(context, resourceType, Optional.of(id.getId()), folderId, content);
     }
   }
 
   protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content) throws CedarException {
-    return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, Optional.empty());
-  }
-
-  protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content, Optional<String> expectedLastUpdatedOn) throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
@@ -566,11 +542,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-      if (expectedLastUpdatedOn != null && expectedLastUpdatedOn.isPresent()
-          && !expectedLastUpdatedOn.get().isBlank()) {
-        url += (url.contains("?") ? "&" : "?") + QP_EXPECTED_LAST_UPDATED_ON + "="
-            + URLEncoder.encode(expectedLastUpdatedOn.get().trim(), StandardCharsets.UTF_8);
-      }
 
       ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
