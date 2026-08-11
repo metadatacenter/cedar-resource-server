@@ -76,6 +76,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
@@ -513,17 +514,27 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     String doiInRequest = ModelUtil.extractDOIFromResourceContent(content, resourceType);
 
-    if (doiInRequest != null) {
-      if (!resourceType.supportsDOI()) {
-        return CedarResponse.badRequest()
-            .errorMessage("The doi is not supported by the given resource type")
-            .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
-            .parameter("resourceType", resourceType)
-            .build();
-      } else {
+    if (doiInRequest != null && !resourceType.supportsDOI()) {
+      return CedarResponse.badRequest()
+          .errorMessage("The doi is not supported by the given resource type")
+          .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
+          .parameter("resourceType", resourceType)
+          .build();
+    }
+
+    // The doi is minted elsewhere and may not be changed here, but an unchanged one must be allowed
+    // through: refusing every request that merely carries a doi made reading an artifact and writing it
+    // back unmodified impossible. Compare against what is stored, and refuse only a real difference.
+    // Dropping the doi counts as a difference: the artifact server replaces the whole document, so a
+    // request that omits it would otherwise delete it.
+    if (resourceType.supportsDOI()) {
+      String storedDoi = folderServerOldResource.getDOI();
+      if (!Objects.equals(emptyToNull(doiInRequest), emptyToNull(storedDoi))) {
         return CedarResponse.badRequest()
             .errorMessage("The doi can not be altered with this call")
             .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_ALTERED)
+            .parameter("doiInRequest", doiInRequest)
+            .parameter("storedDoi", storedDoi)
             .build();
       }
     }
@@ -590,6 +601,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
+  }
+
+  private static String emptyToNull(String value) {
+    return value == null || value.isBlank() ? null : value.trim();
   }
 
   private void triggerInstanceUpdatesForTemplate(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id) {
