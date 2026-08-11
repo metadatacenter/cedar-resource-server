@@ -71,6 +71,7 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -79,6 +80,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarQueryParameters.QP_EXPECTED_LAST_UPDATED_ON;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_DESCRIPTION;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
@@ -479,18 +481,27 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId, String content) throws CedarException {
+    return executeResourceCreateOrUpdateViaPut(context, resourceType, id, folderId, content, Optional.empty());
+  }
+
+  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId, String content, Optional<String> expectedLastUpdatedOn) throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
     if (folderServerOldResource != null) {
       userMustHaveWriteAccessToArtifact(context, id);
-      return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content);
+      logPrivilegedWrite(context, id, folderServerOldResource);
+      return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, expectedLastUpdatedOn);
     } else {
       return executeResourceCreationOnArtifactServerAndGraphDb(context, resourceType, Optional.of(id.getId()), folderId, content);
     }
   }
 
   protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content) throws CedarException {
+    return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, Optional.empty());
+  }
+
+  protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content, Optional<String> expectedLastUpdatedOn) throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
@@ -541,6 +552,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
+      if (expectedLastUpdatedOn != null && expectedLastUpdatedOn.isPresent()
+          && !expectedLastUpdatedOn.get().isBlank()) {
+        url += (url.contains("?") ? "&" : "?") + QP_EXPECTED_LAST_UPDATED_ON + "="
+            + URLEncoder.encode(expectedLastUpdatedOn.get().trim(), StandardCharsets.UTF_8);
+      }
 
       ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -605,6 +621,31 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static String emptyToNull(String value) {
     return value == null || value.isBlank() ? null : value.trim();
+  }
+
+  /**
+   * Records a write to an artifact the caller does not own and could not otherwise reach, which the
+   * filesystem-administrator override permits. Provenance names the caller as the last modifier, but it
+   * cannot say that an owner was overridden, and there is no audit facility that can. A log line is what
+   * exists; it is the only place a bulk repair over other people's artifacts leaves a trace.
+   */
+  private void logPrivilegedWrite(CedarRequestContext context, CedarArtifactId id, FolderServerArtifact artifact) {
+    if (!context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE)) {
+      return;
+    }
+    try {
+      ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
+      if (permissionSession.userIsOwnerOfResource(id)) {
+        return;
+      }
+      log.warn("Privileged write: user {} updated {} ('{}'), owned by {}, using {}",
+          context.getCedarUser().getId(), id, artifact.getName(), artifact.getOwnedBy(),
+          CedarPermission.WRITE_NOT_WRITABLE_NODE.getPermissionName());
+    } catch (RuntimeException e) {
+      // The write itself must not fail because the trail could not be written.
+      log.warn("Privileged write: user {} updated {}; the owner could not be resolved",
+          context.getCedarUser().getId(), id, e);
+    }
   }
 
   private void triggerInstanceUpdatesForTemplate(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id) {

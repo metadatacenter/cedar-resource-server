@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_ELEMENT_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_EXPECTED_LAST_UPDATED_ON;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
@@ -229,6 +230,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @Parameter(description = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
       @Parameter(description = "Not supported on write operations; write responses always render the full form.")
       @QueryParam("compact") Optional<Boolean> compactParam,
+      @Parameter(description = "The 'pav:lastUpdatedOn' the caller read. The update is refused with 409 if the stored artifact has changed since.")
+      @QueryParam(QP_EXPECTED_LAST_UPDATED_ON) Optional<String> expectedLastUpdatedOn,
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -237,7 +240,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
     rejectCompactOnWriteOperations(compactParam);
     String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.ELEMENT);
-    Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.ELEMENT, eid, folderId, content);
+    Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.ELEMENT, eid, folderId, content, expectedLastUpdatedOn);
     return negotiateArtifactResponse(artifactResponse, CedarResourceType.ELEMENT);
   }
 
