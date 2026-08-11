@@ -1805,6 +1805,13 @@ paths:
         name: compact
         schema:
           type: boolean
+      - description: "Admin only. Replace the artifact with exactly the document supplied:\
+          \ no provenance stamped, no child identifier minted. The artifact must exist\
+          \ and the body must be JSON."
+        in: query
+        name: verbatim
+        schema:
+          type: boolean
       requestBody:
         content:
           application/json:
@@ -2192,6 +2199,13 @@ paths:
           the full form.
         in: query
         name: compact
+        schema:
+          type: boolean
+      - description: "Admin only. Replace the artifact with exactly the document supplied:\
+          \ no provenance stamped, no child identifier minted. The artifact must exist\
+          \ and the body must be JSON."
+        in: query
+        name: verbatim
         schema:
           type: boolean
       requestBody:
@@ -2589,6 +2603,13 @@ paths:
         name: compact
         schema:
           type: boolean
+      - description: "Admin only. Replace the artifact with exactly the document supplied:\
+          \ no provenance stamped, no child identifier minted. The artifact must exist\
+          \ and the body must be JSON."
+        in: query
+        name: verbatim
+        schema:
+          type: boolean
       requestBody:
         content:
           application/json:
@@ -2978,6 +2999,13 @@ paths:
           the full form.
         in: query
         name: compact
+        schema:
+          type: boolean
+      - description: "Admin only. Replace the artifact with exactly the document supplied:\
+          \ no provenance stamped, no child identifier minted. The artifact must exist\
+          \ and the body must be JSON."
+        in: query
+        name: verbatim
         schema:
           type: boolean
       requestBody:

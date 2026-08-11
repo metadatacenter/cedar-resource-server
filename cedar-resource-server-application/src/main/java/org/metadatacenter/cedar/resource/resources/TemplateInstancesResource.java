@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_INSTANCE_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_VERBATIM;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -239,6 +240,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
       @Parameter(description = "Not supported on write operations; write responses always render the full form.")
       @QueryParam("compact") Optional<Boolean> compactParam,
+      @Parameter(description = "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.")
+      @QueryParam(QP_VERBATIM) Optional<Boolean> verbatimParam,
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -246,8 +249,12 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);
+    boolean verbatim = verbatimParam != null && verbatimParam.isPresent() && verbatimParam.get();
+    if (verbatim) {
+      c.must(c.user()).have(CedarPermission.WRITE_ARTIFACT_VERBATIM);
+    }
     String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.INSTANCE);
-    Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.INSTANCE, tiid, folderId, content);
+    Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.INSTANCE, tiid, folderId, content, verbatim);
     return negotiateArtifactResponse(artifactResponse, CedarResourceType.INSTANCE);
   }
 

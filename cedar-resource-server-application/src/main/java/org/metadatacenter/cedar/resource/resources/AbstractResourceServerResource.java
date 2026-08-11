@@ -80,6 +80,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_VERBATIM;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_DESCRIPTION;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
@@ -479,19 +480,37 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId, String content) throws CedarException {
+    return executeResourceCreateOrUpdateViaPut(context, resourceType, id, folderId, content, false);
+  }
+
+  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId, String content, boolean verbatim) throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
     if (folderServerOldResource != null) {
       userMustHaveWriteAccessToArtifact(context, id);
-      logPrivilegedWrite(context, id, folderServerOldResource);
-      return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content);
+      logPrivilegedWrite(context, id, folderServerOldResource, verbatim, content);
+      return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, verbatim);
     } else {
+      // A verbatim write replaces a document this server already holds. Routing it to creation instead
+      // would answer 201 to a request that asserted the artifact exists, so a mistyped identifier would
+      // leave a copy under an identifier nothing refers to.
+      if (verbatim) {
+        return CedarResponse.notFound()
+            .id(id)
+            .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+            .errorMessage("A verbatim write replaces an existing artifact; this one does not exist")
+            .build();
+      }
       return executeResourceCreationOnArtifactServerAndGraphDb(context, resourceType, Optional.of(id.getId()), folderId, content);
     }
   }
 
   protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content) throws CedarException {
+    return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, false);
+  }
+
+  protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content, boolean verbatim) throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
@@ -542,6 +561,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
+      if (verbatim) {
+        url += (url.contains("?") ? "&" : "?") + QP_VERBATIM + "=true";
+      }
 
       ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -614,22 +636,45 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * cannot say that an owner was overridden, and there is no audit facility that can. A log line is what
    * exists; it is the only place a bulk repair over other people's artifacts leaves a trace.
    */
-  private void logPrivilegedWrite(CedarRequestContext context, CedarArtifactId id, FolderServerArtifact artifact) {
-    if (!context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE)) {
+  /**
+   * Records a write that the ordinary permissions would not allow, or that states its own provenance.
+   * <p>
+   * Provenance names the caller as the last modifier, but it cannot say that an owner was overridden, and
+   * on a verbatim write it says whatever the request said -- so neither fact survives anywhere else. There
+   * is no audit facility, so a log line is the only trace a repair over other people's artifacts leaves.
+   */
+  private void logPrivilegedWrite(CedarRequestContext context, CedarArtifactId id, FolderServerArtifact artifact,
+                                  boolean verbatim, String content) {
+    boolean override = context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_NODE);
+    if (!override && !verbatim) {
       return;
     }
     try {
       ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
-      if (permissionSession.userIsOwnerOfResource(id)) {
-        return;
+      boolean owned = permissionSession.userIsOwnerOfResource(id);
+      if (verbatim) {
+        log.warn("Verbatim write: user {} replaced {} ('{}'), owned by {}, stating oslc:modifiedBy {}",
+            context.getCedarUser().getId(), id, artifact.getName(), artifact.getOwnedBy(),
+            statedModifiedBy(content));
+      } else if (!owned) {
+        log.warn("Privileged write: user {} updated {} ('{}'), owned by {}, using {}",
+            context.getCedarUser().getId(), id, artifact.getName(), artifact.getOwnedBy(),
+            CedarPermission.WRITE_NOT_WRITABLE_NODE.getPermissionName());
       }
-      log.warn("Privileged write: user {} updated {} ('{}'), owned by {}, using {}",
-          context.getCedarUser().getId(), id, artifact.getName(), artifact.getOwnedBy(),
-          CedarPermission.WRITE_NOT_WRITABLE_NODE.getPermissionName());
     } catch (RuntimeException e) {
       // The write itself must not fail because the trail could not be written.
       log.warn("Privileged write: user {} updated {}; the owner could not be resolved",
           context.getCedarUser().getId(), id, e);
+    }
+  }
+
+  /** The oslc:modifiedBy the request states, which on a verbatim write is what gets stored. */
+  private static String statedModifiedBy(String content) {
+    try {
+      JsonNode stated = JsonMapper.MAPPER.readTree(content).get(ModelNodeNames.OSLC_MODIFIED_BY);
+      return stated == null || !stated.isTextual() ? "nothing" : stated.textValue();
+    } catch (Exception e) {
+      return "unreadable";
     }
   }
 

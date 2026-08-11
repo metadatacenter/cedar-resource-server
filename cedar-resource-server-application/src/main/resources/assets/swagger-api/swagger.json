@@ -2332,6 +2332,13 @@
           "schema" : {
             "type" : "boolean"
           }
+        }, {
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "in" : "query",
+          "name" : "verbatim",
+          "schema" : {
+            "type" : "boolean"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -2857,6 +2864,13 @@
           "description" : "Not supported on write operations; write responses always render the full form.",
           "in" : "query",
           "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "in" : "query",
+          "name" : "verbatim",
           "schema" : {
             "type" : "boolean"
           }
@@ -3395,6 +3409,13 @@
           "schema" : {
             "type" : "boolean"
           }
+        }, {
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "in" : "query",
+          "name" : "verbatim",
+          "schema" : {
+            "type" : "boolean"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -3929,6 +3950,13 @@
           "description" : "Not supported on write operations; write responses always render the full form.",
           "in" : "query",
           "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "in" : "query",
+          "name" : "verbatim",
           "schema" : {
             "type" : "boolean"
           }
