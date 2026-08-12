@@ -334,8 +334,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
             categoryName.stringValue());
 
     if (sameNameCategory != null && !sameNameCategory.getId().equals(ccid.getId())) {
-      log.warn("There is a category with the same name (" + sameNameCategory.getName()
-          + ") under the parent category. Category names must be unique!");
+      return CedarResponse.conflict()
+          .errorKey(CedarErrorKey.CATEGORY_ALREADY_PRESENT)
+          .errorMessage("There is already a category with the same name under the parent category")
+          .parameter("name", categoryName.stringValue())
+          .parameter("conflictingCategoryId", sameNameCategory.getId())
+          .build();
     }
 
     FolderServerCategory categoryWritable = userMustHaveWriteAccessToCategory(c, ccid);

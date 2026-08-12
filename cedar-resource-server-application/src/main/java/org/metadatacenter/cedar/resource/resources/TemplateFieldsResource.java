@@ -244,6 +244,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     if (verbatim) {
       c.must(c.user()).have(CedarPermission.WRITE_ARTIFACT_VERBATIM);
     }
+    rejectYamlVerbatimWrite(verbatim);
     String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.FIELD);
     Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.FIELD, fid, folderId, content, verbatim);
     return negotiateArtifactResponse(artifactResponse, CedarResourceType.FIELD);

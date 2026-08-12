@@ -59,6 +59,7 @@ public class FoldersResourceTest {
   private static String authHeaderUser1;
   private static String authHeaderUser2;
   private static String homeFolderId;
+  private static String homeFolderPath;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -81,7 +82,11 @@ public class FoldersResourceTest {
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
 
     CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
-    homeFolderId = CedarDataServices.getInstance().getFolderServiceSession(user1Context).findHomeFolderOf().getId();
+    var folderSession = CedarDataServices.getInstance().getFolderServiceSession(user1Context);
+    var homeFolder = folderSession.findHomeFolderOf();
+    folderSession.addPathAndParentId(homeFolder);
+    homeFolderId = homeFolder.getId();
+    homeFolderPath = homeFolder.getPath();
   }
 
   @AfterAll
@@ -168,6 +173,19 @@ public class FoldersResourceTest {
 
     HttpResponse<String> gone = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
     Assertions.assertEquals(404, gone.statusCode());
+  }
+
+  @Test
+  public void folderCanBeCreatedByParentPathWithoutFolderId() throws Exception {
+    HttpResponse<String> created = request("POST", "/folders",
+        "{\"path\": \"" + homeFolderPath + "\", \"name\": \"Path Parent Test Folder\", "
+            + "\"description\": \"Created by parent path\"}",
+        authHeaderUser1);
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+
+    String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
+    HttpResponse<String> deleted = request("DELETE", "/folders/" + encode(folderId), null, authHeaderUser1);
+    Assertions.assertEquals(204, deleted.statusCode(), deleted.body());
   }
 
   @Test

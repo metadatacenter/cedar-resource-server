@@ -111,7 +111,11 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     annotationsNode.set(ModelNodeNames.DATACITE_DOI_URI, doiNode);
 
     try {
-      ProxyUtil.proxyPut(artifactGetUrl, c, JsonMapper.MAPPER.writeValueAsString(objectNode));
+      var artifactPutResponse = ProxyUtil.proxyPut(artifactGetUrl, c, JsonMapper.MAPPER.writeValueAsString(objectNode));
+      ProxyUtil.proxyResponseHeaders(artifactPutResponse, response);
+      if (Response.Status.Family.familyOf(artifactPutResponse.getCode()) != Response.Status.Family.SUCCESSFUL) {
+        return generateStatusResponse(artifactPutResponse);
+      }
     } catch (JsonProcessingException e) {
       throw new CedarProcessingException(e);
     }

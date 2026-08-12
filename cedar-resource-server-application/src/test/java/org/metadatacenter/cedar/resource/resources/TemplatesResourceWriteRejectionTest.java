@@ -15,9 +15,11 @@ import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -44,6 +46,7 @@ public class TemplatesResourceWriteRejectionTest {
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
   private static String authHeaderUser1;
+  private static String authHeaderAdmin;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -52,6 +55,7 @@ public class TemplatesResourceWriteRejectionTest {
     CedarConfig cedarConfig = CedarConfig.getInstance(environment);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     authHeaderUser1 = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
+    authHeaderAdmin = TestAuthUtil.getAdminUserAuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
   }
 
@@ -66,6 +70,18 @@ public class TemplatesResourceWriteRejectionTest {
         .header("Authorization", authHeaderUser1)
         .header("Content-Type", contentType)
         .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpResponse<String> putTemplate(String id, String query, String body, String contentType,
+                                           String authHeader) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(id, StandardCharsets.UTF_8) + query))
+        .header("Authorization", authHeader)
+        .header("Content-Type", contentType)
+        .PUT(HttpRequest.BodyPublishers.ofString(body))
         .build();
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
@@ -96,6 +112,17 @@ public class TemplatesResourceWriteRejectionTest {
     HttpResponse<String> response = post("", compactBody, "application/yaml");
     Assertions.assertEquals(400, response.statusCode());
     Assertions.assertTrue(response.body().contains("compact form"));
+  }
+
+  @Test
+  public void verbatimYamlBodyIsRejectedBeforeItCanBeTranscoded() throws Exception {
+    String id = "https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c723";
+    HttpResponse<String> response = putTemplate(id, "?verbatim=true", "type: template\nname: X\n",
+        "application/yaml", authHeaderAdmin);
+
+    Assertions.assertEquals(400, response.statusCode());
+    Assertions.assertTrue(response.body().contains("verbatimWriteRefused"));
+    Assertions.assertTrue(response.body().contains("needs a JSON body"));
   }
 
 }

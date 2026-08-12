@@ -433,6 +433,20 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   /**
+   * A verbatim write promises to store the JSON document supplied by the caller. YAML cannot satisfy
+   * that promise: this server transcodes it before forwarding the request, and the artifact server
+   * consequently sees only JSON and cannot tell that the original body was YAML.
+   */
+  protected void rejectYamlVerbatimWrite(boolean verbatim) throws CedarBadRequestException {
+    if (verbatim && ArtifactYamlTranscoder.isYaml(httpHeaders.getMediaType())) {
+      throw new CedarBadRequestException(new CedarErrorPack()
+          .errorKey(CedarErrorKey.VERBATIM_WRITE_REFUSED)
+          .message("A verbatim write needs a JSON body: a YAML body is transcoded, so what would be "
+              + "stored is not what was sent"));
+    }
+  }
+
+  /**
    * Applies Accept-header negotiation to a POST/PUT response. When the client asked for YAML and
    * the response carries the artifact's JSON, the entity is re-rendered as YAML. Responses whose
    * entity is not artifact JSON (errors, graph metadata) are returned unchanged.
@@ -489,7 +503,6 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     if (folderServerOldResource != null) {
       userMustHaveWriteAccessToArtifact(context, id);
-      logPrivilegedWrite(context, id, folderServerOldResource, verbatim, content);
       return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, verbatim);
     } else {
       // A verbatim write replaces a document this server already holds. Routing it to creation instead
@@ -572,6 +585,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         String templateProxyResponseContent = EntityUtils.toString(templateProxyResponse.getEntity(), StandardCharsets.UTF_8);
         return CedarResponse.status(CedarResponseStatus.fromStatusCode(statusCode)).entity(templateProxyResponseContent).build();
       }
+
+      // The artifact server has accepted and stored the replacement. Log only now: validation,
+      // publication/DOI checks, or an artifact-server refusal must not leave a false write trail.
+      logPrivilegedWrite(context, id, folderServerOldResource, verbatim, content);
 
       // artifact was updated
       HttpEntity templateEntity = templateProxyResponse.getEntity();
