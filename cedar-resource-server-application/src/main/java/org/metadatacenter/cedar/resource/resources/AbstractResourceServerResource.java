@@ -198,6 +198,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
     }
 
+    // The artifact server takes the content before this server has finished judging it, and the two
+    // stores are not written under one transaction. Every refusal below — a missing name or version, an
+    // illegal resource type, a graph node that does not come back — happens after the artifact exists
+    // there, and the caller, told the create failed, has no id to clean up with. Remember the id from
+    // the moment it exists and discard it in the finally unless the artifact reached the graph.
+    CedarArtifactId createdArtifactId = null;
+    boolean artifactReachedTheGraph = false;
     try {
       String url;
       ClassicHttpResponse templateProxyResponse;
@@ -224,6 +231,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
           String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
+          createdArtifactId = aid;
 
           JsonPointerValuePair namePair = ModelUtil.extractNameFromResource(resourceType, templateJsonNode);
           JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode);
@@ -304,6 +312,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                 .errorMessage("The artifact was not created!")
                 .build();
           }
+          // Both stores now hold it, so the create stands. A failure in the indexing and propagation
+          // below leaves the artifact in place and reports 500, as it did before; discarding it here
+          // would trade an artifact-server orphan for a graph one.
+          artifactReachedTheGraph = true;
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
           URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
           updateInclusionSubgraphIfNeeded(context, newResource, templateJsonNode);
@@ -323,6 +335,33 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
+    } finally {
+      if (createdArtifactId != null && !artifactReachedTheGraph) {
+        discardArtifactAfterFailedCreate(context, resourceType, createdArtifactId);
+      }
+    }
+  }
+
+  /**
+   * Remove an artifact this server accepted from the artifact server but then refused, so a create the
+   * caller was told had failed leaves nothing behind.
+   *
+   * <p>Best-effort by necessity: it runs while the request is already failing, and the failure the
+   * caller sees must be the one that caused this rather than whatever goes wrong cleaning up. A
+   * discard that cannot complete is logged with the id, which is the only handle anyone has afterwards
+   * — the artifact is unreachable through this server once it has no graph node.
+   */
+  private void discardArtifactAfterFailedCreate(CedarRequestContext context, CedarResourceType resourceType,
+                                                CedarArtifactId artifactId) {
+    try {
+      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
+      ClassicHttpResponse discardResponse = ProxyUtil.proxyDelete(url, context);
+      int status = discardResponse.getCode();
+      if (status != HttpStatus.SC_NO_CONTENT && status != HttpStatus.SC_OK && status != HttpStatus.SC_NOT_FOUND) {
+        log.error("Refused create left {} on the artifact server: discard answered {}", artifactId, status);
+      }
+    } catch (Exception e) {
+      log.error("Refused create left {} on the artifact server: discard failed", artifactId, e);
     }
   }
 
