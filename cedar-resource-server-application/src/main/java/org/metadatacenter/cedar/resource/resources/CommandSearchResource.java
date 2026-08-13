@@ -209,12 +209,14 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/regenerate-rules-index")
-  @Operation(summary = "Regenerate rules index.", description = "Regenerate rules index. This is an administrative command, you need special permission to run it. "
-          + "If there is no need for reindexing, the task will not run. It can be forced using the force "
-          + "parameter. A background task will be started. The status of the task can be monitored in the "
-          + "resource server log files. While the reindexing runs, the old index is still used for searching. "
-          + "Once the new index is ready, the old one will be removed, and the new one will be used for searching. "
-          + "The reindexing computes permissions, it can run for a long time.", tags = {"Command", "Administration"})
+  @Operation(summary = "Regenerate rules index. Deprecated: this command empties the rules index.", description =
+      "Deprecated, and does not do what its name says. The rules index holds association rules mined by the value "
+          + "recommender from template instances; the resource server cannot produce those documents. This command "
+          + "creates an empty index, points the alias at it and deletes the old index, so it discards every rule in "
+          + "the system and recommendations stop returning results. The force parameter is read but has no effect. "
+          + "Use /command/generate-empty-rules-index if emptying the index is what you want. To repopulate the "
+          + "index, call the value recommender's /command/generate-rules/{template_id} for each template.",
+      deprecated = true, tags = {"Command", "Administration"})
   @RequestBody(description = "Force or not", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.ForceRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation"),
@@ -224,9 +226,13 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "404", description = "Not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
+  @Deprecated
   public Response regenerateRulesIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     AdminCommand.REGENERATE_RULES_INDEX.enforce(c);
+
+    log.warn("/command/regenerate-rules-index is deprecated: it empties the rules index instead of rebuilding it. "
+        + "Rules must be regenerated through the value recommender.");
 
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
