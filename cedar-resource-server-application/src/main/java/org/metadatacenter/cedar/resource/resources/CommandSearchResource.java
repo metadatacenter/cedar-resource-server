@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.metadatacenter.cedar.resource.search.IndexJobGuard;
 import org.metadatacenter.cedar.resource.search.ValueSetsImportStatusManager;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -116,6 +117,41 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     return Response.ok().entity(output).build();
   }
 
+
+  /**
+   * A rebuild of this index is already running, so this one does not start. 409 rather than 400: the
+   * request is well formed and will be accepted once the running job finishes.
+   */
+  private Response alreadyRunning(IndexJobGuard.Index index) {
+    IndexJobGuard.Status status = IndexJobGuard.status(index);
+    return CedarResponse.conflict()
+        .errorMessage("A " + status.command() + " job started at " + status.startedAt()
+            + " is still running over the " + index.name().toLowerCase() + " index")
+        .parameter("index", index.name())
+        .parameter("command", status.command())
+        .parameter("startedAt", status.startedAt())
+        .build();
+  }
+
+  @GET
+  @Timed
+  @Path("/index-job-status")
+  @Operation(summary = "Status of the index rebuild jobs", description = "What became of the most recent rebuild of "
+          + "each index, and whether one is running now. A rebuild returns as soon as it starts and finishes in "
+          + "the background, so this is where its outcome is reported.", tags = {"Command", "Administration"})
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
+  })
+  public Response indexJobStatus() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+
+    return Response.ok().entity(JsonMapper.MAPPER.valueToTree(IndexJobGuard.statuses())).build();
+  }
+
   @POST
   @Timed
   @Path("/regenerate-search-index")
@@ -132,6 +168,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "A rebuild of this index is already running"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response regenerateSearchIndex() throws CedarException {
@@ -141,6 +178,10 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
     final boolean force = forceParam.booleanValue();
+
+    if (!IndexJobGuard.tryStart(IndexJobGuard.Index.SEARCH, "regenerate-search-index")) {
+      return alreadyRunning(IndexJobGuard.Index.SEARCH);
+    }
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
@@ -163,7 +204,9 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       try {
         CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         regenerateIndexTask.regenerateSearchIndex(force, cedarAdminRequestContext);
-      } catch (CedarProcessingException e) {
+        IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, null);
+      } catch (Exception e) {
+        IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, e);
         log.error("Error in index regeneration executor", e);
       }
     });
@@ -184,11 +227,16 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "A rebuild of this index is already running"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response generateEmptySearchIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     AdminCommand.GENERATE_EMPTY_SEARCH_INDEX.enforce(c);
+
+    if (!IndexJobGuard.tryStart(IndexJobGuard.Index.SEARCH, "generate-empty-search-index")) {
+      return alreadyRunning(IndexJobGuard.Index.SEARCH);
+    }
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
@@ -196,8 +244,9 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       try {
         CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.generateEmptySearchIndex(cedarAdminRequestContext);
-      } catch (CedarProcessingException e) {
-        //TODO: handle this, log it separately
+        IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, null);
+      } catch (Exception e) {
+        IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, e);
         log.error("Error in index regeneration executor", e);
       }
     });
@@ -224,6 +273,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "A rebuild of this index is already running"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   @Deprecated
@@ -237,14 +287,19 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
     final boolean force = forceParam.booleanValue();
+    if (!IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "regenerate-rules-index")) {
+      return alreadyRunning(IndexJobGuard.Index.RULES);
+    }
+
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
       RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
       try {
         CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.regenerateRulesIndex(force, cedarAdminRequestContext);
-      } catch (CedarProcessingException e) {
-        //TODO: handle this, log it separately
+        IndexJobGuard.finish(IndexJobGuard.Index.RULES, null);
+      } catch (Exception e) {
+        IndexJobGuard.finish(IndexJobGuard.Index.RULES, e);
         log.error("Error in index regeneration executor", e);
       }
     });
@@ -265,11 +320,16 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "A rebuild of this index is already running"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response generateEmptyRulesIndex() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     AdminCommand.GENERATE_EMPTY_RULES_INDEX.enforce(c);
+
+    if (!IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "generate-empty-rules-index")) {
+      return alreadyRunning(IndexJobGuard.Index.RULES);
+    }
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
     executor.submit(() -> {
@@ -277,8 +337,9 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       try {
         CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         task.generateEmptyRulesIndex(cedarAdminRequestContext);
-      } catch (CedarProcessingException e) {
-        //TODO: handle this, log it separately
+        IndexJobGuard.finish(IndexJobGuard.Index.RULES, null);
+      } catch (Exception e) {
+        IndexJobGuard.finish(IndexJobGuard.Index.RULES, e);
         log.error("Error in index regeneration executor", e);
       }
     });
