@@ -529,7 +529,7 @@
     },
     "/command/auth-user-callback" : {
       "post" : {
-        "description" : "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home folder, group membership) upon authentication.",
+        "description" : "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home folder, group membership) upon authentication. The caller must hold the user administration permission, since the user to provision is named in the request body.",
         "operationId" : "authUserCallback",
         "responses" : {
           "201" : {

@@ -13,6 +13,7 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.keycloak.events.Event;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.security.AdminCommand;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
@@ -100,7 +101,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   @Timed
   @Path("/auth-user-callback")
   @Operation(summary = "Authentication user callback", description = "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home "
-          + "folder, group membership) upon authentication.")
+          + "folder, group membership) upon authentication. The caller must hold the user administration "
+          + "permission, since the user to provision is named in the request body.")
   @ApiResponses({
       @ApiResponse(responseCode = "201", description = "Successful operation"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
@@ -111,9 +113,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   })
   public Response authUserCallback() throws CedarException {
     CedarRequestContext adminContext = buildRequestContext();
-    adminContext.must(adminContext.user()).be(LoggedIn);
+    AdminCommand.AUTH_USER_CALLBACK.enforce(adminContext);
 
-    // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
     JsonNode jsonBody = adminContext.request().getRequestBody().asJson();
 
     if (jsonBody != null) {

@@ -25,21 +25,23 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OTHER_USER;
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
 
 /**
- * The authorization gate on the resource server's administrative index/ontology commands, asserted as
- * a table so no command can quietly lose its gate.
+ * The authorization gate on the resource server's administrative commands, asserted as a table so no
+ * command can quietly lose its gate.
  *
- * <p>Each of these commands carries its own inline {@code c.must(c.user()).have(...)} check rather than
- * sharing one policy, and that per-route pattern has already slipped twice:
+ * <p>Each of these commands carried its own inline {@code c.must(c.user()).have(...)} check rather than
+ * sharing one policy, and that per-route pattern has already slipped three times:
  * {@code load-valuesets-ontology} once shipped with its check commented out (reachable by any logged-in
- * user), and {@code generate-empty-rules-index} once asked for {@code SEARCH_INDEX_REINDEX} instead of
- * {@code RULES_INDEX_REINDEX}. Both are fixed; this table is the regression net that fails the moment a
- * gate is dropped or points at the wrong permission again.
+ * user), {@code generate-empty-rules-index} once asked for {@code SEARCH_INDEX_REINDEX} instead of
+ * {@code RULES_INDEX_REINDEX}, and {@code auth-user-callback} asserted only {@code LoggedIn}, leaving the
+ * Keycloak provisioning path open to any logged-in caller. All three are fixed; this table is the
+ * regression net that fails the moment a gate is dropped or points at the wrong permission again.
  *
  * <p>Every mutating command must refuse an anonymous caller with 401 and an authenticated non-admin with
- * 403. The two admin permissions ({@code SEARCH_INDEX_REINDEX}, {@code RULES_INDEX_REINDEX}) are granted
- * only by the {@code SEARCH_REINDEXER} role, which the test users do not hold, so both regular users are
- * genuinely unprivileged here. ADMIN is deliberately never probed: it would pass the gate, and the point
- * is to assert the gate without ever letting a command that wipes or rebuilds the index actually run.
+ * 403. The three admin permissions ({@code SEARCH_INDEX_REINDEX}, {@code RULES_INDEX_REINDEX},
+ * {@code USER_UPDATE}) come only from the {@code SEARCH_REINDEXER} and {@code USER_ADMINISTRATOR} roles,
+ * which the test users do not hold, so both regular users are genuinely unprivileged here. ADMIN is
+ * deliberately never probed: it would pass the gate, and the point is to assert the gate without ever
+ * letting a command that wipes an index or provisions a user actually run.
  *
  * <p>The one non-mutating row — the status poll — is intentionally not admin-gated (it needs only a
  * logged-in user). Asserting a regular user's 200 there is what proves the 403s are about the missing
@@ -94,14 +96,20 @@ public class AdminCommandAuthorizationMatrixTest {
   public void adminIndexCommandsRefuseNonAdmins() {
     PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
 
-    // The five mutating index/ontology commands: admin-only, so 401 for anonymous and 403 for either
-    // regular user. No ADMIN row — that would pass the gate and run a destructive rebuild/wipe.
+    // The six mutating commands: admin-only, so 401 for anonymous and 403 for either regular user. No
+    // ADMIN row — that would pass the gate and run a destructive rebuild/wipe, or provision a user.
+    //
+    // auth-user-callback belongs here even though it is a service callback rather than an operator
+    // command: it names its target user in the request body, so a caller without USER_ADMINISTRATOR
+    // reaching it can forge user records, home folders and group membership. Its only legitimate caller
+    // is the Keycloak event listener, which authenticates with the admin API key and passes the gate.
     for (String path : new String[] {
         "/command/load-valuesets-ontology",
         "/command/regenerate-search-index",
         "/command/generate-empty-search-index",
         "/command/regenerate-rules-index",
-        "/command/generate-empty-rules-index"}) {
+        "/command/generate-empty-rules-index",
+        "/command/auth-user-callback"}) {
       matrix.when("POST", path)
           .expect(ANONYMOUS, 401)
           .expect(OWNER, 403)
