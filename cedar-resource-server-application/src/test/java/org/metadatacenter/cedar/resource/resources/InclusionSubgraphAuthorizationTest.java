@@ -45,11 +45,16 @@ import java.util.Map;
 /**
  * Who may see, and who may rewrite, the artifacts that include a changed one.
  *
- * <p>The graph query behind the affected tree matches on the INCLUDES arc alone and carries no permission
- * clause, so it returns every including artifact in the system. That is the fact these tests are built
- * around: the endpoints have to do the filtering the query does not, and both once failed to. The preview
- * returned artifacts the caller could not read, together with their names and owners; the update wrote
- * every target the caller named, having checked read access to the source and nothing else.
+ * <p>Both endpoints once answered for artifacts that were none of the caller's business. The preview
+ * returned every artifact in the system that included the source, with their names and owners, because the
+ * graph query matched on the INCLUDES arc alone; the update rewrote every target the caller named, having
+ * checked read access to the source and nothing else.
+ *
+ * <p>The two halves are now enforced in different places, and these tests hold the endpoints to the result
+ * rather than to the mechanism. Reading is settled in the graph query, which carries the permission
+ * conditions and is covered directly by {@code InclusionSubgraphListingPermissionIntegrationTest}; writing
+ * is settled here, by the check this endpoint makes on every target before it writes any of them. Asserting
+ * the visible behaviour at the endpoint keeps these cases honest if that division ever moves again.
  *
  * <p>The fixtures are one element and two templates that include it. User 2 can read one template and not
  * the other, and can write neither — the arrangement that separates "may not see it" from "may see it but

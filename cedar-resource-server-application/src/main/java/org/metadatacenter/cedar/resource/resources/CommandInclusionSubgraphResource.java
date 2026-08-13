@@ -16,15 +16,12 @@ import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarTypedSchemaArtifactId;
 import org.metadatacenter.id.CedarUntypedSchemaArtifactId;
-import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphElement;
 import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphRequest;
 import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphResponse;
-import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphTemplate;
 import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphTodoElement;
 import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphTodoList;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.InclusionSubgraphServiceSession;
-import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.search.util.InclusionSubgraphUtil;
 import org.metadatacenter.util.CedarResourceTypeUtil;
@@ -41,7 +38,6 @@ import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
@@ -90,7 +86,6 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     InclusionSubgraphServiceSession inclusionSubgraphSession = dataServices.getInclusionSubgraphServiceSession(c);
 
     InclusionSubgraphResponse treeResponse = InclusionSubgraphUtil.buildAffectedTree(treeRequest, inclusionSubgraphSession);
-    retainReadableArtifacts(c, treeResponse);
 
     ProvenanceNameUtil.addProvenanceDisplayNames(treeResponse);
 
@@ -134,7 +129,6 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     InclusionSubgraphServiceSession inclusionSubgraphSession = dataServices.getInclusionSubgraphServiceSession(c);
 
     InclusionSubgraphResponse treeResponse = InclusionSubgraphUtil.buildAffectedTree(treeRequest, inclusionSubgraphSession);
-    retainReadableArtifacts(c, treeResponse);
 
     InclusionSubgraphTodoList todoList = InclusionSubgraphUtil.updateResources(treeResponse);
 
@@ -195,42 +189,6 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         .build();
   }
 
-  /**
-   * Drop from the affected tree every artifact the caller cannot read.
-   *
-   * <p>The graph query behind the tree matches on the INCLUDES arc alone, with no permission clause, so it
-   * returns every artifact in the system that includes the source — including artifacts belonging to other
-   * users. Left unfiltered, the preview discloses their ids, names and (once provenance display names are
-   * resolved) their owners, and the update path would take them as legitimate targets.
-   *
-   * <p>Pruning a node prunes its subtree with it: the subtree is only reachable through the node, so an
-   * artifact whose only path runs through one the caller cannot read is not theirs to see either.
-   */
-  private void retainReadableArtifacts(CedarRequestContext context, InclusionSubgraphResponse tree) {
-    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
-    retainReadableElements(permissionSession, tree.getElements());
-    retainReadableTemplates(permissionSession, tree.getTemplates());
-  }
-
-  private void retainReadableElements(ResourcePermissionServiceSession permissionSession,
-                                      Map<String, InclusionSubgraphElement> elements) {
-    if (elements == null) {
-      return;
-    }
-    elements.values().removeIf(element -> !permissionSession.userHasReadAccessToResource(element.getResourceId()));
-    for (InclusionSubgraphElement element : elements.values()) {
-      retainReadableElements(permissionSession, element.getElements());
-      retainReadableTemplates(permissionSession, element.getTemplates());
-    }
-  }
-
-  private void retainReadableTemplates(ResourcePermissionServiceSession permissionSession,
-                                       Map<String, InclusionSubgraphTemplate> templates) {
-    if (templates == null) {
-      return;
-    }
-    templates.values().removeIf(template -> !permissionSession.userHasReadAccessToResource(template.getResourceId()));
-  }
 
 
 }
