@@ -695,6 +695,34 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
+  /**
+   * The work an artifact-server write leaves behind, for a caller that writes content directly rather
+   * than through the update proxy above: recompute the inclusion arcs, reindex, queue the value
+   * recommender, and note the instances that now trail the template.
+   *
+   * <p>Skipping this is not cosmetic. The search index stores artifact content, so a write that does not
+   * reindex leaves OpenSearch serving the previous version indefinitely, and stale inclusion arcs make
+   * the next propagation compute the wrong affected tree.
+   *
+   * <p>The Neo4j name, description and identifier are deliberately not touched. The proxy path rewrites
+   * them because the caller supplied a whole new artifact; a caller that replaced a subdocument has not
+   * changed the artifact's own name or description, and copying them back would be a no-op at best.
+   */
+  protected void applyArtifactUpdateSideEffects(CedarRequestContext context, CedarArtifactId id, JsonNode newContent)
+      throws CedarProcessingException {
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
+    FolderServerArtifact artifact = folderSession.findArtifactById(id);
+    if (artifact == null) {
+      log.warn("Artifact {} was written but is not in the graph; its index entry and inclusion arcs were left alone", id);
+      return;
+    }
+    logPrivilegedWrite(context, id, artifact, false, null);
+    updateInclusionSubgraphIfNeeded(context, artifact, newContent);
+    updateIndexResource(artifact, context);
+    updateValuerecommenderResource(artifact);
+    triggerInstanceUpdatesForTemplate(context, artifact.getType(), id);
+  }
+
   private void triggerInstanceUpdatesForTemplate(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id) {
     if (resourceType == CedarResourceType.TEMPLATE) {
       FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);

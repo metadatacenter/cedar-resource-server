@@ -858,7 +858,7 @@
     },
     "/command/inclusions-subgraph-update" : {
       "post" : {
-        "description" : "Propagate a change to the given artifact across the tree of affected artifacts, updating each referencing artifact on the artifact server.",
+        "description" : "Propagate a change to the given artifact across the tree of affected artifacts, updating each referencing artifact on the artifact server. The caller needs read access to the artifact that changed and write access to every artifact selected for update; if any one of them is not writable the whole request is refused and nothing is written. The response reports what became of each target.",
         "operationId" : "updateInclusionSubgraph",
         "responses" : {
           "200" : {
@@ -878,6 +878,9 @@
           },
           "500" : {
             "description" : "Internal server error"
+          },
+          "502" : {
+            "description" : "The artifact server refused at least one of the writes"
           }
         },
         "security" : [ {
