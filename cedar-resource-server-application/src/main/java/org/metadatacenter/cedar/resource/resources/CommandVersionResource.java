@@ -205,7 +205,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           ((ObjectNode) getJsonNode).put(PAV_VERSION, newVersion.getValue());
           ((ObjectNode) getJsonNode).put(BIBO_STATUS, BiboStatus.PUBLISHED.getValue());
 
-          // Freeze-on-publish (VERSIONING-DESIGN §7): pin every unpinned controlled-term constraint to
+          // Freeze-on-publish (VERSIONING-ROADMAP "The Model" §7): pin every unpinned controlled-term constraint to
           // its vocabulary's current version, so the published artifact reproduces its exact term
           // state instead of drifting with "latest". Fully fail-safe -- a resolver error, or an
           // unreachable/off terminology store, leaves the artifact unchanged and never blocks publish.
