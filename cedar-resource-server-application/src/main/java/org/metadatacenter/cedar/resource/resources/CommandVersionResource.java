@@ -400,7 +400,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           newDocument.put(ModelNodeNames.PAV_VERSION, newVersion.getValue());
           newDocument.put(ModelNodeNames.BIBO_STATUS, BiboStatus.DRAFT.getValue());
           newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, aid.getId());
-          newDocument.remove(ModelNodeNames.JSON_LD_ID);
+          // Null rather than removed: the artifact server assigns the identifier of the draft it is
+          // about to create, and the key carrying null is how anything asks for one.
+          newDocument.putNull(ModelNodeNames.JSON_LD_ID);
 
           if (newDocument.has(ModelNodeNames.ANNOTATIONS) && newDocument.get(ModelNodeNames.ANNOTATIONS).isObject()) {
             ObjectNode annotationsNode = (ObjectNode) newDocument.get(ModelNodeNames.ANNOTATIONS);

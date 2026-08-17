@@ -171,7 +171,9 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       if (entity != null) {
         originalDocument = EntityUtils.toString(entity, StandardCharsets.UTF_8);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
-        ((ObjectNode) jsonNode).remove("@id");
+        // Null rather than removed: the artifact server assigns the identifier, and the key carrying
+        // null is how anything asks for one — an absent key cannot be told from a forgotten one.
+        ((ObjectNode) jsonNode).putNull("@id");
         String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
         if (oldName != null) {
           oldName = "";
