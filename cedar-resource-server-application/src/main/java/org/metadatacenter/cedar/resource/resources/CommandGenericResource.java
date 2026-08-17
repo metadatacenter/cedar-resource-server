@@ -39,6 +39,10 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.Consumes;
+import org.metadatacenter.constant.HttpConstants;
+import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.IOException;
@@ -219,23 +223,52 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "404", description = "Not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
+  @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   public Response validateResource(
       @Parameter(description = "The type of CEDAR resource. The allowed values are: 'field', 'element', 'template', "
           + "'instance'", required = true)
-      @QueryParam(QP_RESOURCE_TYPE) String resourceType) throws CedarException {
+      @QueryParam(QP_RESOURCE_TYPE) String resourceType, String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     //c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?
 
     String url = microserviceUrlUtil.getArtifact().getValidateCommand(resourceType);
 
+    // A YAML body is converted here rather than forwarded: the proxy sends JSON, and a client that
+    // authors in YAML has to be able to ask whether its work is valid before sending it. Anything else
+    // is forwarded as it always was, which keeps the JSON-only composite body — an instance together
+    // with the template to validate it against — working unchanged.
+    //
+    // Outside the try, deliberately. A body that cannot be read is the client's mistake and answers
+    // 400; inside, the catch below would turn that into a 500, which is the fault this route had in the
+    // first place.
+    //
+    // The body is forwarded from the parameter rather than from the request context, for both
+    // serializations: taking it as a parameter is what lets a YAML body be read at all, and it also
+    // means the entity stream is spent by the time the context is asked, so the context would hand the
+    // proxy nothing. `artifactRequestBodyAsJson` normalizes a JSON body exactly as the context did.
+    String bodyForArtifactServer = artifactRequestBodyAsJson(requestBody, validatedResourceType(resourceType));
+
     try {
-      ClassicHttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
+      ClassicHttpResponse proxyResponse = ProxyUtil.proxyPost(url, c, bodyForArtifactServer);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       return createServiceResponse(proxyResponse);
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
+  }
+
+  /**
+   * The artifact kind a YAML body is to be read as.
+   *
+   * <p>The parameter is the client's, so it can name nothing at all. A kind that does not resolve is
+   * left to the artifact server to refuse, as it always did, rather than answered differently here for
+   * having arrived as YAML: reading the body as a template is the least surprising thing to attempt,
+   * and the refusal that follows is the one a JSON body of the same request would have got.
+   */
+  private CedarResourceType validatedResourceType(String resourceType) {
+    CedarResourceType named = CedarResourceType.forValue(resourceType == null ? "" : resourceType);
+    return named == null ? CedarResourceType.TEMPLATE : named;
   }
 
   private Response createServiceResponse(ClassicHttpResponse proxyResponse) throws IOException {

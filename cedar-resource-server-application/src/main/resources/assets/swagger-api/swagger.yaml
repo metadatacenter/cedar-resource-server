@@ -1096,6 +1096,17 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+          application/x-yaml:
+            schema:
+              type: string
+          application/yaml:
+            schema:
+              type: string
       responses:
         "200":
           description: Successful operation
