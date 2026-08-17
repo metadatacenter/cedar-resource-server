@@ -99,19 +99,27 @@ public class TemplatesResourceWriteRejectionTest {
     Assertions.assertEquals(400, response.statusCode());
   }
 
+  /**
+   * A body naming an artifact is read as a stored one, and a stored one carries its model version.
+   *
+   * <p>This shape — an id with none of the system-recorded keys — was the compact form's signature, and
+   * a guard refused it here because storing compact would silently regenerate what it strips. Compact
+   * stopped carrying the identifier, so nothing emits that signature and the guard is gone. The shape is
+   * still refused, by the reader: naming an artifact is what selects the full form, and the full form
+   * requires a model version.
+   */
   @Test
-  public void compactYamlBodyIsRejectedOnWrite() throws Exception {
-    // The compact-form signature: an id with none of the system-recorded keys
-    String compactBody = "type: template\n"
+  public void aYamlBodyNamingAnArtifactWithoutItsModelVersionIsRejected() throws Exception {
+    String naming = "type: template\n"
         + "name: Study\n"
         + "id: https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c723\n"
         + "children:\n"
         + "- key: study-name\n"
         + "  type: text-field\n"
         + "  name: Study Name\n";
-    HttpResponse<String> response = post("", compactBody, "application/yaml");
+    HttpResponse<String> response = post("", naming, "application/yaml");
     Assertions.assertEquals(400, response.statusCode());
-    Assertions.assertTrue(response.body().contains("compact form"));
+    Assertions.assertTrue(response.body().contains("modelVersion"));
   }
 
   @Test
