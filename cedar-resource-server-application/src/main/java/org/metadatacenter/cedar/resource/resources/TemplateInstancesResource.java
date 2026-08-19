@@ -81,7 +81,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE);
     rejectCompactOnWriteOperations(compactParam);
-    String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.INSTANCE);
+    String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.INSTANCE, templateResolverFor(c));
     Response artifactResponse = executeResourceCreationOnArtifactServerAndGraphDb(c, CedarResourceType.INSTANCE, Optional.empty(), folderId, content);
     return negotiateArtifactResponse(artifactResponse, CedarResourceType.INSTANCE);
   }
@@ -254,7 +254,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       c.must(c.user()).have(CedarPermission.WRITE_ARTIFACT_VERBATIM);
     }
     rejectYamlVerbatimWrite(verbatim);
-    String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.INSTANCE);
+    String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.INSTANCE, templateResolverFor(c));
     Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.INSTANCE, tiid, folderId, content, verbatim);
     return negotiateArtifactResponse(artifactResponse, CedarResourceType.INSTANCE);
   }

@@ -452,9 +452,22 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * empty object, a malformed body is a bad request, and the body is forwarded in normalized form.
    */
   protected String artifactRequestBodyAsJson(String requestBody, CedarResourceType resourceType) throws CedarException {
+    return artifactRequestBodyAsJson(requestBody, resourceType, null);
+  }
+
+  /**
+   * As above, with the template lookup a YAML instance needs to be completed against. Only the
+   * instance resource passes one; see {@link ArtifactYamlTranscoder#yamlToJsonString} for why the
+   * completion belongs to the YAML path alone. It has to happen here rather than on the artifact
+   * server: this server forwards JSON, so by the time the request arrives there nothing can tell it
+   * was authored as YAML — the same reason a verbatim YAML write is refused up front.
+   */
+  protected String artifactRequestBodyAsJson(String requestBody, CedarResourceType resourceType,
+                                             ArtifactYamlTranscoder.TemplateResolver templateResolver)
+      throws CedarException {
     if (ArtifactYamlTranscoder.isYaml(httpHeaders.getMediaType())) {
       try {
-        return ArtifactYamlTranscoder.yamlToJsonString(requestBody, resourceType);
+        return ArtifactYamlTranscoder.yamlToJsonString(requestBody, resourceType, templateResolver);
       } catch (Exception e) {
         throw new CedarBadRequestException("There was an error converting the YAML request body to JSON", e);
       }
@@ -489,24 +502,30 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * entity is not artifact JSON (errors, graph metadata) are returned unchanged.
    */
   protected Response negotiateArtifactResponse(Response jsonResponse, CedarResourceType resourceType) {
-    Optional<MediaType> responseType = negotiatedArtifactResponseType();
-    if (responseType.isEmpty() || ArtifactYamlTranscoder.isJson(responseType.get())) {
-      return jsonResponse;
-    }
-    if (Response.Status.Family.familyOf(jsonResponse.getStatus()) != Response.Status.Family.SUCCESSFUL
-        || !(jsonResponse.getEntity() instanceof JsonNode artifactNode)) {
-      return jsonResponse;
-    }
-    try {
-      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, false);
-      return Response.fromResponse(jsonResponse)
-          .entity(yamlContent)
-          .type(responseType.get())
-          .build();
-    } catch (Exception e) {
-      log.warn("The artifact could not be rendered as YAML; returning the JSON response", e);
-      return jsonResponse;
-    }
+    return ArtifactYamlTranscoder.negotiatedArtifactResponse(
+        jsonResponse, resourceType, negotiatedArtifactResponseType());
+  }
+
+  /**
+   * Reads a template from the artifact server, for completing a YAML instance against it. Returns
+   * null when the artifact server does not answer with one, which the transcoder reports as the
+   * instance naming a template that can not be found.
+   */
+  protected ArtifactYamlTranscoder.TemplateResolver templateResolverFor(CedarRequestContext context) {
+    return templateIri -> {
+      String url = microserviceUrlUtil.getArtifact()
+          .getArtifactTypeWithId(CedarResourceType.TEMPLATE, templateIri, Optional.empty());
+      try {
+        ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
+        if (proxyResponse.getCode() != HttpStatus.SC_OK) {
+          return null;
+        }
+        return JsonMapper.MAPPER.readTree(
+            EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8));
+      } catch (ParseException | CedarProcessingException e) {
+        throw new IOException(e);
+      }
+    };
   }
 
   protected Response notAcceptableArtifactFormatResponse() {
