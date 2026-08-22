@@ -65,7 +65,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     c.must(idParam).be(NonEmpty);
     String id = idParam.stringValue();
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     userMustHaveWriteAccessToArtifact(c, artifactId);
 
@@ -99,7 +99,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     c.must(idParam).be(NonEmpty);
     String id = idParam.stringValue();
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     userMustHaveWriteAccessToArtifact(c, artifactId);
 
@@ -133,7 +133,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     c.must(idParam).be(NonEmpty);
     String id = idParam.stringValue();
     CedarFolderId folderId = CedarFolderId.build(id);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     userMustHaveWriteAccessToFolder(c, folderId);
 
@@ -167,7 +167,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     c.must(idParam).be(NonEmpty);
     String id = idParam.stringValue();
     CedarFolderId folderId = CedarFolderId.build(id);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     userMustHaveWriteAccessToFolder(c, folderId);
 

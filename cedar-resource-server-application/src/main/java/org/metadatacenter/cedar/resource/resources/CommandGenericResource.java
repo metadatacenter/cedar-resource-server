@@ -13,6 +13,7 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.keycloak.events.Event;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.security.AdminCommand;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
@@ -38,6 +39,10 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.Consumes;
+import org.metadatacenter.constant.HttpConstants;
+import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.IOException;
@@ -100,7 +105,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   @Timed
   @Path("/auth-user-callback")
   @Operation(summary = "Authentication user callback", description = "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home "
-          + "folder, group membership) upon authentication.")
+          + "folder, group membership) upon authentication. The caller must hold the user administration "
+          + "permission, since the user to provision is named in the request body.")
   @ApiResponses({
       @ApiResponse(responseCode = "201", description = "Successful operation"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
@@ -111,9 +117,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   })
   public Response authUserCallback() throws CedarException {
     CedarRequestContext adminContext = buildRequestContext();
-    adminContext.must(adminContext.user()).be(LoggedIn);
+    AdminCommand.AUTH_USER_CALLBACK.enforce(adminContext);
 
-    // TODO : we should check if the user is the admin, it has sufficient roles to create user related objects
     JsonNode jsonBody = adminContext.request().getRequestBody().asJson();
 
     if (jsonBody != null) {
@@ -126,10 +131,10 @@ public class CommandGenericResource extends AbstractResourceServerResource {
           CedarUser user = createUserRelatedObjects(userService, targetUser);
           CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
 
-          UserServiceSession userSession = CedarDataServices.getUserServiceSession(userContext);
+          UserServiceSession userSession = dataServices.getUserServiceSession(userContext);
           userSession.addUserToEverybodyGroup(user.getResourceId());
 
-          FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(userContext);
+          FolderServiceSession folderSession = dataServices.getFolderServiceSession(userContext);
           folderSession.ensureUserHomeExists();
 
           updateHomeFolderId(userContext, userService, user);
@@ -161,7 +166,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   }
 
   private void updateHomeFolderId(CedarRequestContext cedarRequestContext, UserService userService, CedarUser user) {
-    FolderServiceSession neoSession = CedarDataServices.getFolderServiceSession(cedarRequestContext);
+    FolderServiceSession neoSession = dataServices.getFolderServiceSession(cedarRequestContext);
 
     FolderServerFolder userHomeFolder = neoSession.findHomeFolderOf();
 
@@ -218,23 +223,52 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "404", description = "Not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
+  @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   public Response validateResource(
       @Parameter(description = "The type of CEDAR resource. The allowed values are: 'field', 'element', 'template', "
           + "'instance'", required = true)
-      @QueryParam(QP_RESOURCE_TYPE) String resourceType) throws CedarException {
+      @QueryParam(QP_RESOURCE_TYPE) String resourceType, String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     //c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?
 
     String url = microserviceUrlUtil.getArtifact().getValidateCommand(resourceType);
 
+    // A YAML body is converted here rather than forwarded: the proxy sends JSON, and a client that
+    // authors in YAML has to be able to ask whether its work is valid before sending it. Anything else
+    // is forwarded as it always was, which keeps the JSON-only composite body — an instance together
+    // with the template to validate it against — working unchanged.
+    //
+    // Outside the try, deliberately. A body that cannot be read is the client's mistake and answers
+    // 400; inside, the catch below would turn that into a 500, which is the fault this route had in the
+    // first place.
+    //
+    // The body is forwarded from the parameter rather than from the request context, for both
+    // serializations: taking it as a parameter is what lets a YAML body be read at all, and it also
+    // means the entity stream is spent by the time the context is asked, so the context would hand the
+    // proxy nothing. `artifactRequestBodyAsJson` normalizes a JSON body exactly as the context did.
+    String bodyForArtifactServer = artifactRequestBodyAsJson(requestBody, validatedResourceType(resourceType));
+
     try {
-      ClassicHttpResponse proxyResponse = ProxyUtil.proxyPost(url, c);
+      ClassicHttpResponse proxyResponse = ProxyUtil.proxyPost(url, c, bodyForArtifactServer);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       return createServiceResponse(proxyResponse);
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
+  }
+
+  /**
+   * The artifact kind a YAML body is to be read as.
+   *
+   * <p>The parameter is the client's, so it can name nothing at all. A kind that does not resolve is
+   * left to the artifact server to refuse, as it always did, rather than answered differently here for
+   * having arrived as YAML: reading the body as a template is the least surprising thing to attempt,
+   * and the refusal that follows is the one a JSON body of the same request would have got.
+   */
+  private CedarResourceType validatedResourceType(String resourceType) {
+    CedarResourceType named = CedarResourceType.forValue(resourceType == null ? "" : resourceType);
+    return named == null ? CedarResourceType.TEMPLATE : named;
   }
 
   private Response createServiceResponse(ClassicHttpResponse proxyResponse) throws IOException {

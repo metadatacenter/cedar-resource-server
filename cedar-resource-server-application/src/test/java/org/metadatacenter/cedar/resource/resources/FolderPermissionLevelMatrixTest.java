@@ -136,7 +136,7 @@ public class FolderPermissionLevelMatrixTest {
     user1 = TestAuthUtil.getTestUser1(cedarConfig);
     user2 = TestAuthUtil.getTestUser2(cedarConfig);
     user1Context = CedarRequestContextFactory.fromUser(user1);
-    user1HomeId = CedarDataServices.getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
+    user1HomeId = CedarDataServices.getInstance().getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
   }
 
   @AfterAll
@@ -206,7 +206,7 @@ public class FolderPermissionLevelMatrixTest {
    * like a passing denial while establishing nothing. See {@link #resharePermissionsBody()}.
    */
   @Test
-  public void aWriteGrantBuysWritingButNotResharing() throws Exception {
+  public void aWriteGrantBuysWritingAndResharing() throws Exception {
     FolderServerFolder writable = folder("Write Grant Writable");
     FolderServerFolder renameable = folder("Write Grant Renameable");
     FolderServerFolder resharable = folder("Write Grant Resharable");
@@ -249,7 +249,7 @@ public class FolderPermissionLevelMatrixTest {
     // took effect user 2's own WRITE grant is now gone — revoked by the grantee, on someone else's
     // folder. Assert that, so the escalation is demonstrated rather than inferred from a status.
     Assertions.assertFalse(
-        CedarDataServices.getResourcePermissionServiceSession(
+        CedarDataServices.getInstance().getResourcePermissionServiceSession(
                 CedarRequestContextFactory.fromUser(user2))
             .userHasWriteAccessToResource(resharable.getResourceId()),
         "user 2 held only WRITE, yet rewriting the ACL succeeded and removed their own grant: "
@@ -266,7 +266,7 @@ public class FolderPermissionLevelMatrixTest {
     FolderServerFolder readable = folder("Group Read Readable");
     FolderServerFolder renameable = folder("Group Read Renameable");
 
-    GroupServiceSession groups = CedarDataServices.getGroupServiceSession(user1Context);
+    GroupServiceSession groups = CedarDataServices.getInstance().getGroupServiceSession(user1Context);
     FolderServerGroup group = groups.createGroup("permission-level-matrix-group",
         "Group for the REST-level group grant test");
     Assertions.assertNotNull(group, "the group should be created");
@@ -315,7 +315,7 @@ public class FolderPermissionLevelMatrixTest {
     newFolder.setName(name);
     newFolder.setDescription("Created by FolderPermissionLevelMatrixTest");
     CedarFolderId newFolderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
-    FolderServerFolder created = CedarDataServices.getFolderServiceSession(user1Context)
+    FolderServerFolder created = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
         .createFolderAsChildOfId(newFolder, user1HomeId, newFolderId);
     Assertions.assertNotNull(created, "the fixture folder '" + name + "' should be created");
     return created;
@@ -330,7 +330,7 @@ public class FolderPermissionLevelMatrixTest {
   }
 
   private static void apply(FolderServerFolder folder, ResourcePermissionsRequest request) {
-    BackendCallResult result = CedarDataServices.getResourcePermissionServiceSession(user1Context)
+    BackendCallResult result = CedarDataServices.getInstance().getResourcePermissionServiceSession(user1Context)
         .updateResourcePermissions(folder.getResourceId(), request);
     Assertions.assertFalse(result.isError(),
         "the grant should succeed: " + (result.isError() ? result.getFirstErrorMessage() : ""));
@@ -342,7 +342,7 @@ public class FolderPermissionLevelMatrixTest {
   }
 
   private static void assertNamed(FolderServerFolder folder, String expectedName) {
-    FolderServerFolder after = CedarDataServices.getFolderServiceSession(user1Context)
+    FolderServerFolder after = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
         .findFolderById(folder.getResourceId());
     Assertions.assertNotNull(after, "the folder should still exist");
     Assertions.assertEquals(expectedName, after.getName(),
@@ -351,7 +351,7 @@ public class FolderPermissionLevelMatrixTest {
 
   private static void assertStillExists(FolderServerFolder folder) {
     Assertions.assertNotNull(
-        CedarDataServices.getFolderServiceSession(user1Context).findFolderById(folder.getResourceId()),
+        CedarDataServices.getInstance().getFolderServiceSession(user1Context).findFolderById(folder.getResourceId()),
         "a refused DELETE should have left the folder in place");
   }
 

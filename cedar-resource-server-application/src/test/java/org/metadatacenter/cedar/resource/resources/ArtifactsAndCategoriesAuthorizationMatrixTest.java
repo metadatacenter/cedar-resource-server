@@ -14,6 +14,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
@@ -104,6 +105,11 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   private static String categoryPath;
   private static String rootCategoryPath;
   private static String categoryName;
+  private static String siblingCategoryName;
+  private static String adminAuthHeader;
+  private static CedarCategoryId categoryId;
+  private static CedarCategoryId inaccessibleCategoryId;
+  private static CedarRequestContext user1Context;
 
   /**
    * One artifact fixture: where its endpoints live, what it is called, and whether it is versioned.
@@ -114,7 +120,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
    * @param versioned whether the type exposes {@code /versions}: instances do not, since they are
    *                  not versioned, while templates, elements and fields are
    */
-  private record Artifact(String label, String path, String name, boolean versioned) {
+  private record Artifact(String label, String path, String id, String name, boolean versioned) {
   }
 
   @BeforeAll
@@ -127,6 +133,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     actors = Map.of(
         OWNER, TestAuthUtil.getTestUser1AuthHeader(cedarConfig),
         OTHER_USER, TestAuthUtil.getTestUser2AuthHeader(cedarConfig));
+    adminAuthHeader = TestAuthUtil.getAdminUserAuthHeader(cedarConfig);
 
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
@@ -137,12 +144,12 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
         new SearchPermissionEnqueueService(cedarConfig),
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
 
-    CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+    user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
 
     // One node per artifact type in the workspace graph, under user 1's home folder. Created through
     // the graph session rather than the REST API on purpose: a POST would proxy the content to the
     // artifact server, which is not running, while every endpoint under test reads only the graph.
-    CedarFolderId user1HomeId = CedarDataServices.getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
+    CedarFolderId user1HomeId = CedarDataServices.getInstance().getFolderServiceSession(user1Context).findHomeFolderOf().getResourceId();
     artifacts = List.of(
         createSchemaArtifact(cedarConfig, user1Context, user1HomeId,
             new FolderServerTemplate(), CedarResourceType.TEMPLATE, "/templates", "template"),
@@ -154,16 +161,29 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
             "/template-instances", "instance"));
 
     // A category owned by user 1, under the root category that seeding creates.
-    FolderServerCategory rootCategory = CedarDataServices.getCategoryServiceSession(user1Context).getRootCategory();
+    FolderServerCategory rootCategory = CedarDataServices.getInstance().getCategoryServiceSession(user1Context).getRootCategory();
     Assertions.assertNotNull(rootCategory, "the seeded graph should contain the root category");
     CedarCategoryId rootCategoryId = rootCategory.getResourceId();
     categoryName = "Matrix Category";
-    FolderServerCategory category = CedarDataServices.getCategoryServiceSession(user1Context)
+    FolderServerCategory category = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
         .createCategory(rootCategoryId, categoryName,
             "Created by ArtifactsAndCategoriesAuthorizationMatrixTest", null);
     Assertions.assertNotNull(category, "the fixture category should have been created");
+    categoryId = category.getResourceId();
     categoryPath = "/categories/" + URLEncoder.encode(category.getId(), StandardCharsets.UTF_8);
     rootCategoryPath = "/categories/" + URLEncoder.encode(rootCategoryId.getId(), StandardCharsets.UTF_8);
+    siblingCategoryName = "Matrix Category Sibling";
+    FolderServerCategory sibling = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
+        .createCategory(rootCategoryId, siblingCategoryName,
+            "Sibling created by ArtifactsAndCategoriesAuthorizationMatrixTest", null);
+    Assertions.assertNotNull(sibling, "the sibling category fixture should have been created");
+
+    CedarRequestContext user2Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser2(cedarConfig));
+    FolderServerCategory inaccessibleCategory = CedarDataServices.getInstance().getCategoryServiceSession(user2Context)
+        .createCategory(rootCategoryId, "Matrix Category Owned By User 2",
+            "Used to verify batch attachment preflight", null);
+    Assertions.assertNotNull(inaccessibleCategory, "the inaccessible category fixture should have been created");
+    inaccessibleCategoryId = inaccessibleCategory.getResourceId();
   }
 
   @AfterAll
@@ -204,11 +224,11 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   private static Artifact store(CedarRequestContext context, CedarFolderId parent,
                                 FolderServerArtifact artifact, String pathPrefix, String label,
                                 String name, boolean versioned) {
-    FolderServerArtifact created = CedarDataServices.getFolderServiceSession(context)
+    FolderServerArtifact created = CedarDataServices.getInstance().getFolderServiceSession(context)
         .createResourceAsChildOfId(artifact, parent);
     Assertions.assertNotNull(created, "the fixture " + label + " should have been created");
     String path = pathPrefix + "/" + URLEncoder.encode(created.getId(), StandardCharsets.UTF_8);
-    return new Artifact(label, path, name, versioned);
+    return new Artifact(label, path, created.getId(), name, versioned);
   }
 
   /**
@@ -343,6 +363,35 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     JsonNode category = JsonMapper.MAPPER.readTree(after.body());
     Assertions.assertEquals(categoryName, category.path("schema:name").asText(),
         "a denied request renamed the category: " + after.body());
+  }
+
+  @Test
+  public void categoryCannotBeRenamedToAnExistingSiblingName() throws Exception {
+    String renameBody = "{\"schema:name\": \"" + siblingCategoryName
+        + "\", \"schema:description\": \"duplicate sibling name\"}";
+
+    HttpResponse<String> response = request("PUT", categoryPath, renameBody, adminAuthHeader);
+    Assertions.assertEquals(409, response.statusCode(), response.body());
+    Assertions.assertTrue(response.body().contains("categoryAlreadyPresent"), response.body());
+
+    HttpResponse<String> after = request("GET", categoryPath, null, adminAuthHeader);
+    Assertions.assertEquals(200, after.statusCode(), after.body());
+    Assertions.assertEquals(categoryName, JsonMapper.MAPPER.readTree(after.body()).path("schema:name").asText());
+  }
+
+  @Test
+  public void batchCategoryAttachValidatesEveryCategoryBeforeMutating() throws Exception {
+    Artifact artifact = artifacts.get(0);
+    String body = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryIds\":[\""
+        + categoryId.getId() + "\",\"" + inaccessibleCategoryId.getId() + "\"]}";
+
+    HttpResponse<String> response = request("POST", "/command/attach-categories", body, actors.get(OWNER));
+    Assertions.assertEquals(403, response.statusCode(), response.body());
+
+    List<CedarCategoryId> attached = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
+        .getAttachedCategoryIds(CedarUntypedArtifactId.build(artifact.id()));
+    Assertions.assertTrue(attached.stream().noneMatch(categoryId::equals),
+        "the permitted category must not be attached when a later category fails preflight");
   }
 
   private HttpResponse<String> request(String method, String path, String body, String authHeader) throws Exception {

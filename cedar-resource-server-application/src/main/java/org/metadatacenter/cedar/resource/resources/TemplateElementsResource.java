@@ -17,7 +17,6 @@ import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateElement;
-import org.metadatacenter.cedar.resource.util.ArtifactYamlTranscoder;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
@@ -26,6 +25,7 @@ import org.metadatacenter.id.CedarElementId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_ELEMENT_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_VERBATIM;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
@@ -229,6 +230,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @Parameter(description = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
       @Parameter(description = "Not supported on write operations; write responses always render the full form.")
       @QueryParam("compact") Optional<Boolean> compactParam,
+      @Parameter(description = "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.")
+      @QueryParam(QP_VERBATIM) Optional<Boolean> verbatimParam,
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -236,8 +239,13 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     CedarElementId eid = CedarElementId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);
+    boolean verbatim = verbatimParam != null && verbatimParam.isPresent() && verbatimParam.get();
+    if (verbatim) {
+      c.must(c.user()).have(CedarPermission.WRITE_ARTIFACT_VERBATIM);
+    }
+    rejectYamlVerbatimWrite(verbatim);
     String content = artifactRequestBodyAsJson(requestBody, CedarResourceType.ELEMENT);
-    Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.ELEMENT, eid, folderId, content);
+    Response artifactResponse = executeResourceCreateOrUpdateViaPut(c, CedarResourceType.ELEMENT, eid, folderId, content, verbatim);
     return negotiateArtifactResponse(artifactResponse, CedarResourceType.ELEMENT);
   }
 

@@ -111,7 +111,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .offset(offsetParam);
     pagedSortedTypedQuery.validate();
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     FolderServerFolder folder = folderSession.findFolderById(fid);
     if (folder == null) {
@@ -122,7 +122,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
           .build();
     }
 
-    ResourcePermissionServiceSession permissionServiceSession = CedarDataServices.getResourcePermissionServiceSession(c);
+    ResourcePermissionServiceSession permissionServiceSession = dataServices.getResourcePermissionServiceSession(c);
     boolean hasRead = permissionServiceSession.userHasReadAccessToResource(fid);
     if (!hasRead) {
       return CedarResponse.forbidden()
@@ -140,7 +140,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .queryParam(QP_SORT, pagedSortedTypedQuery.getSortListAsString())
         .build();
 
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
     List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, folder);
 
@@ -210,7 +210,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .offset(offsetParam);
     pagedSortedTypedQuery.validate();
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     FolderServerFolder folder = folderSession.findFolderById(fid);
     if (folder == null) {
@@ -221,7 +221,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
           .build();
     }
 
-    ResourcePermissionServiceSession permissionServiceSession = CedarDataServices.getResourcePermissionServiceSession(c);
+    ResourcePermissionServiceSession permissionServiceSession = dataServices.getResourcePermissionServiceSession(c);
     boolean hasRead = permissionServiceSession.userHasReadAccessToResource(fid);
     if (!hasRead) {
       return CedarResponse.forbidden()
@@ -241,7 +241,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     List<String> fieldNameList = getAndCheckFieldNames(fieldNamesParam);
 
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
     List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, folder);
 
@@ -250,7 +250,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
     boolean readCategories = fieldNameList != null && fieldNameList.contains("categories");
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
     for (Map<String, Object> resourceMap : r.getResources()) {
       String resourceId = resourceMap.get("@id").toString();
       String resourceTypeString = resourceMap.get("resourceType").toString();

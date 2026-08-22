@@ -107,7 +107,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
 
 
     CedarUntypedArtifactId untypedSourceArtifactId = CedarUntypedArtifactId.build(id);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     CedarResourceType resourceType = folderSession.getResourceType(untypedSourceArtifactId);
     CedarArtifactId sourceArtifactId = CedarArtifactId.build(id, resourceType);
 
@@ -171,7 +171,9 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       if (entity != null) {
         originalDocument = EntityUtils.toString(entity, StandardCharsets.UTF_8);
         JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
-        ((ObjectNode) jsonNode).remove("@id");
+        // Null rather than removed: the artifact server assigns the identifier, and the key carrying
+        // null is how anything asks for one — an absent key cannot be told from a forgotten one.
+        ((ObjectNode) jsonNode).putNull("@id");
         String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
         if (oldName != null) {
           oldName = "";
@@ -243,7 +245,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
                                                              CedarFolderId targetFolderId, CedarResourceType resourceType, String name,
                                                              String description, String identifier) throws CedarException {
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     if (CedarResourceTypeUtil.isNotValidForRestCall(resourceType)) {
       throw new CedarProcessingException("You passed an illegal resourceType:'" + resourceType.getValue() +
@@ -329,7 +331,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     CedarFolderId targetFolderId = CedarFolderId.build(fId);
 
     CedarResourceId untypedResourceId = CedarUntypedResourceId.build(sId);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     CedarResourceType sourceResourceType = folderSession.getResourceType(untypedResourceId);
     CedarFilesystemResourceId sourceId = CedarFilesystemResourceId.build(sId, sourceResourceType);
@@ -469,7 +471,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     String id = idParam.stringValue();
 
     CedarResourceId untypedResourceId = CedarUntypedResourceId.build(id);
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     CedarResourceType resourceType = folderSession.getResourceType(untypedResourceId);
     CedarFilesystemResourceId fsResourceId = CedarFilesystemResourceId.build(id, resourceType);

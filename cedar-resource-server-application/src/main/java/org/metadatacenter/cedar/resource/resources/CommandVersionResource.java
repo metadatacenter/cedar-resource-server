@@ -15,6 +15,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.hc.core5.http.HttpStatus;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
+import org.metadatacenter.artifacts.util.TemplateVersionFreezer;
+import org.metadatacenter.cedar.resource.util.TerminologyVersionResolver;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
@@ -202,6 +204,20 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           //publish on the artifact server
           ((ObjectNode) getJsonNode).put(PAV_VERSION, newVersion.getValue());
           ((ObjectNode) getJsonNode).put(BIBO_STATUS, BiboStatus.PUBLISHED.getValue());
+
+          // Freeze-on-publish (VERSIONING-ROADMAP "The Model" §7): pin every unpinned controlled-term constraint to
+          // its vocabulary's current version, so the published artifact reproduces its exact term
+          // state instead of drifting with "latest". Fully fail-safe -- a resolver error, or an
+          // unreachable/off terminology store, leaves the artifact unchanged and never blocks publish.
+          try {
+            String terminologyBase = "http://" + System.getenv("CEDAR_TERMINOLOGY_SERVER_HOST") + ":"
+                + System.getenv("CEDAR_TERMINOLOGY_HTTP_PORT") + "/";
+            TemplateVersionFreezer.freeze(getJsonNode,
+                new TerminologyVersionResolver(terminologyBase, c.getAuthorizationHeader()));
+          } catch (Exception freezeSkipped) {
+            log.warn("Freeze-on-publish skipped for {} (non-fatal)", aid.getId(), freezeSkipped);
+          }
+
           String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);
           Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, aid, c, content,
               microserviceUrlUtil);
@@ -209,7 +225,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           if (putStatus == HttpStatus.SC_OK) {
             // publish in Neo4j server
-            FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+            FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
             if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport) {
               FolderServerSchemaArtifactCurrentUserReport schemaArtifact =
@@ -261,7 +277,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   private void createCopyOfInstancesWithNewTemplate(CedarRequestContext context, CedarTemplateId oldId,
                                                     CedarTemplateId newId, String newFolderName) {
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(context);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(oldId.getId()));
     if (instanceCount > 0) {
       cloneInstanceEnqueueService.cloneInstances(oldId, newId, newFolderName);
@@ -350,7 +366,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     // Check update permission
     c.must(c.user()).have(updatePermission);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     userMustHaveWriteAccessToFolder(c, fid);
 
@@ -384,7 +400,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           newDocument.put(ModelNodeNames.PAV_VERSION, newVersion.getValue());
           newDocument.put(ModelNodeNames.BIBO_STATUS, BiboStatus.DRAFT.getValue());
           newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, aid.getId());
-          newDocument.remove(ModelNodeNames.JSON_LD_ID);
+          // Null rather than removed: the artifact server assigns the identifier of the draft it is
+          // about to create, and the key carrying null is how anything asks for one.
+          newDocument.putNull(ModelNodeNames.JSON_LD_ID);
 
           if (newDocument.has(ModelNodeNames.ANNOTATIONS) && newDocument.get(ModelNodeNames.ANNOTATIONS).isObject()) {
             ObjectNode annotationsNode = (ObjectNode) newDocument.get(ModelNodeNames.ANNOTATIONS);
@@ -434,7 +452,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             } else {
               if (propagateSharing) {
                 ResourcePermissionServiceSession permissionSession =
-                    CedarDataServices.getResourcePermissionServiceSession(c);
+                    dataServices.getResourcePermissionServiceSession(c);
                 CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(aid);
                 ResourcePermissionsRequest permissionsRequest = permissions.toRequest();
                 ResourcePermissionUser newOwner = new ResourcePermissionUser();
@@ -506,7 +524,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     Map<String, Object> resp = new HashMap<>();
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(id));
 
     if (instanceCount == 0) {
@@ -599,8 +617,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           ResourceVersion newVersion = oldVersion.nextPatchVersion();
 
-          FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-          ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
+          FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+          ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
           FileSystemResource artifact = folderSession.findArtifactById(tid);
           List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession,

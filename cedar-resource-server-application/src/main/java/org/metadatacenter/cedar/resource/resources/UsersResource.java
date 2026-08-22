@@ -55,7 +55,7 @@ public class UsersResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    UserServiceSession userSession = CedarDataServices.getUserServiceSession(c);
+    UserServiceSession userSession = dataServices.getUserServiceSession(c);
 
     List<FolderServerUser> users = userSession.findUsers();
 

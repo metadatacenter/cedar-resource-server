@@ -162,8 +162,8 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
 
     r.setNodeListQueryType(nlqt);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
-    ResourcePermissionServiceSession permissionSession = CedarDataServices.getResourcePermissionServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
     List<FolderServerResourceExtract> resources;
     long total;

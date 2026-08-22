@@ -15,9 +15,11 @@ import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -44,6 +46,7 @@ public class TemplatesResourceWriteRejectionTest {
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
   private static String authHeaderUser1;
+  private static String authHeaderAdmin;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -52,6 +55,7 @@ public class TemplatesResourceWriteRejectionTest {
     CedarConfig cedarConfig = CedarConfig.getInstance(environment);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     authHeaderUser1 = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
+    authHeaderAdmin = TestAuthUtil.getAdminUserAuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
   }
 
@@ -70,6 +74,18 @@ public class TemplatesResourceWriteRejectionTest {
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
+  private HttpResponse<String> putTemplate(String id, String query, String body, String contentType,
+                                           String authHeader) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(id, StandardCharsets.UTF_8) + query))
+        .header("Authorization", authHeader)
+        .header("Content-Type", contentType)
+        .PUT(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
   @Test
   public void compactParameterIsRejectedOnWrite() throws Exception {
     HttpResponse<String> response = post("?compact=true", "type: template\nname: X\n", "application/yaml");
@@ -83,19 +99,38 @@ public class TemplatesResourceWriteRejectionTest {
     Assertions.assertEquals(400, response.statusCode());
   }
 
+  /**
+   * A body naming an artifact is read as a stored one, and a stored one carries its model version.
+   *
+   * <p>This shape — an id with none of the system-recorded keys — was the compact form's signature, and
+   * a guard refused it here because storing compact would silently regenerate what it strips. Compact
+   * stopped carrying the identifier, so nothing emits that signature and the guard is gone. The shape is
+   * still refused, by the reader: naming an artifact is what selects the full form, and the full form
+   * requires a model version.
+   */
   @Test
-  public void compactYamlBodyIsRejectedOnWrite() throws Exception {
-    // The compact-form signature: an id with none of the system-recorded keys
-    String compactBody = "type: template\n"
+  public void aYamlBodyNamingAnArtifactWithoutItsModelVersionIsRejected() throws Exception {
+    String naming = "type: template\n"
         + "name: Study\n"
         + "id: https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c723\n"
         + "children:\n"
         + "- key: study-name\n"
         + "  type: text-field\n"
         + "  name: Study Name\n";
-    HttpResponse<String> response = post("", compactBody, "application/yaml");
+    HttpResponse<String> response = post("", naming, "application/yaml");
     Assertions.assertEquals(400, response.statusCode());
-    Assertions.assertTrue(response.body().contains("compact form"));
+    Assertions.assertTrue(response.body().contains("modelVersion"));
+  }
+
+  @Test
+  public void verbatimYamlBodyIsRejectedBeforeItCanBeTranscoded() throws Exception {
+    String id = "https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c723";
+    HttpResponse<String> response = putTemplate(id, "?verbatim=true", "type: template\nname: X\n",
+        "application/yaml", authHeaderAdmin);
+
+    Assertions.assertEquals(400, response.statusCode());
+    Assertions.assertTrue(response.body().contains("verbatimWriteRefused"));
+    Assertions.assertTrue(response.body().contains("needs a JSON body"));
   }
 
 }

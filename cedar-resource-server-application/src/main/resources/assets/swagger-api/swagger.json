@@ -3,7 +3,7 @@
   "info" : {
     "description" : "Better Metadata - Better Science",
     "title" : "CEDAR Resource Server API",
-    "version" : "2.9.1"
+    "version" : "2.9.2"
   },
   "paths" : {
     "/categories" : {
@@ -529,7 +529,7 @@
     },
     "/command/auth-user-callback" : {
       "post" : {
-        "description" : "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home folder, group membership) upon authentication.",
+        "description" : "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home folder, group membership) upon authentication. The caller must hold the user administration permission, since the user to provision is named in the request body.",
         "operationId" : "authUserCallback",
         "responses" : {
           "201" : {
@@ -783,6 +783,9 @@
           "404" : {
             "description" : "Not found"
           },
+          "409" : {
+            "description" : "A rebuild of this index is already running"
+          },
           "500" : {
             "description" : "Internal server error"
           }
@@ -813,6 +816,9 @@
           },
           "404" : {
             "description" : "Not found"
+          },
+          "409" : {
+            "description" : "A rebuild of this index is already running"
           },
           "500" : {
             "description" : "Internal server error"
@@ -858,7 +864,7 @@
     },
     "/command/inclusions-subgraph-update" : {
       "post" : {
-        "description" : "Propagate a change to the given artifact across the tree of affected artifacts, updating each referencing artifact on the artifact server.",
+        "description" : "Propagate a change to the given artifact across the tree of affected artifacts, updating each referencing artifact on the artifact server. The caller needs read access to the artifact that changed and write access to every artifact selected for update; if any one of them is not writable the whole request is refused and nothing is written. The response reports what became of each target.",
         "operationId" : "updateInclusionSubgraph",
         "responses" : {
           "200" : {
@@ -878,6 +884,9 @@
           },
           "500" : {
             "description" : "Internal server error"
+          },
+          "502" : {
+            "description" : "The artifact server refused at least one of the writes"
           }
         },
         "security" : [ {
@@ -885,6 +894,31 @@
         } ],
         "summary" : "Update the inclusion subgraph of an artifact",
         "tags" : [ "Command" ]
+      }
+    },
+    "/command/index-job-status" : {
+      "get" : {
+        "description" : "What became of the most recent rebuild of each index, and whether one is running now. A rebuild returns as soon as it starts and finishes in the background, so this is where its outcome is reported.",
+        "operationId" : "indexJobStatus",
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation"
+          },
+          "401" : {
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "description" : "Forbidden"
+          },
+          "500" : {
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Status of the index rebuild jobs",
+        "tags" : [ "Command", "Administration" ]
       }
     },
     "/command/load-valuesets-ontology" : {
@@ -1250,7 +1284,8 @@
     },
     "/command/regenerate-rules-index" : {
       "post" : {
-        "description" : "Regenerate rules index. This is an administrative command, you need special permission to run it. If there is no need for reindexing, the task will not run. It can be forced using the force parameter. A background task will be started. The status of the task can be monitored in the resource server log files. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time.",
+        "deprecated" : true,
+        "description" : "Deprecated, and does not do what its name says. The rules index holds association rules mined by the value recommender from template instances; the resource server cannot produce those documents. This command creates an empty index, points the alias at it and deletes the old index, so it discards every rule in the system and recommendations stop returning results. The force parameter is read but has no effect. Use /command/generate-empty-rules-index if emptying the index is what you want. To repopulate the index, call the value recommender's /command/generate-rules/{template_id} for each template.",
         "operationId" : "regenerateRulesIndex",
         "requestBody" : {
           "content" : {
@@ -1279,6 +1314,9 @@
           "404" : {
             "description" : "Not found"
           },
+          "409" : {
+            "description" : "A rebuild of this index is already running"
+          },
           "500" : {
             "description" : "Internal server error"
           }
@@ -1286,7 +1324,7 @@
         "security" : [ {
           "api_key" : [ ]
         } ],
-        "summary" : "Regenerate rules index.",
+        "summary" : "Regenerate rules index. Deprecated: this command empties the rules index.",
         "tags" : [ "Command", "Administration" ]
       }
     },
@@ -1320,6 +1358,9 @@
           },
           "404" : {
             "description" : "Not found"
+          },
+          "409" : {
+            "description" : "A rebuild of this index is already running"
           },
           "500" : {
             "description" : "Internal server error"
@@ -1387,6 +1428,25 @@
             "type" : "string"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            },
+            "application/x-yaml" : {
+              "schema" : {
+                "type" : "string"
+              }
+            },
+            "application/yaml" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          }
+        },
         "responses" : {
           "200" : {
             "description" : "Successful operation"
@@ -2332,6 +2392,13 @@
           "schema" : {
             "type" : "boolean"
           }
+        }, {
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "in" : "query",
+          "name" : "verbatim",
+          "schema" : {
+            "type" : "boolean"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -2857,6 +2924,13 @@
           "description" : "Not supported on write operations; write responses always render the full form.",
           "in" : "query",
           "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "in" : "query",
+          "name" : "verbatim",
           "schema" : {
             "type" : "boolean"
           }
@@ -3395,6 +3469,13 @@
           "schema" : {
             "type" : "boolean"
           }
+        }, {
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "in" : "query",
+          "name" : "verbatim",
+          "schema" : {
+            "type" : "boolean"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -3929,6 +4010,13 @@
           "description" : "Not supported on write operations; write responses always render the full form.",
           "in" : "query",
           "name" : "compact",
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "in" : "query",
+          "name" : "verbatim",
           "schema" : {
             "type" : "boolean"
           }

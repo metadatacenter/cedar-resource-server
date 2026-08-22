@@ -135,7 +135,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.request().getRequestBody()).be(NonEmpty);
     CedarFolderId folderId = CedarFolderId.build(id);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(folderId);
     if (folder != null) {
       return updateFolderNameAndDescriptionInGraphDb(c, folderId);
@@ -184,7 +184,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     userMustHaveWriteAccessToFolder(c, fid);
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(fid);
 
     if (folder == null) {
@@ -287,15 +287,9 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.request().getRequestBody()).be(NonEmpty);
 
     CedarParameter folderIdP = c.request().getRequestBody().get("folderId");
-    c.must(folderIdP).be(NonEmpty);
-    String folderId = folderIdP.stringValue();
-    CedarFolderId fid = CedarFolderId.build(folderId);
-
-    userMustHaveWriteAccessToFolder(c, fid);
-
     CedarParameter path = c.request().getRequestBody().get("path");
 
-    if (folderIdP.isMissing() && path.isEmpty()) {
+    if (folderIdP.isEmpty() && path.isEmpty()) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.PARENT_FOLDER_NOT_SPECIFIED)
           .errorMessage("You need to supply either path or folderId parameter identifying the parent folder")
@@ -309,11 +303,11 @@ public class FoldersResource extends AbstractResourceServerResource {
           .build();
     }
 
-    FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder parentFolder = null;
 
     String pathV = null;
-    String folderIdV;
+    String folderIdV = null;
 
     String normalizedPath = null;
     if (!path.isEmpty()) {
@@ -328,19 +322,25 @@ public class FoldersResource extends AbstractResourceServerResource {
       parentFolder = folderSession.findFolderByPath(pathV);
     }
 
-    if (!folderId.isEmpty()) {
+    if (!folderIdP.isEmpty()) {
       folderIdV = folderIdP.stringValue();
       CedarFolderId fidv = CedarFolderId.build(folderIdV);
+      userMustHaveWriteAccessToFolder(c, fidv);
       parentFolder = folderSession.findFolderById(fidv);
     }
 
     if (parentFolder == null) {
       return CedarResponse.badRequest()
           .parameter("path", path)
-          .parameter("folderId", folderId)
+          .parameter("folderId", folderIdV)
           .errorKey(CedarErrorKey.PARENT_FOLDER_NOT_FOUND)
           .errorMessage("The parent folder is not present!")
           .build();
+    }
+
+    // A path identifies the same parent as folderId and must carry the same authorization check.
+    if (folderIdP.isEmpty()) {
+      userMustHaveWriteAccessToFolder(c, parentFolder.getResourceId());
     }
 
 

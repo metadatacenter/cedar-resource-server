@@ -36,6 +36,9 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
@@ -75,7 +78,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     c.must(artifactIdParam).be(NonEmpty);
     c.must(categoryIdParam).be(NonEmpty);
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     String artifactId = artifactIdParam.stringValue();
     String categoryId = categoryIdParam.stringValue();
@@ -92,7 +95,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     boolean attached = categorySession.attachCategoryToArtifact(ccid, aid);
     if (attached) {
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
       updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();
@@ -130,7 +133,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     c.must(artifactIdParam).be(NonEmpty);
     c.must(categoryIdParam).be(NonEmpty);
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     String artifactId = artifactIdParam.stringValue();
     String categoryId = categoryIdParam.stringValue();
@@ -147,7 +150,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     boolean attached = categorySession.detachCategoryFromArtifact(ccid, aid);
     if (attached) {
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
       updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();
@@ -194,7 +197,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
           .build();
     }
 
-    CategoryServiceSession categorySession = CedarDataServices.getCategoryServiceSession(c);
+    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     String artifactId = categoryRequest.getArtifactId();
     CedarParameter artifactIdParam = new CedarInPlaceParameter("artifactId", artifactId);
@@ -206,17 +209,26 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     FolderServerArtifactCurrentUserReport folderServerResource = getArtifactReport(c, aid);
 
-    boolean changed = false;
+    // Validate the complete batch before changing the graph. Otherwise a category without attach
+    // permission late in the list leaves every earlier category attached despite the 403 response.
+    List<CedarCategoryId> categoryIds = new ArrayList<>();
     for (String categoryId : categoryRequest.getCategoryIds()) {
+      CedarParameter categoryIdParam = new CedarInPlaceParameter("categoryId", categoryId);
+      c.must(categoryIdParam).be(NonEmpty);
       CedarCategoryId ccid = CedarCategoryId.build(categoryId);
       userMustHaveAttachAccessToCategory(c, ccid);
+      categoryIds.add(ccid);
+    }
+
+    boolean changed = false;
+    for (CedarCategoryId ccid : categoryIds) {
       boolean attached = categorySession.attachCategoryToArtifact(ccid, aid);
       if (attached) {
         changed = true;
       }
     }
     if (changed) {
-      FolderServiceSession folderSession = CedarDataServices.getFolderServiceSession(c);
+      FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
       updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();
