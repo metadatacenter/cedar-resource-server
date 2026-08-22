@@ -2,7 +2,7 @@ openapi: 3.0.1
 info:
   description: Better Metadata - Better Science
   title: CEDAR Resource Server API
-  version: 2.9.2-SNAPSHOT
+  version: 2.9.3-SNAPSHOT
 paths:
   /categories:
     get:
