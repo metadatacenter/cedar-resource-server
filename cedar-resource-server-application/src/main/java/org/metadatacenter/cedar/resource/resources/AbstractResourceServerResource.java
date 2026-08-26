@@ -977,65 +977,23 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  protected FileSystemResource userMustHaveReadAccessToResource(CedarRequestContext context, CedarFilesystemResourceId resourceId) throws CedarException {
-    Exception genericException = null;
-    FileSystemResource resource = null;
-    if (resourceId instanceof CedarFolderId) {
-      try {
-        userMustHaveReadAccessToFolder(context, resourceId.asFolderId());
-      } catch (CedarPermissionException e) {
-        throw e;
-      } catch (Exception e) {
-        genericException = e;
-      }
-      FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-      resource = folderSession.findFolderById(resourceId.asFolderId());
-    } else {
-      try {
-        userMustHaveReadAccessToArtifact(context, resourceId.asArtifactId());
-      } catch (CedarPermissionException e) {
-        throw e;
-      } catch (Exception e) {
-        genericException = e;
-      }
-      FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-      resource = folderSession.findArtifactById(resourceId.asArtifactId());
-    }
-    if (genericException != null) {
-      throw new CedarProcessingException(genericException);
-    }
-    return resource;
-  }
-
   protected FileSystemResource userMustHaveWriteAccessToFilesystemResource(CedarRequestContext context, CedarFilesystemResourceId resourceId) throws CedarException {
-    Exception genericException = null;
-    FileSystemResource resource = null;
-
-    if (resourceId instanceof CedarFolderId) {
-      try {
+    try {
+      if (resourceId instanceof CedarFolderId) {
         userMustHaveWriteAccessToFolder(context, resourceId.asFolderId());
-      } catch (CedarPermissionException e) {
-        throw e;
-      } catch (Exception e) {
-        genericException = e;
-        FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-        resource = folderSession.findFolderById(resourceId.asFolderId());
-      }
-    } else {
-      try {
+      } else {
         userMustHaveWriteAccessToArtifact(context, resourceId.asArtifactId());
-      } catch (CedarPermissionException e) {
-        throw e;
-      } catch (Exception e) {
-        genericException = e;
       }
-      FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-      resource = folderSession.findArtifactById(resourceId.asArtifactId());
+    } catch (CedarException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
     }
-    if (genericException != null) {
-      throw new CedarProcessingException(genericException);
-    }
-    return resource;
+
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
+    return resourceId instanceof CedarFolderId
+        ? folderSession.findFolderById(resourceId.asFolderId())
+        : folderSession.findArtifactById(resourceId.asArtifactId());
   }
 
   protected Response generateResourcePermissionsResponse(CedarRequestContext c, CedarFilesystemResourceId resourceId) throws CedarException {

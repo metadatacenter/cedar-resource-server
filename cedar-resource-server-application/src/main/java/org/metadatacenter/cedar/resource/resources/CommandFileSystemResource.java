@@ -334,6 +334,11 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     CedarResourceType sourceResourceType = folderSession.getResourceType(untypedResourceId);
+    if (sourceResourceType == null) {
+      throw new CedarObjectNotFoundException("Source resource not found by id")
+          .errorKey(CedarErrorKey.SOURCE_RESOURCE_NOT_FOUND)
+          .parameter("resourceId", untypedResourceId);
+    }
     CedarFilesystemResourceId sourceId = CedarFilesystemResourceId.build(sId, sourceResourceType);
 
     userMustHaveWriteAccessToFilesystemResource(c, sourceId);
@@ -474,6 +479,11 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     CedarResourceType resourceType = folderSession.getResourceType(untypedResourceId);
+    if (resourceType == null) {
+      throw new CedarObjectNotFoundException("Resource not found by id")
+          .errorKey(CedarErrorKey.NODE_NOT_FOUND)
+          .parameter("resourceId", untypedResourceId);
+    }
     CedarFilesystemResourceId fsResourceId = CedarFilesystemResourceId.build(id, resourceType);
 
     userMustHaveWriteAccessToFilesystemResource(c, fsResourceId);

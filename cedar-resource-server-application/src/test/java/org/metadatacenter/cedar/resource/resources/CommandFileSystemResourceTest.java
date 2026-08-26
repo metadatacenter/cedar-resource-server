@@ -68,6 +68,7 @@ public class CommandFileSystemResourceTest {
   private static CedarFolderId homeFolderId;
   private static FolderServerArtifact sourceArtifact;
   private static String copiedArtifactId;
+  private static String missingArtifactId;
   private static JsonNode postedArtifact;
 
   @BeforeAll
@@ -80,6 +81,7 @@ public class CommandFileSystemResourceTest {
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
     CedarConfig cedarConfig = CedarConfig.getInstance(environment);
     copiedArtifactId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    missingArtifactId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     authHeader = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
@@ -134,6 +136,36 @@ public class CommandFileSystemResourceTest {
     Assertions.assertEquals(COPIED_NAME, postedArtifact.get("schema:name").asText());
     Assertions.assertEquals(COPIED_NAME,
         JsonMapper.MAPPER.readTree(response.body()).get("schema:name").asText());
+  }
+
+  @Test
+  public void moveMissingResourceReturnsNotFound() throws Exception {
+    String body = "{\"@id\":\"" + missingArtifactId + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\"}";
+
+    HttpResponse<String> response = postCommand("move-resource-to-folder", body);
+
+    Assertions.assertEquals(404, response.statusCode(), response.body());
+  }
+
+  @Test
+  public void renameMissingResourceReturnsNotFound() throws Exception {
+    String body = "{\"@id\":\"" + missingArtifactId + "\","
+        + "\"schema:name\":\"Renamed artifact\"}";
+
+    HttpResponse<String> response = postCommand("rename-resource", body);
+
+    Assertions.assertEquals(404, response.statusCode(), response.body());
+  }
+
+  private static HttpResponse<String> postCommand(String command, String body) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/" + command))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
