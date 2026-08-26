@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
@@ -15,6 +16,7 @@ import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
+import org.metadatacenter.util.json.JsonMapper;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -26,9 +28,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Endpoint tests for the write-path rejections of the compact YAML convenience. Both rejections
- * fire before the request would reach the artifact server, so these tests run against the
- * booted application with no live backend.
+ * Endpoint tests for write-path failures, including the compact YAML convenience and an unavailable
+ * artifact server. The graph is embedded and the downstream server is deliberately on a dead port,
+ * so these tests run against the booted application with no live backend.
  */
 public class TemplatesResourceWriteRejectionTest {
 
@@ -40,7 +42,8 @@ public class TemplatesResourceWriteRejectionTest {
         "CEDAR_RESOURCE_HTTP_PORT", "19007",
         "CEDAR_RESOURCE_ADMIN_PORT", "19107",
         "CEDAR_RESOURCE_STOP_PORT", "19207",
-        "CEDAR_REDIS_PERSISTENT_PORT", "1"));
+        "CEDAR_REDIS_PERSISTENT_PORT", "1",
+        "CEDAR_ARTIFACT_HTTP_PORT", "1"));
   }
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
@@ -153,6 +156,21 @@ public class TemplatesResourceWriteRejectionTest {
     } finally {
       updateOnlyUser.setPermissions(originalPermissions);
     }
+  }
+
+  @Test
+  public void unavailableArtifactServerReturnsSanitizedServiceUnavailable() throws Exception {
+    HttpResponse<String> response = post("", "{}", "application/json");
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
+    Assertions.assertTrue(error.path("originalException").isMissingNode()
+        || error.path("originalException").isNull(), response.body());
+    Assertions.assertTrue(error.path("sourceException").isMissingNode()
+        || error.path("sourceException").isNull(), response.body());
+    Assertions.assertFalse(response.body().contains("127.0.0.1"), response.body());
   }
 
 }
