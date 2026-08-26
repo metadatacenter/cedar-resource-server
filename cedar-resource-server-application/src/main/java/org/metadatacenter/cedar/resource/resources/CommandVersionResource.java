@@ -29,6 +29,7 @@ import org.metadatacenter.error.CedarErrorType;
 import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
+import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarSchemaArtifactId;
@@ -535,44 +536,50 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(CedarResourceType.TEMPLATE, tid, c,
         microserviceUrlUtil, response);
-    if (getResponse != null) {
+    if (getResponse == null || getResponse.isBlank()) {
+      throw new CedarObjectNotFoundException(tid.getId());
+    }
+
+    try {
       JsonNode oldTemplateJsonNode;
       JsonNode newTemplateJsonNode;
-      try {
-        oldTemplateJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-        newTemplateJsonNode = JsonMapper.MAPPER.readTree(c.request().getRequestBody().asJsonString());
-        if (oldTemplateJsonNode != null && newTemplateJsonNode != null) {
-          JsonArtifactReader reader = new JsonArtifactReader();
-          TemplateSchemaArtifact oldModelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) oldTemplateJsonNode);
-          TemplateSchemaArtifact newModelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) newTemplateJsonNode);
-
-          DeltaFinder finder = new DeltaFinder();
-          Delta delta = finder.findDelta(oldModelArtifact, newModelArtifact);
-
-          List<Change> destructive = delta.getDestructiveChanges();
-          List<Change> nonDestructive = delta.getNonDestructiveChanges();
-          resp.put("destructiveChanges", destructive.size());
-          resp.put("nonDestructiveChanges", nonDestructive.size());
-          resp.put("canBeUpdated", destructive.isEmpty() && nonDestructive.isEmpty());
-          resp.put("numberOfInstances", instanceCount);
-
-          ResourceVersion oldVersion =
-              ResourceVersion.forValueWithValidation(newModelArtifact.version().get().toString());
-          ResourceVersion newVersion = oldVersion.nextPatchVersion();
-
-          resp.put("oldVersion", oldVersion);
-          resp.put("pav:version", newVersion);
-          resp.put("schema:name", oldModelArtifact.name());
-          return Response.ok().entity(resp).build();
-        }
-      } catch (Exception e) {
-        throw new CedarObjectNotFoundException(tid.getId());
+      oldTemplateJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+      newTemplateJsonNode = JsonMapper.MAPPER.readTree(c.request().getRequestBody().asJsonString());
+      if (!(oldTemplateJsonNode instanceof ObjectNode oldTemplateObjectNode)
+          || !(newTemplateJsonNode instanceof ObjectNode newTemplateObjectNode)) {
+        throw new IllegalArgumentException("Both stored and submitted templates must be JSON objects");
       }
+
+      JsonArtifactReader reader = new JsonArtifactReader();
+      TemplateSchemaArtifact oldModelArtifact = reader.readTemplateSchemaArtifact(oldTemplateObjectNode);
+      TemplateSchemaArtifact newModelArtifact = reader.readTemplateSchemaArtifact(newTemplateObjectNode);
+
+      DeltaFinder finder = new DeltaFinder();
+      Delta delta = finder.findDelta(oldModelArtifact, newModelArtifact);
+
+      List<Change> destructive = delta.getDestructiveChanges();
+      List<Change> nonDestructive = delta.getNonDestructiveChanges();
+      resp.put("destructiveChanges", destructive.size());
+      resp.put("nonDestructiveChanges", nonDestructive.size());
+      resp.put("canBeUpdated", destructive.isEmpty() && nonDestructive.isEmpty());
+      resp.put("numberOfInstances", instanceCount);
+
+      ResourceVersion oldVersion =
+          ResourceVersion.forValueWithValidation(newModelArtifact.version()
+              .orElseThrow(() -> new IllegalArgumentException("Submitted template has no pav:version"))
+              .toString());
+      ResourceVersion newVersion = oldVersion.nextPatchVersion();
+
+      resp.put("oldVersion", oldVersion);
+      resp.put("pav:version", newVersion);
+      resp.put("schema:name", oldModelArtifact.name());
+      return Response.ok().entity(resp).build();
+    } catch (CedarException e) {
+      throw e;
+    } catch (Exception e) {
+      log.error("Error while checking template {} for update", tid.getId(), e);
+      throw new CedarProcessingException("There was an error while checking the template for update", e);
     }
-    return CedarResponse.internalServerError()
-        .errorMessage("There was an error while checking the template for update")
-        .parameter("id", tid)
-        .build();
   }
 
   @POST
