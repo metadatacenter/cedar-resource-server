@@ -1,0 +1,172 @@
+package org.metadatacenter.cedar.resource.resources;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import io.dropwizard.testing.DropwizardTestSupport;
+import io.dropwizard.testing.ResourceHelpers;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ResourceServerApplication;
+import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
+import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
+import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
+import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.util.IndexUtils;
+import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
+import org.metadatacenter.util.json.JsonMapper;
+import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
+import org.metadatacenter.util.test.TestAuthUtil;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+/** Endpoint tests for commands that copy artifacts through the artifact service. */
+public class CommandFileSystemResourceTest {
+
+  private static final int ARTIFACT_PORT = 19317;
+  private static final String SOURCE_NAME = "Named source artifact";
+  private static final String COPIED_NAME = "Copy of " + SOURCE_NAME;
+
+  static {
+    EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
+        "CEDAR_RESOURCE_HTTP_PORT", "19017",
+        "CEDAR_RESOURCE_ADMIN_PORT", "19117",
+        "CEDAR_RESOURCE_STOP_PORT", "19217",
+        "CEDAR_REDIS_PERSISTENT_PORT", "1",
+        "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
+        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(ARTIFACT_PORT)));
+  }
+
+  public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
+      new DropwizardTestSupport<>(ResourceServerApplication.class,
+          ResourceHelpers.resourceFilePath("test-config.yml"));
+
+  private static final HttpClient CLIENT = HttpClient.newHttpClient();
+
+  private static HttpServer artifactServer;
+  private static String authHeader;
+  private static CedarFolderId homeFolderId;
+  private static FolderServerArtifact sourceArtifact;
+  private static String copiedArtifactId;
+  private static JsonNode postedArtifact;
+
+  @BeforeAll
+  public static void oneTimeSetUp() throws Exception {
+    artifactServer = HttpServer.create(new InetSocketAddress("127.0.0.1", ARTIFACT_PORT), 0);
+    artifactServer.createContext("/", CommandFileSystemResourceTest::handleArtifactRequest);
+    artifactServer.start();
+
+    SERVER.before();
+    Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
+    CedarConfig cedarConfig = CedarConfig.getInstance(environment);
+    copiedArtifactId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    TestAuthUtil.installInMemoryUserService(cedarConfig);
+    authHeader = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
+    EmbeddedCedarNeo4j.seed(cedarConfig);
+
+    AbstractResourceServerResource.injectServices(
+        new NoOpNodeIndexingService(cedarConfig),
+        new IndexUtils(cedarConfig).getNodeSearchingService(),
+        new SearchPermissionEnqueueService(cedarConfig),
+        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+
+    CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+    FolderServiceSession folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
+    homeFolderId = folderSession.findHomeFolderOf().getResourceId();
+
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName(SOURCE_NAME);
+    template.setDescription("Copy command regression fixture");
+    template.setVersion("1.0.0");
+    template.setPublicationStatus("bibo:draft");
+    template.setLatestVersion(true);
+    template.setLatestDraftVersion(true);
+    template.setLatestPublishedVersion(false);
+    sourceArtifact = folderSession.createResourceAsChildOfId(template, homeFolderId);
+    Assertions.assertNotNull(sourceArtifact);
+  }
+
+  @AfterAll
+  public static void oneTimeTearDown() {
+    SERVER.after();
+    if (artifactServer != null) {
+      artifactServer.stop(0);
+    }
+  }
+
+  @Test
+  public void copyInterpolatesTheSourceArtifactName() throws Exception {
+    String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\","
+        + "\"nameTemplate\":\"Copy of {{name}}\"}";
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/copy-artifact-to-folder"))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(201, response.statusCode(), response.body());
+    Assertions.assertNotNull(postedArtifact, "the copy should be posted to the artifact service");
+    Assertions.assertEquals(COPIED_NAME, postedArtifact.get("schema:name").asText());
+    Assertions.assertEquals(COPIED_NAME,
+        JsonMapper.MAPPER.readTree(response.body()).get("schema:name").asText());
+  }
+
+  private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
+    byte[] response;
+    int status;
+    if ("GET".equals(exchange.getRequestMethod())) {
+      status = 200;
+      response = sourceDocument().toString().getBytes(StandardCharsets.UTF_8);
+    } else if ("POST".equals(exchange.getRequestMethod())) {
+      postedArtifact = JsonMapper.MAPPER.readTree(exchange.getRequestBody());
+      ObjectNode created = ((ObjectNode) postedArtifact).deepCopy();
+      created.put("@id", copiedArtifactId);
+      status = 201;
+      response = created.toString().getBytes(StandardCharsets.UTF_8);
+      exchange.getResponseHeaders().set("Location", copiedArtifactId);
+    } else {
+      exchange.getRequestBody().readAllBytes();
+      status = 405;
+      response = new byte[0];
+    }
+    exchange.getResponseHeaders().set("Content-Type", "application/json");
+    exchange.sendResponseHeaders(status, response.length);
+    exchange.getResponseBody().write(response);
+    exchange.close();
+  }
+
+  private static ObjectNode sourceDocument() {
+    ObjectNode source = JsonMapper.MAPPER.createObjectNode();
+    source.put("@id", sourceArtifact.getId());
+    source.put("schema:name", SOURCE_NAME);
+    source.put("schema:description", "Copy command regression fixture");
+    source.put("pav:version", "1.0.0");
+    source.put("bibo:status", "bibo:draft");
+    return source;
+  }
+}

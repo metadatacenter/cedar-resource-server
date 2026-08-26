@@ -175,7 +175,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         // null is how anything asks for one — an absent key cannot be told from a forgotten one.
         ((ObjectNode) jsonNode).putNull("@id");
         String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
-        if (oldName != null) {
+        if (oldName == null) {
           oldName = "";
         }
         String newName = nameTemplate.replace("{{name}}", oldName);
