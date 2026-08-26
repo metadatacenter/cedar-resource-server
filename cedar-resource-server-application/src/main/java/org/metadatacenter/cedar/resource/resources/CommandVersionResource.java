@@ -628,12 +628,24 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           CedarFolderId fid = CedarFolderId.build(parentFolderExtract.getId());
 
-          publishArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()), oldVersion);
+          Response publishResponse = publishArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()), oldVersion);
+          if (publishResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+            return publishResponse;
+          }
 
           Response createResponse = createDraftArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()),
               newVersion, fid, true, folderName.orElse(null));
+          if (createResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+            return createResponse;
+          }
 
-          FolderServerTemplate entity = (FolderServerTemplate) createResponse.getEntity();
+          if (!(createResponse.getEntity() instanceof FolderServerTemplate entity)) {
+            log.error("Draft creation for template {} returned a successful response without a template entity", tid);
+            return CedarResponse.internalServerError()
+                .errorMessage("Draft creation returned an invalid response")
+                .parameter("id", tid)
+                .build();
+          }
           String newTemplateIdString = entity.getId();
           CedarTemplateId newTemplateId = CedarTemplateId.build(newTemplateIdString);
 
@@ -644,8 +656,14 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           return executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
               JsonMapper.MAPPER.writeValueAsString(newTemplateJsonNode), false, newDraftEtag);
         }
+      } catch (CedarException e) {
+        throw e;
       } catch (Exception e) {
-        throw new CedarObjectNotFoundException(tid.getId());
+        log.error("Error while publishing template {} and creating its draft", tid, e);
+        return CedarResponse.internalServerError()
+            .errorMessage("There was an error while publishing the template and creating its draft")
+            .parameter("id", tid)
+            .build();
       }
     }
     return CedarResponse.internalServerError()
