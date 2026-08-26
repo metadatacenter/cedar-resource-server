@@ -43,7 +43,9 @@ public class TemplatesResourceWriteRejectionTest {
         "CEDAR_RESOURCE_ADMIN_PORT", "19107",
         "CEDAR_RESOURCE_STOP_PORT", "19207",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
-        "CEDAR_ARTIFACT_HTTP_PORT", "1"));
+        "CEDAR_ARTIFACT_HTTP_PORT", "1",
+        "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
+        "CEDAR_OPENSEARCH_REST_PORT", "1"));
   }
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
@@ -79,6 +81,15 @@ public class TemplatesResourceWriteRejectionTest {
         .header("Authorization", authHeaderUser1)
         .header("Content-Type", contentType)
         .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpResponse<String> search(String query) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/search" + query))
+        .header("Authorization", authHeaderUser1)
+        .GET()
         .build();
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
@@ -166,6 +177,21 @@ public class TemplatesResourceWriteRejectionTest {
     JsonNode error = JsonMapper.MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
+    Assertions.assertTrue(error.path("originalException").isMissingNode()
+        || error.path("originalException").isNull(), response.body());
+    Assertions.assertTrue(error.path("sourceException").isMissingNode()
+        || error.path("sourceException").isNull(), response.body());
+    Assertions.assertFalse(response.body().contains("127.0.0.1"), response.body());
+  }
+
+  @Test
+  public void unavailableOpenSearchReturnsSanitizedServiceUnavailable() throws Exception {
+    HttpResponse<String> response = search("?q=outage");
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("OpenSearch is unavailable", error.path("message").asText(), response.body());
     Assertions.assertTrue(error.path("originalException").isMissingNode()
         || error.path("originalException").isNull(), response.body());
     Assertions.assertTrue(error.path("sourceException").isMissingNode()
