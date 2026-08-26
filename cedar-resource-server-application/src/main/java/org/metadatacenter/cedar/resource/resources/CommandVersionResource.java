@@ -212,12 +212,17 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           // state instead of drifting with "latest". Fully fail-safe -- a resolver error, or an
           // unreachable/off terminology store, leaves the artifact unchanged and never blocks publish.
           try {
-            String terminologyBase = "http://" + System.getenv("CEDAR_TERMINOLOGY_SERVER_HOST") + ":"
-                + System.getenv("CEDAR_TERMINOLOGY_HTTP_PORT") + "/";
-            TemplateVersionFreezer.freeze(getJsonNode,
-                new TerminologyVersionResolver(terminologyBase, c.getAuthorizationHeader()));
+            String terminologyBase = cedarConfig.getServers().getTerminology().getBase();
+            TerminologyVersionResolver resolver =
+                new TerminologyVersionResolver(terminologyBase, c.getAuthorizationHeader());
+            TemplateVersionFreezer.freeze(getJsonNode, resolver);
+            if (resolver.getSkippedResolutionCount() > 0) {
+              log.warn("Freeze-on-publish skipped {} terminology version lookup(s) for {}; publishing without those pins",
+                  resolver.getSkippedResolutionCount(), aid.getId());
+            }
           } catch (Exception freezeSkipped) {
-            log.warn("Freeze-on-publish skipped for {} (non-fatal)", aid.getId(), freezeSkipped);
+            log.warn("Freeze-on-publish skipped for {}; publishing without terminology version pins: {}",
+                aid.getId(), freezeSkipped.toString());
           }
 
           String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);

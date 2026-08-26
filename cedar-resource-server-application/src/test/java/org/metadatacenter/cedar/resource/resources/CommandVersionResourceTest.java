@@ -49,6 +49,8 @@ import java.util.Map;
 public class CommandVersionResourceTest {
 
   private static final int ARTIFACT_PORT = 19327;
+  private static final int TERMINOLOGY_PORT = 19328;
+  private static final String TERMINOLOGY_VERSION_ID = "doid-version-hash";
 
   static {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
@@ -57,7 +59,9 @@ public class CommandVersionResourceTest {
         "CEDAR_RESOURCE_STOP_PORT", "19227",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
-        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(ARTIFACT_PORT)));
+        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(ARTIFACT_PORT),
+        "CEDAR_TERMINOLOGY_SERVER_HOST", "127.0.0.1",
+        "CEDAR_TERMINOLOGY_HTTP_PORT", Integer.toString(TERMINOLOGY_PORT)));
   }
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
@@ -67,16 +71,25 @@ public class CommandVersionResourceTest {
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
   private static HttpServer artifactServer;
+  private static HttpServer terminologyServer;
   private static String authHeader;
   private static CedarTemplateId templateId;
+  private static CedarTemplateId publishTemplateId;
   private static ObjectNode storedTemplate;
+  private static ObjectNode publishTemplateDocument;
+  private static ObjectNode lastPublishedTemplate;
   private static volatile boolean artifactServerReturnsContent;
+  private static volatile boolean publishingArtifact;
+  private static volatile int terminologyRequests;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
     artifactServer = HttpServer.create(new InetSocketAddress("127.0.0.1", ARTIFACT_PORT), 0);
     artifactServer.createContext("/", CommandVersionResourceTest::handleArtifactRequest);
     artifactServer.start();
+    terminologyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", TERMINOLOGY_PORT), 0);
+    terminologyServer.createContext("/", CommandVersionResourceTest::handleTerminologyRequest);
+    terminologyServer.start();
 
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
@@ -108,6 +121,20 @@ public class CommandVersionResourceTest {
     Assertions.assertNotNull(createdTemplate);
     templateId = CedarTemplateId.build(createdTemplate.getId());
 
+    FolderServerTemplate publishTemplate = new FolderServerTemplate();
+    publishTemplate.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    publishTemplate.setName("Freeze-on-publish fixture");
+    publishTemplate.setDescription("Uses the configured terminology service when publishing");
+    publishTemplate.setVersion("1.0.0");
+    publishTemplate.setPublicationStatus("bibo:draft");
+    publishTemplate.setLatestVersion(true);
+    publishTemplate.setLatestDraftVersion(true);
+    publishTemplate.setLatestPublishedVersion(false);
+    FolderServerArtifact createdPublishTemplate =
+        folderSession.createResourceAsChildOfId(publishTemplate, homeFolderId);
+    Assertions.assertNotNull(createdPublishTemplate);
+    publishTemplateId = CedarTemplateId.build(createdPublishTemplate.getId());
+
     FolderServerInstance instance = new FolderServerInstance();
     instance.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.INSTANCE));
     instance.setName("Version check instance");
@@ -121,11 +148,23 @@ public class CommandVersionResourceTest {
             .withJsonLdId(URI.create(templateId.getId()))
             .withName("Version check fixture")
             .build());
+    publishTemplateDocument = storedTemplate.deepCopy();
+    publishTemplateDocument.put("@id", publishTemplateId.getId());
+    publishTemplateDocument.put("schema:name", "Freeze-on-publish fixture");
+    publishTemplateDocument.put("pav:version", "1.0.0");
+    publishTemplateDocument.put("bibo:status", "bibo:draft");
+    publishTemplateDocument.putObject("_valueConstraints")
+        .putArray("ontologies")
+        .addObject()
+        .put("acronym", "DOID");
   }
 
   @BeforeEach
   public void resetArtifactServer() {
     artifactServerReturnsContent = true;
+    publishingArtifact = false;
+    terminologyRequests = 0;
+    lastPublishedTemplate = null;
   }
 
   @AfterAll
@@ -133,6 +172,9 @@ public class CommandVersionResourceTest {
     SERVER.after();
     if (artifactServer != null) {
       artifactServer.stop(0);
+    }
+    if (terminologyServer != null) {
+      terminologyServer.stop(0);
     }
   }
 
@@ -160,6 +202,27 @@ public class CommandVersionResourceTest {
     Assertions.assertEquals(404, response.statusCode(), response.body());
   }
 
+  @Test
+  public void publishUsesTerminologyServerFromCedarConfig() throws Exception {
+    publishingArtifact = true;
+    String body = "{\"@id\":\"" + publishTemplateId.getId() + "\",\"newVersion\":\"1.0.1\"}";
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/publish-artifact"))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(200, response.statusCode(), response.body());
+    Assertions.assertEquals(1, terminologyRequests);
+    Assertions.assertNotNull(lastPublishedTemplate);
+    Assertions.assertEquals(TERMINOLOGY_VERSION_ID,
+        lastPublishedTemplate.path("_valueConstraints").path("ontologies").path(0)
+            .path("version").path("id").asText());
+  }
+
   private static HttpResponse<String> checkUpdateTemplate(String body) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/check-update-template/"
@@ -172,14 +235,33 @@ public class CommandVersionResourceTest {
   }
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
-    exchange.getRequestBody().readAllBytes();
+    byte[] requestBody = exchange.getRequestBody().readAllBytes();
     if (!artifactServerReturnsContent) {
       exchange.sendResponseHeaders(404, -1);
       exchange.close();
       return;
     }
 
-    byte[] response = storedTemplate.toString().getBytes(StandardCharsets.UTF_8);
+    ObjectNode responseDocument;
+    if ("PUT".equals(exchange.getRequestMethod())) {
+      lastPublishedTemplate = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      responseDocument = lastPublishedTemplate;
+    } else {
+      responseDocument = publishingArtifact ? publishTemplateDocument : storedTemplate;
+      exchange.getResponseHeaders().set("ETag", "\"fixture-etag\"");
+    }
+    byte[] response = responseDocument.toString().getBytes(StandardCharsets.UTF_8);
+    exchange.getResponseHeaders().set("Content-Type", "application/json");
+    exchange.sendResponseHeaders(200, response.length);
+    exchange.getResponseBody().write(response);
+    exchange.close();
+  }
+
+  private static void handleTerminologyRequest(HttpExchange exchange) throws IOException {
+    exchange.getRequestBody().readAllBytes();
+    terminologyRequests++;
+    byte[] response = ("{\"id\":\"" + TERMINOLOGY_VERSION_ID + "\"}")
+        .getBytes(StandardCharsets.UTF_8);
     exchange.getResponseHeaders().set("Content-Type", "application/json");
     exchange.sendResponseHeaders(200, response.length);
     exchange.getResponseBody().write(response);

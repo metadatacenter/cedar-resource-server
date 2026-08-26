@@ -67,6 +67,7 @@ class TerminologyVersionResolverTest {
         new AtomicReference<>(), status, "{\"id\":\"ignored\"}");
 
     assertTrue(resolver.currentVersionByAcronym("DOID").isEmpty());
+    assertEquals(1, resolver.getSkippedResolutionCount());
   }
 
   @Test
@@ -75,6 +76,7 @@ class TerminologyVersionResolverTest {
         new AtomicReference<>(), 200, "not-json");
 
     assertTrue(resolver.currentVersionByAcronym("DOID").isEmpty());
+    assertEquals(1, resolver.getSkippedResolutionCount());
   }
 
   @Test
@@ -83,6 +85,7 @@ class TerminologyVersionResolverTest {
         new AtomicReference<>(), 200, "{\"effectiveDate\":\"2026-07-01\"}");
 
     assertTrue(resolver.currentVersionByAcronym("DOID").isEmpty());
+    assertEquals(1, resolver.getSkippedResolutionCount());
   }
 
   @Test
@@ -91,6 +94,7 @@ class TerminologyVersionResolverTest {
         new AtomicReference<>(), 200, "{\"id\":42}");
 
     assertTrue(resolver.currentVersionByAcronym("DOID").isEmpty());
+    assertEquals(1, resolver.getSkippedResolutionCount());
   }
 
   @Test
@@ -100,6 +104,7 @@ class TerminologyVersionResolverTest {
 
     assertEquals(Optional.of(new VersionSpec("h", Optional.empty(), Optional.empty())),
         resolver.currentVersionByAcronym("DOID"));
+    assertEquals(0, resolver.getSkippedResolutionCount());
   }
 
   @Test
@@ -108,6 +113,7 @@ class TerminologyVersionResolverTest {
         "https://terms.example", null, request -> { throw new IllegalStateException("network down"); });
 
     assertTrue(resolver.currentVersionByAcronym("DOID").isEmpty());
+    assertEquals(1, resolver.getSkippedResolutionCount());
   }
 
   private TerminologyVersionResolver resolver(String base, String authorization,
