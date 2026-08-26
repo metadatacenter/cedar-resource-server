@@ -60,6 +60,10 @@ public class ArtifactServerUtil {
       throws CedarProcessingException {
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
     ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content, expectedEtag);
+    return buildPutResponse(templateProxyResponse);
+  }
+
+  static Response buildPutResponse(ClassicHttpResponse templateProxyResponse) {
     HttpEntity entity = templateProxyResponse.getEntity();
     int statusCode = templateProxyResponse.getCode();
     if (entity != null) {
@@ -68,7 +72,7 @@ public class ArtifactServerUtil {
         String responseString = EntityUtils.toString(entity, StandardCharsets.UTF_8);
         responseNode = JsonMapper.MAPPER.readTree(responseString);
       } catch (Exception e) {
-        Response.status(statusCode).build();
+        return Response.status(statusCode).build();
       }
       Response.ResponseBuilder builder = Response.status(statusCode).entity(responseNode);
       if (templateProxyResponse.getFirstHeader(HttpHeaders.ETAG) != null) {
