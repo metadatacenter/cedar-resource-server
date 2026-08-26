@@ -29,15 +29,14 @@ import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.*;
 import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarResourceType;
-import org.metadatacenter.model.GraphDbObjectBuilder;
 import org.metadatacenter.model.ResourceVersion;
 import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -218,10 +217,11 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         CedarArtifactId newId = CedarArtifactId.build(createdId, resourceType);
 
         FolderServerArtifact folderServerCreatedResource =
-            copyArtifactToFolderInGraphDb(c, sourceArtifactId, newId, targetFolderId, resourceType,
+            ArtifactCopyOperations.registerCopy(folderSession, sourceArtifactId, newId, targetFolderId,
+                resourceType,
                 ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue(),
                 ModelUtil.extractDescriptionFromResource(resourceType, jsonNode).getValue(),
-                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue());
+                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue(), null, null);
 
         if (locationHeader != null) {
           response.setHeader(locationHeader.getName(), locationHeader.getValue());
@@ -238,66 +238,6 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       }
     } catch (Exception e) {
       throw new CedarProcessingException(e);
-    }
-  }
-
-  private FolderServerArtifact copyArtifactToFolderInGraphDb(CedarRequestContext c, CedarArtifactId oldId, CedarArtifactId newId,
-                                                             CedarFolderId targetFolderId, CedarResourceType resourceType, String name,
-                                                             String description, String identifier) throws CedarException {
-
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
-
-    if (CedarResourceTypeUtil.isNotValidForRestCall(resourceType)) {
-      throw new CedarProcessingException("You passed an illegal resourceType:'" + resourceType.getValue() +
-          "'. The allowed values are:" + CedarResourceTypeUtil.getValidResourceTypesForRestCalls()).badRequest()
-          .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
-          .parameter("invalidResourceTypes", resourceType.getValue())
-          .parameter("allowedResourceTypes", CedarResourceTypeUtil.getValidResourceTypeValuesForRestCalls());
-    }
-
-    ResourceVersion version = ResourceVersion.ZERO_ZERO_ONE;
-    BiboStatus publicationStatus = BiboStatus.DRAFT;
-
-    // check existence of parent folder
-    FolderServerArtifact newResource = null;
-    FolderServerFolder parentFolder = folderSession.findFolderById(targetFolderId);
-
-    String candidatePath = null;
-    if (parentFolder == null) {
-      throw new CedarObjectNotFoundException("The parent folder is not present!")
-          .parameter("targetFolderId", targetFolderId)
-          .errorKey(CedarErrorKey.PARENT_FOLDER_NOT_FOUND);
-    } else {
-      // Later we will guarantee some kind of uniqueness for the artifact names
-      // Currently we allow duplicate names, the id is the PK
-      FolderServerArtifact oldResource = folderSession.findArtifactById(oldId);
-      if (oldResource == null) {
-        throw new CedarObjectNotFoundException("The source artifact was not found!")
-            .parameter("@id", oldId)
-            .parameter("resourceType", resourceType.getValue())
-            .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND);
-      } else {
-        FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(resourceType, newId, name, description, identifier, version, publicationStatus);
-        if (brandNewResource instanceof FolderServerSchemaArtifact schemaArtifact) {
-          schemaArtifact.setLatestVersion(true);
-          schemaArtifact.setLatestDraftVersion(publicationStatus == BiboStatus.DRAFT);
-          schemaArtifact.setLatestPublishedVersion(publicationStatus == BiboStatus.PUBLISHED);
-        }
-        if (resourceType == CedarResourceType.INSTANCE) {
-          ((FolderServerInstance) brandNewResource).setIsBasedOn(((FolderServerInstance) oldResource).getIsBasedOn());
-        }
-        newResource = folderSession.createResourceAsChildOfId(brandNewResource, targetFolderId);
-      }
-    }
-
-    if (newResource != null) {
-      folderSession.setDerivedFrom(newId, oldId);
-      return newResource;
-    } else {
-      throw new CedarProcessingException("The artifact was not created!")
-          .parameter("@id", oldId)
-          .parameter("targetFolderId", parentFolder)
-          .errorKey(CedarErrorKey.RESOURCE_NOT_CREATED);
     }
   }
 

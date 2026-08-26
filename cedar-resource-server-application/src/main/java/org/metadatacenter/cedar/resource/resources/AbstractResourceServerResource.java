@@ -38,6 +38,7 @@ import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.*;
+import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
@@ -49,9 +50,7 @@ import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExt
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
-import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessage;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
-import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageResourceType;
 import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
@@ -1059,22 +1058,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * Private methods: move these into a separate service
    */
 
-  private ValuerecommenderReindexMessage buildValuerecommenderEvent(FolderServerArtifact folderServerResource, ValuerecommenderReindexMessageActionType actionType) {
-    ValuerecommenderReindexMessage event = null;
-    if (folderServerResource.getType() == CedarResourceType.TEMPLATE) {
-      CedarTemplateId templateId = CedarTemplateId.build(folderServerResource.getId());
-      event = new ValuerecommenderReindexMessage(templateId, null, ValuerecommenderReindexMessageResourceType.TEMPLATE, actionType);
-    } else if (folderServerResource.getType() == CedarResourceType.INSTANCE) {
-      FolderServerInstance instance = (FolderServerInstance) folderServerResource;
-      CedarTemplateInstanceId instanceId = CedarTemplateInstanceId.build(instance.getId());
-      event = new ValuerecommenderReindexMessage(instance.getIsBasedOn(), instanceId, ValuerecommenderReindexMessageResourceType.INSTANCE,
-          actionType);
-    }
-    return event;
-  }
-
   protected void createIndexArtifact(FolderServerArtifact folderServerArtifact, CedarRequestContext c) throws CedarProcessingException {
-    nodeIndexingService.indexDocument(folderServerArtifact, c);
+    ArtifactCopyOperations.indexCreatedArtifact(nodeIndexingService, folderServerArtifact, c);
   }
 
   protected void createIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws CedarProcessingException {
@@ -1082,10 +1067,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected void createValuerecommenderResource(FolderServerArtifact folderServerArtifact) {
-    ValuerecommenderReindexMessage event = buildValuerecommenderEvent(folderServerArtifact, ValuerecommenderReindexMessageActionType.CREATED);
-    if (event != null) {
-      valuerecommenderReindexQueueService.enqueueEvent(event);
-    }
+    ArtifactCopyOperations.enqueueValuerecommenderUpdate(valuerecommenderReindexQueueService,
+        folderServerArtifact, ValuerecommenderReindexMessageActionType.CREATED);
   }
 
   protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c) throws CedarProcessingException {
@@ -1108,10 +1091,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected void updateValuerecommenderResource(FolderServerArtifact folderServerArtifact) {
-    ValuerecommenderReindexMessage event = buildValuerecommenderEvent(folderServerArtifact, ValuerecommenderReindexMessageActionType.UPDATED);
-    if (event != null) {
-      valuerecommenderReindexQueueService.enqueueEvent(event);
-    }
+    ArtifactCopyOperations.enqueueValuerecommenderUpdate(valuerecommenderReindexQueueService,
+        folderServerArtifact, ValuerecommenderReindexMessageActionType.UPDATED);
   }
 
   protected void removeIndexDocument(CedarFilesystemResourceId resourceId) throws CedarProcessingException {
@@ -1119,10 +1100,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected void removeValuerecommenderResource(FolderServerArtifact folderServerArtifact) {
-    ValuerecommenderReindexMessage event = buildValuerecommenderEvent(folderServerArtifact, ValuerecommenderReindexMessageActionType.DELETED);
-    if (event != null) {
-      valuerecommenderReindexQueueService.enqueueEvent(event);
-    }
+    ArtifactCopyOperations.enqueueValuerecommenderUpdate(valuerecommenderReindexQueueService,
+        folderServerArtifact, ValuerecommenderReindexMessageActionType.DELETED);
   }
 
   protected Response updateFolderNameAndDescriptionInGraphDb(CedarRequestContext c, CedarFolderId folderId) throws CedarException {
