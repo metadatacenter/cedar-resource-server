@@ -534,6 +534,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
         if (currentTemplateEntity != null) {
           try {
+            Header revisionHeader = templateCurrentProxyResponse.getFirstHeader(HttpHeaders.ETAG);
+            String expectedEtag = revisionHeader == null ? null : revisionHeader.getValue();
             String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
             JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
             String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
@@ -562,7 +564,9 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
               if (changeDescription) {
                 updateDescriptionInObject(currentTemplateJsonNode, description);
               }
-              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId, Optional.empty(), JsonMapper.MAPPER.writeValueAsString(currentTemplateJsonNode));
+              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId,
+                  Optional.empty(), JsonMapper.MAPPER.writeValueAsString(currentTemplateJsonNode), false,
+                  expectedEtag);
             } else {
               return CedarResponse.badRequest()
                   .errorKey(CedarErrorKey.NOTHING_TO_DO)

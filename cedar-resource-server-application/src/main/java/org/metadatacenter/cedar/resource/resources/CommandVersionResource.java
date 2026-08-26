@@ -164,8 +164,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     // Check update permission
     c.must(c.user()).have(updatePermission);
 
-    String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(resourceType, aid, c,
+    var artifactContent = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(resourceType, aid, c,
         microserviceUrlUtil, response);
+    String getResponse = artifactContent.content();
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
@@ -220,7 +221,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);
           Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, aid, c, content,
-              microserviceUrlUtil);
+              microserviceUrlUtil, artifactContent.etag());
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
@@ -638,8 +639,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           ((ObjectNode) newTemplateJsonNode).put(JSON_LD_ID, newTemplateIdString);
           ((ObjectNode) newTemplateJsonNode).put(PAV_VERSION, newVersion.getValue());
+          String newDraftEtag = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
+              CedarResourceType.TEMPLATE, newTemplateId, c, microserviceUrlUtil, null).etag();
           return executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
-              JsonMapper.MAPPER.writeValueAsString(newTemplateJsonNode));
+              JsonMapper.MAPPER.writeValueAsString(newTemplateJsonNode), false, newDraftEtag);
         }
       } catch (Exception e) {
         throw new CedarObjectNotFoundException(tid.getId());

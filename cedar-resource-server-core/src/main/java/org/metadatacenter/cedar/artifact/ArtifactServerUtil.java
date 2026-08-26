@@ -13,13 +13,26 @@ import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import java.nio.charset.StandardCharsets;
 
 public class ArtifactServerUtil {
 
+  public record ArtifactContent(String content, String etag) {
+  }
+
   public static String getSchemaArtifactFromArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, MicroserviceUrlUtil microserviceUrlUtil,
                                                            HttpServletResponse response) throws CedarProcessingException {
+    return getSchemaArtifactWithEtagFromArtifactServer(resourceType, id, context, microserviceUrlUtil, response).content();
+  }
+
+  public static ArtifactContent getSchemaArtifactWithEtagFromArtifactServer(CedarResourceType resourceType,
+                                                                              CedarSchemaArtifactId id,
+                                                                              CedarRequestContext context,
+                                                                              MicroserviceUrlUtil microserviceUrlUtil,
+                                                                              HttpServletResponse response)
+      throws CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
       ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
@@ -27,7 +40,9 @@ public class ArtifactServerUtil {
         ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       }
       HttpEntity entity = proxyResponse.getEntity();
-      return EntityUtils.toString(entity, StandardCharsets.UTF_8);
+      String etag = proxyResponse.getFirstHeader(HttpHeaders.ETAG) == null ? null
+          : proxyResponse.getFirstHeader(HttpHeaders.ETAG).getValue();
+      return new ArtifactContent(EntityUtils.toString(entity, StandardCharsets.UTF_8), etag);
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
@@ -35,8 +50,16 @@ public class ArtifactServerUtil {
 
   public static Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, String content,
                                                            MicroserviceUrlUtil microserviceUrlUtil) throws CedarProcessingException {
+    return putSchemaArtifactToArtifactServer(resourceType, id, context, content, microserviceUrlUtil,
+        context.getIfMatchHeader());
+  }
+
+  public static Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id,
+                                                           CedarRequestContext context, String content,
+                                                           MicroserviceUrlUtil microserviceUrlUtil, String expectedEtag)
+      throws CedarProcessingException {
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-    ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
+    ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content, expectedEtag);
     HttpEntity entity = templateProxyResponse.getEntity();
     int statusCode = templateProxyResponse.getCode();
     if (entity != null) {
@@ -47,7 +70,11 @@ public class ArtifactServerUtil {
       } catch (Exception e) {
         Response.status(statusCode).build();
       }
-      return Response.status(statusCode).entity(responseNode).build();
+      Response.ResponseBuilder builder = Response.status(statusCode).entity(responseNode);
+      if (templateProxyResponse.getFirstHeader(HttpHeaders.ETAG) != null) {
+        builder.header(HttpHeaders.ETAG, templateProxyResponse.getFirstHeader(HttpHeaders.ETAG).getValue());
+      }
+      return builder.build();
     } else {
       return Response.status(statusCode).build();
     }

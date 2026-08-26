@@ -11,6 +11,8 @@ import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
 
@@ -20,6 +22,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -47,15 +50,18 @@ public class TemplatesResourceWriteRejectionTest {
 
   private static String authHeaderUser1;
   private static String authHeaderAdmin;
+  private static String authHeaderUser2;
+  private static CedarConfig cedarConfig;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
-    CedarConfig cedarConfig = CedarConfig.getInstance(environment);
+    cedarConfig = CedarConfig.getInstance(environment);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     authHeaderUser1 = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     authHeaderAdmin = TestAuthUtil.getAdminUserAuthHeader(cedarConfig);
+    authHeaderUser2 = TestAuthUtil.getTestUser2AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
   }
 
@@ -131,6 +137,22 @@ public class TemplatesResourceWriteRejectionTest {
     Assertions.assertEquals(400, response.statusCode());
     Assertions.assertTrue(response.body().contains("verbatimWriteRefused"));
     Assertions.assertTrue(response.body().contains("needs a JSON body"));
+  }
+
+  @Test
+  public void templateUpdatePermissionAloneCannotCreateByPut() throws Exception {
+    CedarUser updateOnlyUser = TestAuthUtil.getTestUser2(cedarConfig);
+    List<String> originalPermissions = List.copyOf(updateOnlyUser.getPermissions());
+    updateOnlyUser.setPermissions(List.of(CedarPermission.LOGGED_IN.getPermissionName(),
+        CedarPermission.TEMPLATE_UPDATE.getPermissionName()));
+    try {
+      String absentId = "https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c724";
+      HttpResponse<String> response = putTemplate(absentId, "", "{}", "application/json",
+          authHeaderUser2);
+      Assertions.assertEquals(403, response.statusCode());
+    } finally {
+      updateOnlyUser.setPermissions(originalPermissions);
+    }
   }
 
 }

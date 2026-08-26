@@ -152,7 +152,9 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       CedarTypedSchemaArtifactId targetArtifactId = CedarResourceTypeUtil.buildTypedArtifactId(todo.getTargetId());
 
       String sourceArtifact = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(sourceArtifactId.getType(), sourceArtifactId, c, microserviceUrlUtil, null);
-      String targetArtifact = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(targetArtifactId.getType(), targetArtifactId, c, microserviceUrlUtil, null);
+      var targetArtifactContent = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
+          targetArtifactId.getType(), targetArtifactId, c, microserviceUrlUtil, null);
+      String targetArtifact = targetArtifactContent.content();
       JsonNode sourceJsonNode = JsonMapper.MAPPER.readTree(sourceArtifact);
       JsonNode targetJsonNode = JsonMapper.MAPPER.readTree(targetArtifact);
 
@@ -166,7 +168,8 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       }
       String newTargetContent = JsonMapper.MAPPER.writeValueAsString(targetJsonNode);
 
-      Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(targetArtifactId.getType(), targetArtifactId, c, newTargetContent, microserviceUrlUtil);
+      Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(targetArtifactId.getType(),
+          targetArtifactId, c, newTargetContent, microserviceUrlUtil, targetArtifactContent.etag());
       int putStatus = putResponse.getStatus();
       if (putStatus >= 400) {
         log.error("The artifact server refused the propagation of {} into {} with status {}",

@@ -235,7 +235,6 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);

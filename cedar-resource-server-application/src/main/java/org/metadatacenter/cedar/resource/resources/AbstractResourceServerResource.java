@@ -417,6 +417,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       return generateStatusResponse(proxyResponse);
     }
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     try {
       String artifactSource = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
       JsonNode artifactNode = JsonMapper.MAPPER.readTree(artifactSource);
@@ -554,13 +555,30 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId, String content, boolean verbatim) throws CedarException {
+    return executeResourceCreateOrUpdateViaPut(context, resourceType, id, folderId, content, verbatim,
+        context.getIfMatchHeader());
+  }
+
+  protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType,
+                                                          CedarArtifactId id, Optional<String> folderId, String content,
+                                                          boolean verbatim, String expectedEtag) throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
     if (folderServerOldResource != null) {
+      context.must(context.user()).have(CedarPermission.getUpdateForArtifactType(resourceType));
+      if (expectedEtag == null || expectedEtag.isBlank()) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+            .id(id)
+            .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
+            .errorMessage("Updating an existing artifact requires the ETag returned by GET in If-Match")
+            .build();
+      }
       userMustHaveWriteAccessToArtifact(context, id);
-      return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, verbatim);
+      return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, verbatim,
+          expectedEtag);
     } else {
+      context.must(context.user()).have(CedarPermission.getCreateForArtifactType(resourceType));
       // A verbatim write replaces a document this server already holds. Routing it to creation instead
       // would answer 201 to a request that asserted the artifact exists, so a mistyped identifier would
       // leave a copy under an identifier nothing refers to.
@@ -580,6 +598,15 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, String content, boolean verbatim) throws CedarException {
+    return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, verbatim,
+        context.getIfMatchHeader());
+  }
+
+  protected Response executeResourceUpdateOnArtifactServerAndGraphDb(CedarRequestContext context,
+                                                                       CedarResourceType resourceType,
+                                                                       CedarArtifactId id, String content,
+                                                                       boolean verbatim, String expectedEtag)
+      throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(id);
 
@@ -634,7 +661,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         url += (url.contains("?") ? "&" : "?") + QP_VERBATIM + "=true";
       }
 
-      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
+      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content, expectedEtag);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
       int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpConstants.CREATED && statusCode != HttpConstants.OK) {
