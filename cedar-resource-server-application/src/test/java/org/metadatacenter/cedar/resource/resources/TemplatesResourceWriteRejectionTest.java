@@ -100,6 +100,16 @@ public class TemplatesResourceWriteRejectionTest {
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
+  private HttpResponse<String> postCommand(String command, String body) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/" + command))
+        .header("Authorization", authHeaderUser1)
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
   private HttpResponse<String> putTemplate(String id, String query, String body, String contentType,
                                            String authHeader) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
@@ -188,6 +198,36 @@ public class TemplatesResourceWriteRejectionTest {
     Assertions.assertTrue(error.path("sourceException").isMissingNode()
         || error.path("sourceException").isNull(), response.body());
     Assertions.assertFalse(response.body().contains("127.0.0.1"), response.body());
+  }
+
+  @Test
+  public void unavailableArtifactServerRemainsServiceUnavailableThroughValidationCommand() throws Exception {
+    HttpResponse<String> response = postCommand("validate?resourceType=template", "{}");
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
+  }
+
+  @Test
+  public void unavailableTemplateLookupRemainsServiceUnavailableForYamlInstances() throws Exception {
+    String body = "type: instance\n"
+        + "name: Outage fixture\n"
+        + "isBasedOn: https://repo.metadatacenter.org/templates/outage\n";
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/template-instances"))
+        .header("Authorization", authHeaderUser1)
+        .header("Content-Type", "application/yaml")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
   }
 
   @Test

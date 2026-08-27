@@ -193,6 +193,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
         originalDocument = jsonNode.toString();
       }
+    } catch (CedarException e) {
+      throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
@@ -236,6 +238,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
           return Response.ok().build();
         }
       }
+    } catch (CedarException e) {
+      throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }

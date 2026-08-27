@@ -155,6 +155,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         URI locationURI = new URI(location);
         return Response.created(locationURI).type(mediaType).entity(entity.getContent()).build();
       }
+    } catch (CedarProcessingException e) {
+      throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
@@ -468,6 +470,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     if (ArtifactYamlTranscoder.isYaml(httpHeaders.getMediaType())) {
       try {
         return ArtifactYamlTranscoder.yamlToJsonString(requestBody, resourceType, templateResolver);
+      } catch (IOException e) {
+        if (e.getCause() instanceof CedarException cedarException) {
+          throw cedarException;
+        }
+        throw new CedarBadRequestException("There was an error converting the YAML request body to JSON", e);
       } catch (Exception e) {
         throw new CedarBadRequestException("There was an error converting the YAML request body to JSON", e);
       }
@@ -918,6 +925,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           log.warn("Artifact not found on artifact server, but still trying to delete from Neo4j. Id:" + id);
         }
       }
+    } catch (CedarException e) {
+      throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }

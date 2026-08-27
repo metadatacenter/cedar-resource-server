@@ -9,7 +9,10 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
@@ -41,6 +44,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /** Endpoint tests for commands that copy artifacts through the artifact service. */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CommandFileSystemResourceTest {
 
   private static final int ARTIFACT_PORT = 19317;
@@ -118,6 +122,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
+  @Order(1)
   public void copyInterpolatesTheSourceArtifactName() throws Exception {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"targetFolderId\":\"" + homeFolderId.getId() + "\","
@@ -139,6 +144,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
+  @Order(2)
   public void moveMissingResourceReturnsNotFound() throws Exception {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"targetFolderId\":\"" + homeFolderId.getId() + "\"}";
@@ -149,6 +155,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
+  @Order(3)
   public void renameMissingResourceReturnsNotFound() throws Exception {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
@@ -156,6 +163,35 @@ public class CommandFileSystemResourceTest {
     HttpResponse<String> response = postCommand("rename-resource", body);
 
     Assertions.assertEquals(404, response.statusCode(), response.body());
+  }
+
+  @Test
+  @Order(4)
+  public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
+    artifactServer.stop(0);
+    artifactServer = null;
+
+    String copyBody = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\","
+        + "\"nameTemplate\":\"Copy of {{name}}\"}";
+    HttpResponse<String> copyResponse = postCommand("copy-artifact-to-folder", copyBody);
+    assertServiceUnavailable(copyResponse);
+
+    HttpRequest deleteRequest = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + java.net.URLEncoder.encode(sourceArtifact.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader)
+        .DELETE()
+        .build();
+    HttpResponse<String> deleteResponse = CLIENT.send(deleteRequest, HttpResponse.BodyHandlers.ofString());
+    assertServiceUnavailable(deleteResponse);
+  }
+
+  private static void assertServiceUnavailable(HttpResponse<String> response) throws IOException {
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
   }
 
   private static HttpResponse<String> postCommand(String command, String body) throws Exception {
