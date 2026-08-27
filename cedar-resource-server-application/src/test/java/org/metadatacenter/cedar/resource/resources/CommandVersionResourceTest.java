@@ -25,6 +25,7 @@ import org.metadatacenter.id.CedarTemplateId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
 import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -47,9 +48,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Failure classification tests for template-version commands. */
@@ -85,16 +83,20 @@ public class CommandVersionResourceTest {
   private static CedarTemplateId publishTemplateId;
   private static CedarTemplateId failedCreateTemplateId;
   private static CedarFolderId homeFolderId;
+  private static CedarFolderId failedCreateFolderId;
+  private static FolderServiceSession folderSession;
   private static ObjectNode storedTemplate;
   private static ObjectNode publishTemplateDocument;
   private static ObjectNode lastPublishedTemplate;
+  private static ObjectNode currentUpdateArtifact;
   private static volatile boolean artifactServerReturnsContent;
   private static volatile boolean publishingArtifact;
   private static volatile int terminologyRequests;
+  private static volatile boolean updatingArtifact;
+  private static volatile boolean rollbackUsedReplacementEtag;
   private static volatile boolean creatingArtifact;
   private static volatile boolean createdArtifactPresent;
-  private static CountDownLatch artifactWriteReached;
-  private static CountDownLatch allowArtifactResponse;
+  private static final AtomicInteger COMPENSATING_RESTORES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
 
   @BeforeAll
@@ -120,10 +122,16 @@ public class CommandVersionResourceTest {
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
-    FolderServiceSession folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
+    folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
     homeFolderId = folderSession.findHomeFolderOf().getResourceId();
     failedCreateTemplateId = CedarTemplateId.build(
         cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    FolderServerFolder failedCreateFolder = new FolderServerFolder();
+    failedCreateFolder.setName("Create compensation parent");
+    failedCreateFolder.setDescription("Removed after the artifact write to make the graph create fail");
+    failedCreateFolderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    Assertions.assertNotNull(
+        folderSession.createFolderAsChildOfId(failedCreateFolder, homeFolderId, failedCreateFolderId));
 
     FolderServerTemplate template = new FolderServerTemplate();
     template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
@@ -182,10 +190,12 @@ public class CommandVersionResourceTest {
     publishingArtifact = false;
     terminologyRequests = 0;
     lastPublishedTemplate = null;
+    currentUpdateArtifact = storedTemplate.deepCopy();
+    updatingArtifact = false;
+    rollbackUsedReplacementEtag = false;
     creatingArtifact = false;
     createdArtifactPresent = false;
-    artifactWriteReached = new CountDownLatch(1);
-    allowArtifactResponse = new CountDownLatch(1);
+    COMPENSATING_RESTORES.set(0);
     COMPENSATING_DELETES.set(0);
   }
 
@@ -246,9 +256,40 @@ public class CommandVersionResourceTest {
   }
 
   /**
-   * The artifact server commits before the workspace graph does. If Neo4j disappears in that gap,
-   * the failed create must delete the just-created artifact instead of leaving a graphless record
-   * that the caller cannot discover or clean up.
+   * A replacement reaches the artifact store before its metadata reaches Neo4j. Simulate the graph
+   * record disappearing in that interval and require the old document to be restored with the ETag
+   * of the replacement, so compensation cannot overwrite a still-newer concurrent edit.
+   */
+  @Test
+  @Order(Integer.MAX_VALUE - 1)
+  public void graphFailureAfterArtifactUpdateConditionallyRestoresThePreImage() throws Exception {
+    updatingArtifact = true;
+    ObjectNode replacement = storedTemplate.deepCopy();
+    replacement.put("schema:name", "Replacement that must be rolled back");
+
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(templateId.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .header("If-Match", "\"fixture-etag\"")
+        .PUT(HttpRequest.BodyPublishers.ofString(replacement.toString()))
+        .build();
+
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(404, response.statusCode(), response.body());
+    Assertions.assertEquals(storedTemplate, currentUpdateArtifact,
+        "the artifact document was not restored after the graph update failed");
+    Assertions.assertEquals(1, COMPENSATING_RESTORES.get());
+    Assertions.assertTrue(rollbackUsedReplacementEtag,
+        "the rollback was not guarded by the ETag of the document it replaced");
+  }
+
+  /**
+   * The artifact server commits before the workspace graph does. If the chosen parent disappears in
+   * that gap, the failed create must delete the just-created artifact instead of leaving a graphless
+   * record that the caller cannot discover or clean up.
    */
   @Test
   @Order(Integer.MAX_VALUE)
@@ -260,31 +301,15 @@ public class CommandVersionResourceTest {
 
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates?folder_id="
-            + URLEncoder.encode(homeFolderId.getId(), StandardCharsets.UTF_8)))
+            + URLEncoder.encode(failedCreateFolderId.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authHeader)
         .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(requestDocument.toString()))
         .build();
 
-    CompletableFuture<HttpResponse<String>> pending = CompletableFuture.supplyAsync(() -> {
-      try {
-        return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    });
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
-    Assertions.assertTrue(artifactWriteReached.await(5, TimeUnit.SECONDS),
-        "the fake artifact server never accepted the create");
-    try {
-      EmbeddedCedarNeo4j.stopAndReset();
-    } finally {
-      allowArtifactResponse.countDown();
-    }
-
-    HttpResponse<String> response = pending.get(90, TimeUnit.SECONDS);
-
-    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Assertions.assertEquals(400, response.statusCode(), response.body());
     Assertions.assertFalse(createdArtifactPresent,
         "the resource server left the failed create in the artifact store");
     Assertions.assertEquals(1, COMPENSATING_DELETES.get(),
@@ -304,21 +329,28 @@ public class CommandVersionResourceTest {
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
+    if (updatingArtifact && "GET".equals(exchange.getRequestMethod())) {
+      sendArtifactResponse(exchange, currentUpdateArtifact, "\"fixture-etag\"");
+      return;
+    }
+    if (updatingArtifact && "PUT".equals(exchange.getRequestMethod())) {
+      String ifMatch = exchange.getRequestHeaders().getFirst("If-Match");
+      ObjectNode submitted = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      if ("\"fixture-etag\"".equals(ifMatch)) {
+        currentUpdateArtifact = submitted;
+        folderSession.deleteResourceById(templateId);
+        sendArtifactResponse(exchange, currentUpdateArtifact, "\"replacement-etag\"");
+      } else {
+        rollbackUsedReplacementEtag = "\"replacement-etag\"".equals(ifMatch);
+        currentUpdateArtifact = submitted;
+        COMPENSATING_RESTORES.incrementAndGet();
+        sendArtifactResponse(exchange, currentUpdateArtifact, "\"restored-etag\"");
+      }
+      return;
+    }
     if (creatingArtifact && "POST".equals(exchange.getRequestMethod())) {
       createdArtifactPresent = true;
-      artifactWriteReached.countDown();
-      try {
-        if (!allowArtifactResponse.await(10, TimeUnit.SECONDS)) {
-          exchange.sendResponseHeaders(500, -1);
-          exchange.close();
-          return;
-        }
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        exchange.sendResponseHeaders(500, -1);
-        exchange.close();
-        return;
-      }
+      folderSession.deleteFolderById(failedCreateFolderId);
       ObjectNode created = storedTemplate.deepCopy();
       created.put("@id", failedCreateTemplateId.getId());
       created.put("schema:name", "Compensated create fixture");
@@ -353,6 +385,16 @@ public class CommandVersionResourceTest {
     }
     byte[] response = responseDocument.toString().getBytes(StandardCharsets.UTF_8);
     exchange.getResponseHeaders().set("Content-Type", "application/json");
+    exchange.sendResponseHeaders(200, response.length);
+    exchange.getResponseBody().write(response);
+    exchange.close();
+  }
+
+  private static void sendArtifactResponse(HttpExchange exchange, ObjectNode document, String etag)
+      throws IOException {
+    byte[] response = document.toString().getBytes(StandardCharsets.UTF_8);
+    exchange.getResponseHeaders().set("Content-Type", "application/json");
+    exchange.getResponseHeaders().set("ETag", etag);
     exchange.sendResponseHeaders(200, response.length);
     exchange.getResponseBody().write(response);
     exchange.close();

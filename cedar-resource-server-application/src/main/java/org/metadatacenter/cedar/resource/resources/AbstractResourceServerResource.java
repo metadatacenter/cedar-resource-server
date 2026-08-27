@@ -654,11 +654,24 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       }
     }
 
+    boolean artifactUpdated = false;
+    boolean graphUpdated = false;
+    ArtifactPreImage artifactPreImage = null;
+    String replacementEtag = null;
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
       if (verbatim) {
         url += (url.contains("?") ? "&" : "?") + QP_VERBATIM + "=true";
       }
+
+      ClassicHttpResponse currentArtifactResponse = ProxyUtil.proxyGet(url, context);
+      if (currentArtifactResponse.getCode() != HttpStatus.SC_OK) {
+        ProxyUtil.proxyResponseHeaders(currentArtifactResponse, response);
+        return generateStatusResponse(currentArtifactResponse);
+      }
+      artifactPreImage = new ArtifactPreImage(
+          EntityUtils.toString(currentArtifactResponse.getEntity(), StandardCharsets.UTF_8),
+          headerValue(currentArtifactResponse, HttpHeaders.ETAG));
 
       ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content, expectedEtag);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
@@ -667,10 +680,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         String templateProxyResponseContent = EntityUtils.toString(templateProxyResponse.getEntity(), StandardCharsets.UTF_8);
         return CedarResponse.status(CedarResponseStatus.fromStatusCode(statusCode)).entity(templateProxyResponseContent).build();
       }
-
-      // The artifact server has accepted and stored the replacement. Log only now: validation,
-      // publication/DOI checks, or an artifact-server refusal must not leave a false write trail.
-      logPrivilegedWrite(context, id, folderServerOldResource, verbatim, content);
+      artifactUpdated = true;
+      replacementEtag = headerValue(templateProxyResponse, HttpHeaders.ETAG);
 
       // artifact was updated
       HttpEntity templateEntity = templateProxyResponse.getEntity();
@@ -705,6 +716,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         if (updatedResource == null) {
           return CedarResponse.internalServerError().build();
         } else {
+          graphUpdated = true;
+          // Both primary stores now describe the replacement. Logging before the graph write would
+          // leave a false successful-write trail when the artifact compensation below restores it.
+          logPrivilegedWrite(context, id, folderServerOldResource, verbatim, content);
           updateInclusionSubgraphIfNeeded(context, updatedResource, templateJsonNode);
           updateIndexResource(updatedResource, context);
           updateValuerecommenderResource(updatedResource);
@@ -722,6 +737,52 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
+    } finally {
+      if (artifactUpdated && !graphUpdated) {
+        restoreArtifactAfterFailedGraphUpdate(context, resourceType, id, artifactPreImage, replacementEtag,
+            verbatim);
+      }
+    }
+  }
+
+  private record ArtifactPreImage(String content, String etag) {
+  }
+
+  private static String headerValue(ClassicHttpResponse response, String name) {
+    return response.getFirstHeader(name) == null ? null : response.getFirstHeader(name).getValue();
+  }
+
+  /**
+   * Restores the artifact document when its corresponding graph update did not commit.
+   *
+   * <p>The rollback is conditional on the ETag returned by the successful replacement. If another
+   * writer changes the document before compensation runs, the artifact server refuses this PUT and
+   * their newer content is preserved. Like create cleanup, this is best effort: the original graph
+   * failure remains the response, while any inability to restore is recorded with the artifact id.
+   */
+  private void restoreArtifactAfterFailedGraphUpdate(CedarRequestContext context, CedarResourceType resourceType,
+                                                     CedarArtifactId artifactId, ArtifactPreImage preImage,
+                                                     String replacementEtag, boolean verbatim) {
+    if (preImage == null || replacementEtag == null || replacementEtag.isBlank()) {
+      log.error("Failed graph update left {} changed on the artifact server: conditional rollback is unavailable",
+          artifactId);
+      return;
+    }
+    try {
+      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
+      if (verbatim) {
+        url += (url.contains("?") ? "&" : "?") + QP_VERBATIM + "=true";
+      }
+      ClassicHttpResponse rollbackResponse =
+          ProxyUtil.proxyPut(url, context, preImage.content(), replacementEtag);
+      int status = rollbackResponse.getCode();
+      if (status != HttpConstants.CREATED && status != HttpConstants.OK) {
+        log.error("Failed graph update left {} changed on the artifact server: conditional rollback answered {}",
+            artifactId, status);
+      }
+    } catch (Exception e) {
+      log.error("Failed graph update left {} changed on the artifact server: conditional rollback failed",
+          artifactId, e);
     }
   }
 
