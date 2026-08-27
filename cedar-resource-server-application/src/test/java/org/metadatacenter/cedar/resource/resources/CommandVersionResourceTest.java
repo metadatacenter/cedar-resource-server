@@ -57,6 +57,7 @@ public class CommandVersionResourceTest {
   private static final int ARTIFACT_PORT = 19327;
   private static final int TERMINOLOGY_PORT = 19328;
   private static final String TERMINOLOGY_VERSION_ID = "doid-version-hash";
+  private static final String UNRESOLVED_ONTOLOGY = "UNRESOLVED";
 
   static {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
@@ -272,10 +273,10 @@ public class CommandVersionResourceTest {
     publishTemplateDocument.put("schema:name", "Freeze-on-publish fixture");
     publishTemplateDocument.put("pav:version", "1.0.0");
     publishTemplateDocument.put("bibo:status", "bibo:draft");
-    publishTemplateDocument.putObject("_valueConstraints")
-        .putArray("ontologies")
-        .addObject()
-        .put("acronym", "DOID");
+    var publishOntologies = publishTemplateDocument.putObject("_valueConstraints")
+        .putArray("ontologies");
+    publishOntologies.addObject().put("acronym", "DOID");
+    publishOntologies.addObject().put("acronym", UNRESOLVED_ONTOLOGY);
     draftStatusMismatchDocument = publishTemplateDocument.deepCopy();
     draftStatusMismatchDocument.put("@id", draftStatusMismatchTemplateId.getId());
     draftStatusMismatchDocument.put("schema:name", "Draft status guard fixture");
@@ -353,7 +354,7 @@ public class CommandVersionResourceTest {
   }
 
   @Test
-  public void publishUsesTerminologyServerFromCedarConfig() throws Exception {
+  public void publishPinsResolvableTerminologyAndLeavesUnresolvedConstraintsUnpinned() throws Exception {
     publishingArtifact = true;
     String body = "{\"@id\":\"" + publishTemplateId.getId() + "\",\"newVersion\":\"1.0.1\"}";
     HttpRequest request = HttpRequest.newBuilder()
@@ -366,11 +367,15 @@ public class CommandVersionResourceTest {
     HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
-    Assertions.assertEquals(1, terminologyRequests);
+    Assertions.assertEquals(2, terminologyRequests);
     Assertions.assertNotNull(lastPublishedTemplate);
     Assertions.assertEquals(TERMINOLOGY_VERSION_ID,
         lastPublishedTemplate.path("_valueConstraints").path("ontologies").path(0)
             .path("version").path("id").asText());
+    Assertions.assertFalse(
+        lastPublishedTemplate.path("_valueConstraints").path("ontologies").path(1).has("version"),
+        "an unresolved ontology was stamped with a version");
+    Assertions.assertEquals("bibo:published", lastPublishedTemplate.path("bibo:status").asText());
   }
 
   @Test
@@ -732,6 +737,11 @@ public class CommandVersionResourceTest {
   private static void handleTerminologyRequest(HttpExchange exchange) throws IOException {
     exchange.getRequestBody().readAllBytes();
     terminologyRequests++;
+    if (exchange.getRequestURI().getPath().contains("/" + UNRESOLVED_ONTOLOGY + "/")) {
+      exchange.sendResponseHeaders(404, -1);
+      exchange.close();
+      return;
+    }
     byte[] response = ("{\"id\":\"" + TERMINOLOGY_VERSION_ID + "\"}")
         .getBytes(StandardCharsets.UTF_8);
     exchange.getResponseHeaders().set("Content-Type", "application/json");
