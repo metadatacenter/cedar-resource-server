@@ -81,6 +81,7 @@ public class CommandVersionResourceTest {
   private static String authHeader;
   private static CedarTemplateId templateId;
   private static CedarTemplateId publishTemplateId;
+  private static CedarTemplateId draftStatusMismatchTemplateId;
   private static CedarTemplateId failedPublishTemplateId;
   private static CedarTemplateId failedDraftTemplateId;
   private static CedarTemplateId deleteRetryTemplateId;
@@ -93,6 +94,7 @@ public class CommandVersionResourceTest {
   private static FolderServiceSession folderSession;
   private static ObjectNode storedTemplate;
   private static ObjectNode publishTemplateDocument;
+  private static ObjectNode draftStatusMismatchDocument;
   private static ObjectNode failedPublishTemplateDocument;
   private static ObjectNode currentFailedPublishArtifact;
   private static ObjectNode currentVersionRetryArtifact;
@@ -100,6 +102,7 @@ public class CommandVersionResourceTest {
   private static ObjectNode currentUpdateArtifact;
   private static volatile boolean artifactServerReturnsContent;
   private static volatile boolean publishingArtifact;
+  private static volatile boolean draftingFromDraft;
   private static volatile boolean failingDraft;
   private static volatile boolean retryingDelete;
   private static volatile boolean retryingVersionCommands;
@@ -117,6 +120,7 @@ public class CommandVersionResourceTest {
   private static final AtomicInteger DELETE_RETRY_ARTIFACT_CALLS = new AtomicInteger();
   private static final AtomicInteger VERSION_RETRY_PUBLISH_WRITES = new AtomicInteger();
   private static final AtomicInteger VERSION_RETRY_DRAFT_WRITES = new AtomicInteger();
+  private static final AtomicInteger DRAFT_STATUS_GUARD_POSTS = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
 
   @BeforeAll
@@ -220,6 +224,21 @@ public class CommandVersionResourceTest {
     Assertions.assertNotNull(createdPublishTemplate);
     publishTemplateId = CedarTemplateId.build(createdPublishTemplate.getId());
 
+    FolderServerTemplate draftStatusMismatchTemplate = new FolderServerTemplate();
+    draftStatusMismatchTemplate.setId(
+        cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    draftStatusMismatchTemplate.setName("Draft status guard fixture");
+    draftStatusMismatchTemplate.setDescription("Graph allows drafting, but content is still a draft");
+    draftStatusMismatchTemplate.setVersion("1.0.0");
+    draftStatusMismatchTemplate.setPublicationStatus("bibo:published");
+    draftStatusMismatchTemplate.setLatestVersion(true);
+    draftStatusMismatchTemplate.setLatestDraftVersion(false);
+    draftStatusMismatchTemplate.setLatestPublishedVersion(true);
+    FolderServerArtifact createdDraftStatusMismatchTemplate =
+        folderSession.createResourceAsChildOfId(draftStatusMismatchTemplate, homeFolderId);
+    Assertions.assertNotNull(createdDraftStatusMismatchTemplate);
+    draftStatusMismatchTemplateId = CedarTemplateId.build(createdDraftStatusMismatchTemplate.getId());
+
     FolderServerTemplate failedPublishTemplate = new FolderServerTemplate();
     failedPublishTemplate.setId(
         cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
@@ -257,6 +276,10 @@ public class CommandVersionResourceTest {
         .putArray("ontologies")
         .addObject()
         .put("acronym", "DOID");
+    draftStatusMismatchDocument = publishTemplateDocument.deepCopy();
+    draftStatusMismatchDocument.put("@id", draftStatusMismatchTemplateId.getId());
+    draftStatusMismatchDocument.put("schema:name", "Draft status guard fixture");
+    draftStatusMismatchDocument.put("bibo:status", "bibo:draft");
     failedPublishTemplateDocument = publishTemplateDocument.deepCopy();
     failedPublishTemplateDocument.put("@id", failedPublishTemplateId.getId());
     failedPublishTemplateDocument.put("schema:name", "Publish compensation fixture");
@@ -269,6 +292,7 @@ public class CommandVersionResourceTest {
   public void resetArtifactServer() {
     artifactServerReturnsContent = true;
     publishingArtifact = false;
+    draftingFromDraft = false;
     failingDraft = false;
     retryingDelete = false;
     retryingVersionCommands = false;
@@ -289,6 +313,7 @@ public class CommandVersionResourceTest {
     DELETE_RETRY_ARTIFACT_CALLS.set(0);
     VERSION_RETRY_PUBLISH_WRITES.set(0);
     VERSION_RETRY_DRAFT_WRITES.set(0);
+    DRAFT_STATUS_GUARD_POSTS.set(0);
     COMPENSATING_DELETES.set(0);
   }
 
@@ -346,6 +371,21 @@ public class CommandVersionResourceTest {
     Assertions.assertEquals(TERMINOLOGY_VERSION_ID,
         lastPublishedTemplate.path("_valueConstraints").path("ontologies").path(0)
             .path("version").path("id").asText());
+  }
+
+  @Test
+  public void draftCreationChecksTheArtifactContentIsPublished() throws Exception {
+    draftingFromDraft = true;
+    String body = "{\"@id\":\"" + draftStatusMismatchTemplateId.getId()
+        + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
+        + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}";
+
+    HttpResponse<String> response = postVersionCommand("create-draft-artifact", body);
+
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    Assertions.assertTrue(response.body().contains("createDraftOnlyFromPublished"), response.body());
+    Assertions.assertEquals(0, DRAFT_STATUS_GUARD_POSTS.get(),
+        "the rejected draft source reached the artifact create endpoint");
   }
 
   /** Ambiguous successful responses may be retried, but must not create another version. */
@@ -535,6 +575,16 @@ public class CommandVersionResourceTest {
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
+    if (draftingFromDraft && "GET".equals(exchange.getRequestMethod())) {
+      sendArtifactResponse(exchange, draftStatusMismatchDocument, "\"draft-status-etag\"");
+      return;
+    }
+    if (draftingFromDraft && "POST".equals(exchange.getRequestMethod())) {
+      DRAFT_STATUS_GUARD_POSTS.incrementAndGet();
+      exchange.sendResponseHeaders(500, -1);
+      exchange.close();
+      return;
+    }
     if (retryingVersionCommands && "GET".equals(exchange.getRequestMethod())) {
       sendArtifactResponse(exchange, currentVersionRetryArtifact, "\"version-retry-etag\"");
       return;
@@ -564,7 +614,9 @@ public class CommandVersionResourceTest {
       return;
     }
     if (failingDraft && "GET".equals(exchange.getRequestMethod())) {
-      sendArtifactResponse(exchange, failedPublishTemplateDocument, "\"fixture-etag\"");
+      ObjectNode publishedSource = failedPublishTemplateDocument.deepCopy();
+      publishedSource.put("bibo:status", "bibo:published");
+      sendArtifactResponse(exchange, publishedSource, "\"fixture-etag\"");
       return;
     }
     if (failingDraft && "POST".equals(exchange.getRequestMethod())) {

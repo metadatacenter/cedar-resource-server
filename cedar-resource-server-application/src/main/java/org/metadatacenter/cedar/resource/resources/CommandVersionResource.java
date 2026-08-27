@@ -423,6 +423,20 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
         if (getJsonNode != null) {
 
+          // Only a published artifact may be the source of a draft. As with publishing above, the
+          // permission report is computed from graph metadata and is not a sufficient state guard:
+          // a newly-created draft was observed with isCanCreateDraft() set, allowing a draft to mint
+          // another draft. The artifact server document is the content-state source of truth.
+          JsonNode oldStatusNode = getJsonNode.get(BIBO_STATUS);
+          if (oldStatusNode == null
+              || !BiboStatus.PUBLISHED.getValue().equals(oldStatusNode.textValue())) {
+            return CedarResponse.badRequest()
+                .errorKey(CedarErrorKey.CREATE_DRAFT_ONLY_FROM_PUBLISHED)
+                .errorMessage("A draft can only be created from a published artifact.")
+                .parameter("id", aid.getId())
+                .build();
+          }
+
           ResourceVersion oldVersion = null;
           JsonNode oldVersionNode = getJsonNode.at(ModelPaths.PAV_VERSION);
           if (oldVersionNode != null) {
