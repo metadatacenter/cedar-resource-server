@@ -82,9 +82,11 @@ public class CommandVersionResourceTest {
   private static CedarTemplateId templateId;
   private static CedarTemplateId publishTemplateId;
   private static CedarTemplateId failedPublishTemplateId;
+  private static CedarTemplateId failedDraftTemplateId;
   private static CedarTemplateId failedCreateTemplateId;
   private static CedarFolderId homeFolderId;
   private static CedarFolderId failedCreateFolderId;
+  private static CedarFolderId failedDraftFolderId;
   private static FolderServiceSession folderSession;
   private static ObjectNode storedTemplate;
   private static ObjectNode publishTemplateDocument;
@@ -94,6 +96,8 @@ public class CommandVersionResourceTest {
   private static ObjectNode currentUpdateArtifact;
   private static volatile boolean artifactServerReturnsContent;
   private static volatile boolean publishingArtifact;
+  private static volatile boolean failingDraft;
+  private static volatile boolean failedDraftArtifactPresent;
   private static volatile boolean failingPublish;
   private static volatile boolean publishRollbackUsedReplacementEtag;
   private static volatile int terminologyRequests;
@@ -103,6 +107,7 @@ public class CommandVersionResourceTest {
   private static volatile boolean createdArtifactPresent;
   private static final AtomicInteger COMPENSATING_RESTORES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_PUBLISH_RESTORES = new AtomicInteger();
+  private static final AtomicInteger COMPENSATING_DRAFT_DELETES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
 
   @BeforeAll
@@ -138,6 +143,14 @@ public class CommandVersionResourceTest {
     failedCreateFolderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
     Assertions.assertNotNull(
         folderSession.createFolderAsChildOfId(failedCreateFolder, homeFolderId, failedCreateFolderId));
+    failedDraftTemplateId = CedarTemplateId.build(
+        cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    FolderServerFolder failedDraftFolder = new FolderServerFolder();
+    failedDraftFolder.setName("Draft compensation parent");
+    failedDraftFolder.setDescription("Removed after the draft artifact write to make graph creation fail");
+    failedDraftFolderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    Assertions.assertNotNull(
+        folderSession.createFolderAsChildOfId(failedDraftFolder, homeFolderId, failedDraftFolderId));
 
     FolderServerTemplate template = new FolderServerTemplate();
     template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
@@ -212,6 +225,8 @@ public class CommandVersionResourceTest {
   public void resetArtifactServer() {
     artifactServerReturnsContent = true;
     publishingArtifact = false;
+    failingDraft = false;
+    failedDraftArtifactPresent = false;
     failingPublish = false;
     publishRollbackUsedReplacementEtag = false;
     currentFailedPublishArtifact = failedPublishTemplateDocument.deepCopy();
@@ -224,6 +239,7 @@ public class CommandVersionResourceTest {
     createdArtifactPresent = false;
     COMPENSATING_RESTORES.set(0);
     COMPENSATING_PUBLISH_RESTORES.set(0);
+    COMPENSATING_DRAFT_DELETES.set(0);
     COMPENSATING_DELETES.set(0);
   }
 
@@ -281,6 +297,31 @@ public class CommandVersionResourceTest {
     Assertions.assertEquals(TERMINOLOGY_VERSION_ID,
         lastPublishedTemplate.path("_valueConstraints").path("ontologies").path(0)
             .path("version").path("id").asText());
+  }
+
+  /** A draft artifact whose graph node cannot be created must be discarded without demoting its source. */
+  @Test
+  @Order(Integer.MAX_VALUE - 3)
+  public void graphFailureAfterDraftCreateDiscardsTheArtifactAndKeepsTheSourceLatest() throws Exception {
+    failingDraft = true;
+    String body = "{\"@id\":\"" + failedPublishTemplateId.getId()
+        + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + failedDraftFolderId.getId()
+        + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}";
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/create-draft-artifact"))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Assertions.assertFalse(failedDraftArtifactPresent,
+        "the graphless draft remained in the artifact store");
+    Assertions.assertEquals(1, COMPENSATING_DRAFT_DELETES.get());
+    Assertions.assertTrue(folderSession.findSchemaArtifactById(failedPublishTemplateId).isLatestVersion(),
+        "the source was demoted before its draft reached the graph");
   }
 
   /** A failed graph publish must put the draft document back without racing a newer edit. */
@@ -381,6 +422,30 @@ public class CommandVersionResourceTest {
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
+    if (failingDraft && "GET".equals(exchange.getRequestMethod())) {
+      sendArtifactResponse(exchange, failedPublishTemplateDocument, "\"fixture-etag\"");
+      return;
+    }
+    if (failingDraft && "POST".equals(exchange.getRequestMethod())) {
+      failedDraftArtifactPresent = true;
+      folderSession.deleteFolderById(failedDraftFolderId);
+      ObjectNode draft = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      draft.put("@id", failedDraftTemplateId.getId());
+      byte[] response = draft.toString().getBytes(StandardCharsets.UTF_8);
+      exchange.getResponseHeaders().set("Content-Type", "application/json");
+      exchange.getResponseHeaders().set("Location", failedDraftTemplateId.getId());
+      exchange.sendResponseHeaders(201, response.length);
+      exchange.getResponseBody().write(response);
+      exchange.close();
+      return;
+    }
+    if (failingDraft && "DELETE".equals(exchange.getRequestMethod())) {
+      failedDraftArtifactPresent = false;
+      COMPENSATING_DRAFT_DELETES.incrementAndGet();
+      exchange.sendResponseHeaders(204, -1);
+      exchange.close();
+      return;
+    }
     if (failingPublish && "GET".equals(exchange.getRequestMethod())) {
       sendArtifactResponse(exchange, currentFailedPublishArtifact, "\"fixture-etag\"");
       return;

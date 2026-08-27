@@ -469,29 +469,35 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             String newIdString = atId.asText();
             CedarUntypedSchemaArtifactId newId = CedarUntypedSchemaArtifactId.build(newIdString);
 
-            FolderServerArtifact sourceResource = folderSession.findSchemaArtifactById(aid);
+            boolean draftReachedTheGraph = false;
+            try {
+              FolderServerArtifact sourceResource = folderSession.findSchemaArtifactById(aid);
 
-            BiboStatus status = BiboStatus.DRAFT;
+              BiboStatus status = BiboStatus.DRAFT;
 
-            FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(artifactType, newId,
-                sourceResource.getName(),
-                sourceResource.getDescription(), sourceResource.getIdentifier(), newVersion, status);
-            if (brandNewResource instanceof FolderServerSchemaArtifact schemaArtifact) {
-              schemaArtifact.setPreviousVersion(aid);
-              schemaArtifact.setLatestVersion(true);
-              schemaArtifact.setLatestDraftVersion(true);
-              schemaArtifact.setLatestPublishedVersion(false);
-            }
+              FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(artifactType, newId,
+                  sourceResource.getName(),
+                  sourceResource.getDescription(), sourceResource.getIdentifier(), newVersion, status);
+              if (brandNewResource instanceof FolderServerSchemaArtifact schemaArtifact) {
+                schemaArtifact.setPreviousVersion(aid);
+                schemaArtifact.setLatestVersion(true);
+                schemaArtifact.setLatestDraftVersion(true);
+                schemaArtifact.setLatestPublishedVersion(false);
+              }
 
-            folderSession.unsetLatestVersion(aid);
-            FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, fid);
-            if (newResource == null) {
-              BackendCallResult backendCallResult = new BackendCallResult();
-              backendCallResult.addError(CedarErrorType.SERVER_ERROR)
-                  .errorKey(CedarErrorKey.DRAFT_NOT_CREATED)
-                  .message("There was an error while creating the draft version of the artifact");
-              throw new CedarBackendException(backendCallResult);
-            } else {
+              FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, fid);
+              if (newResource == null) {
+                BackendCallResult backendCallResult = new BackendCallResult();
+                backendCallResult.addError(CedarErrorType.SERVER_ERROR)
+                    .errorKey(CedarErrorKey.DRAFT_NOT_CREATED)
+                    .message("There was an error while creating the draft version of the artifact");
+                throw new CedarBackendException(backendCallResult);
+              }
+              draftReachedTheGraph = true;
+
+              // Do not demote the source until its successor exists in both stores. Previously this
+              // happened before graph creation, so a failed create left no draft and no latest source.
+              folderSession.unsetLatestVersion(aid);
               if (propagateSharing) {
                 ResourcePermissionServiceSession permissionSession =
                     dataServices.getResourcePermissionServiceSession(c);
@@ -506,21 +512,26 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                   throw new CedarBackendException(backendCallResult);
                 }
               }
+
+              FolderServerArtifact createdNewResource = folderSession.findArtifactById(newId);
+              createIndexArtifact(createdNewResource, c);
+              FolderServerArtifact updatedSourceResource = folderSession.findArtifactById(aid);
+              updateIndexResource(updatedSourceResource, c);
+
+              if (artifactType == CedarResourceType.TEMPLATE && newFolderName != null && !newFolderName.isEmpty()) {
+                createCopyOfInstancesWithNewTemplate(c, CedarTemplateId.build(aid.getId()),
+                    CedarTemplateId.build(newId.getId()), newFolderName);
+              }
+
+              UriBuilder builder = uriInfo.getAbsolutePathBuilder();
+              URI uri = builder.build();
+
+              return Response.created(uri).entity(createdNewResource).build();
+            } finally {
+              if (!draftReachedTheGraph) {
+                discardArtifactAfterFailedCreate(c, artifactType, newId);
+              }
             }
-            FolderServerArtifact createdNewResource = folderSession.findArtifactById(newId);
-            createIndexArtifact(createdNewResource, c);
-            FolderServerArtifact updatedSourceResource = folderSession.findArtifactById(aid);
-            updateIndexResource(updatedSourceResource, c);
-
-            if (artifactType == CedarResourceType.TEMPLATE && newFolderName != null && !newFolderName.isEmpty()) {
-              createCopyOfInstancesWithNewTemplate(c, CedarTemplateId.build(aid.getId()),
-                  CedarTemplateId.build(newId.getId()), newFolderName);
-            }
-
-            UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-            URI uri = builder.build();
-
-            return Response.created(uri).entity(createdNewResource).build();
 
             /// this is the end of Neo4j creation
           } else {

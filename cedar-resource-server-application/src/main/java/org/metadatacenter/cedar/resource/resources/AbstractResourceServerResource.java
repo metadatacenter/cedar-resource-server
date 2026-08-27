@@ -350,8 +350,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * discard that cannot complete is logged with the id, which is the only handle anyone has afterwards
    * — the artifact is unreachable through this server once it has no graph node.
    */
-  private void discardArtifactAfterFailedCreate(CedarRequestContext context, CedarResourceType resourceType,
-                                                CedarArtifactId artifactId) {
+  protected void discardArtifactAfterFailedCreate(CedarRequestContext context, CedarResourceType resourceType,
+                                                  CedarArtifactId artifactId) {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
       ClassicHttpResponse discardResponse = ProxyUtil.proxyDelete(url, context);
