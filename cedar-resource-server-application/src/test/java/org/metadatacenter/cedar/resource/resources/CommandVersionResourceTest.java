@@ -9,7 +9,10 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.renderer.JsonArtifactRenderer;
 import org.metadatacenter.bridge.CedarDataServices;
@@ -44,8 +47,13 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Failure classification tests for template-version commands. */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CommandVersionResourceTest {
 
   private static final int ARTIFACT_PORT = 19327;
@@ -75,12 +83,19 @@ public class CommandVersionResourceTest {
   private static String authHeader;
   private static CedarTemplateId templateId;
   private static CedarTemplateId publishTemplateId;
+  private static CedarTemplateId failedCreateTemplateId;
+  private static CedarFolderId homeFolderId;
   private static ObjectNode storedTemplate;
   private static ObjectNode publishTemplateDocument;
   private static ObjectNode lastPublishedTemplate;
   private static volatile boolean artifactServerReturnsContent;
   private static volatile boolean publishingArtifact;
   private static volatile int terminologyRequests;
+  private static volatile boolean creatingArtifact;
+  private static volatile boolean createdArtifactPresent;
+  private static CountDownLatch artifactWriteReached;
+  private static CountDownLatch allowArtifactResponse;
+  private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -106,7 +121,9 @@ public class CommandVersionResourceTest {
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     FolderServiceSession folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
-    CedarFolderId homeFolderId = folderSession.findHomeFolderOf().getResourceId();
+    homeFolderId = folderSession.findHomeFolderOf().getResourceId();
+    failedCreateTemplateId = CedarTemplateId.build(
+        cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
 
     FolderServerTemplate template = new FolderServerTemplate();
     template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
@@ -165,6 +182,11 @@ public class CommandVersionResourceTest {
     publishingArtifact = false;
     terminologyRequests = 0;
     lastPublishedTemplate = null;
+    creatingArtifact = false;
+    createdArtifactPresent = false;
+    artifactWriteReached = new CountDownLatch(1);
+    allowArtifactResponse = new CountDownLatch(1);
+    COMPENSATING_DELETES.set(0);
   }
 
   @AfterAll
@@ -223,6 +245,52 @@ public class CommandVersionResourceTest {
             .path("version").path("id").asText());
   }
 
+  /**
+   * The artifact server commits before the workspace graph does. If Neo4j disappears in that gap,
+   * the failed create must delete the just-created artifact instead of leaving a graphless record
+   * that the caller cannot discover or clean up.
+   */
+  @Test
+  @Order(Integer.MAX_VALUE)
+  public void graphFailureAfterArtifactCreateCompensatesTheArtifactWrite() throws Exception {
+    creatingArtifact = true;
+    ObjectNode requestDocument = storedTemplate.deepCopy();
+    requestDocument.putNull("@id");
+    requestDocument.put("schema:name", "Compensated create fixture");
+
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates?folder_id="
+            + URLEncoder.encode(homeFolderId.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(requestDocument.toString()))
+        .build();
+
+    CompletableFuture<HttpResponse<String>> pending = CompletableFuture.supplyAsync(() -> {
+      try {
+        return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
+
+    Assertions.assertTrue(artifactWriteReached.await(5, TimeUnit.SECONDS),
+        "the fake artifact server never accepted the create");
+    try {
+      EmbeddedCedarNeo4j.stopAndReset();
+    } finally {
+      allowArtifactResponse.countDown();
+    }
+
+    HttpResponse<String> response = pending.get(90, TimeUnit.SECONDS);
+
+    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Assertions.assertFalse(createdArtifactPresent,
+        "the resource server left the failed create in the artifact store");
+    Assertions.assertEquals(1, COMPENSATING_DELETES.get(),
+        "the resource server did not issue exactly one compensating artifact delete");
+  }
+
   private static HttpResponse<String> checkUpdateTemplate(String body) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/check-update-template/"
@@ -236,6 +304,39 @@ public class CommandVersionResourceTest {
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
+    if (creatingArtifact && "POST".equals(exchange.getRequestMethod())) {
+      createdArtifactPresent = true;
+      artifactWriteReached.countDown();
+      try {
+        if (!allowArtifactResponse.await(10, TimeUnit.SECONDS)) {
+          exchange.sendResponseHeaders(500, -1);
+          exchange.close();
+          return;
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        exchange.sendResponseHeaders(500, -1);
+        exchange.close();
+        return;
+      }
+      ObjectNode created = storedTemplate.deepCopy();
+      created.put("@id", failedCreateTemplateId.getId());
+      created.put("schema:name", "Compensated create fixture");
+      byte[] response = created.toString().getBytes(StandardCharsets.UTF_8);
+      exchange.getResponseHeaders().set("Content-Type", "application/json");
+      exchange.getResponseHeaders().set("Location", failedCreateTemplateId.getId());
+      exchange.sendResponseHeaders(201, response.length);
+      exchange.getResponseBody().write(response);
+      exchange.close();
+      return;
+    }
+    if (creatingArtifact && "DELETE".equals(exchange.getRequestMethod())) {
+      createdArtifactPresent = false;
+      COMPENSATING_DELETES.incrementAndGet();
+      exchange.sendResponseHeaders(204, -1);
+      exchange.close();
+      return;
+    }
     if (!artifactServerReturnsContent) {
       exchange.sendResponseHeaders(404, -1);
       exchange.close();
