@@ -83,6 +83,7 @@ public class CommandVersionResourceTest {
   private static CedarTemplateId publishTemplateId;
   private static CedarTemplateId failedPublishTemplateId;
   private static CedarTemplateId failedDraftTemplateId;
+  private static CedarTemplateId deleteRetryTemplateId;
   private static CedarTemplateId failedCreateTemplateId;
   private static CedarFolderId homeFolderId;
   private static CedarFolderId failedCreateFolderId;
@@ -97,6 +98,7 @@ public class CommandVersionResourceTest {
   private static volatile boolean artifactServerReturnsContent;
   private static volatile boolean publishingArtifact;
   private static volatile boolean failingDraft;
+  private static volatile boolean retryingDelete;
   private static volatile boolean failedDraftArtifactPresent;
   private static volatile boolean failingPublish;
   private static volatile boolean publishRollbackUsedReplacementEtag;
@@ -108,6 +110,7 @@ public class CommandVersionResourceTest {
   private static final AtomicInteger COMPENSATING_RESTORES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_PUBLISH_RESTORES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DRAFT_DELETES = new AtomicInteger();
+  private static final AtomicInteger DELETE_RETRY_ARTIFACT_CALLS = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
 
   @BeforeAll
@@ -151,6 +154,21 @@ public class CommandVersionResourceTest {
     failedDraftFolderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
     Assertions.assertNotNull(
         folderSession.createFolderAsChildOfId(failedDraftFolder, homeFolderId, failedDraftFolderId));
+
+    FolderServerTemplate deleteRetryTemplate = new FolderServerTemplate();
+    deleteRetryTemplate.setId(
+        cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    deleteRetryTemplate.setName("Delete retry fixture");
+    deleteRetryTemplate.setDescription("Its artifact is already absent when deletion resumes");
+    deleteRetryTemplate.setVersion("1.0.0");
+    deleteRetryTemplate.setPublicationStatus("bibo:draft");
+    deleteRetryTemplate.setLatestVersion(true);
+    deleteRetryTemplate.setLatestDraftVersion(true);
+    deleteRetryTemplate.setLatestPublishedVersion(false);
+    FolderServerArtifact createdDeleteRetryTemplate =
+        folderSession.createResourceAsChildOfId(deleteRetryTemplate, homeFolderId);
+    Assertions.assertNotNull(createdDeleteRetryTemplate);
+    deleteRetryTemplateId = CedarTemplateId.build(createdDeleteRetryTemplate.getId());
 
     FolderServerTemplate template = new FolderServerTemplate();
     template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
@@ -226,6 +244,7 @@ public class CommandVersionResourceTest {
     artifactServerReturnsContent = true;
     publishingArtifact = false;
     failingDraft = false;
+    retryingDelete = false;
     failedDraftArtifactPresent = false;
     failingPublish = false;
     publishRollbackUsedReplacementEtag = false;
@@ -240,6 +259,7 @@ public class CommandVersionResourceTest {
     COMPENSATING_RESTORES.set(0);
     COMPENSATING_PUBLISH_RESTORES.set(0);
     COMPENSATING_DRAFT_DELETES.set(0);
+    DELETE_RETRY_ARTIFACT_CALLS.set(0);
     COMPENSATING_DELETES.set(0);
   }
 
@@ -297,6 +317,29 @@ public class CommandVersionResourceTest {
     Assertions.assertEquals(TERMINOLOGY_VERSION_ID,
         lastPublishedTemplate.path("_valueConstraints").path("ontologies").path(0)
             .path("version").path("id").asText());
+  }
+
+  /**
+   * A delete retry may find that its first attempt removed the artifact before losing the graph
+   * response. A 404 from the artifact server must not stop the remaining Neo4j deletion.
+   */
+  @Test
+  @Order(Integer.MAX_VALUE - 4)
+  public void deleteRetryFinishesTheGraphDeleteWhenTheArtifactIsAlreadyAbsent() throws Exception {
+    retryingDelete = true;
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(deleteRetryTemplateId.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader)
+        .DELETE()
+        .build();
+
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(204, response.statusCode(), response.body());
+    Assertions.assertNull(folderSession.findArtifactById(deleteRetryTemplateId),
+        "the resumed delete left the stale graph node behind");
+    Assertions.assertEquals(1, DELETE_RETRY_ARTIFACT_CALLS.get());
   }
 
   /** A draft artifact whose graph node cannot be created must be discarded without demoting its source. */
@@ -422,6 +465,12 @@ public class CommandVersionResourceTest {
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
+    if (retryingDelete && "DELETE".equals(exchange.getRequestMethod())) {
+      DELETE_RETRY_ARTIFACT_CALLS.incrementAndGet();
+      exchange.sendResponseHeaders(404, -1);
+      exchange.close();
+      return;
+    }
     if (failingDraft && "GET".equals(exchange.getRequestMethod())) {
       sendArtifactResponse(exchange, failedPublishTemplateDocument, "\"fixture-etag\"");
       return;
