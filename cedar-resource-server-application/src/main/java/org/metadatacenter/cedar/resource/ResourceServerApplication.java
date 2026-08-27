@@ -2,6 +2,7 @@ package org.metadatacenter.cedar.resource;
 
 import io.dropwizard.core.setup.Bootstrap;
 import io.dropwizard.core.setup.Environment;
+import io.dropwizard.lifecycle.Managed;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.search.IndexCreator;
 import org.metadatacenter.cedar.util.dw.CedarDefaultHealthCheck;
@@ -17,6 +18,8 @@ import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 
 public class ResourceServerApplication extends CedarMicroserviceApplication<ResourceServerConfiguration> {
+
+  private SearchPermissionEnqueueService searchPermissionEnqueueService;
 
   public static void main(String[] args) throws Exception {
     new ResourceServerApplication().run(args);
@@ -39,7 +42,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     NodeIndexingService nodeIndexingService = indexUtils.getNodeIndexingService();
     NodeSearchingService nodeSearchingService = indexUtils.getNodeSearchingService();
 
-    SearchPermissionEnqueueService searchPermissionEnqueueService = new SearchPermissionEnqueueService(cedarConfig);
+    searchPermissionEnqueueService = new SearchPermissionEnqueueService(cedarConfig);
 
     CloneInstancesEnqueueService cloneInstanceEnqueueService = new CloneInstancesEnqueueService(cedarConfig);
 
@@ -59,6 +62,18 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
   @Override
   public void runApp(ResourceServerConfiguration configuration, Environment environment) {
+    environment.lifecycle().manage(new Managed() {
+      @Override
+      public void start() {
+        searchPermissionEnqueueService.start();
+      }
+
+      @Override
+      public void stop() {
+        searchPermissionEnqueueService.close();
+      }
+    });
+
     final IndexResource index = new IndexResource(cedarConfig);
     environment.jersey().register(index);
 
