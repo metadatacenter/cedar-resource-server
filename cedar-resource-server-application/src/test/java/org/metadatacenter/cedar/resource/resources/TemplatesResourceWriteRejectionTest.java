@@ -27,6 +27,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -92,6 +93,7 @@ public class TemplatesResourceWriteRejectionTest {
   private HttpResponse<String> search(String query) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/search" + query))
+        .timeout(Duration.ofSeconds(5))
         .header("Authorization", authHeaderUser1)
         .GET()
         .build();
