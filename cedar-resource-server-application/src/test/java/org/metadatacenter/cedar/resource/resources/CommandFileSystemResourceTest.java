@@ -74,6 +74,8 @@ public class CommandFileSystemResourceTest {
   private static String copiedArtifactId;
   private static String missingArtifactId;
   private static JsonNode postedArtifact;
+  private static int sourceGetStatus = 200;
+  private static boolean omitSourceGetBody;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -145,6 +147,47 @@ public class CommandFileSystemResourceTest {
 
   @Test
   @Order(2)
+  public void sourceFetchErrorsAreReturnedWithoutPostingACopy() throws Exception {
+    try {
+      for (int status : new int[]{404, 500}) {
+        sourceGetStatus = status;
+        postedArtifact = null;
+
+        HttpResponse<String> response = postCommand("copy-artifact-to-folder", copyBody());
+
+        Assertions.assertEquals(status, response.statusCode(), response.body());
+        Assertions.assertEquals("{\"status\":" + status + "}", response.body());
+        Assertions.assertNull(postedArtifact,
+            "a source fetch error must not be posted to the artifact service");
+      }
+    } finally {
+      sourceGetStatus = 200;
+    }
+  }
+
+  @Test
+  @Order(3)
+  public void emptySourceFetchReturnsBadGatewayWithoutPostingACopy() throws Exception {
+    try {
+      omitSourceGetBody = true;
+      postedArtifact = null;
+
+      HttpResponse<String> response = postCommand("copy-artifact-to-folder", copyBody());
+
+      Assertions.assertEquals(502, response.statusCode(), response.body());
+      JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+      Assertions.assertEquals("BAD_GATEWAY", error.path("status").asText(), response.body());
+      Assertions.assertEquals("Artifact service returned an empty source artifact",
+          error.path("errorMessage").asText(), response.body());
+      Assertions.assertNull(postedArtifact,
+          "an empty source response must not be posted to the artifact service");
+    } finally {
+      omitSourceGetBody = false;
+    }
+  }
+
+  @Test
+  @Order(4)
   public void moveMissingResourceReturnsNotFound() throws Exception {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"targetFolderId\":\"" + homeFolderId.getId() + "\"}";
@@ -155,7 +198,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(3)
+  @Order(5)
   public void renameMissingResourceReturnsNotFound() throws Exception {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
@@ -166,7 +209,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(4)
+  @Order(6)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
     artifactServer.stop(0);
     artifactServer = null;
@@ -204,12 +247,24 @@ public class CommandFileSystemResourceTest {
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
+  private static String copyBody() {
+    return "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\","
+        + "\"nameTemplate\":\"Copy of {{name}}\"}";
+  }
+
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
     byte[] response;
     int status;
     if ("GET".equals(exchange.getRequestMethod())) {
-      status = 200;
-      response = sourceDocument().toString().getBytes(StandardCharsets.UTF_8);
+      status = sourceGetStatus;
+      if (omitSourceGetBody) {
+        response = null;
+      } else if (status == 200) {
+        response = sourceDocument().toString().getBytes(StandardCharsets.UTF_8);
+      } else {
+        response = ("{\"status\":" + status + "}").getBytes(StandardCharsets.UTF_8);
+      }
     } else if ("POST".equals(exchange.getRequestMethod())) {
       postedArtifact = JsonMapper.MAPPER.readTree(exchange.getRequestBody());
       ObjectNode created = ((ObjectNode) postedArtifact).deepCopy();
@@ -223,8 +278,12 @@ public class CommandFileSystemResourceTest {
       response = new byte[0];
     }
     exchange.getResponseHeaders().set("Content-Type", "application/json");
-    exchange.sendResponseHeaders(status, response.length);
-    exchange.getResponseBody().write(response);
+    if (response == null) {
+      exchange.sendResponseHeaders(status, -1);
+    } else {
+      exchange.sendResponseHeaders(status, response.length);
+      exchange.getResponseBody().write(response);
+    }
     exchange.close();
   }
 

@@ -85,7 +85,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "500", description = "Internal server error"),
+      @ApiResponse(responseCode = "502", description = "Invalid response from artifact service")
   })
   public Response copyResourceToFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -160,39 +161,54 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     // Check if the user has write permission to the target folder
     userMustHaveWriteAccessToFolder(c, targetFolderId);
 
-    String originalDocument = null;
+    String originalDocument;
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, sourceArtifactId);
       ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getCode();
-      if (entity != null) {
-        originalDocument = EntityUtils.toString(entity, StandardCharsets.UTF_8);
-        JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
-        // Null rather than removed: the artifact server assigns the identifier, and the key carrying
-        // null is how anything asks for one — an absent key cannot be told from a forgotten one.
-        ((ObjectNode) jsonNode).putNull("@id");
-        String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
-        if (oldName == null) {
-          oldName = "";
-        }
-        String newName = nameTemplate.replace("{{name}}", oldName);
-        ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
-        if (resourceType.isVersioned()) {
-          ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
-          ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
-        }
-        if (jsonNode.get(SCHEMA_ORG_IDENTIFIER) != null) {
-          String schemaId = jsonNode.get(SCHEMA_ORG_IDENTIFIER).asText();
-          // Since we are creating a copy, we remove the schema:identifier to avoid confusion with the original artifact
-          ((ObjectNode) jsonNode).remove(SCHEMA_ORG_IDENTIFIER);
-          // CDE artifacts have the schema:identifier between brackets as part of their name so we need to remove it too
-          newName = newName.replace("(" + schemaId + ")", "").trim();
-        }
-        ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
-        originalDocument = jsonNode.toString();
+      if (statusCode != HttpStatus.SC_OK) {
+        return generateStatusResponse(proxyResponse);
       }
+
+      HttpEntity entity = proxyResponse.getEntity();
+      if (entity == null) {
+        return CedarResponse.badGateway()
+            .errorMessage("Artifact service returned an empty source artifact")
+            .id(sourceArtifactId)
+            .build();
+      }
+
+      originalDocument = EntityUtils.toString(entity, StandardCharsets.UTF_8);
+      if (originalDocument.isBlank()) {
+        return CedarResponse.badGateway()
+            .errorMessage("Artifact service returned an empty source artifact")
+            .id(sourceArtifactId)
+            .build();
+      }
+      JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
+      // Null rather than removed: the artifact server assigns the identifier, and the key carrying
+      // null is how anything asks for one — an absent key cannot be told from a forgotten one.
+      ((ObjectNode) jsonNode).putNull("@id");
+      String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
+      if (oldName == null) {
+        oldName = "";
+      }
+      String newName = nameTemplate.replace("{{name}}", oldName);
+      ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
+      if (resourceType.isVersioned()) {
+        ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
+        ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
+      }
+      if (jsonNode.get(SCHEMA_ORG_IDENTIFIER) != null) {
+        String schemaId = jsonNode.get(SCHEMA_ORG_IDENTIFIER).asText();
+        // Since we are creating a copy, we remove the schema:identifier to avoid confusion with the original artifact
+        ((ObjectNode) jsonNode).remove(SCHEMA_ORG_IDENTIFIER);
+        // CDE artifacts have the schema:identifier between brackets as part of their name so we need to remove it too
+        newName = newName.replace("(" + schemaId + ")", "").trim();
+      }
+      ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
+      originalDocument = jsonNode.toString();
     } catch (CedarException e) {
       throw e;
     } catch (Exception e) {
