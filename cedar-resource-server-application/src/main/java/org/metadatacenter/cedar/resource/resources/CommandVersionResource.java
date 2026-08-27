@@ -62,6 +62,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
@@ -231,44 +232,57 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
-            // publish in Neo4j server
-            FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+            boolean graphUpdated = false;
+            try {
+              // publish in Neo4j server
+              FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
-            if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport) {
-              FolderServerSchemaArtifactCurrentUserReport schemaArtifact =
-                  (FolderServerSchemaArtifactCurrentUserReport) folderServerResourceOld;
-              schemaArtifact.setLatestPublishedVersion(true);
-            }
+              if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport) {
+                FolderServerSchemaArtifactCurrentUserReport schemaArtifact =
+                    (FolderServerSchemaArtifactCurrentUserReport) folderServerResourceOld;
+                schemaArtifact.setLatestPublishedVersion(true);
+              }
 
-            Map<NodeProperty, String> updates = new HashMap<>();
-            updates.put(NodeProperty.VERSION, newVersion.getValue());
-            updates.put(NodeProperty.PUBLICATION_STATUS, BiboStatus.PUBLISHED.getValue());
-            folderSession.updateArtifactById(aid, resourceType, updates);
+              Map<NodeProperty, String> updates = new HashMap<>();
+              updates.put(NodeProperty.VERSION, newVersion.getValue());
+              updates.put(NodeProperty.PUBLICATION_STATUS, BiboStatus.PUBLISHED.getValue());
+              FolderServerArtifact publishedResource =
+                  folderSession.updateArtifactById(aid, resourceType, updates);
+              if (publishedResource == null) {
+                throw new CedarProcessingException("The published artifact could not be updated in the graph");
+              }
+              graphUpdated = true;
 
-            if (resourceType.isVersioned()) {
-              folderSession.setLatestVersion(aid);
-              folderSession.unsetLatestDraftVersion(aid);
-              folderSession.setLatestPublishedVersion(aid);
-              if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport schemaArtifact) {
-                if (schemaArtifact.getPreviousVersion() != null) {
-                  folderSession.unsetLatestPublishedVersion(schemaArtifact.getPreviousVersion());
+              if (resourceType.isVersioned()) {
+                folderSession.setLatestVersion(aid);
+                folderSession.unsetLatestDraftVersion(aid);
+                folderSession.setLatestPublishedVersion(aid);
+                if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport schemaArtifact) {
+                  if (schemaArtifact.getPreviousVersion() != null) {
+                    folderSession.unsetLatestPublishedVersion(schemaArtifact.getPreviousVersion());
+                  }
                 }
               }
-            }
 
-            FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
-            updateIndexResource(updatedResource, c);
+              FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
+              updateIndexResource(updatedResource, c);
 
-            // read the updated previous version
-            if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport schemaArtifact) {
-              if (schemaArtifact.hasPreviousVersion()) {
-                CedarSchemaArtifactId prevId = schemaArtifact.getPreviousVersion();
-                FolderServerArtifact folderServerResourcePrev = folderSession.findArtifactById(prevId);
-                updateIndexResource(folderServerResourcePrev, c);
+              // read the updated previous version
+              if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport schemaArtifact) {
+                if (schemaArtifact.hasPreviousVersion()) {
+                  CedarSchemaArtifactId prevId = schemaArtifact.getPreviousVersion();
+                  FolderServerArtifact folderServerResourcePrev = folderSession.findArtifactById(prevId);
+                  updateIndexResource(folderServerResourcePrev, c);
+                }
+              }
+
+              return Response.ok().entity(updatedResource).build();
+            } finally {
+              if (!graphUpdated) {
+                restorePublishedArtifact(c, resourceType, aid, getResponse,
+                    putResponse.getHeaderString(HttpHeaders.ETAG));
               }
             }
-
-            return Response.ok().entity(updatedResource).build();
 
           }
         }
@@ -280,6 +294,27 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         .errorMessage("There was an error while publishing the artifact")
         .parameter("id", aid)
         .build();
+  }
+
+  /** Restore a publish write only while its exact replacement ETag is still current. */
+  private void restorePublishedArtifact(CedarRequestContext context, CedarResourceType resourceType,
+                                        CedarSchemaArtifactId artifactId, String preImage,
+                                        String publishedEtag) {
+    if (publishedEtag == null || publishedEtag.isBlank()) {
+      log.error("Failed publish left {} changed on the artifact server: conditional rollback is unavailable",
+          artifactId);
+      return;
+    }
+    try {
+      Response rollback = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, artifactId, context,
+          preImage, microserviceUrlUtil, publishedEtag);
+      if (rollback.getStatus() != HttpStatus.SC_OK) {
+        log.error("Failed publish left {} changed on the artifact server: conditional rollback answered {}",
+            artifactId, rollback.getStatus());
+      }
+    } catch (Exception e) {
+      log.error("Failed publish left {} changed on the artifact server: conditional rollback failed", artifactId, e);
+    }
   }
 
   private void createCopyOfInstancesWithNewTemplate(CedarRequestContext context, CedarTemplateId oldId,

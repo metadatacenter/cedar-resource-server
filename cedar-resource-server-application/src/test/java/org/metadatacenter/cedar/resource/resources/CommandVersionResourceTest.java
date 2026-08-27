@@ -81,22 +81,28 @@ public class CommandVersionResourceTest {
   private static String authHeader;
   private static CedarTemplateId templateId;
   private static CedarTemplateId publishTemplateId;
+  private static CedarTemplateId failedPublishTemplateId;
   private static CedarTemplateId failedCreateTemplateId;
   private static CedarFolderId homeFolderId;
   private static CedarFolderId failedCreateFolderId;
   private static FolderServiceSession folderSession;
   private static ObjectNode storedTemplate;
   private static ObjectNode publishTemplateDocument;
+  private static ObjectNode failedPublishTemplateDocument;
+  private static ObjectNode currentFailedPublishArtifact;
   private static ObjectNode lastPublishedTemplate;
   private static ObjectNode currentUpdateArtifact;
   private static volatile boolean artifactServerReturnsContent;
   private static volatile boolean publishingArtifact;
+  private static volatile boolean failingPublish;
+  private static volatile boolean publishRollbackUsedReplacementEtag;
   private static volatile int terminologyRequests;
   private static volatile boolean updatingArtifact;
   private static volatile boolean rollbackUsedReplacementEtag;
   private static volatile boolean creatingArtifact;
   private static volatile boolean createdArtifactPresent;
   private static final AtomicInteger COMPENSATING_RESTORES = new AtomicInteger();
+  private static final AtomicInteger COMPENSATING_PUBLISH_RESTORES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
 
   @BeforeAll
@@ -160,6 +166,21 @@ public class CommandVersionResourceTest {
     Assertions.assertNotNull(createdPublishTemplate);
     publishTemplateId = CedarTemplateId.build(createdPublishTemplate.getId());
 
+    FolderServerTemplate failedPublishTemplate = new FolderServerTemplate();
+    failedPublishTemplate.setId(
+        cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    failedPublishTemplate.setName("Publish compensation fixture");
+    failedPublishTemplate.setDescription("Removed from the graph after its publish write");
+    failedPublishTemplate.setVersion("1.0.0");
+    failedPublishTemplate.setPublicationStatus("bibo:draft");
+    failedPublishTemplate.setLatestVersion(true);
+    failedPublishTemplate.setLatestDraftVersion(true);
+    failedPublishTemplate.setLatestPublishedVersion(false);
+    FolderServerArtifact createdFailedPublishTemplate =
+        folderSession.createResourceAsChildOfId(failedPublishTemplate, homeFolderId);
+    Assertions.assertNotNull(createdFailedPublishTemplate);
+    failedPublishTemplateId = CedarTemplateId.build(createdFailedPublishTemplate.getId());
+
     FolderServerInstance instance = new FolderServerInstance();
     instance.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.INSTANCE));
     instance.setName("Version check instance");
@@ -182,12 +203,18 @@ public class CommandVersionResourceTest {
         .putArray("ontologies")
         .addObject()
         .put("acronym", "DOID");
+    failedPublishTemplateDocument = publishTemplateDocument.deepCopy();
+    failedPublishTemplateDocument.put("@id", failedPublishTemplateId.getId());
+    failedPublishTemplateDocument.put("schema:name", "Publish compensation fixture");
   }
 
   @BeforeEach
   public void resetArtifactServer() {
     artifactServerReturnsContent = true;
     publishingArtifact = false;
+    failingPublish = false;
+    publishRollbackUsedReplacementEtag = false;
+    currentFailedPublishArtifact = failedPublishTemplateDocument.deepCopy();
     terminologyRequests = 0;
     lastPublishedTemplate = null;
     currentUpdateArtifact = storedTemplate.deepCopy();
@@ -196,6 +223,7 @@ public class CommandVersionResourceTest {
     creatingArtifact = false;
     createdArtifactPresent = false;
     COMPENSATING_RESTORES.set(0);
+    COMPENSATING_PUBLISH_RESTORES.set(0);
     COMPENSATING_DELETES.set(0);
   }
 
@@ -253,6 +281,30 @@ public class CommandVersionResourceTest {
     Assertions.assertEquals(TERMINOLOGY_VERSION_ID,
         lastPublishedTemplate.path("_valueConstraints").path("ontologies").path(0)
             .path("version").path("id").asText());
+  }
+
+  /** A failed graph publish must put the draft document back without racing a newer edit. */
+  @Test
+  @Order(Integer.MAX_VALUE - 2)
+  public void graphFailureAfterPublishConditionallyRestoresTheDraft() throws Exception {
+    failingPublish = true;
+    String body = "{\"@id\":\"" + failedPublishTemplateId.getId()
+        + "\",\"newVersion\":\"1.0.1\"}";
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/publish-artifact"))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Assertions.assertEquals(failedPublishTemplateDocument, currentFailedPublishArtifact,
+        "the draft document was not restored after the graph publish failed");
+    Assertions.assertEquals(1, COMPENSATING_PUBLISH_RESTORES.get());
+    Assertions.assertTrue(publishRollbackUsedReplacementEtag,
+        "the publish rollback was not guarded by the published document's ETag");
   }
 
   /**
@@ -329,6 +381,25 @@ public class CommandVersionResourceTest {
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
+    if (failingPublish && "GET".equals(exchange.getRequestMethod())) {
+      sendArtifactResponse(exchange, currentFailedPublishArtifact, "\"fixture-etag\"");
+      return;
+    }
+    if (failingPublish && "PUT".equals(exchange.getRequestMethod())) {
+      String ifMatch = exchange.getRequestHeaders().getFirst("If-Match");
+      ObjectNode submitted = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      if ("\"fixture-etag\"".equals(ifMatch)) {
+        currentFailedPublishArtifact = submitted;
+        folderSession.deleteResourceById(failedPublishTemplateId);
+        sendArtifactResponse(exchange, currentFailedPublishArtifact, "\"published-etag\"");
+      } else {
+        publishRollbackUsedReplacementEtag = "\"published-etag\"".equals(ifMatch);
+        currentFailedPublishArtifact = submitted;
+        COMPENSATING_PUBLISH_RESTORES.incrementAndGet();
+        sendArtifactResponse(exchange, currentFailedPublishArtifact, "\"restored-draft-etag\"");
+      }
+      return;
+    }
     if (updatingArtifact && "GET".equals(exchange.getRequestMethod())) {
       sendArtifactResponse(exchange, currentUpdateArtifact, "\"fixture-etag\"");
       return;
