@@ -6,7 +6,10 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -32,6 +35,7 @@ import java.util.Map;
  * artifact server. The graph is embedded and the downstream server is deliberately on a dead port,
  * so these tests run against the booted application with no live backend.
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TemplatesResourceWriteRejectionTest {
 
   static {
@@ -192,6 +196,26 @@ public class TemplatesResourceWriteRejectionTest {
     JsonNode error = JsonMapper.MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("OpenSearch is unavailable", error.path("message").asText(), response.body());
+    Assertions.assertTrue(error.path("originalException").isMissingNode()
+        || error.path("originalException").isNull(), response.body());
+    Assertions.assertTrue(error.path("sourceException").isMissingNode()
+        || error.path("sourceException").isNull(), response.body());
+    Assertions.assertFalse(response.body().contains("127.0.0.1"), response.body());
+  }
+
+  @Test
+  @Order(Integer.MAX_VALUE)
+  public void unavailableGraphReturnsSanitizedServiceUnavailable() throws Exception {
+    // This destructive probe must be last in the class. The shared helper resets itself so the
+    // next booted test class starts and seeds a fresh harness rather than inheriting this outage.
+    EmbeddedCedarNeo4j.stopAndReset();
+
+    HttpResponse<String> response = search("?mode=special-folders");
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("Neo4j is unavailable", error.path("message").asText(), response.body());
     Assertions.assertTrue(error.path("originalException").isMissingNode()
         || error.path("originalException").isNull(), response.body());
     Assertions.assertTrue(error.path("sourceException").isMissingNode()
