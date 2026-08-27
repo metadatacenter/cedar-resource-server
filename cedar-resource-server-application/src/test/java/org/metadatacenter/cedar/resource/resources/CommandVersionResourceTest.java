@@ -84,6 +84,8 @@ public class CommandVersionResourceTest {
   private static CedarTemplateId failedPublishTemplateId;
   private static CedarTemplateId failedDraftTemplateId;
   private static CedarTemplateId deleteRetryTemplateId;
+  private static CedarTemplateId versionRetrySourceId;
+  private static CedarTemplateId versionRetryDraftId;
   private static CedarTemplateId failedCreateTemplateId;
   private static CedarFolderId homeFolderId;
   private static CedarFolderId failedCreateFolderId;
@@ -93,12 +95,14 @@ public class CommandVersionResourceTest {
   private static ObjectNode publishTemplateDocument;
   private static ObjectNode failedPublishTemplateDocument;
   private static ObjectNode currentFailedPublishArtifact;
+  private static ObjectNode currentVersionRetryArtifact;
   private static ObjectNode lastPublishedTemplate;
   private static ObjectNode currentUpdateArtifact;
   private static volatile boolean artifactServerReturnsContent;
   private static volatile boolean publishingArtifact;
   private static volatile boolean failingDraft;
   private static volatile boolean retryingDelete;
+  private static volatile boolean retryingVersionCommands;
   private static volatile boolean failedDraftArtifactPresent;
   private static volatile boolean failingPublish;
   private static volatile boolean publishRollbackUsedReplacementEtag;
@@ -111,6 +115,8 @@ public class CommandVersionResourceTest {
   private static final AtomicInteger COMPENSATING_PUBLISH_RESTORES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DRAFT_DELETES = new AtomicInteger();
   private static final AtomicInteger DELETE_RETRY_ARTIFACT_CALLS = new AtomicInteger();
+  private static final AtomicInteger VERSION_RETRY_PUBLISH_WRITES = new AtomicInteger();
+  private static final AtomicInteger VERSION_RETRY_DRAFT_WRITES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
 
   @BeforeAll
@@ -169,6 +175,23 @@ public class CommandVersionResourceTest {
         folderSession.createResourceAsChildOfId(deleteRetryTemplate, homeFolderId);
     Assertions.assertNotNull(createdDeleteRetryTemplate);
     deleteRetryTemplateId = CedarTemplateId.build(createdDeleteRetryTemplate.getId());
+
+    FolderServerTemplate versionRetrySource = new FolderServerTemplate();
+    versionRetrySource.setId(
+        cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    versionRetrySource.setName("Version retry fixture");
+    versionRetrySource.setDescription("Publish and draft retries must not duplicate this chain");
+    versionRetrySource.setVersion("1.0.0");
+    versionRetrySource.setPublicationStatus("bibo:draft");
+    versionRetrySource.setLatestVersion(true);
+    versionRetrySource.setLatestDraftVersion(true);
+    versionRetrySource.setLatestPublishedVersion(false);
+    FolderServerArtifact createdVersionRetrySource =
+        folderSession.createResourceAsChildOfId(versionRetrySource, homeFolderId);
+    Assertions.assertNotNull(createdVersionRetrySource);
+    versionRetrySourceId = CedarTemplateId.build(createdVersionRetrySource.getId());
+    versionRetryDraftId = CedarTemplateId.build(
+        cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
 
     FolderServerTemplate template = new FolderServerTemplate();
     template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
@@ -237,6 +260,9 @@ public class CommandVersionResourceTest {
     failedPublishTemplateDocument = publishTemplateDocument.deepCopy();
     failedPublishTemplateDocument.put("@id", failedPublishTemplateId.getId());
     failedPublishTemplateDocument.put("schema:name", "Publish compensation fixture");
+    currentVersionRetryArtifact = publishTemplateDocument.deepCopy();
+    currentVersionRetryArtifact.put("@id", versionRetrySourceId.getId());
+    currentVersionRetryArtifact.put("schema:name", "Version retry fixture");
   }
 
   @BeforeEach
@@ -245,6 +271,7 @@ public class CommandVersionResourceTest {
     publishingArtifact = false;
     failingDraft = false;
     retryingDelete = false;
+    retryingVersionCommands = false;
     failedDraftArtifactPresent = false;
     failingPublish = false;
     publishRollbackUsedReplacementEtag = false;
@@ -260,6 +287,8 @@ public class CommandVersionResourceTest {
     COMPENSATING_PUBLISH_RESTORES.set(0);
     COMPENSATING_DRAFT_DELETES.set(0);
     DELETE_RETRY_ARTIFACT_CALLS.set(0);
+    VERSION_RETRY_PUBLISH_WRITES.set(0);
+    VERSION_RETRY_DRAFT_WRITES.set(0);
     COMPENSATING_DELETES.set(0);
   }
 
@@ -317,6 +346,37 @@ public class CommandVersionResourceTest {
     Assertions.assertEquals(TERMINOLOGY_VERSION_ID,
         lastPublishedTemplate.path("_valueConstraints").path("ontologies").path(0)
             .path("version").path("id").asText());
+  }
+
+  /** Ambiguous successful responses may be retried, but must not create another version. */
+  @Test
+  @Order(1)
+  public void repeatedPublishAndDraftRequestsDoNotDuplicateTheVersionChain() throws Exception {
+    retryingVersionCommands = true;
+    String publishBody = "{\"@id\":\"" + versionRetrySourceId.getId()
+        + "\",\"newVersion\":\"1.0.1\"}";
+
+    HttpResponse<String> firstPublish = postVersionCommand("publish-artifact", publishBody);
+    HttpResponse<String> repeatedPublish = postVersionCommand("publish-artifact", publishBody);
+
+    Assertions.assertEquals(200, firstPublish.statusCode(), firstPublish.body());
+    Assertions.assertEquals(400, repeatedPublish.statusCode(), repeatedPublish.body());
+    Assertions.assertEquals(1, VERSION_RETRY_PUBLISH_WRITES.get(),
+        "a publish retry wrote the artifact a second time");
+
+    String draftBody = "{\"@id\":\"" + versionRetrySourceId.getId()
+        + "\",\"newVersion\":\"1.0.2\",\"folderId\":\"" + homeFolderId.getId()
+        + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}";
+    HttpResponse<String> firstDraft = postVersionCommand("create-draft-artifact", draftBody);
+    HttpResponse<String> repeatedDraft = postVersionCommand("create-draft-artifact", draftBody);
+
+    Assertions.assertEquals(201, firstDraft.statusCode(), firstDraft.body());
+    Assertions.assertEquals(400, repeatedDraft.statusCode(), repeatedDraft.body());
+    Assertions.assertEquals(1, VERSION_RETRY_DRAFT_WRITES.get(),
+        "a draft retry created a second artifact");
+    Assertions.assertNotNull(folderSession.findArtifactById(versionRetryDraftId));
+    Assertions.assertEquals(2, folderSession.getVersionHistory(versionRetrySourceId).size(),
+        "the retried lifecycle produced more than one successor");
   }
 
   /**
@@ -463,8 +523,40 @@ public class CommandVersionResourceTest {
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
+  private static HttpResponse<String> postVersionCommand(String command, String body) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/" + command))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
+    if (retryingVersionCommands && "GET".equals(exchange.getRequestMethod())) {
+      sendArtifactResponse(exchange, currentVersionRetryArtifact, "\"version-retry-etag\"");
+      return;
+    }
+    if (retryingVersionCommands && "PUT".equals(exchange.getRequestMethod())) {
+      currentVersionRetryArtifact = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      VERSION_RETRY_PUBLISH_WRITES.incrementAndGet();
+      sendArtifactResponse(exchange, currentVersionRetryArtifact, "\"version-retry-published-etag\"");
+      return;
+    }
+    if (retryingVersionCommands && "POST".equals(exchange.getRequestMethod())) {
+      ObjectNode draft = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      draft.put("@id", versionRetryDraftId.getId());
+      VERSION_RETRY_DRAFT_WRITES.incrementAndGet();
+      byte[] response = draft.toString().getBytes(StandardCharsets.UTF_8);
+      exchange.getResponseHeaders().set("Content-Type", "application/json");
+      exchange.getResponseHeaders().set("Location", versionRetryDraftId.getId());
+      exchange.sendResponseHeaders(201, response.length);
+      exchange.getResponseBody().write(response);
+      exchange.close();
+      return;
+    }
     if (retryingDelete && "DELETE".equals(exchange.getRequestMethod())) {
       DELETE_RETRY_ARTIFACT_CALLS.incrementAndGet();
       exchange.sendResponseHeaders(404, -1);
