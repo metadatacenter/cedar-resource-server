@@ -670,6 +670,9 @@
           },
           "500" : {
             "description" : "Internal server error"
+          },
+          "502" : {
+            "description" : "Invalid response from artifact service"
           }
         },
         "security" : [ {
