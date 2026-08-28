@@ -31,6 +31,7 @@ public class TerminologyVersionResolver implements ControlledTermVersionFreezer.
   private final String base;          // terminology base URL, trailing slash guaranteed
   private final String authorization; // the publishing user's Authorization header (or null)
   private final RequestSender sender;
+  private int skippedResolutionCount;
 
   @FunctionalInterface
   interface RequestSender {
@@ -62,6 +63,11 @@ public class TerminologyVersionResolver implements ControlledTermVersionFreezer.
     return get("bioportal/vs-collections/version-current?collection=" + enc(vsCollection));
   }
 
+  /** Number of requested pins that could not be resolved during this publish operation. */
+  public int getSkippedResolutionCount() {
+    return skippedResolutionCount;
+  }
+
   private Optional<VersionSpec> get(String path) {
     try {
       HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(base + path))
@@ -71,16 +77,19 @@ public class TerminologyVersionResolver implements ControlledTermVersionFreezer.
       }
       HttpResponse<String> response = sender.send(request.build());
       if (response.statusCode() != 200) {
+        skippedResolutionCount++;
         return Optional.empty();
       }
       JsonNode triple = MAPPER.readTree(response.body());
       JsonNode id = triple.get("id");
       if (id == null || !id.isTextual()) {
+        skippedResolutionCount++;
         return Optional.empty();
       }
       return Optional.of(new VersionSpec(id.asText(),
           text(triple, "effectiveDate"), text(triple, "declaredVersion")));
     } catch (Exception failSafe) {
+      skippedResolutionCount++;
       return Optional.empty(); // never block or break publish
     }
   }

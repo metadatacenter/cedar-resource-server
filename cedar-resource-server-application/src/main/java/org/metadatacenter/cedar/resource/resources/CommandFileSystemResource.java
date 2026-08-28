@@ -29,15 +29,14 @@ import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.*;
 import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarResourceType;
-import org.metadatacenter.model.GraphDbObjectBuilder;
 import org.metadatacenter.model.ResourceVersion;
 import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
-import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -86,7 +85,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "500", description = "Internal server error"),
+      @ApiResponse(responseCode = "502", description = "Invalid response from artifact service")
   })
   public Response copyResourceToFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -161,39 +161,56 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     // Check if the user has write permission to the target folder
     userMustHaveWriteAccessToFolder(c, targetFolderId);
 
-    String originalDocument = null;
+    String originalDocument;
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, sourceArtifactId);
       ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      HttpEntity entity = proxyResponse.getEntity();
       int statusCode = proxyResponse.getCode();
-      if (entity != null) {
-        originalDocument = EntityUtils.toString(entity, StandardCharsets.UTF_8);
-        JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
-        // Null rather than removed: the artifact server assigns the identifier, and the key carrying
-        // null is how anything asks for one — an absent key cannot be told from a forgotten one.
-        ((ObjectNode) jsonNode).putNull("@id");
-        String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
-        if (oldName != null) {
-          oldName = "";
-        }
-        String newName = nameTemplate.replace("{{name}}", oldName);
-        ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
-        if (resourceType.isVersioned()) {
-          ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
-          ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
-        }
-        if (jsonNode.get(SCHEMA_ORG_IDENTIFIER) != null) {
-          String schemaId = jsonNode.get(SCHEMA_ORG_IDENTIFIER).asText();
-          // Since we are creating a copy, we remove the schema:identifier to avoid confusion with the original artifact
-          ((ObjectNode) jsonNode).remove(SCHEMA_ORG_IDENTIFIER);
-          // CDE artifacts have the schema:identifier between brackets as part of their name so we need to remove it too
-          newName = newName.replace("(" + schemaId + ")", "").trim();
-        }
-        ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
-        originalDocument = jsonNode.toString();
+      if (statusCode != HttpStatus.SC_OK) {
+        return generateStatusResponse(proxyResponse);
       }
+
+      HttpEntity entity = proxyResponse.getEntity();
+      if (entity == null) {
+        return CedarResponse.badGateway()
+            .errorMessage("Artifact service returned an empty source artifact")
+            .id(sourceArtifactId)
+            .build();
+      }
+
+      originalDocument = EntityUtils.toString(entity, StandardCharsets.UTF_8);
+      if (originalDocument.isBlank()) {
+        return CedarResponse.badGateway()
+            .errorMessage("Artifact service returned an empty source artifact")
+            .id(sourceArtifactId)
+            .build();
+      }
+      JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
+      // Null rather than removed: the artifact server assigns the identifier, and the key carrying
+      // null is how anything asks for one — an absent key cannot be told from a forgotten one.
+      ((ObjectNode) jsonNode).putNull("@id");
+      String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
+      if (oldName == null) {
+        oldName = "";
+      }
+      String newName = nameTemplate.replace("{{name}}", oldName);
+      ((ObjectNode) jsonNode).put(PAV_DERIVED_FROM, id);
+      if (resourceType.isVersioned()) {
+        ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
+        ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
+      }
+      if (jsonNode.get(SCHEMA_ORG_IDENTIFIER) != null) {
+        String schemaId = jsonNode.get(SCHEMA_ORG_IDENTIFIER).asText();
+        // Since we are creating a copy, we remove the schema:identifier to avoid confusion with the original artifact
+        ((ObjectNode) jsonNode).remove(SCHEMA_ORG_IDENTIFIER);
+        // CDE artifacts have the schema:identifier between brackets as part of their name so we need to remove it too
+        newName = newName.replace("(" + schemaId + ")", "").trim();
+      }
+      ((ObjectNode) jsonNode).put(SCHEMA_ORG_NAME, newName);
+      originalDocument = jsonNode.toString();
+    } catch (CedarException e) {
+      throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
@@ -218,10 +235,11 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         CedarArtifactId newId = CedarArtifactId.build(createdId, resourceType);
 
         FolderServerArtifact folderServerCreatedResource =
-            copyArtifactToFolderInGraphDb(c, sourceArtifactId, newId, targetFolderId, resourceType,
+            ArtifactCopyOperations.registerCopy(folderSession, sourceArtifactId, newId, targetFolderId,
+                resourceType,
                 ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue(),
                 ModelUtil.extractDescriptionFromResource(resourceType, jsonNode).getValue(),
-                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue());
+                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue(), null, null);
 
         if (locationHeader != null) {
           response.setHeader(locationHeader.getName(), locationHeader.getValue());
@@ -236,68 +254,10 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
           return Response.ok().build();
         }
       }
+    } catch (CedarException e) {
+      throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
-    }
-  }
-
-  private FolderServerArtifact copyArtifactToFolderInGraphDb(CedarRequestContext c, CedarArtifactId oldId, CedarArtifactId newId,
-                                                             CedarFolderId targetFolderId, CedarResourceType resourceType, String name,
-                                                             String description, String identifier) throws CedarException {
-
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
-
-    if (CedarResourceTypeUtil.isNotValidForRestCall(resourceType)) {
-      throw new CedarProcessingException("You passed an illegal resourceType:'" + resourceType.getValue() +
-          "'. The allowed values are:" + CedarResourceTypeUtil.getValidResourceTypesForRestCalls()).badRequest()
-          .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
-          .parameter("invalidResourceTypes", resourceType.getValue())
-          .parameter("allowedResourceTypes", CedarResourceTypeUtil.getValidResourceTypeValuesForRestCalls());
-    }
-
-    ResourceVersion version = ResourceVersion.ZERO_ZERO_ONE;
-    BiboStatus publicationStatus = BiboStatus.DRAFT;
-
-    // check existence of parent folder
-    FolderServerArtifact newResource = null;
-    FolderServerFolder parentFolder = folderSession.findFolderById(targetFolderId);
-
-    String candidatePath = null;
-    if (parentFolder == null) {
-      throw new CedarObjectNotFoundException("The parent folder is not present!")
-          .parameter("targetFolderId", targetFolderId)
-          .errorKey(CedarErrorKey.PARENT_FOLDER_NOT_FOUND);
-    } else {
-      // Later we will guarantee some kind of uniqueness for the artifact names
-      // Currently we allow duplicate names, the id is the PK
-      FolderServerArtifact oldResource = folderSession.findArtifactById(oldId);
-      if (oldResource == null) {
-        throw new CedarObjectNotFoundException("The source artifact was not found!")
-            .parameter("@id", oldId)
-            .parameter("resourceType", resourceType.getValue())
-            .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND);
-      } else {
-        FolderServerArtifact brandNewResource = GraphDbObjectBuilder.forResourceType(resourceType, newId, name, description, identifier, version, publicationStatus);
-        if (brandNewResource instanceof FolderServerSchemaArtifact schemaArtifact) {
-          schemaArtifact.setLatestVersion(true);
-          schemaArtifact.setLatestDraftVersion(publicationStatus == BiboStatus.DRAFT);
-          schemaArtifact.setLatestPublishedVersion(publicationStatus == BiboStatus.PUBLISHED);
-        }
-        if (resourceType == CedarResourceType.INSTANCE) {
-          ((FolderServerInstance) brandNewResource).setIsBasedOn(((FolderServerInstance) oldResource).getIsBasedOn());
-        }
-        newResource = folderSession.createResourceAsChildOfId(brandNewResource, targetFolderId);
-      }
-    }
-
-    if (newResource != null) {
-      folderSession.setDerivedFrom(newId, oldId);
-      return newResource;
-    } else {
-      throw new CedarProcessingException("The artifact was not created!")
-          .parameter("@id", oldId)
-          .parameter("targetFolderId", parentFolder)
-          .errorKey(CedarErrorKey.RESOURCE_NOT_CREATED);
     }
   }
 
@@ -334,6 +294,11 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     CedarResourceType sourceResourceType = folderSession.getResourceType(untypedResourceId);
+    if (sourceResourceType == null) {
+      throw new CedarObjectNotFoundException("Source resource not found by id")
+          .errorKey(CedarErrorKey.SOURCE_RESOURCE_NOT_FOUND)
+          .parameter("resourceId", untypedResourceId);
+    }
     CedarFilesystemResourceId sourceId = CedarFilesystemResourceId.build(sId, sourceResourceType);
 
     userMustHaveWriteAccessToFilesystemResource(c, sourceId);
@@ -474,6 +439,11 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
     CedarResourceType resourceType = folderSession.getResourceType(untypedResourceId);
+    if (resourceType == null) {
+      throw new CedarObjectNotFoundException("Resource not found by id")
+          .errorKey(CedarErrorKey.NODE_NOT_FOUND)
+          .parameter("resourceId", untypedResourceId);
+    }
     CedarFilesystemResourceId fsResourceId = CedarFilesystemResourceId.build(id, resourceType);
 
     userMustHaveWriteAccessToFilesystemResource(c, fsResourceId);
@@ -534,6 +504,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
         if (currentTemplateEntity != null) {
           try {
+            Header revisionHeader = templateCurrentProxyResponse.getFirstHeader(HttpHeaders.ETAG);
+            String expectedEtag = revisionHeader == null ? null : revisionHeader.getValue();
             String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
             JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
             String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
@@ -562,7 +534,9 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
               if (changeDescription) {
                 updateDescriptionInObject(currentTemplateJsonNode, description);
               }
-              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId, Optional.empty(), JsonMapper.MAPPER.writeValueAsString(currentTemplateJsonNode));
+              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId,
+                  Optional.empty(), JsonMapper.MAPPER.writeValueAsString(currentTemplateJsonNode), false,
+                  expectedEtag);
             } else {
               return CedarResponse.badRequest()
                   .errorKey(CedarErrorKey.NOTHING_TO_DO)

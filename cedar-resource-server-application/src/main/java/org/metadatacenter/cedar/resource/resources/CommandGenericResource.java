@@ -253,6 +253,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       ClassicHttpResponse proxyResponse = ProxyUtil.proxyPost(url, c, bodyForArtifactServer);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       return createServiceResponse(proxyResponse);
+    } catch (CedarException e) {
+      throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }

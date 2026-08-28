@@ -9,6 +9,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
@@ -31,6 +35,8 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -98,7 +104,19 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     }
 
     String artifactGetUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId.getId(), Optional.empty());
-    JsonNode oldArtifactContent = ProxyUtil.proxyGetBodyAsJsonNode(artifactGetUrl, c);
+    ClassicHttpResponse artifactGetResponse = ProxyUtil.proxyGet(artifactGetUrl, c);
+    if (Response.Status.Family.familyOf(artifactGetResponse.getCode()) != Response.Status.Family.SUCCESSFUL) {
+      return generateStatusResponse(artifactGetResponse);
+    }
+    Header revisionHeader = artifactGetResponse.getFirstHeader(jakarta.ws.rs.core.HttpHeaders.ETAG);
+    String expectedEtag = revisionHeader == null ? null : revisionHeader.getValue();
+    JsonNode oldArtifactContent;
+    try {
+      oldArtifactContent = JsonMapper.MAPPER.readTree(
+          EntityUtils.toString(artifactGetResponse.getEntity(), StandardCharsets.UTF_8));
+    } catch (IOException | ParseException e) {
+      throw new CedarProcessingException(e);
+    }
     ObjectNode objectNode = (ObjectNode) oldArtifactContent;
     ObjectNode annotationsNode;
     if (objectNode.has(ModelNodeNames.ANNOTATIONS) && objectNode.get(ModelNodeNames.ANNOTATIONS).isObject()) {
@@ -111,7 +129,8 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     annotationsNode.set(ModelNodeNames.DATACITE_DOI_URI, doiNode);
 
     try {
-      var artifactPutResponse = ProxyUtil.proxyPut(artifactGetUrl, c, JsonMapper.MAPPER.writeValueAsString(objectNode));
+      var artifactPutResponse = ProxyUtil.proxyPut(artifactGetUrl, c,
+          JsonMapper.MAPPER.writeValueAsString(objectNode), expectedEtag);
       ProxyUtil.proxyResponseHeaders(artifactPutResponse, response);
       if (Response.Status.Family.familyOf(artifactPutResponse.getCode()) != Response.Status.Family.SUCCESSFUL) {
         return generateStatusResponse(artifactPutResponse);

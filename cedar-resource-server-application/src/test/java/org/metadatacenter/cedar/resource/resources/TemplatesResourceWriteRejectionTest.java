@@ -1,18 +1,25 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
+import org.metadatacenter.util.json.JsonMapper;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -20,13 +27,16 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Endpoint tests for the write-path rejections of the compact YAML convenience. Both rejections
- * fire before the request would reach the artifact server, so these tests run against the
- * booted application with no live backend.
+ * Endpoint tests for write-path failures, including the compact YAML convenience and an unavailable
+ * artifact server. The graph is embedded and the downstream server is deliberately on a dead port,
+ * so these tests run against the booted application with no live backend.
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TemplatesResourceWriteRejectionTest {
 
   static {
@@ -37,7 +47,10 @@ public class TemplatesResourceWriteRejectionTest {
         "CEDAR_RESOURCE_HTTP_PORT", "19007",
         "CEDAR_RESOURCE_ADMIN_PORT", "19107",
         "CEDAR_RESOURCE_STOP_PORT", "19207",
-        "CEDAR_REDIS_PERSISTENT_PORT", "1"));
+        "CEDAR_REDIS_PERSISTENT_PORT", "1",
+        "CEDAR_ARTIFACT_HTTP_PORT", "1",
+        "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
+        "CEDAR_OPENSEARCH_REST_PORT", "1"));
   }
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
@@ -47,15 +60,18 @@ public class TemplatesResourceWriteRejectionTest {
 
   private static String authHeaderUser1;
   private static String authHeaderAdmin;
+  private static String authHeaderUser2;
+  private static CedarConfig cedarConfig;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
-    CedarConfig cedarConfig = CedarConfig.getInstance(environment);
+    cedarConfig = CedarConfig.getInstance(environment);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     authHeaderUser1 = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     authHeaderAdmin = TestAuthUtil.getAdminUserAuthHeader(cedarConfig);
+    authHeaderUser2 = TestAuthUtil.getTestUser2AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
   }
 
@@ -69,6 +85,26 @@ public class TemplatesResourceWriteRejectionTest {
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates" + query))
         .header("Authorization", authHeaderUser1)
         .header("Content-Type", contentType)
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpResponse<String> search(String query) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/search" + query))
+        .timeout(Duration.ofSeconds(5))
+        .header("Authorization", authHeaderUser1)
+        .GET()
+        .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpResponse<String> postCommand(String command, String body) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/" + command))
+        .header("Authorization", authHeaderUser1)
+        .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build();
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -131,6 +167,102 @@ public class TemplatesResourceWriteRejectionTest {
     Assertions.assertEquals(400, response.statusCode());
     Assertions.assertTrue(response.body().contains("verbatimWriteRefused"));
     Assertions.assertTrue(response.body().contains("needs a JSON body"));
+  }
+
+  @Test
+  public void templateUpdatePermissionAloneCannotCreateByPut() throws Exception {
+    CedarUser updateOnlyUser = TestAuthUtil.getTestUser2(cedarConfig);
+    List<String> originalPermissions = List.copyOf(updateOnlyUser.getPermissions());
+    updateOnlyUser.setPermissions(List.of(CedarPermission.LOGGED_IN.getPermissionName(),
+        CedarPermission.TEMPLATE_UPDATE.getPermissionName()));
+    try {
+      String absentId = "https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c724";
+      HttpResponse<String> response = putTemplate(absentId, "", "{}", "application/json",
+          authHeaderUser2);
+      Assertions.assertEquals(403, response.statusCode());
+    } finally {
+      updateOnlyUser.setPermissions(originalPermissions);
+    }
+  }
+
+  @Test
+  public void unavailableArtifactServerReturnsSanitizedServiceUnavailable() throws Exception {
+    HttpResponse<String> response = post("", "{}", "application/json");
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
+    Assertions.assertTrue(error.path("originalException").isMissingNode()
+        || error.path("originalException").isNull(), response.body());
+    Assertions.assertTrue(error.path("sourceException").isMissingNode()
+        || error.path("sourceException").isNull(), response.body());
+    Assertions.assertFalse(response.body().contains("127.0.0.1"), response.body());
+  }
+
+  @Test
+  public void unavailableArtifactServerRemainsServiceUnavailableThroughValidationCommand() throws Exception {
+    HttpResponse<String> response = postCommand("validate?resourceType=template", "{}");
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
+  }
+
+  @Test
+  public void unavailableTemplateLookupRemainsServiceUnavailableForYamlInstances() throws Exception {
+    String body = "type: instance\n"
+        + "name: Outage fixture\n"
+        + "isBasedOn: https://repo.metadatacenter.org/templates/outage\n";
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/template-instances"))
+        .header("Authorization", authHeaderUser1)
+        .header("Content-Type", "application/yaml")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
+  }
+
+  @Test
+  public void unavailableOpenSearchReturnsSanitizedServiceUnavailable() throws Exception {
+    HttpResponse<String> response = search("?q=outage");
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("OpenSearch is unavailable", error.path("message").asText(), response.body());
+    Assertions.assertTrue(error.path("originalException").isMissingNode()
+        || error.path("originalException").isNull(), response.body());
+    Assertions.assertTrue(error.path("sourceException").isMissingNode()
+        || error.path("sourceException").isNull(), response.body());
+    Assertions.assertFalse(response.body().contains("127.0.0.1"), response.body());
+  }
+
+  @Test
+  @Order(Integer.MAX_VALUE)
+  public void unavailableGraphReturnsSanitizedServiceUnavailable() throws Exception {
+    // This destructive probe must be last in the class. The shared helper resets itself so the
+    // next booted test class starts and seeds a fresh harness rather than inheriting this outage.
+    EmbeddedCedarNeo4j.stopAndReset();
+
+    HttpResponse<String> response = search("?mode=special-folders");
+
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
+    Assertions.assertEquals("Neo4j is unavailable", error.path("message").asText(), response.body());
+    Assertions.assertTrue(error.path("originalException").isMissingNode()
+        || error.path("originalException").isNull(), response.body());
+    Assertions.assertTrue(error.path("sourceException").isMissingNode()
+        || error.path("sourceException").isNull(), response.body());
+    Assertions.assertFalse(response.body().contains("127.0.0.1"), response.body());
   }
 
 }

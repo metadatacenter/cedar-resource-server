@@ -3,7 +3,7 @@
   "info" : {
     "description" : "Better Metadata - Better Science",
     "title" : "CEDAR Resource Server API",
-    "version" : "2.9.2"
+    "version" : "2.9.3"
   },
   "paths" : {
     "/categories" : {
@@ -670,6 +670,9 @@
           },
           "500" : {
             "description" : "Internal server error"
+          },
+          "502" : {
+            "description" : "Invalid response from artifact service"
           }
         },
         "security" : [ {

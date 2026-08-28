@@ -236,7 +236,6 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
     CedarFieldId fid = CedarFieldId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);
