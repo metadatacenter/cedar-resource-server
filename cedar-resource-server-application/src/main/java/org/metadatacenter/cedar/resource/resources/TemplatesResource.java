@@ -193,7 +193,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @Path("/{template_id}/details")
   @Operation(summary = "Get details of a template", description = "Get details of a template.", tags = {"Templates", "Resource Details"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),

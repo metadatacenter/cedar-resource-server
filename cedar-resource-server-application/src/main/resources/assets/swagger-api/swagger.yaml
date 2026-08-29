@@ -800,18 +800,25 @@ paths:
       - Command
   /command/make-artifact-not-open:
     post:
-      description: Make artifact not open.
+      description: Remove an artifact from OpenView. Use the ETag returned by the
+        artifact's /details endpoint.
       operationId: makeArtifactNotOpen
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
             schema:
               $ref: "#/components/schemas/IdRequest"
-        description: Id of the artifact to make open
+        description: Id of the artifact to make not open
         required: true
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -820,6 +827,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -830,8 +841,11 @@ paths:
       - OpenView
   /command/make-artifact-open:
     post:
-      description: Make artifact open.
+      description: Expose an artifact through OpenView. Use the ETag returned by the
+        artifact's /details endpoint.
       operationId: makeArtifactOpen
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
@@ -842,6 +856,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -850,6 +868,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -860,18 +882,24 @@ paths:
       - OpenView
   /command/make-folder-not-open:
     post:
-      description: Make folder not open.
+      description: "Remove a folder from OpenView. Use the ETag returned by GET /folders/{id}."
       operationId: makeFolderNotOpen
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
             schema:
               $ref: "#/components/schemas/IdRequest"
-        description: Id of the folder to make open
+        description: Id of the folder to make not open
         required: true
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -880,6 +908,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -890,8 +922,11 @@ paths:
       - OpenView
   /command/make-folder-open:
     post:
-      description: Make folder open.
+      description: "Expose a folder through OpenView. Use the ETag returned by GET\
+        \ /folders/{id}."
       operationId: makeFolderOpen
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
@@ -902,6 +937,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -910,6 +949,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2062,6 +2105,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2509,6 +2556,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2962,6 +3013,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3411,6 +3466,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":

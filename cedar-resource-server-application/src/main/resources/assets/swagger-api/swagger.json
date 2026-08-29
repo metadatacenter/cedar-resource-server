@@ -1051,8 +1051,11 @@
     },
     "/command/make-artifact-not-open" : {
       "post" : {
-        "description" : "Make artifact not open.",
+        "description" : "Remove an artifact from OpenView. Use the ETag returned by the artifact's /details endpoint.",
         "operationId" : "makeArtifactNotOpen",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        } ],
         "requestBody" : {
           "content" : {
             "*/*" : {
@@ -1061,12 +1064,18 @@
               }
             }
           },
-          "description" : "Id of the artifact to make open",
+          "description" : "Id of the artifact to make not open",
           "required" : true
         },
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "description" : "Successful operation",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "description" : "Bad request"
@@ -1079,6 +1088,12 @@
           },
           "404" : {
             "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
           },
           "500" : {
             "description" : "Internal server error"
@@ -1093,8 +1108,11 @@
     },
     "/command/make-artifact-open" : {
       "post" : {
-        "description" : "Make artifact open.",
+        "description" : "Expose an artifact through OpenView. Use the ETag returned by the artifact's /details endpoint.",
         "operationId" : "makeArtifactOpen",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        } ],
         "requestBody" : {
           "content" : {
             "*/*" : {
@@ -1108,7 +1126,13 @@
         },
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "description" : "Successful operation",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "description" : "Bad request"
@@ -1121,6 +1145,12 @@
           },
           "404" : {
             "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
           },
           "500" : {
             "description" : "Internal server error"
@@ -1135,8 +1165,11 @@
     },
     "/command/make-folder-not-open" : {
       "post" : {
-        "description" : "Make folder not open.",
+        "description" : "Remove a folder from OpenView. Use the ETag returned by GET /folders/{id}.",
         "operationId" : "makeFolderNotOpen",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        } ],
         "requestBody" : {
           "content" : {
             "*/*" : {
@@ -1145,12 +1178,18 @@
               }
             }
           },
-          "description" : "Id of the folder to make open",
+          "description" : "Id of the folder to make not open",
           "required" : true
         },
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "description" : "Successful operation",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "description" : "Bad request"
@@ -1163,6 +1202,12 @@
           },
           "404" : {
             "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
           },
           "500" : {
             "description" : "Internal server error"
@@ -1177,8 +1222,11 @@
     },
     "/command/make-folder-open" : {
       "post" : {
-        "description" : "Make folder open.",
+        "description" : "Expose a folder through OpenView. Use the ETag returned by GET /folders/{id}.",
         "operationId" : "makeFolderOpen",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        } ],
         "requestBody" : {
           "content" : {
             "*/*" : {
@@ -1192,7 +1240,13 @@
         },
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "description" : "Successful operation",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "description" : "Bad request"
@@ -1205,6 +1259,12 @@
           },
           "404" : {
             "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
           },
           "500" : {
             "description" : "Internal server error"
@@ -2691,7 +2751,13 @@
         } ],
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "description" : "Successful operation",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "description" : "Bad request"
@@ -3306,7 +3372,13 @@
         } ],
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "description" : "Successful operation",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "description" : "Bad request"
@@ -3928,7 +4000,13 @@
         } ],
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "description" : "Successful operation",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "description" : "Bad request"
@@ -4552,7 +4630,13 @@
         } ],
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "description" : "Successful operation",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "description" : "Bad request"

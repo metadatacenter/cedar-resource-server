@@ -194,7 +194,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Path("/{template_element_id}/details")
   @Operation(summary = "Get details of a template element", description = "Get details of a template element.", tags = {"Template Elements", "Resource Details"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),

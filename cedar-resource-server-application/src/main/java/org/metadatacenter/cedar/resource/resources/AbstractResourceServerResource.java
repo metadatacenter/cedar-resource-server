@@ -592,10 +592,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     userMustHaveReadAccessToArtifact(context, id);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-    FolderServerArtifact resource = folderSession.findArtifactById(id);
+    VersionedResource<FolderServerArtifact> snapshot = folderSession.findVersionedArtifactById(id);
+    if (snapshot == null) {
+      return CedarResponse.notFound().id(id).errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+          .errorMessage("The artifact details can not be found by id").build();
+    }
+    FolderServerArtifact resource = snapshot.resource();
 
     ProvenanceNameUtil.addProvenanceDisplayName(resource);
-    return CedarResponse.ok().entity(resource).build();
+    return CedarResponse.ok()
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(snapshot.revision()))
+        .entity(resource).build();
   }
 
   protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId) throws CedarException {
