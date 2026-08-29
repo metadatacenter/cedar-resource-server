@@ -176,6 +176,7 @@ public class FolderPermissionLevelMatrixTest {
     // The boundary. Each of these gets its own folder so an unexpected success cannot invalidate the
     // rows around it.
     matrix.when("PUT", path(renameable), RENAME_BODY)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
     matrix.when("DELETE", path(deletable))
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
@@ -224,6 +225,7 @@ public class FolderPermissionLevelMatrixTest {
         .expect(ANONYMOUS, 401).expect(OWNER, 200).expect(OTHER_USER, 200);
 
     matrix.when("PUT", path(renameable), RENAME_BODY)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 200);
 
     // WRITE confers re-sharing. This was written expecting a refusal and is recorded as a 200
@@ -295,6 +297,7 @@ public class FolderPermissionLevelMatrixTest {
     matrix.when("GET", path(readable) + "/contents")
         .expect(ANONYMOUS, 401).expect(OWNER, 200).expect(OTHER_USER, 200);
     matrix.when("PUT", path(renameable), RENAME_BODY)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
 
     matrix.verify();

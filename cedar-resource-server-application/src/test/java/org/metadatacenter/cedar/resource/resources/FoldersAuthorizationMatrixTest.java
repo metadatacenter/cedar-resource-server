@@ -136,6 +136,7 @@ public class FoldersAuthorizationMatrixTest {
     // Writes by a stranger must be refused. The owner is not asserted here: a home folder is
     // special-cased against rename and delete, which is a separate concern.
     matrix.when("PUT", folderPath, renameBody)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401)
         .expect(OTHER_USER, 403);
 
