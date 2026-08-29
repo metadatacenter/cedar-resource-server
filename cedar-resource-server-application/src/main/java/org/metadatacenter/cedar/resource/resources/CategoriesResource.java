@@ -32,22 +32,25 @@ import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryPermissionServiceSession;
 import org.metadatacenter.server.CategoryServiceSession;
+import org.metadatacenter.server.RevisionConflictException;
+import org.metadatacenter.server.VersionedCategoryPermissions;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.permission.category.CategoryPermissionRequest;
-import org.metadatacenter.server.security.model.permission.category.CategoryPermissions;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedQuery;
+import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
@@ -450,8 +453,11 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarCategoryId categoryId = CedarCategoryId.build(id);
     userMustHaveWriteAccessToCategory(c, categoryId);
 
-    CategoryPermissions permissions = categoryPermissionSession.getCategoryPermissions(categoryId);
-    return Response.ok().entity(permissions).build();
+    VersionedCategoryPermissions permissions =
+        categoryPermissionSession.getVersionedCategoryPermissions(categoryId);
+    return Response.ok()
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(permissions.revision()))
+        .entity(permissions.content()).build();
 
   }
 
@@ -465,6 +471,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", description = "Precondition failed"),
+      @ApiResponse(responseCode = "428", description = "Precondition required"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateCategoryPermissions(
@@ -496,14 +504,33 @@ public class CategoriesResource extends AbstractResourceServerResource {
           .build();
     }
 
-    BackendCallResult backendCallResult = categoryPermissionSession.updateCategoryPermissions(categoryId,
-        permissionsRequest);
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .id(categoryId)
+          .errorMessage("Replacing category permissions requires the ETag returned by GET in If-Match")
+          .build();
+    }
+
+    BackendCallResult<VersionedCategoryPermissions> backendCallResult;
+    try {
+      backendCallResult = categoryPermissionSession.updateCategoryPermissions(categoryId,
+          permissionsRequest, RevisionPreconditionParser.parse(ifMatch));
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .id(categoryId)
+          .errorMessage("The category permissions have been updated since they were read")
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .build();
+    }
     if (backendCallResult.isError()) {
       throw new CedarBackendException(backendCallResult);
     }
 
-    CategoryPermissions permissions = categoryPermissionSession.getCategoryPermissions(categoryId);
-    return Response.ok().entity(permissions).build();
+    VersionedCategoryPermissions permissions = backendCallResult.getPayload();
+    return Response.ok()
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(permissions.revision()))
+        .entity(permissions.content()).build();
   }
 
 

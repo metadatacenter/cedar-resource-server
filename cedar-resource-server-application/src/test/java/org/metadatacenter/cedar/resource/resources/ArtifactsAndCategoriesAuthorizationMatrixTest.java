@@ -107,6 +107,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   private static String categoryName;
   private static String siblingCategoryName;
   private static String adminAuthHeader;
+  private static String user1Id;
   private static CedarCategoryId categoryId;
   private static CedarCategoryId inaccessibleCategoryId;
   private static CedarRequestContext user1Context;
@@ -145,6 +146,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
 
     user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+    user1Id = TestAuthUtil.getTestUser1(cedarConfig).getId();
 
     // One node per artifact type in the workspace graph, under user 1's home folder. Created through
     // the graph session rather than the REST API on purpose: a POST would proxy the content to the
@@ -354,6 +356,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     // and, for the owner-change path that does reach the call-result validator, the same
     // CedarErrorType.PERMISSION (403) the resource path now uses. The whole write-denial family is 403.
     matrix.when("PUT", categoryPath + "/permissions", permissionsBody)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401)
         .expect(OTHER_USER, 403);
 
@@ -381,6 +384,31 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   }
 
   @Test
+  public void categoryPermissionReplacementUsesETags() throws Exception {
+    String path = categoryPath + "/permissions";
+    String body = "{\"owner\":{\"@id\":\"" + user1Id
+        + "\"},\"userPermissions\":[],\"groupPermissions\":[]}";
+
+    HttpResponse<String> initial = request("GET", path, null, adminAuthHeader);
+    Assertions.assertEquals(200, initial.statusCode(), initial.body());
+    Assertions.assertEquals("\"1\"", initial.headers().firstValue("ETag").orElse(null));
+
+    HttpResponse<String> missing = request("PUT", path, body, adminAuthHeader);
+    Assertions.assertEquals(428, missing.statusCode(), missing.body());
+
+    HttpResponse<String> updated = request("PUT", path, body, adminAuthHeader, "\"1\"");
+    Assertions.assertEquals(200, updated.statusCode(), updated.body());
+    Assertions.assertEquals("\"2\"", updated.headers().firstValue("ETag").orElse(null));
+
+    HttpResponse<String> stale = request("PUT", path, body, adminAuthHeader, "\"1\"");
+    Assertions.assertEquals(412, stale.statusCode(), stale.body());
+
+    HttpResponse<String> wildcard = request("PUT", path, body, adminAuthHeader, "*");
+    Assertions.assertEquals(200, wildcard.statusCode(), wildcard.body());
+    Assertions.assertEquals("\"3\"", wildcard.headers().firstValue("ETag").orElse(null));
+  }
+
+  @Test
   public void batchCategoryAttachValidatesEveryCategoryBeforeMutating() throws Exception {
     Artifact artifact = artifacts.get(0);
     String body = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryIds\":[\""
@@ -396,11 +424,19 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   }
 
   private HttpResponse<String> request(String method, String path, String body, String authHeader) throws Exception {
+    return request(method, path, body, authHeader, null);
+  }
+
+  private HttpResponse<String> request(String method, String path, String body, String authHeader,
+                                       String ifMatch) throws Exception {
     HttpRequest.Builder builder = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
         .header("Content-Type", "application/json");
     if (authHeader != null) {
       builder.header("Authorization", authHeader);
+    }
+    if (ifMatch != null) {
+      builder.header("If-Match", ifMatch);
     }
     builder.method(method, body == null
         ? HttpRequest.BodyPublishers.noBody()
