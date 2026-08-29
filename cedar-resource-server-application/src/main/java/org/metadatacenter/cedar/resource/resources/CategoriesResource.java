@@ -17,6 +17,7 @@ import org.metadatacenter.cedar.resource.resources.swaggermodel.Category;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
+import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
@@ -31,6 +32,7 @@ import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryPermissionServiceSession;
+import org.metadatacenter.server.CategoryNotEmptyException;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.RevisionConflictException;
 import org.metadatacenter.server.VersionedCategoryPermissions;
@@ -87,6 +89,9 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "Category still has children or attached artifacts"),
+      @ApiResponse(responseCode = "412", description = "ETag precondition failed"),
+      @ApiResponse(responseCode = "428", description = "If-Match is required"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response getAllCategories(
@@ -399,11 +404,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    //TODO: check if it can be deleted:
-    // - it has no child nodes
-    // - it has no artifacts attached
-    // - also perform some kind of permission checking
-
     FolderServerCategory categoryWritable = userMustHaveWriteAccessToCategory(c, ccid);
 
     if (categoryWritable.getParentCategoryId() == null) {
@@ -425,6 +425,15 @@ public class CategoriesResource extends AbstractResourceServerResource {
     boolean deleted;
     try {
       deleted = categorySession.deleteCategoryById(ccid, RevisionPreconditionParser.parse(ifMatch));
+    } catch (CategoryNotEmptyException e) {
+      return CedarResponse.conflict()
+          .id(id)
+          .errorKey(CedarErrorKey.CATEGORY_CAN_NOT_BE_DELETED)
+          .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_CATEGORY)
+          .parameter("childCategoryCount", e.getChildCategoryCount())
+          .parameter("artifactCount", e.getArtifactCount())
+          .errorMessage("Categories with children or attached artifacts can not be deleted")
+          .build();
     } catch (RevisionConflictException e) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
           .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))

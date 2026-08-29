@@ -109,6 +109,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   private static String adminAuthHeader;
   private static String user1Id;
   private static CedarCategoryId categoryId;
+  private static CedarCategoryId rootCategoryId;
   private static CedarCategoryId inaccessibleCategoryId;
   private static CedarRequestContext user1Context;
 
@@ -165,7 +166,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     // A category owned by user 1, under the root category that seeding creates.
     FolderServerCategory rootCategory = CedarDataServices.getInstance().getCategoryServiceSession(user1Context).getRootCategory();
     Assertions.assertNotNull(rootCategory, "the seeded graph should contain the root category");
-    CedarCategoryId rootCategoryId = rootCategory.getResourceId();
+    rootCategoryId = rootCategory.getResourceId();
     categoryName = "Matrix Category";
     FolderServerCategory category = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
         .createCategory(rootCategoryId, categoryName,
@@ -381,6 +382,41 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     HttpResponse<String> after = request("GET", categoryPath, null, adminAuthHeader);
     Assertions.assertEquals(200, after.statusCode(), after.body());
     Assertions.assertEquals(categoryName, JsonMapper.MAPPER.readTree(after.body()).path("schema:name").asText());
+  }
+
+  @Test
+  public void categoryDeleteRefusesChildrenAndAttachedArtifacts() throws Exception {
+    var categories = CedarDataServices.getInstance().getCategoryServiceSession(user1Context);
+    FolderServerCategory guardedParent = categories.createCategory(rootCategoryId, "REST Delete Guard Parent",
+        "Parent with a child", null);
+    FolderServerCategory guardedChild = categories.createCategory(guardedParent.getResourceId(),
+        "REST Delete Guard Child", "Blocks deletion of its parent", null);
+    String guardedParentPath = "/categories/" + URLEncoder.encode(guardedParent.getId(), StandardCharsets.UTF_8);
+
+    HttpResponse<String> guardedParentGet = request("GET", guardedParentPath, null, adminAuthHeader);
+    Assertions.assertEquals(200, guardedParentGet.statusCode(), guardedParentGet.body());
+    HttpResponse<String> childBlocked = request("DELETE", guardedParentPath, null, adminAuthHeader,
+        guardedParentGet.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(409, childBlocked.statusCode(), childBlocked.body());
+    Assertions.assertTrue(childBlocked.body().contains("categoryCanNotBeDeleted"), childBlocked.body());
+    Assertions.assertTrue(childBlocked.body().contains("nonEmptyCategory"), childBlocked.body());
+    Assertions.assertTrue(childBlocked.body().contains("\"childCategoryCount\":1"), childBlocked.body());
+    Assertions.assertNotNull(categories.getCategoryById(guardedChild.getResourceId()));
+
+    FolderServerCategory guardedAttached = categories.createCategory(rootCategoryId, "REST Delete Guard Attached",
+        "Category with an attached artifact", null);
+    Artifact artifact = artifacts.get(0);
+    Assertions.assertTrue(categories.attachCategoryToArtifact(
+        guardedAttached.getResourceId(), CedarUntypedArtifactId.build(artifact.id())));
+    String guardedAttachedPath = "/categories/"
+        + URLEncoder.encode(guardedAttached.getId(), StandardCharsets.UTF_8);
+    HttpResponse<String> guardedAttachedGet = request("GET", guardedAttachedPath, null, adminAuthHeader);
+    Assertions.assertEquals(200, guardedAttachedGet.statusCode(), guardedAttachedGet.body());
+    HttpResponse<String> artifactBlocked = request("DELETE", guardedAttachedPath, null, adminAuthHeader,
+        guardedAttachedGet.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(409, artifactBlocked.statusCode(), artifactBlocked.body());
+    Assertions.assertTrue(artifactBlocked.body().contains("\"artifactCount\":1"), artifactBlocked.body());
+    Assertions.assertNotNull(categories.getCategoryById(guardedAttached.getResourceId()));
   }
 
   @Test
