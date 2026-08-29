@@ -525,6 +525,9 @@ public class SharingRoundTripTest {
     if (authHeader != null) {
       builder.header("Authorization", authHeader);
     }
+    if ("PUT".equals(method) && path.endsWith("/permissions")) {
+      builder.header("If-Match", "*");
+    }
     builder.method(method, body == null
         ? HttpRequest.BodyPublishers.noBody()
         : HttpRequest.BodyPublishers.ofString(body));

@@ -282,6 +282,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
       // other write row. This denial reaches the call-result path, which once defaulted to 401 (see
       // the category row below); it now carries CedarErrorType.PERMISSION, so it answers 403 to match.
       matrix.when("PUT", artifact.path() + "/permissions", permissionsBody)
+          .header("If-Match", "*")
           .expect(ANONYMOUS, 401)
           .expect(OTHER_USER, 403);
     }

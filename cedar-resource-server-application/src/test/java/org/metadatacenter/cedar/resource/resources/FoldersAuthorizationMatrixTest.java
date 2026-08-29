@@ -151,6 +151,7 @@ public class FoldersAuthorizationMatrixTest {
     // missing-header case, which must stay 401. The validator sites in ResourcePermissionRequest-
     // Validator were moved onto PERMISSION accordingly.
     matrix.when("PUT", folderPath + "/permissions", permissionsBody)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401)
         .expect(OTHER_USER, 403);
 

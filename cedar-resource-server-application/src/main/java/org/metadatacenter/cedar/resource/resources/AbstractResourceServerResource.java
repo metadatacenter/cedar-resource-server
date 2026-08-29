@@ -60,6 +60,7 @@ import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1081,8 +1082,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     userMustHaveReadAccess(permissionSession, resourceId);
 
-    CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(resourceId);
-    return Response.ok().entity(permissions).build();
+    VersionedResourcePermissions permissions = permissionSession.getVersionedResourcePermissions(resourceId);
+    return Response.ok()
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(permissions.revision()))
+        .entity(permissions.content()).build();
   }
 
   protected Response updateResourcePermissions(CedarRequestContext c, CedarFilesystemResourceId resourceId) throws CedarException {
@@ -1108,7 +1111,32 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorMessage("The resource can not be found by id")
           .build();
     } else {
-      BackendCallResult backendCallResult = permissionSession.updateResourcePermissions(resourceId, permissionsRequest);
+      // Evaluate authority before the HTTP precondition. A caller who cannot change this ACL must
+      // receive the same 403 whether or not they guessed that the endpoint uses ETags.
+      if (!permissionSession.userHasWriteAccessToResource(resourceId)) {
+        throw new CedarPermissionException("You do not have write access to the resource")
+            .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
+            .parameter("resourceId", resourceId.getId());
+      }
+      String ifMatch = c.getIfMatchHeader();
+      if (ifMatch == null || ifMatch.isBlank()) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+            .id(resourceId)
+            .errorMessage("Replacing resource permissions requires the ETag returned by GET in If-Match")
+            .build();
+      }
+
+      BackendCallResult<VersionedResourcePermissions> backendCallResult;
+      try {
+        backendCallResult = permissionSession.updateResourcePermissions(resourceId, permissionsRequest,
+            RevisionPreconditionParser.parse(ifMatch));
+      } catch (RevisionConflictException e) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+            .id(resourceId)
+            .errorMessage("The resource permissions have been updated since they were read")
+            .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+            .build();
+      }
       if (backendCallResult.isError()) {
         throw new CedarBackendException(backendCallResult);
       }
@@ -1119,8 +1147,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
       }
 
-      CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(resourceId);
-      return Response.ok().entity(permissions).build();
+      VersionedResourcePermissions permissions = backendCallResult.getPayload();
+      return Response.ok()
+          .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(permissions.revision()))
+          .entity(permissions.content()).build();
     }
   }
 

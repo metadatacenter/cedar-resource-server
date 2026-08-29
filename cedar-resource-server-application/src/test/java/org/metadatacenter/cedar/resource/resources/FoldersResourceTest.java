@@ -60,6 +60,7 @@ public class FoldersResourceTest {
   private static String authHeaderUser2;
   private static String homeFolderId;
   private static String homeFolderPath;
+  private static String user1Id;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -70,6 +71,7 @@ public class FoldersResourceTest {
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     authHeaderUser1 = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     authHeaderUser2 = TestAuthUtil.getTestUser2AuthHeader(cedarConfig);
+    user1Id = TestAuthUtil.getTestUser1(cedarConfig).getId();
 
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
@@ -95,11 +97,19 @@ public class FoldersResourceTest {
   }
 
   private HttpResponse<String> request(String method, String path, String body, String authHeader) throws Exception {
+    return request(method, path, body, authHeader, null);
+  }
+
+  private HttpResponse<String> request(String method, String path, String body, String authHeader,
+                                       String ifMatch) throws Exception {
     HttpRequest.Builder builder = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
         .header("Content-Type", "application/json");
     if (authHeader != null) {
       builder.header("Authorization", authHeader);
+    }
+    if (ifMatch != null) {
+      builder.header("If-Match", ifMatch);
     }
     if (body == null) {
       builder.method(method, HttpRequest.BodyPublishers.noBody());
@@ -194,6 +204,36 @@ public class FoldersResourceTest {
         authHeaderUser1);
     Assertions.assertEquals(200, response.statusCode());
     Assertions.assertTrue(response.body().contains("owner"));
+  }
+
+  @Test
+  public void folderPermissionReplacementUsesETags() throws Exception {
+    HttpResponse<String> created = request("POST", "/folders",
+        "{\"path\": \"" + homeFolderPath + "\", \"name\": \"Versioned ACL REST Folder\", "
+            + "\"description\": \"ETag test\"}", authHeaderUser1);
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
+    String permissionsPath = "/folders/" + encode(folderId) + "/permissions";
+    String body = "{\"owner\":{\"@id\":\"" + user1Id
+        + "\"},\"userPermissions\":[],\"groupPermissions\":[]}";
+
+    HttpResponse<String> initial = request("GET", permissionsPath, null, authHeaderUser1);
+    Assertions.assertEquals(200, initial.statusCode(), initial.body());
+    Assertions.assertEquals("\"1\"", initial.headers().firstValue("ETag").orElse(null));
+
+    HttpResponse<String> missing = request("PUT", permissionsPath, body, authHeaderUser1);
+    Assertions.assertEquals(428, missing.statusCode(), missing.body());
+
+    HttpResponse<String> updated = request("PUT", permissionsPath, body, authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(200, updated.statusCode(), updated.body());
+    Assertions.assertEquals("\"2\"", updated.headers().firstValue("ETag").orElse(null));
+
+    HttpResponse<String> stale = request("PUT", permissionsPath, body, authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(412, stale.statusCode(), stale.body());
+
+    HttpResponse<String> wildcard = request("PUT", permissionsPath, body, authHeaderUser1, "*");
+    Assertions.assertEquals(200, wildcard.statusCode(), wildcard.body());
+    Assertions.assertEquals("\"3\"", wildcard.headers().firstValue("ETag").orElse(null));
   }
 
 }

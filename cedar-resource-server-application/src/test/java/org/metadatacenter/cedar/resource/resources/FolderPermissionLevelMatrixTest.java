@@ -184,6 +184,7 @@ public class FolderPermissionLevelMatrixTest {
     // access. An authenticated reader is refused with 403 (permission denial via CedarErrorType
     // .PERMISSION); an anonymous caller is refused with 401 by the authentication layer.
     matrix.when("PUT", path(resharable) + "/permissions", resharePermissionsBody())
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
 
     matrix.verify();
@@ -237,6 +238,7 @@ public class FolderPermissionLevelMatrixTest {
     // model, but it is not what a six-level permission enum suggests, and it is pinned here so the
     // behaviour is a decision rather than a discovery. If it is ever tightened, this row fails.
     matrix.when("PUT", path(resharable) + "/permissions", resharePermissionsBody())
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 200);
 
     matrix.verify();

@@ -166,6 +166,7 @@ public class ArtifactPermissionLevelMatrixTest {
     // an anonymous caller is refused with 401 by the authentication layer.
     for (Fixture f : resharable) {
       matrix.when("PUT", f.path() + "/permissions", resharePermissionsBody())
+          .header("If-Match", "*")
           .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
     }
 
@@ -199,6 +200,7 @@ public class ArtifactPermissionLevelMatrixTest {
     // Each re-share row gets its own fixture, because this one succeeds and rewrites the ACL.
     for (Fixture f : resharable) {
       matrix.when("PUT", f.path() + "/permissions", resharePermissionsBody())
+          .header("If-Match", "*")
           .expect(ANONYMOUS, 401).expect(OTHER_USER, 200);
     }
 
