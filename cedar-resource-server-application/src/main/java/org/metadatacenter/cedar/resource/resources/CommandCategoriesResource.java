@@ -220,13 +220,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
       categoryIds.add(ccid);
     }
 
-    boolean changed = false;
-    for (CedarCategoryId ccid : categoryIds) {
-      boolean attached = categorySession.attachCategoryToArtifact(ccid, aid);
-      if (attached) {
-        changed = true;
-      }
-    }
+    boolean changed = categorySession.attachCategoriesToArtifact(categoryIds, aid);
     if (changed) {
       FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
       FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
