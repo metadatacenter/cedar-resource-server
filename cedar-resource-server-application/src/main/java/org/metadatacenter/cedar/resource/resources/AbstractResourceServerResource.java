@@ -427,12 +427,19 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       return generateStatusResponse(proxyResponse);
     }
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     try {
       String artifactSource = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
       JsonNode artifactNode = JsonMapper.MAPPER.readTree(artifactSource);
-      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compact.isPresent() && compact.get());
+      boolean compactRepresentation = compact.isPresent() && compact.get();
+      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compactRepresentation);
+      String canonicalEtag = headerValue(proxyResponse, HttpHeaders.ETAG);
+      String yamlEtag = representationEtag(canonicalEtag,
+          compactRepresentation ? "yaml-compact" : "yaml");
+      response.setHeader(HttpHeaders.ETAG, yamlEtag);
+      response.setHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT);
       return CedarResponse.ok()
+          .header(HttpHeaders.ETAG, yamlEtag)
+          .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
           .type(responseType.get().toString())
           .entity(yamlContent)
           .build();
@@ -518,8 +525,38 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * entity is not artifact JSON (errors, graph metadata) are returned unchanged.
    */
   protected Response negotiateArtifactResponse(Response jsonResponse, CedarResourceType resourceType) {
-    return ArtifactYamlTranscoder.negotiatedArtifactResponse(
+    Response negotiated = ArtifactYamlTranscoder.negotiatedArtifactResponse(
         jsonResponse, resourceType, negotiatedArtifactResponseType());
+    Response.ResponseBuilder responseBuilder = Response.fromResponse(negotiated)
+        .header(HttpHeaders.VARY, HttpHeaders.ACCEPT);
+    response.setHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT);
+    if (Response.Status.Family.familyOf(negotiated.getStatus()) == Response.Status.Family.SUCCESSFUL) {
+      String representation = null;
+      if (ArtifactYamlTranscoder.isYaml(negotiated.getMediaType())) {
+        representation = "yaml";
+      } else if (!(jsonResponse.getEntity() instanceof JsonNode)) {
+        // Resource-server writes return the graph record, not the stored artifact bytes served by
+        // GET. Keep its validator distinct while retaining the artifact revision for If-Match.
+        representation = "resource-record";
+      }
+      if (representation != null) {
+        String representationEtag = representationEtag(response.getHeader(HttpHeaders.ETAG), representation);
+        response.setHeader(HttpHeaders.ETAG, representationEtag);
+        responseBuilder.header(HttpHeaders.ETAG, null).header(HttpHeaders.ETAG, representationEtag);
+      }
+    }
+    return responseBuilder.build();
+  }
+
+  private String representationEtag(String currentEtag, String representation) {
+    if (currentEtag == null) {
+      return null;
+    }
+    RevisionPrecondition currentRevision = RevisionPreconditionParser.parse(currentEtag);
+    if (currentRevision.revisions().size() == 1) {
+      return RevisionPreconditionParser.format(currentRevision.revisions().iterator().next(), representation);
+    }
+    return currentEtag;
   }
 
   /**
@@ -765,7 +802,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   private static String headerValue(ClassicHttpResponse response, String name) {
-    return response.getFirstHeader(name) == null ? null : response.getFirstHeader(name).getValue();
+    return Arrays.stream(response.getHeaders())
+        .filter(header -> name.equalsIgnoreCase(header.getName()))
+        .map(header -> header.getValue())
+        .findFirst()
+        .orElse(null);
   }
 
   /**

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
+import org.metadatacenter.artifacts.model.renderer.JsonArtifactRenderer;
 import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
@@ -124,6 +126,33 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
+  @Order(0)
+  public void artifactRepresentationsKeepDistinctStrongEtagsThroughTheResourceServer() throws Exception {
+    String encodedId = java.net.URLEncoder.encode(sourceArtifact.getId(), StandardCharsets.UTF_8);
+    URI uri = URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/" + encodedId);
+
+    HttpResponse<String> json = CLIENT.send(HttpRequest.newBuilder(uri)
+        .header("Authorization", authHeader)
+        .header("Accept", "application/json")
+        .GET().build(), HttpResponse.BodyHandlers.ofString());
+    HttpResponse<String> yaml = CLIENT.send(HttpRequest.newBuilder(uri)
+        .header("Authorization", authHeader)
+        .header("Accept", "application/yaml")
+        .GET().build(), HttpResponse.BodyHandlers.ofString());
+    HttpResponse<String> compact = CLIENT.send(HttpRequest.newBuilder(
+            URI.create(uri + "?compact=true"))
+        .header("Authorization", authHeader)
+        .header("Accept", "application/yaml")
+        .GET().build(), HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(200, json.statusCode(), json.body());
+    Assertions.assertEquals("\"1\"", json.headers().firstValue("ETag").orElse(null));
+    Assertions.assertEquals("\"1-yaml\"", yaml.headers().firstValue("ETag").orElse(null));
+    Assertions.assertEquals("\"1-yaml-compact\"", compact.headers().firstValue("ETag").orElse(null));
+    Assertions.assertTrue(yaml.headers().firstValue("Vary").orElse("").contains("Accept"));
+  }
+
+  @Test
   @Order(1)
   public void copyInterpolatesTheSourceArtifactName() throws Exception {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
@@ -224,6 +253,7 @@ public class CommandFileSystemResourceTest {
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
             + java.net.URLEncoder.encode(sourceArtifact.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authHeader)
+        .header("If-Match", "*")
         .DELETE()
         .build();
     HttpResponse<String> deleteResponse = CLIENT.send(deleteRequest, HttpResponse.BodyHandlers.ofString());
@@ -278,6 +308,10 @@ public class CommandFileSystemResourceTest {
       response = new byte[0];
     }
     exchange.getResponseHeaders().set("Content-Type", "application/json");
+    if ("GET".equals(exchange.getRequestMethod()) && status == 200) {
+      exchange.getResponseHeaders().set("ETag", "\"1\"");
+      exchange.getResponseHeaders().set("Vary", "Accept");
+    }
     if (response == null) {
       exchange.sendResponseHeaders(status, -1);
     } else {
@@ -288,12 +322,10 @@ public class CommandFileSystemResourceTest {
   }
 
   private static ObjectNode sourceDocument() {
-    ObjectNode source = JsonMapper.MAPPER.createObjectNode();
-    source.put("@id", sourceArtifact.getId());
-    source.put("schema:name", SOURCE_NAME);
-    source.put("schema:description", "Copy command regression fixture");
-    source.put("pav:version", "1.0.0");
-    source.put("bibo:status", "bibo:draft");
-    return source;
+    return new JsonArtifactRenderer().renderTemplateSchemaArtifact(
+        TemplateSchemaArtifact.builder()
+            .withName(SOURCE_NAME)
+            .withJsonLdId(URI.create(sourceArtifact.getId()))
+            .build());
   }
 }
