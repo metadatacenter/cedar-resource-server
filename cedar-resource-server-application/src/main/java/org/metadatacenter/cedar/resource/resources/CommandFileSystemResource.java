@@ -34,6 +34,7 @@ import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.SiblingNameConflictException;
 import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -386,14 +387,18 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     userMustHaveWriteAccessToFolder(c, targetFolderId);
 
     boolean moved;
-    if (sourceResourceType == CedarResourceType.FOLDER) {
-      CedarFolderId sourceFolderId = sourceId.asFolderId();
-      moved = folderSession.moveFolder(sourceFolderId, targetFolderId);
-      searchPermissionEnqueueService.folderMoved(sourceId.getId());
-    } else {
-      CedarArtifactId sourceArtifactId = sourceId.asArtifactId();
-      moved = folderSession.moveResource(sourceArtifactId, targetFolderId);
-      searchPermissionEnqueueService.resourceMoved(sourceId.getId());
+    try {
+      if (sourceResourceType == CedarResourceType.FOLDER) {
+        CedarFolderId sourceFolderId = sourceId.asFolderId();
+        moved = folderSession.moveFolder(sourceFolderId, targetFolderId);
+        searchPermissionEnqueueService.folderMoved(sourceId.getId());
+      } else {
+        CedarArtifactId sourceArtifactId = sourceId.asArtifactId();
+        moved = folderSession.moveResource(sourceArtifactId, targetFolderId);
+        searchPermissionEnqueueService.resourceMoved(sourceId.getId());
+      }
+    } catch (SiblingNameConflictException e) {
+      return siblingNameConflictResponse(sourceResource.getName());
     }
     if (!moved) {
       BackendCallResult<?> backendCallResult = new BackendCallResult<>();

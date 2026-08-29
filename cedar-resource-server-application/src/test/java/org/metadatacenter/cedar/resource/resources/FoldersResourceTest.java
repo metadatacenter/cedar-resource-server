@@ -13,8 +13,13 @@ import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
+import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.server.SiblingNameConflictException;
+import org.metadatacenter.server.neo4j.NodeLabel;
+import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
@@ -30,6 +35,14 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 
 /**
  * Endpoint tests for the folder resource against an in-process Neo4j. Authentication is served
@@ -74,6 +87,14 @@ public class FoldersResourceTest {
     user1Id = TestAuthUtil.getTestUser1(cedarConfig).getId();
 
     EmbeddedCedarNeo4j.seed(cedarConfig);
+
+    CedarRequestContext adminContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getAdminUser(cedarConfig));
+    var adminSession = CedarDataServices.getInstance().getAdminServiceSession(adminContext);
+    adminSession.backfillFolderParentIds();
+    adminSession.createUniqueConstraint(NodeLabel.FOLDER,
+        List.of(NodeProperty.PARENT_FOLDER_ID, NodeProperty.NAME_LOWER));
+    adminSession.createUniqueConstraint(NodeLabel.CATEGORY,
+        List.of(NodeProperty.PARENT_CATEGORY_ID, NodeProperty.NAME_LOWER));
 
     // These tests run without OpenSearch: indexing becomes a no-op, the queue-backed services
     // stay real (Redis), and the searching service is never exercised by the folder endpoints
@@ -156,6 +177,81 @@ public class FoldersResourceTest {
   public void unauthenticatedRequestIsRejected() throws Exception {
     HttpResponse<String> response = request("GET", "/folders/" + encode(homeFolderId), null, null);
     Assertions.assertEquals(401, response.statusCode());
+  }
+
+  @Test
+  public void concurrentCaseVariantsCannotCreateDuplicateFolderOrCategorySiblings() throws Exception {
+    CedarConfig cedarConfig = CedarConfig.getInstance(
+        CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
+    CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+
+    String folderStem = "Sibling Constraint Folder " + UUID.randomUUID();
+    var folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
+    assertOneSuccessAndOneSiblingConflict(
+        () -> folderSession.createFolderAsChildOfId(folder(folderStem),
+            org.metadatacenter.id.CedarFolderId.build(homeFolderId), newFolderId()),
+        () -> folderSession.createFolderAsChildOfId(folder(folderStem.toUpperCase()),
+            org.metadatacenter.id.CedarFolderId.build(homeFolderId), newFolderId()));
+
+    var categorySession = CedarDataServices.getInstance().getCategoryServiceSession(userContext);
+    FolderServerCategory root = categorySession.getRootCategory();
+    String categoryStem = "Sibling Constraint Category " + UUID.randomUUID();
+    assertOneSuccessAndOneSiblingConflict(
+        () -> categorySession.createCategory(root.getResourceId(), categoryStem, "first", ""),
+        () -> categorySession.createCategory(root.getResourceId(), categoryStem.toUpperCase(), "second", ""));
+  }
+
+  private static FolderServerFolder folder(String name) {
+    FolderServerFolder folder = new FolderServerFolder();
+    folder.setName(name);
+    folder.setDescription("concurrent sibling-name constraint test");
+    return folder;
+  }
+
+  private static org.metadatacenter.id.CedarFolderId newFolderId() {
+    return org.metadatacenter.id.CedarFolderId.build(
+        "https://repo.metadatacenter.org/folders/" + UUID.randomUUID());
+  }
+
+  private static void assertOneSuccessAndOneSiblingConflict(Callable<?> first, Callable<?> second)
+      throws Exception {
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    CountDownLatch ready = new CountDownLatch(2);
+    CountDownLatch start = new CountDownLatch(1);
+    try {
+      Future<?> a = executor.submit(gated(first, ready, start));
+      Future<?> b = executor.submit(gated(second, ready, start));
+      Assertions.assertTrue(ready.await(5, java.util.concurrent.TimeUnit.SECONDS));
+      start.countDown();
+
+      int successes = 0;
+      int conflicts = 0;
+      for (Future<?> future : List.of(a, b)) {
+        try {
+          Assertions.assertNotNull(future.get());
+          successes++;
+        } catch (ExecutionException e) {
+          if (e.getCause() instanceof SiblingNameConflictException) {
+            conflicts++;
+          } else {
+            throw e;
+          }
+        }
+      }
+      Assertions.assertEquals(1, successes);
+      Assertions.assertEquals(1, conflicts);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  private static Callable<Object> gated(Callable<?> operation, CountDownLatch ready,
+                                        CountDownLatch start) {
+    return () -> {
+      ready.countDown();
+      start.await();
+      return operation.call();
+    };
   }
 
   @Test

@@ -94,6 +94,14 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
   protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
 
+  protected Response siblingNameConflictResponse(String name) {
+    return CedarResponse.conflict()
+        .errorKey(CedarErrorKey.UNIQUE_CONSTRAINT_COLLISION)
+        .errorMessage("A sibling with the same name already exists")
+        .parameter("name", name)
+        .build();
+  }
+
   // The workspace/graph services, received as a field rather than reached as a global from each
   // method. The one-argument constructor supplies the single managed instance from the sanctioned
   // composition-root accessor; the two-argument constructor lets a test inject a specific one. Every
@@ -1284,7 +1292,12 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         updateFields.put(NodeProperty.NAME, nameV);
         updateFields.put(NodeProperty.NAME_LOWER, nameV.toLowerCase());
       }
-      FolderServerFolder folderServerFolderUpdated = folderSession.updateFolderById(folderId, updateFields);
+      FolderServerFolder folderServerFolderUpdated;
+      try {
+        folderServerFolderUpdated = folderSession.updateFolderById(folderId, updateFields);
+      } catch (SiblingNameConflictException e) {
+        return siblingNameConflictResponse(nameV);
+      }
 
       String newName = folderServerFolderUpdated.getName();
       if (oldName == null || !oldName.equals(newName)) {

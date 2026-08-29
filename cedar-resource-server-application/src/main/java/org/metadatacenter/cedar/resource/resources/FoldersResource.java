@@ -412,7 +412,11 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServerFolder brandNewFolder = new FolderServerFolder();
     brandNewFolder.setName(nameV);
     brandNewFolder.setDescription(descriptionV);
-    newFolder = folderSession.createFolderAsChildOfId(brandNewFolder, parentFolder.getResourceId(), newFolderId);
+    try {
+      newFolder = folderSession.createFolderAsChildOfId(brandNewFolder, parentFolder.getResourceId(), newFolderId);
+    } catch (org.metadatacenter.server.SiblingNameConflictException e) {
+      return siblingNameConflictResponse(nameV);
+    }
 
     if (newFolder == null) {
       return CedarResponse.badRequest()

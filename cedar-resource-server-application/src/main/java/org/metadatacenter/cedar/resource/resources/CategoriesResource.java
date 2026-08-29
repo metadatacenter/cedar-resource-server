@@ -35,6 +35,7 @@ import org.metadatacenter.server.CategoryPermissionServiceSession;
 import org.metadatacenter.server.CategoryNotEmptyException;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.RevisionConflictException;
+import org.metadatacenter.server.SiblingNameConflictException;
 import org.metadatacenter.server.VersionedCategoryPermissions;
 import org.metadatacenter.server.VersionedResource;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
@@ -191,8 +192,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
       newCategory = existingCategory;
     }
     else {
-      newCategory = categorySession.createCategory(ccParentId, categoryName.stringValue(), categoryDescription.stringValue(),
-          identifier.stringValue());
+      try {
+        newCategory = categorySession.createCategory(ccParentId, categoryName.stringValue(), categoryDescription.stringValue(),
+            identifier.stringValue());
+      } catch (SiblingNameConflictException e) {
+        return siblingNameConflictResponse(categoryName.stringValue());
+      }
       c.should(newCategory).be(NonNull).otherwiseInternalServerError(
           new CedarErrorPack()
               .message("There was an error while creating the category!")
@@ -360,7 +365,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
     updateFields.put(NodeProperty.NAME_LOWER, categoryName.stringValue().toLowerCase());
     updateFields.put(NodeProperty.DESCRIPTION, categoryDescription.stringValue());
     updateFields.put(NodeProperty.IDENTIFIER, categoryIdentifier.stringValue());
-    FolderServerCategory updatedCategory = categorySession.updateCategoryById(ccid, updateFields);
+    FolderServerCategory updatedCategory;
+    try {
+      updatedCategory = categorySession.updateCategoryById(ccid, updateFields);
+    } catch (SiblingNameConflictException e) {
+      return siblingNameConflictResponse(categoryName.stringValue());
+    }
 
     c.should(updatedCategory).be(NonNull).otherwiseInternalServerError(
         new CedarErrorPack()
