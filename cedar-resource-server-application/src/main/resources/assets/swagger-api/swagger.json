@@ -1279,8 +1279,11 @@
     },
     "/command/move-resource-to-folder" : {
       "post" : {
-        "description" : "Move resource to a given folder. Folders or artifacts (fields, elements, templates, instances) can be moved.",
+        "description" : "Move a folder or artifact to a given folder. Send the ETag returned by the source resource's details endpoint (or GET /folders/{id}) in If-Match. A successful move advances the source resource ETag and the revisions of both affected parent folders.",
         "operationId" : "moveResourceToFolder",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        } ],
         "requestBody" : {
           "content" : {
             "*/*" : {
@@ -1293,8 +1296,14 @@
           "required" : true
         },
         "responses" : {
-          "200" : {
-            "description" : "Successful operation"
+          "201" : {
+            "description" : "Resource moved",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "description" : "Bad request"
@@ -1307,6 +1316,12 @@
           },
           "404" : {
             "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
           },
           "500" : {
             "description" : "Internal server error"
@@ -2485,7 +2500,7 @@
     },
     "/template-elements/{template_element_id}" : {
       "delete" : {
-        "description" : "Delete a template element.",
+        "description" : "Conditionally delete a template element using its current ETag. CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted workspace-graph, search-index, or value-recommender cleanup.",
         "operationId" : "deleteTemplateElement",
         "parameters" : [ {
           "$ref" : "#/components/parameters/IfMatch"
@@ -2499,8 +2514,11 @@
           }
         } ],
         "responses" : {
+          "202" : {
+            "description" : "Content deleted; durable downstream cleanup is pending"
+          },
           "204" : {
-            "description" : "Successful operation (no content)"
+            "description" : "Deletion completed across content and downstream stores"
           },
           "400" : {
             "description" : "Bad request"
@@ -3106,7 +3124,7 @@
     },
     "/template-fields/{template_field_id}" : {
       "delete" : {
-        "description" : "Delete a template field.",
+        "description" : "Conditionally delete a template field using its current ETag. CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted workspace-graph, search-index, or value-recommender cleanup.",
         "operationId" : "deleteTemplateField",
         "parameters" : [ {
           "$ref" : "#/components/parameters/IfMatch"
@@ -3120,8 +3138,11 @@
           }
         } ],
         "responses" : {
+          "202" : {
+            "description" : "Content deleted; durable downstream cleanup is pending"
+          },
           "204" : {
-            "description" : "Successful operation (no content)"
+            "description" : "Deletion completed across content and downstream stores"
           },
           "400" : {
             "description" : "Bad request"
@@ -3727,7 +3748,7 @@
     },
     "/template-instances/{template_instance_id}" : {
       "delete" : {
-        "description" : "Delete a template instance.",
+        "description" : "Conditionally delete a template instance using its current ETag. CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted workspace-graph, search-index, or value-recommender cleanup.",
         "operationId" : "deleteTemplateInstance",
         "parameters" : [ {
           "$ref" : "#/components/parameters/IfMatch"
@@ -3741,8 +3762,11 @@
           }
         } ],
         "responses" : {
+          "202" : {
+            "description" : "Content deleted; durable downstream cleanup is pending"
+          },
           "204" : {
-            "description" : "Successful operation (no content)"
+            "description" : "Deletion completed across content and downstream stores"
           },
           "400" : {
             "description" : "Bad request"
@@ -4364,7 +4388,7 @@
     },
     "/templates/{template_id}" : {
       "delete" : {
-        "description" : "Delete a template.",
+        "description" : "Conditionally delete a template using its current ETag. CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted workspace-graph, search-index, or value-recommender cleanup.",
         "operationId" : "deleteTemplate",
         "parameters" : [ {
           "$ref" : "#/components/parameters/IfMatch"
@@ -4378,8 +4402,11 @@
           }
         } ],
         "responses" : {
+          "202" : {
+            "description" : "Content deleted; durable downstream cleanup is pending"
+          },
           "204" : {
-            "description" : "Successful operation (no content)"
+            "description" : "Deletion completed across content and downstream stores"
           },
           "400" : {
             "description" : "Bad request"

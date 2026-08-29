@@ -12,6 +12,8 @@ import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
+import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
+import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionJob;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
@@ -93,6 +95,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static NodeSearchingService nodeSearchingService;
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
   protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
+  protected static ArtifactDeletionCompletionService artifactDeletionCompletionService;
 
   protected Response siblingNameConflictResponse(String name) {
     return CedarResponse.conflict()
@@ -125,6 +128,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     AbstractResourceServerResource.nodeSearchingService = nodeSearchingService;
     AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
     AbstractResourceServerResource.valuerecommenderReindexQueueService = valuerecommenderReindexQueueService;
+  }
+
+  public static void injectArtifactDeletionCompletionService(
+      ArtifactDeletionCompletionService deletionCompletionService) {
+    AbstractResourceServerResource.artifactDeletionCompletionService = deletionCompletionService;
   }
 
   protected static <T extends FileSystemResource> T deserializeResource(ClassicHttpResponse proxyResponse, Class<T> klazz) throws CedarProcessingException {
@@ -982,18 +990,48 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     //       .build();
     // }
 
-    // Delete from artifact server
+    CedarSchemaArtifactId previousVersion = null;
+    if (isSchemaArtifact && schemaArtifact.isLatestVersion() != null && schemaArtifact.isLatestVersion()) {
+      previousVersion = schemaArtifact.getPreviousVersion();
+    }
+
+    // Resolve the content-store validator before recording the saga. In particular, turn wildcard
+    // deletion into a concrete revision so a delayed retry can never delete a newly recreated object.
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
+    String artifactEtag = null;
+    boolean artifactAlreadyDeleted = false;
     try {
-      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-      ClassicHttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      int statusCode = proxyResponse.getCode();
-      if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
-        // artifact was not deleted
-        return generateStatusResponse(proxyResponse);
-      } else {
-        if (statusCode == HttpStatus.SC_NOT_FOUND) {
-          log.warn("Artifact not found on artifact server, but still trying to delete from Neo4j. Id:" + id);
+      try (ClassicHttpResponse current = ProxyUtil.proxyGet(url, c)) {
+        int status = current.getCode();
+        if (status == HttpStatus.SC_OK) {
+          artifactEtag = headerValue(current, HttpHeaders.ETAG);
+          EntityUtils.consume(current.getEntity());
+          if (artifactEtag == null || artifactEtag.isBlank()) {
+            return CedarResponse.badGateway().id(id)
+                .errorMessage("Artifact service returned an artifact without an ETag before deletion")
+                .build();
+          }
+          RevisionPrecondition currentRevision = RevisionPreconditionParser.parse(artifactEtag);
+          if (currentRevision.revisions().size() != 1) {
+            return CedarResponse.badGateway().id(id)
+                .errorMessage("Artifact service returned an invalid ETag before deletion")
+                .build();
+          }
+          long revision = currentRevision.revisions().iterator().next();
+          if (!RevisionPreconditionParser.parse(c.getIfMatchHeader()).matches(revision)) {
+            return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+                .id(id)
+                .errorKey(CedarErrorKey.ARTIFACT_HAS_MOVED_ON)
+                .errorMessage("The artifact has been updated since it was read")
+                .parameter("currentETag", artifactEtag)
+                .build();
+          }
+        } else if (status == HttpStatus.SC_NOT_FOUND) {
+          EntityUtils.consume(current.getEntity());
+          artifactAlreadyDeleted = true;
+          artifactEtag = c.getIfMatchHeader();
+        } else {
+          return generateStatusResponse(current);
         }
       }
     } catch (CedarException e) {
@@ -1002,50 +1040,35 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       throw new CedarProcessingException(e);
     }
 
-    // Check whether it is latest version
-    CedarSchemaArtifactId previousVersion = null;
-    if (isSchemaArtifact) {
-      if (schemaArtifact.isLatestVersion() != null && schemaArtifact.isLatestVersion()) {
-        previousVersion = schemaArtifact.getPreviousVersion();
-      }
-    }
+    ArtifactDeletionJob deletion = artifactDeletionCompletionService.prepare(id, artifact, artifactEtag,
+        previousVersion == null ? null : previousVersion.getId(), artifactAlreadyDeleted);
 
-    boolean deleted = folderSession.deleteResourceById(id);
-    if (deleted) {
-      if (previousVersion != null) {
-        folderSession.setLatestVersion(previousVersion);
-        folderSession.setLatestPublishedVersion(previousVersion);
-      }
-    } else {
-      return CedarResponse.internalServerError()
-          .id(id)
-          .errorKey(CedarErrorKey.ARTIFACT_NOT_DELETED)
-          .errorMessage("The artifact can not be delete by id")
-          .parameter("id", id)
-          .build();
-    }
-
-    removeIndexDocument(id);
-    removeValuerecommenderResource(artifact);
-    // reindex the previous version, since that just became the latest
-    if (isSchemaArtifact) {
-      CedarSchemaArtifactId previousId = schemaArtifact.getPreviousVersion();
-      // Doublecheck if it is present on the artifact server as well
-      if (previousId != null) {
-        String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(resourceType, previousId, c, microserviceUrlUtil, response);
-        if (getResponse != null) {
-          JsonNode getJsonNode = null;
-          try {
-            getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-            if (getJsonNode != null) {
-              FolderServerArtifact folderServerPreviousR = folderSession.findArtifactById(previousId);
-              updateIndexResource(folderServerPreviousR, c);
+    if (!artifactAlreadyDeleted) {
+      try {
+        try (ClassicHttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c, deletion.artifactEtag())) {
+          ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+          int statusCode = proxyResponse.getCode();
+          if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
+            if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
+              artifactDeletionCompletionService.abandon(deletion);
             }
-          } catch (Exception e) {
-            log.error("There was an error while reindexing the new latest version", e);
+            return generateStatusResponse(proxyResponse);
           }
+          EntityUtils.consume(proxyResponse.getEntity());
         }
+      } catch (IOException e) {
+        throw new CedarProcessingException(e);
       }
+      artifactDeletionCompletionService.markArtifactDeleted(deletion);
+    } else {
+      log.warn("Artifact not found on artifact server; resuming durable graph deletion. Id:{}", id);
+    }
+
+    try {
+      artifactDeletionCompletionService.completeAfterArtifactDeletion(deletion, c);
+    } catch (CedarProcessingException e) {
+      log.error("Artifact {} was removed from the content store; durable cleanup remains pending", id, e);
+      return Response.accepted().build();
     }
 
     return Response.noContent().build();

@@ -262,10 +262,13 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{template_id}")
-  @Operation(summary = "Delete a template", description = "Delete a template.",
+  @Operation(summary = "Delete a template", description = "Conditionally delete a template using its current ETag. "
+      + "CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted "
+      + "workspace-graph, search-index, or value-recommender cleanup.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
+      @ApiResponse(responseCode = "202", description = "Content deleted; durable downstream cleanup is pending"),
+      @ApiResponse(responseCode = "204", description = "Deletion completed across content and downstream stores"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),

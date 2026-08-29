@@ -72,6 +72,7 @@ public class CommandFileSystemResourceTest {
   private static HttpServer artifactServer;
   private static String authHeader;
   private static CedarFolderId homeFolderId;
+  private static CedarFolderId moveDestinationId;
   private static FolderServerArtifact sourceArtifact;
   private static String copiedArtifactId;
   private static String missingArtifactId;
@@ -104,6 +105,13 @@ public class CommandFileSystemResourceTest {
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     FolderServiceSession folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
     homeFolderId = folderSession.findHomeFolderOf().getResourceId();
+    org.metadatacenter.model.folderserver.basic.FolderServerFolder moveDestination =
+        new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
+    moveDestination.setName("Move command destination");
+    moveDestination.setDescription("Conditional move fixture");
+    moveDestinationId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    Assertions.assertNotNull(folderSession.createFolderAsChildOfId(
+        moveDestination, homeFolderId, moveDestinationId));
 
     FolderServerTemplate template = new FolderServerTemplate();
     template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
@@ -229,6 +237,32 @@ public class CommandFileSystemResourceTest {
 
   @Test
   @Order(5)
+  public void moveRequiresCurrentSourceEtagAndReturnsTheReplacement() throws Exception {
+    String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"targetFolderId\":\"" + moveDestinationId.getId() + "\"}";
+
+    HttpResponse<String> missing = postCommand("move-resource-to-folder", body);
+    Assertions.assertEquals(428, missing.statusCode(), missing.body());
+
+    HttpResponse<String> stale = postCommand("move-resource-to-folder", body, "\"0\"");
+    Assertions.assertEquals(412, stale.statusCode(), stale.body());
+    Assertions.assertEquals("\"1\"", JsonMapper.MAPPER.readTree(stale.body())
+        .path("parameters").path("currentETag").asText());
+
+    HttpResponse<String> moved = postCommand("move-resource-to-folder", body, "\"1\"");
+    Assertions.assertEquals(201, moved.statusCode(), moved.body());
+    Assertions.assertEquals("\"2\"", moved.headers().firstValue("ETag").orElse(null));
+
+    HttpResponse<String> staleAfterMove = postCommand("move-resource-to-folder", body, "\"1\"");
+    Assertions.assertEquals(412, staleAfterMove.statusCode(), staleAfterMove.body());
+
+    HttpResponse<String> wildcard = postCommand("move-resource-to-folder", body, "*");
+    Assertions.assertEquals(201, wildcard.statusCode(), wildcard.body());
+    Assertions.assertEquals("\"3\"", wildcard.headers().firstValue("ETag").orElse(null));
+  }
+
+  @Test
+  @Order(6)
   public void renameMissingResourceReturnsNotFound() throws Exception {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
@@ -239,7 +273,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(6)
+  @Order(7)
   public void renameArtifactRequiresAndForwardsTheCallersIfMatch() throws Exception {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
@@ -255,7 +289,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(7)
+  @Order(8)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
     artifactServer.stop(0);
     artifactServer = null;
