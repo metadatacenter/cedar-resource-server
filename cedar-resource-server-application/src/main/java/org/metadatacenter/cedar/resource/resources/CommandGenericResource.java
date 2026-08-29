@@ -171,9 +171,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     FolderServerFolder userHomeFolder = neoSession.findHomeFolderOf();
 
     if (userHomeFolder != null) {
-      user.setHomeFolderId(userHomeFolder.getId());
       try {
-        userService.updateUser(user);
+        userService.setHomeFolderId(user.getResourceId(), userHomeFolder.getId());
       } catch (Exception e) {
         log.error("Error while updating user: " + user.getEmail(), e);
       }
