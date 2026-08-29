@@ -270,13 +270,18 @@ public class FoldersResource extends AbstractResourceServerResource {
         if (deleted) {
           removeIndexDocument(CedarUntypedFilesystemResourceId.build(id));
           return CedarResponse.noContent().build();
-        } else {
-          return CedarResponse.internalServerError()
-              .id(id)
-              .errorKey(CedarErrorKey.FOLDER_NOT_DELETED)
-              .errorMessage("The folder can not be delete by id")
+        }
+        if (folderSession.findFolderById(fid) == null) {
+          return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_FAILED)
+              .errorMessage("The folder was deleted before this deletion could be applied")
               .build();
         }
+        return CedarResponse.badRequest()
+            .id(id)
+            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
+            .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_FOLDER)
+            .errorMessage("The folder became non-empty before it could be deleted")
+            .build();
       }
     }
   }

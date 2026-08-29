@@ -22,6 +22,7 @@ import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
@@ -348,11 +349,9 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     FolderServerCategory existingCategory = categorySession.getCategoryById(ccid);
-    c.should(existingCategory).be(NonNull).otherwiseNotFound(
-        new CedarErrorPack()
-            .message("The category can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
-    );
+    if (existingCategory == null) {
+      return categoryUpdateTargetDeleted();
+    }
 
     CedarParameter categoryName = requestBody.get(NodeProperty.NAME.getValue());
     CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
@@ -372,7 +371,11 @@ public class CategoriesResource extends AbstractResourceServerResource {
           .build();
     }
 
-    FolderServerCategory categoryWritable = userMustHaveWriteAccessToCategory(c, ccid);
+    try {
+      userMustHaveWriteAccessToCategory(c, ccid);
+    } catch (CedarObjectNotFoundException e) {
+      return categoryUpdateTargetDeleted();
+    }
 
     Map<NodeProperty, String> updateFields = new HashMap<>();
     updateFields.put(NodeProperty.NAME, categoryName.stringValue());
@@ -391,16 +394,20 @@ public class CategoriesResource extends AbstractResourceServerResource {
           .build();
     }
 
-    c.should(updatedCategory).be(NonNull).otherwiseInternalServerError(
-        new CedarErrorPack()
-            .message("There was an error while updating the category!")
-            .operation(CedarOperations.update(FolderServerCategory.class, "id", ccid.getId()))
-    );
+    if (updatedCategory == null) {
+      return categoryUpdateTargetDeleted();
+    }
 
     ProvenanceNameUtil.addProvenanceDisplayName(updatedCategory.resource());
 
     return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updatedCategory.revision()))
         .entity(updatedCategory.resource()).build();
+  }
+
+  private static Response categoryUpdateTargetDeleted() {
+    return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+        .errorMessage("The category no longer exists, so the conditional update can not be applied")
+        .build();
   }
 
   @DELETE
@@ -474,11 +481,11 @@ public class CategoriesResource extends AbstractResourceServerResource {
           .errorMessage("The category has been updated since it was read")
           .build();
     }
-    c.should(deleted).be(True).otherwiseInternalServerError(
-        new CedarErrorPack()
-            .message("There was an error while deleting the category!")
-            .operation(CedarOperations.delete(FolderServerCategory.class, "id", ccid.getId()))
-    );
+    if (!deleted) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .errorMessage("The category was deleted before this deletion could be applied")
+          .build();
+    }
 
     //searchPermissionEnqueueService.groupDeleted(id);
 

@@ -1388,6 +1388,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
             .errorMessage("The folder has been updated since it was read")
             .build();
       }
+      if (updatedSnapshot == null) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+            .errorMessage("The folder was deleted before the update could be applied")
+            .build();
+      }
       FolderServerFolder folderServerFolderUpdated = updatedSnapshot.resource();
 
       String newName = folderServerFolderUpdated.getName();

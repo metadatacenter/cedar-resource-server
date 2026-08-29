@@ -41,8 +41,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.ANONYMOUS;
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.OTHER_USER;
@@ -430,6 +437,51 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     Assertions.assertEquals(409, artifactBlocked.statusCode(), artifactBlocked.body());
     Assertions.assertTrue(artifactBlocked.body().contains("\"artifactCount\":1"), artifactBlocked.body());
     Assertions.assertNotNull(categories.getCategoryById(guardedAttached.getResourceId()));
+  }
+
+  @Test
+  public void concurrentCategoryDeletesConvergeWithoutServerErrors() throws Exception {
+    FolderServerCategory category = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
+        .createCategory(rootCategoryId, "Concurrent Delete Category " + UUID.randomUUID(),
+            "A sacrificial category for the repeated DELETE regression test", null);
+    Assertions.assertNotNull(category);
+    String path = "/categories/" + URLEncoder.encode(category.getId(), StandardCharsets.UTF_8);
+    HttpResponse<String> current = request("GET", path, null, adminAuthHeader);
+    Assertions.assertEquals(200, current.statusCode(), current.body());
+    String etag = current.headers().firstValue("ETag").orElseThrow();
+
+    int count = 20;
+    ExecutorService executor = Executors.newFixedThreadPool(count);
+    CountDownLatch ready = new CountDownLatch(count);
+    CountDownLatch start = new CountDownLatch(1);
+    List<Future<Integer>> futures = new ArrayList<>(count);
+    try {
+      for (int i = 0; i < count; i++) {
+        futures.add(executor.submit(() -> {
+          ready.countDown();
+          start.await();
+          return request("DELETE", path, null, adminAuthHeader, etag).statusCode();
+        }));
+      }
+      Assertions.assertTrue(ready.await(5, TimeUnit.SECONDS));
+      start.countDown();
+      List<Integer> statuses = new ArrayList<>(count);
+      for (Future<Integer> future : futures) {
+        statuses.add(future.get());
+      }
+      Assertions.assertEquals(1, statuses.stream().filter(status -> status == 204).count(), statuses::toString);
+      Assertions.assertTrue(statuses.stream().allMatch(status -> status == 204 || status == 404 || status == 412),
+          () -> "concurrent DELETE returned a non-convergent status: " + statuses);
+
+      String staleBody = "{\"schema:name\":\"Deleted Category\","
+          + "\"schema:description\":\"must stay deleted\",\"schema:identifier\":\"deleted\"}";
+      for (String ifMatch : List.of("\"1\"", "*")) {
+        HttpResponse<String> staleUpdate = request("PUT", path, staleBody, adminAuthHeader, ifMatch);
+        Assertions.assertEquals(412, staleUpdate.statusCode(), staleUpdate.body());
+      }
+    } finally {
+      executor.shutdownNow();
+    }
   }
 
   @Test
