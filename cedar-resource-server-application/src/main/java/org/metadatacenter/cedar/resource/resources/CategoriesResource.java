@@ -34,6 +34,7 @@ import org.metadatacenter.server.CategoryPermissionServiceSession;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.RevisionConflictException;
 import org.metadatacenter.server.VersionedCategoryPermissions;
+import org.metadatacenter.server.VersionedResource;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
@@ -197,7 +198,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
     URI uri = builder.path(CedarUrlUtil.urlEncode(newCategory.getId())).build();
-    return Response.created(uri).entity(newCategory).build();
+    return Response.created(uri).header(HttpHeaders.ETAG, RevisionPreconditionParser.format(1L))
+        .entity(newCategory).build();
   }
 
   @GET
@@ -254,15 +256,16 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     CedarCategoryId ccid = CedarCategoryId.build(id);
-    FolderServerCategory category = categorySession.getCategoryById(ccid);
-    c.should(category).be(NonNull).otherwiseNotFound(
+    VersionedResource<FolderServerCategory> snapshot = categorySession.getVersionedCategoryById(ccid);
+    c.should(snapshot).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
             .message("The category can not be found by id!")
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    ProvenanceNameUtil.addProvenanceDisplayName(category);
-    return Response.ok().entity(category).build();
+    ProvenanceNameUtil.addProvenanceDisplayName(snapshot.resource());
+    return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(snapshot.revision()))
+        .entity(snapshot.resource()).build();
   }
 
   @GET
@@ -413,7 +416,21 @@ public class CategoriesResource extends AbstractResourceServerResource {
       throw new CedarBadRequestException(cedarErrorPack);
     }
 
-    boolean deleted = categorySession.deleteCategoryById(ccid);
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .errorMessage("Deleting a category requires the ETag returned by GET in If-Match")
+          .build();
+    }
+    boolean deleted;
+    try {
+      deleted = categorySession.deleteCategoryById(ccid, RevisionPreconditionParser.parse(ifMatch));
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .errorMessage("The category has been updated since it was read")
+          .build();
+    }
     c.should(deleted).be(True).otherwiseInternalServerError(
         new CedarErrorPack()
             .message("There was an error while deleting the category!")

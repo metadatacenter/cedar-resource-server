@@ -357,7 +357,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                                                   CedarArtifactId artifactId) {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
-      ClassicHttpResponse discardResponse = ProxyUtil.proxyDelete(url, context);
+      ClassicHttpResponse discardResponse = ProxyUtil.proxyDelete(url, context, "\"1\"");
       int status = discardResponse.getCode();
       if (status != HttpStatus.SC_NO_CONTENT && status != HttpStatus.SC_OK && status != HttpStatus.SC_NOT_FOUND) {
         log.error("Refused create left {} on the artifact server: discard answered {}", artifactId, status);
@@ -887,6 +887,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id) throws CedarException {
     // Check delete preconditions
     userMustHaveWriteAccessToArtifact(c, id);
+    if (c.getIfMatchHeader() == null || c.getIfMatchHeader().isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .id(id.getId())
+          .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
+          .errorMessage("Deleting an artifact requires the ETag returned by GET in If-Match")
+          .build();
+    }
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerArtifact artifact = folderSession.findArtifactById(id);
 

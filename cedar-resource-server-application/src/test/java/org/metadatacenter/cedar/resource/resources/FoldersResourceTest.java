@@ -165,10 +165,12 @@ public class FoldersResourceTest {
             + "\"description\": \"Created by the folder integration test\"}",
         authHeaderUser1);
     Assertions.assertEquals(201, created.statusCode());
+    Assertions.assertEquals("\"1\"", created.headers().firstValue("ETag").orElse(null));
     String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
 
     HttpResponse<String> found = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
     Assertions.assertEquals(200, found.statusCode());
+    Assertions.assertEquals("\"1\"", found.headers().firstValue("ETag").orElse(null));
     Assertions.assertEquals("Integration Test Folder",
         JsonMapper.MAPPER.readTree(found.body()).get("schema:name").asText());
 
@@ -178,7 +180,12 @@ public class FoldersResourceTest {
         authHeaderUser1);
     Assertions.assertEquals(200, updated.statusCode());
 
-    HttpResponse<String> deleted = request("DELETE", "/folders/" + encode(folderId), null, authHeaderUser1);
+    HttpResponse<String> staleDelete = request("DELETE", "/folders/" + encode(folderId), null,
+        authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(412, staleDelete.statusCode(), staleDelete.body());
+
+    HttpResponse<String> deleted = request("DELETE", "/folders/" + encode(folderId), null,
+        authHeaderUser1, "\"2\"");
     Assertions.assertEquals(204, deleted.statusCode());
 
     HttpResponse<String> gone = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
@@ -194,7 +201,8 @@ public class FoldersResourceTest {
     Assertions.assertEquals(201, created.statusCode(), created.body());
 
     String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
-    HttpResponse<String> deleted = request("DELETE", "/folders/" + encode(folderId), null, authHeaderUser1);
+    HttpResponse<String> deleted = request("DELETE", "/folders/" + encode(folderId), null,
+        authHeaderUser1, "\"1\"");
     Assertions.assertEquals(204, deleted.statusCode(), deleted.body());
   }
 

@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.cedar.resource.resources.swaggermodel.Folder;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.LinkedData;
@@ -26,13 +27,18 @@ import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.ResourcePermissionServiceSession;
+import org.metadatacenter.server.RevisionConflictException;
+import org.metadatacenter.server.VersionedResource;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
+import org.metadatacenter.util.http.RevisionPreconditionParser;
 
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 
@@ -88,9 +94,18 @@ public class FoldersResource extends AbstractResourceServerResource {
     CedarFolderId fid = CedarFolderId.build(id);
 
     userMustHaveReadAccessToFolder(c, fid);
-    FolderServerFolderCurrentUserReport folderServerFolder = getFolderReport(c, fid);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+    VersionedResource<FolderServerFolder> snapshot = folderSession.findVersionedFolderById(fid);
+    if (snapshot == null) {
+      return CedarResponse.notFound().id(id).errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+          .errorMessage("The folder can not be found by id").build();
+    }
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
+    FolderServerFolderCurrentUserReport folderServerFolder = GraphDbPermissionReader.getFolderCurrentUserReport(
+        c, folderSession, permissionSession, snapshot.resource());
     ProvenanceNameUtil.addProvenanceDisplayName(folderServerFolder);
-    return Response.ok().entity(folderServerFolder).build();
+    return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(snapshot.revision()))
+        .entity(folderServerFolder).build();
   }
 
   @GET
@@ -217,7 +232,21 @@ public class FoldersResource extends AbstractResourceServerResource {
             .errorMessage("System folders can not be deleted")
             .build();
       } else {
-        boolean deleted = folderSession.deleteFolderById(fid);
+        String ifMatch = c.getIfMatchHeader();
+        if (ifMatch == null || ifMatch.isBlank()) {
+          return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_REQUIRED)
+              .errorMessage("Deleting a folder requires the ETag returned by GET in If-Match")
+              .build();
+        }
+        boolean deleted;
+        try {
+          deleted = folderSession.deleteFolderById(fid, RevisionPreconditionParser.parse(ifMatch));
+        } catch (RevisionConflictException e) {
+          return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_FAILED)
+              .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+              .errorMessage("The folder has been updated since it was read")
+              .build();
+        }
         if (deleted) {
           removeIndexDocument(CedarUntypedFilesystemResourceId.build(id));
           return CedarResponse.noContent().build();
@@ -398,6 +427,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
     URI uri = builder.path(CedarUrlUtil.urlEncode(newFolder.getId())).build();
     createIndexFolder(newFolder, c);
-    return Response.created(uri).entity(newFolder).build();
+    return Response.created(uri).header(HttpHeaders.ETAG, RevisionPreconditionParser.format(1L))
+        .entity(newFolder).build();
   }
 }

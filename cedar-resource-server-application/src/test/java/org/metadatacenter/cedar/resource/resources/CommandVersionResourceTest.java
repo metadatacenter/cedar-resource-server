@@ -436,6 +436,7 @@ public class CommandVersionResourceTest {
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
             + URLEncoder.encode(deleteRetryTemplateId.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authHeader)
+        .header("If-Match", "*")
         .DELETE()
         .build();
 
