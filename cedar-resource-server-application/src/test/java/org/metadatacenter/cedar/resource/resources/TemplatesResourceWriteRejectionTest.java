@@ -112,14 +112,21 @@ public class TemplatesResourceWriteRejectionTest {
 
   private HttpResponse<String> putTemplate(String id, String query, String body, String contentType,
                                            String authHeader) throws Exception {
-    HttpRequest request = HttpRequest.newBuilder()
+    return putTemplate(id, query, body, contentType, authHeader, null);
+  }
+
+  private HttpResponse<String> putTemplate(String id, String query, String body, String contentType,
+                                           String authHeader, String ifMatch) throws Exception {
+    HttpRequest.Builder request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
             + URLEncoder.encode(id, StandardCharsets.UTF_8) + query))
         .header("Authorization", authHeader)
-        .header("Content-Type", contentType)
-        .PUT(HttpRequest.BodyPublishers.ofString(body))
-        .build();
-    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        .header("Content-Type", contentType);
+    if (ifMatch != null) {
+      request.header("If-Match", ifMatch);
+    }
+    return CLIENT.send(request.PUT(HttpRequest.BodyPublishers.ofString(body)).build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 
   @Test
@@ -182,6 +189,16 @@ public class TemplatesResourceWriteRejectionTest {
       Assertions.assertEquals(403, response.statusCode());
     } finally {
       updateOnlyUser.setPermissions(originalPermissions);
+    }
+  }
+
+  @Test
+  public void conditionalPutCannotCreateAnAbsentGraphArtifact() throws Exception {
+    String absentId = "https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c725";
+    for (String ifMatch : List.of("\"9\"", "*")) {
+      HttpResponse<String> response = putTemplate(absentId, "", "{}", "application/json",
+          authHeaderUser1, ifMatch);
+      Assertions.assertEquals(412, response.statusCode(), response.body());
     }
   }
 

@@ -385,6 +385,19 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   }
 
   @Test
+  public void duplicateCategoryCreationReturnsConflictInsteadOfFalseCreationEtag() throws Exception {
+    String duplicateBody = "{\"schema:name\":\"" + categoryName
+        + "\",\"schema:description\":\"duplicate\",\"parentCategoryId\":\""
+        + rootCategoryId.getId() + "\",\"schema:identifier\":\"duplicate\"}";
+
+    HttpResponse<String> response = request("POST", "/categories", duplicateBody, adminAuthHeader);
+
+    Assertions.assertEquals(409, response.statusCode(), response.body());
+    Assertions.assertTrue(response.headers().firstValue("ETag").isEmpty(),
+        "a conflict must not advertise a newly-created category revision");
+  }
+
+  @Test
   public void categoryDeleteRefusesChildrenAndAttachedArtifacts() throws Exception {
     var categories = CedarDataServices.getInstance().getCategoryServiceSession(user1Context);
     FolderServerCategory guardedParent = categories.createCategory(rootCategoryId, "REST Delete Guard Parent",

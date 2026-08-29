@@ -153,6 +153,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "A sibling category with the same name already exists"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response createCategory() throws CedarException {
@@ -183,15 +184,13 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     userMustHaveWriteAccessToCategory(c, ccParentId);
 
-    FolderServerCategory newCategory = null;
-    // If the category already exists, return it
+    FolderServerCategory newCategory;
     FolderServerCategory existingCategory = categorySession.getCategoryByParentAndName(ccParentId, categoryName.stringValue());
     if (existingCategory != null) {
       log.warn("There is a category with the same name (" + categoryName.stringValue()
           + ") under the parent category. Category names must be unique!");
-      newCategory = existingCategory;
-    }
-    else {
+      return siblingNameConflictResponse(categoryName.stringValue());
+    } else {
       try {
         newCategory = categorySession.createCategory(ccParentId, categoryName.stringValue(), categoryDescription.stringValue(),
             identifier.stringValue());

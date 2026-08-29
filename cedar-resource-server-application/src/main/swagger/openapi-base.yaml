@@ -40,8 +40,9 @@ components:
       required: false
       description: |
         Required when the identifier already exists and the PUT replaces it; omit it when creating
-        a resource with a new client-supplied identifier. Use the strong ETag returned by GET. `*`
-        accepts any current revision and deliberately gives up lost-update protection.
+        a resource with a new client-supplied identifier. If supplied for an absent resource, the
+        request fails with 412 rather than creating it. Use the strong ETag returned by GET. `*`
+        accepts any current revision that still exists and deliberately gives up lost-update protection.
       schema:
         type: string
       example: '"7"'

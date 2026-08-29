@@ -166,6 +166,12 @@ public class FoldersResource extends AbstractResourceServerResource {
     if (folder != null) {
       return updateFolderNameAndDescriptionInGraphDb(c, folderId);
     } else {
+      if (c.getIfMatchHeader() != null && !c.getIfMatchHeader().isBlank()) {
+        return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_FAILED)
+            .id(folderId)
+            .errorMessage("The folder no longer exists")
+            .build();
+      }
       CedarParameter atIdParameter = c.request().getRequestBody().get(LinkedData.ID);
       if (atIdParameter.isEmpty()) {
         return CedarResponse.badRequest()

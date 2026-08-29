@@ -631,6 +631,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           expectedEtag);
     } else {
       context.must(context.user()).have(CedarPermission.getCreateForArtifactType(resourceType));
+      if (expectedEtag != null && !expectedEtag.isBlank()) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+            .id(id)
+            .errorKey(CedarErrorKey.ARTIFACT_HAS_MOVED_ON)
+            .errorMessage("The artifact no longer exists")
+            .build();
+      }
       // A verbatim write replaces a document this server already holds. Routing it to creation instead
       // would answer 201 to a request that asserted the artifact exists, so a mistyped identifier would
       // leave a copy under an identifier nothing refers to.
@@ -798,10 +805,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private record ArtifactPreImage(String content, String etag) {
+  protected record ArtifactPreImage(String content, String etag) {
   }
 
-  private static String headerValue(ClassicHttpResponse response, String name) {
+  protected static String headerValue(ClassicHttpResponse response, String name) {
     return Arrays.stream(response.getHeaders())
         .filter(header -> name.equalsIgnoreCase(header.getName()))
         .map(header -> header.getValue())
@@ -817,9 +824,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * their newer content is preserved. Like create cleanup, this is best effort: the original graph
    * failure remains the response, while any inability to restore is recorded with the artifact id.
    */
-  private void restoreArtifactAfterFailedGraphUpdate(CedarRequestContext context, CedarResourceType resourceType,
-                                                     CedarArtifactId artifactId, ArtifactPreImage preImage,
-                                                     String replacementEtag, boolean verbatim) {
+  protected void restoreArtifactAfterFailedGraphUpdate(CedarRequestContext context, CedarResourceType resourceType,
+                                                       CedarArtifactId artifactId, ArtifactPreImage preImage,
+                                                       String replacementEtag, boolean verbatim) {
     if (preImage == null || replacementEtag == null || replacementEtag.isBlank()) {
       log.error("Failed graph update left {} changed on the artifact server: conditional rollback is unavailable",
           artifactId);

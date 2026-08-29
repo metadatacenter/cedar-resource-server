@@ -78,6 +78,7 @@ public class CommandFileSystemResourceTest {
   private static JsonNode postedArtifact;
   private static int sourceGetStatus = 200;
   private static boolean omitSourceGetBody;
+  private static String receivedPutIfMatch;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -239,6 +240,22 @@ public class CommandFileSystemResourceTest {
 
   @Test
   @Order(6)
+  public void renameArtifactRequiresAndForwardsTheCallersIfMatch() throws Exception {
+    String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"schema:name\":\"Renamed artifact\"}";
+
+    HttpResponse<String> missing = postCommand("rename-resource", body);
+    Assertions.assertEquals(428, missing.statusCode(), missing.body());
+
+    receivedPutIfMatch = null;
+    HttpResponse<String> stale = postCommand("rename-resource", body, "\"0\"");
+    Assertions.assertEquals(412, stale.statusCode(), stale.body());
+    Assertions.assertEquals("\"0\"", receivedPutIfMatch,
+        "rename must forward the caller's validator, not replace it with the internal GET ETag");
+  }
+
+  @Test
+  @Order(7)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
     artifactServer.stop(0);
     artifactServer = null;
@@ -268,13 +285,19 @@ public class CommandFileSystemResourceTest {
   }
 
   private static HttpResponse<String> postCommand(String command, String body) throws Exception {
-    HttpRequest request = HttpRequest.newBuilder()
+    return postCommand(command, body, null);
+  }
+
+  private static HttpResponse<String> postCommand(String command, String body, String ifMatch) throws Exception {
+    HttpRequest.Builder request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/" + command))
         .header("Authorization", authHeader)
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(body))
-        .build();
-    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        .header("Content-Type", "application/json");
+    if (ifMatch != null) {
+      request.header("If-Match", ifMatch);
+    }
+    return CLIENT.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 
   private static String copyBody() {
@@ -302,6 +325,16 @@ public class CommandFileSystemResourceTest {
       status = 201;
       response = created.toString().getBytes(StandardCharsets.UTF_8);
       exchange.getResponseHeaders().set("Location", copiedArtifactId);
+    } else if ("PUT".equals(exchange.getRequestMethod())) {
+      receivedPutIfMatch = exchange.getRequestHeaders().getFirst("If-Match");
+      response = exchange.getRequestBody().readAllBytes();
+      if (!"\"1\"".equals(receivedPutIfMatch) && !"*".equals(receivedPutIfMatch)) {
+        status = 412;
+        response = "{\"status\":412}".getBytes(StandardCharsets.UTF_8);
+      } else {
+        status = 200;
+        exchange.getResponseHeaders().set("ETag", "\"2\"");
+      }
     } else {
       exchange.getRequestBody().readAllBytes();
       status = 405;

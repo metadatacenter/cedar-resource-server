@@ -297,6 +297,16 @@ public class FoldersResourceTest {
 
     HttpResponse<String> gone = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
     Assertions.assertEquals(404, gone.statusCode());
+
+    String createWithIdBody = "{\"@id\":\"" + folderId
+        + "\",\"schema:name\":\"Stale resurrection\",\"schema:description\":\"must fail\"}";
+    for (String ifMatch : List.of("\"2\"", "*")) {
+      HttpResponse<String> staleRecreate = request("PUT", "/folders/" + encode(folderId),
+          createWithIdBody, authHeaderUser1, ifMatch);
+      Assertions.assertEquals(412, staleRecreate.statusCode(), staleRecreate.body());
+      HttpResponse<String> stillGone = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
+      Assertions.assertEquals(404, stillGone.statusCode());
+    }
   }
 
   @Test
@@ -311,6 +321,34 @@ public class FoldersResourceTest {
     HttpResponse<String> deleted = request("DELETE", "/folders/" + encode(folderId), null,
         authHeaderUser1, "\"1\"");
     Assertions.assertEquals(204, deleted.statusCode(), deleted.body());
+  }
+
+  @Test
+  public void renameCommandUsesTheCallersFolderEtag() throws Exception {
+    HttpResponse<String> created = request("POST", "/folders",
+        "{\"folderId\": \"" + homeFolderId + "\", \"name\": \"Command Rename Folder\", "
+            + "\"description\": \"ETag command test\"}", authHeaderUser1);
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
+    String commandBody = "{\"@id\":\"" + folderId
+        + "\",\"schema:name\":\"Command Renamed Folder\"}";
+
+    HttpResponse<String> missing = request("POST", "/command/rename-resource", commandBody, authHeaderUser1);
+    Assertions.assertEquals(428, missing.statusCode(), missing.body());
+
+    HttpResponse<String> renamed = request("POST", "/command/rename-resource", commandBody,
+        authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(200, renamed.statusCode(), renamed.body());
+
+    HttpResponse<String> stale = request("POST", "/command/rename-resource",
+        commandBody.replace("Command Renamed Folder", "Stale Command Name"), authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(412, stale.statusCode(), stale.body());
+
+    HttpResponse<String> after = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
+    Assertions.assertEquals("Command Renamed Folder",
+        JsonMapper.MAPPER.readTree(after.body()).get("schema:name").asText());
+    Assertions.assertEquals(204, request("DELETE", "/folders/" + encode(folderId), null,
+        authHeaderUser1, "\"2\"").statusCode());
   }
 
   @Test

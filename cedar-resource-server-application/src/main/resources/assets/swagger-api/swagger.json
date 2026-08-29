@@ -103,6 +103,9 @@
           "404" : {
             "description" : "Not found"
           },
+          "409" : {
+            "description" : "A sibling category with the same name already exists"
+          },
           "500" : {
             "description" : "Internal server error"
           }
@@ -1440,6 +1443,9 @@
       "post" : {
         "description" : "Change name and/or description of a resource. Folders or artifacts (fields, elements, templates, instances) can be altered.",
         "operationId" : "renameResource",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        } ],
         "requestBody" : {
           "content" : {
             "*/*" : {
@@ -1466,6 +1472,12 @@
           },
           "404" : {
             "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
           },
           "500" : {
             "description" : "Internal server error"
@@ -4858,7 +4870,7 @@
         }
       },
       "IfMatchForCreateOrReplace" : {
-        "description" : "Required when the identifier already exists and the PUT replaces it; omit it when creating\na resource with a new client-supplied identifier. Use the strong ETag returned by GET. `*`\naccepts any current revision and deliberately gives up lost-update protection.\n",
+        "description" : "Required when the identifier already exists and the PUT replaces it; omit it when creating\na resource with a new client-supplied identifier. If supplied for an absent resource, the\nrequest fails with 412 rather than creating it. Use the strong ETag returned by GET. `*`\naccepts any current revision that still exists and deliberately gives up lost-update protection.\n",
         "example" : "\"7\"",
         "in" : "header",
         "name" : "If-Match",

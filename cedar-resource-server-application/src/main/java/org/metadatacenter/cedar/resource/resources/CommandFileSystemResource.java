@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -27,6 +28,7 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.*;
+import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.ResourceVersion;
@@ -418,7 +420,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @Timed
   @Path("/rename-resource")
   @Operation(summary = "Rename resource", description = "Change name and/or description of a resource. Folders or artifacts (fields, elements, templates, "
-          + "instances) can be altered.", tags = {"Command", "File Operations"})
+          + "instances) can be altered.", tags = {"Command", "File Operations"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Parameters of the rename operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.RenameRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation"),
@@ -426,6 +429,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response renameResource() throws CedarException {
@@ -495,6 +500,13 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     // Check read permission
     c.must(c.user()).have(permission);
 
+    String expectedEtag = c.getIfMatchHeader();
+    if (expectedEtag == null || expectedEtag.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .errorMessage("Renaming a resource requires the ETag returned by GET in If-Match")
+          .build();
+    }
+
     if (isFolder) {
       return updateFolderNameAndDescriptionInGraphDb(c, (CedarFolderId) fsResourceId);
     } else {
@@ -509,8 +521,6 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
         if (currentTemplateEntity != null) {
           try {
-            Header revisionHeader = templateCurrentProxyResponse.getFirstHeader(HttpHeaders.ETAG);
-            String expectedEtag = revisionHeader == null ? null : revisionHeader.getValue();
             String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
             JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
             String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
