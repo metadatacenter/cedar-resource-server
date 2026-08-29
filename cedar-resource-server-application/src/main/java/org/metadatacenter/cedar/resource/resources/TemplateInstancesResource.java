@@ -4,6 +4,7 @@ import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -63,7 +64,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       + "the compact form is a lossy read-time convenience and is rejected.")
   @RequestBody(description = "The template instance to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A template instance", content = @Content(schema = @Schema(implementation = TemplateInstance.class))),
+      @ApiResponse(responseCode = "201", description = "A template instance", content = @Content(schema = @Schema(implementation = TemplateInstance.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -93,7 +95,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Operation(summary = "Get a template instance", description = "Get a template instance. YAML can be requested via the "
       + "Accept header; the format query parameter takes precedence.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A template instance", content = @Content(schema = @Schema(implementation = TemplateInstance.class))),
+      @ApiResponse(responseCode = "200", description = "A template instance", content = @Content(schema = @Schema(implementation = TemplateInstance.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -225,14 +228,21 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Update a template instance", description = "Update a template instance. The body can be JSON or "
       + "YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: "
-      + "the compact form is a lossy read-time convenience and is rejected.")
+      + "the compact form is a lossy read-time convenience and is rejected.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatchForCreateOrReplace"))
   @RequestBody(description = "The template instance to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A template instance", content = @Content(schema = @Schema(implementation = TemplateInstance.class))),
+      @ApiResponse(responseCode = "200", description = "A template instance", content = @Content(schema = @Schema(implementation = TemplateInstance.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "201", description = "A template instance created with the supplied identifier",
+          content = @Content(schema = @Schema(implementation = TemplateInstance.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateTemplateInstance(
@@ -261,13 +271,16 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{template_instance_id}")
-  @Operation(summary = "Delete a template instance", description = "Delete a template instance.")
+  @Operation(summary = "Delete a template instance", description = "Delete a template instance.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
       @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response deleteTemplateInstance(
@@ -285,7 +298,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Path("/{template_instance_id}/permissions")
   @Operation(summary = "Get permissions of a template instance", description = "Get permissions of a template instance.", tags = {"Template Instances", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -305,13 +319,17 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{template_instance_id}/permissions")
-  @Operation(summary = "Update permissions of a template instance", description = "Update permissions of a template instance.", tags = {"Template Instances", "Permissions"})
+  @Operation(summary = "Update permissions of a template instance", description = "Update permissions of a template instance.", tags = {"Template Instances", "Permissions"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateTemplateInstancePermissions(

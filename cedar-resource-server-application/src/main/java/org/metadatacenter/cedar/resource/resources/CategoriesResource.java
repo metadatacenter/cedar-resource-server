@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -91,9 +92,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "409", description = "Category still has children or attached artifacts"),
-      @ApiResponse(responseCode = "412", description = "ETag precondition failed"),
-      @ApiResponse(responseCode = "428", description = "If-Match is required"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response getAllCategories(
@@ -149,7 +147,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Operation(summary = "Create a category", description = "Create a category.")
   @RequestBody(description = "The category to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Category.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A category", content = @Content(schema = @Schema(implementation = Category.class))),
+      @ApiResponse(responseCode = "201", description = "A category", content = @Content(schema = @Schema(implementation = Category.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -248,7 +247,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Path("/{category_id}")
   @Operation(summary = "Get a category", description = "Get a category.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class))),
+      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -311,14 +311,19 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{category_id}")
-  @Operation(summary = "Update a category", description = "Update a category.")
+  @Operation(summary = "Update a category", description = "Update a category.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "The category to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Category.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class))),
+      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "A sibling category already has the requested name"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateCategory(
@@ -402,13 +407,17 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{category_id}")
-  @Operation(summary = "Delete a category", description = "Delete a category.")
+  @Operation(summary = "Delete a category", description = "Delete a category.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
       @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "Category still has children or attached artifacts"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response deleteCategory(
@@ -484,7 +493,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Path("/{category_id}/permissions")
   @Operation(summary = "Get permissions of a category", description = "Get permissions of a category.", tags = {"Categories", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -516,15 +526,17 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{category_id}/permissions")
-  @Operation(summary = "Update permissions of a category", description = "Update permissions of a category.", tags = {"Categories", "Permissions"})
+  @Operation(summary = "Update permissions of a category", description = "Update permissions of a category.", tags = {"Categories", "Permissions"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "412", description = "Precondition failed"),
-      @ApiResponse(responseCode = "428", description = "Precondition required"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateCategoryPermissions(

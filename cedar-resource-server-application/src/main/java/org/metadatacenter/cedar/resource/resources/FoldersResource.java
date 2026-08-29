@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -59,7 +60,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Operation(summary = "Create a folder", description = "Create a folder.")
   @RequestBody(description = "The folder to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Folder.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class))),
+      @ApiResponse(responseCode = "201", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -77,7 +79,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}")
   @Operation(summary = "Get a folder", description = "Get a folder.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class))),
+      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -113,7 +116,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}/details")
   @Operation(summary = "Get the details of a folder", description = "Get the details of a folder.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -130,13 +134,20 @@ public class FoldersResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{folder_id}")
-  @Operation(summary = "Update a folder", description = "Update a folder.")
+  @Operation(summary = "Update a folder", description = "Update a folder.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatchForCreateOrReplace"))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class))),
+      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "201", description = "A folder created with the supplied identifier",
+          content = @Content(schema = @Schema(implementation = Folder.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response createOrUpdateFolder(
@@ -179,13 +190,16 @@ public class FoldersResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{folder_id}")
-  @Operation(summary = "Delete a folder", description = "Delete a folder.")
+  @Operation(summary = "Delete a folder", description = "Delete a folder.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
       @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response deleteFolder(
@@ -266,7 +280,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}/permissions")
   @Operation(summary = "Get permissions of a folder", description = "Get permissions of a folder.", tags = {"Folders", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -288,13 +303,17 @@ public class FoldersResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{folder_id}/permissions")
-  @Operation(summary = "Update permissions of a folder", description = "Update permissions of a folder.", tags = {"Folders", "Permissions"})
+  @Operation(summary = "Update permissions of a folder", description = "Update permissions of a folder.", tags = {"Folders", "Permissions"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateFolderPermissions(

@@ -4,9 +4,54 @@
 openapi: 3.0.1
 info:
   title: CEDAR Resource Server API
-  description: Better Metadata - Better Science
+  description: |
+    Better Metadata - Better Science
+
+    Mutable resources use strong ETags for optimistic concurrency. Read the resource (or its
+    permissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing
+    required precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`
+    accepts whichever revision currently exists and therefore deliberately gives up lost-update
+    protection. Comma-separated strong validators are also accepted. Representation suffixes such
+    as `"7-json"`, `"7-yaml"`, and `"7-resource-record"` identify different bytes of the same
+    stored revision and are valid write preconditions.
   version: ${project.version}
 components:
+  headers:
+    ETag:
+      description: Strong validator for the returned representation and its stored revision.
+      schema:
+        type: string
+      example: '"7"'
+  parameters:
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: |
+        Strong ETag returned by the corresponding GET. `*` accepts any current revision; a
+        comma-separated list succeeds when any supplied strong validator names the current stored
+        revision. Weak, stale, and malformed validators fail with 412.
+      schema:
+        type: string
+      example: '"7"'
+    IfMatchForCreateOrReplace:
+      name: If-Match
+      in: header
+      required: false
+      description: |
+        Required when the identifier already exists and the PUT replaces it; omit it when creating
+        a resource with a new client-supplied identifier. Use the strong ETag returned by GET. `*`
+        accepts any current revision and deliberately gives up lost-update protection.
+      schema:
+        type: string
+      example: '"7"'
+  responses:
+    PreconditionFailed:
+      description: |
+        The supplied If-Match value is stale, weak, or malformed. When a current revision exists,
+        the error body's `parameters.currentETag` identifies it.
+    PreconditionRequired:
+      description: This operation requires the current resource ETag in If-Match.
   securitySchemes:
     api_key:
       type: apiKey

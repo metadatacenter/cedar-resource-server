@@ -4,6 +4,7 @@ import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -61,7 +62,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       + "the compact form is a lossy read-time convenience and is rejected.")
   @RequestBody(description = "The template element to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateElement.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A template element", content = @Content(schema = @Schema(implementation = TemplateElement.class))),
+      @ApiResponse(responseCode = "201", description = "A template element", content = @Content(schema = @Schema(implementation = TemplateElement.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -91,7 +93,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Operation(summary = "Get a template element", description = "Get a template element as JSON or YAML, selected via the "
       + "Accept header.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A template element", content = @Content(schema = @Schema(implementation = TemplateElement.class))),
+      @ApiResponse(responseCode = "200", description = "A template element", content = @Content(schema = @Schema(implementation = TemplateElement.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -215,14 +218,21 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Update a template element", description = "Update a template element. The body can be JSON or "
       + "YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: "
-      + "the compact form is a lossy read-time convenience and is rejected.")
+      + "the compact form is a lossy read-time convenience and is rejected.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatchForCreateOrReplace"))
   @RequestBody(description = "The template element to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateElement.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A template element", content = @Content(schema = @Schema(implementation = TemplateElement.class))),
+      @ApiResponse(responseCode = "200", description = "A template element", content = @Content(schema = @Schema(implementation = TemplateElement.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "201", description = "A template element created with the supplied identifier",
+          content = @Content(schema = @Schema(implementation = TemplateElement.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateTemplateElement(
@@ -251,13 +261,16 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{template_element_id}")
-  @Operation(summary = "Delete a template element", description = "Delete a template element.")
+  @Operation(summary = "Delete a template element", description = "Delete a template element.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
       @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response deleteTemplateElement(
@@ -275,7 +288,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Path("/{template_element_id}/permissions")
   @Operation(summary = "Get permissions of a template element", description = "Get permissions of a template element.", tags = {"Template Elements", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -295,13 +309,17 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{template_element_id}/permissions")
-  @Operation(summary = "Update permissions of a template element", description = "Update permissions of a template element.", tags = {"Template Elements", "Permissions"})
+  @Operation(summary = "Update permissions of a template element", description = "Update permissions of a template element.", tags = {"Template Elements", "Permissions"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateTemplateElementPermissions(

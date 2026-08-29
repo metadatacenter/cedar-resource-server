@@ -1,6 +1,15 @@
 openapi: 3.0.1
 info:
-  description: Better Metadata - Better Science
+  description: |
+    Better Metadata - Better Science
+
+    Mutable resources use strong ETags for optimistic concurrency. Read the resource (or its
+    permissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing
+    required precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`
+    accepts whichever revision currently exists and therefore deliberately gives up lost-update
+    protection. Comma-separated strong validators are also accepted. Representation suffixes such
+    as `"7-json"`, `"7-yaml"`, and `"7-resource-record"` identify different bytes of the same
+    stored revision and are valid write preconditions.
   title: CEDAR Resource Server API
   version: 2.9.4-SNAPSHOT
 paths:
@@ -60,6 +69,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Category"
           description: A category
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -139,6 +152,7 @@ paths:
       description: Delete a category.
       operationId: deleteCategory
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: category_id
@@ -156,6 +170,12 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "409":
+          description: Category still has children or attached artifacts
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -180,6 +200,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Category"
           description: A category
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -199,6 +223,7 @@ paths:
       description: Update a category.
       operationId: updateCategory
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: category_id
@@ -219,6 +244,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Category"
           description: A category
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -227,6 +256,12 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "409":
+          description: A sibling category already has the requested name
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -248,6 +283,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -268,6 +307,7 @@ paths:
       description: Update permissions of a category.
       operationId: updateCategoryPermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: category_id
@@ -277,6 +317,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -285,6 +329,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1146,6 +1194,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Folder"
           description: A folder
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1166,6 +1218,7 @@ paths:
       description: Delete a folder.
       operationId: deleteFolder
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -1183,6 +1236,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1207,6 +1264,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Folder"
           description: A folder
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1226,6 +1287,7 @@ paths:
       description: Update a folder.
       operationId: createOrUpdateFolder
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -1239,6 +1301,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Folder"
           description: A folder
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+          description: A folder created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1247,6 +1323,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1413,6 +1493,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1442,6 +1526,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1462,6 +1550,7 @@ paths:
       description: Update permissions of a folder.
       operationId: updateFolderPermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -1471,6 +1560,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1479,6 +1572,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1746,6 +1843,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateElement"
           description: A template element
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1766,6 +1867,7 @@ paths:
       description: Delete a template element.
       operationId: deleteTemplateElement
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Element identifier.
         in: path
         name: template_element_id
@@ -1783,6 +1885,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1819,6 +1925,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateElement"
           description: A template element
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1840,6 +1950,7 @@ paths:
         \ the compact form is a lossy read-time convenience and is rejected."
       operationId: updateTemplateElement
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: Template Element identifier.
         in: path
         name: template_element_id
@@ -1890,6 +2001,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateElement"
           description: A template element
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateElement"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateElement"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateElement"
+          description: A template element created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1898,6 +2029,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1989,6 +2124,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2009,6 +2148,7 @@ paths:
       description: Update permissions of a template element.
       operationId: updateTemplateElementPermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Element identifier.
         in: path
         name: template_element_id
@@ -2018,6 +2158,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2026,6 +2170,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2142,6 +2290,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateField"
           description: A template field
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2162,6 +2314,7 @@ paths:
       description: Delete a template field.
       operationId: deleteTemplateField
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Field identifier.
         in: path
         name: template_field_id
@@ -2179,6 +2332,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2215,6 +2372,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateField"
           description: A template field
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2236,6 +2397,7 @@ paths:
         \ the compact form is a lossy read-time convenience and is rejected."
       operationId: updateTemplateField
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: Template Field identifier.
         in: path
         name: template_field_id
@@ -2286,6 +2448,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateField"
           description: A template field
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateField"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateField"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateField"
+          description: A template field created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2294,6 +2476,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2385,6 +2571,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2405,6 +2595,7 @@ paths:
       description: Update permissions of a template field.
       operationId: updateTemplateFieldPermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Field identifier.
         in: path
         name: template_field_id
@@ -2414,6 +2605,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2422,6 +2617,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2538,6 +2737,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateInstance"
           description: A template instance
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2558,6 +2761,7 @@ paths:
       description: Delete a template instance.
       operationId: deleteTemplateInstance
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Instance identifier.
         in: path
         name: template_instance_id
@@ -2575,6 +2779,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2617,6 +2825,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateInstance"
           description: A template instance
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2638,6 +2850,7 @@ paths:
         \ the compact form is a lossy read-time convenience and is rejected."
       operationId: updateTemplateInstance
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: Template Instance identifier.
         in: path
         name: template_instance_id
@@ -2688,6 +2901,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateInstance"
           description: A template instance
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateInstance"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateInstance"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateInstance"
+          description: A template instance created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2696,6 +2929,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2787,6 +3024,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2807,6 +3048,7 @@ paths:
       description: Update permissions of a template instance.
       operationId: updateTemplateInstancePermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Instance identifier.
         in: path
         name: template_instance_id
@@ -2816,6 +3058,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2824,6 +3070,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2908,6 +3158,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Template"
           description: A template
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2963,6 +3217,7 @@ paths:
       description: Delete a template.
       operationId: deleteTemplate
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template identifier.
         in: path
         name: template_id
@@ -2980,6 +3235,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -3015,6 +3274,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Template"
           description: A template
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3036,6 +3299,7 @@ paths:
         \ compact form is a lossy read-time convenience and is rejected."
       operationId: updateTemplate
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: Template identifier.
         in: path
         name: template_id
@@ -3086,6 +3350,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Template"
           description: A template
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/Template"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/Template"
+          description: A template created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3094,6 +3378,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -3184,6 +3472,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3204,6 +3496,7 @@ paths:
       description: Update permissions of a template.
       operationId: updateTemplatePermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template identifier.
         in: path
         name: template_id
@@ -3213,6 +3506,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3221,6 +3518,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -3318,6 +3619,43 @@ paths:
       tags:
       - Users
 components:
+  headers:
+    ETag:
+      description: Strong validator for the returned representation and its stored
+        revision.
+      example: '"7"'
+      schema:
+        type: string
+  parameters:
+    IfMatch:
+      description: |
+        Strong ETag returned by the corresponding GET. `*` accepts any current revision; a
+        comma-separated list succeeds when any supplied strong validator names the current stored
+        revision. Weak, stale, and malformed validators fail with 412.
+      example: '"7"'
+      in: header
+      name: If-Match
+      required: true
+      schema:
+        type: string
+    IfMatchForCreateOrReplace:
+      description: |
+        Required when the identifier already exists and the PUT replaces it; omit it when creating
+        a resource with a new client-supplied identifier. Use the strong ETag returned by GET. `*`
+        accepts any current revision and deliberately gives up lost-update protection.
+      example: '"7"'
+      in: header
+      name: If-Match
+      required: false
+      schema:
+        type: string
+  responses:
+    PreconditionFailed:
+      description: |
+        The supplied If-Match value is stale, weak, or malformed. When a current revision exists,
+        the error body's `parameters.currentETag` identifies it.
+    PreconditionRequired:
+      description: This operation requires the current resource ETag in If-Match.
   schemas:
     Category:
       type: object
