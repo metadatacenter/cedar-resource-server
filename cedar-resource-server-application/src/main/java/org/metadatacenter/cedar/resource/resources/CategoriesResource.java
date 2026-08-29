@@ -35,6 +35,7 @@ import org.metadatacenter.server.CategoryPermissionServiceSession;
 import org.metadatacenter.server.CategoryNotEmptyException;
 import org.metadatacenter.server.CategoryServiceSession;
 import org.metadatacenter.server.RevisionConflictException;
+import org.metadatacenter.server.RevisionPrecondition;
 import org.metadatacenter.server.SiblingNameConflictException;
 import org.metadatacenter.server.VersionedCategoryPermissions;
 import org.metadatacenter.server.VersionedResource;
@@ -266,6 +267,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     CedarCategoryId ccid = CedarCategoryId.build(id);
+
     VersionedResource<FolderServerCategory> snapshot = categorySession.getVersionedCategoryById(ccid);
     c.should(snapshot).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
@@ -329,6 +331,14 @@ public class CategoriesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.CATEGORY_UPDATE);
     CedarCategoryId ccid = CedarCategoryId.build(id);
 
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .errorMessage("Updating a category requires the ETag returned by GET in If-Match")
+          .build();
+    }
+    RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
+
     CedarRequestBody requestBody = c.request().getRequestBody();
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
@@ -365,11 +375,16 @@ public class CategoriesResource extends AbstractResourceServerResource {
     updateFields.put(NodeProperty.NAME_LOWER, categoryName.stringValue().toLowerCase());
     updateFields.put(NodeProperty.DESCRIPTION, categoryDescription.stringValue());
     updateFields.put(NodeProperty.IDENTIFIER, categoryIdentifier.stringValue());
-    FolderServerCategory updatedCategory;
+    VersionedResource<FolderServerCategory> updatedCategory;
     try {
-      updatedCategory = categorySession.updateCategoryById(ccid, updateFields);
+      updatedCategory = categorySession.updateCategoryById(ccid, updateFields, precondition);
     } catch (SiblingNameConflictException e) {
       return siblingNameConflictResponse(categoryName.stringValue());
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .errorMessage("The category has been updated since it was read")
+          .build();
     }
 
     c.should(updatedCategory).be(NonNull).otherwiseInternalServerError(
@@ -378,9 +393,10 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .operation(CedarOperations.update(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    ProvenanceNameUtil.addProvenanceDisplayName(updatedCategory);
+    ProvenanceNameUtil.addProvenanceDisplayName(updatedCategory.resource());
 
-    return Response.ok().entity(updatedCategory).build();
+    return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updatedCategory.revision()))
+        .entity(updatedCategory.resource()).build();
   }
 
   @DELETE

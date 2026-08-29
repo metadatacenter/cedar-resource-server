@@ -375,7 +375,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     String renameBody = "{\"schema:name\": \"" + siblingCategoryName
         + "\", \"schema:description\": \"duplicate sibling name\"}";
 
-    HttpResponse<String> response = request("PUT", categoryPath, renameBody, adminAuthHeader);
+    HttpResponse<String> response = request("PUT", categoryPath, renameBody, adminAuthHeader, "\"1\"");
     Assertions.assertEquals(409, response.statusCode(), response.body());
     Assertions.assertTrue(response.body().contains("categoryAlreadyPresent"), response.body());
 

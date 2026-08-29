@@ -271,10 +271,21 @@ public class FoldersResourceTest {
         JsonMapper.MAPPER.readTree(found.body()).get("schema:name").asText());
 
     // Unlike create, the update endpoint reads the schema:name / schema:description keys
-    HttpResponse<String> updated = request("PUT", "/folders/" + encode(folderId),
+    HttpResponse<String> missingPrecondition = request("PUT", "/folders/" + encode(folderId),
         "{\"schema:name\": \"Renamed Test Folder\", \"schema:description\": \"Updated description\"}",
         authHeaderUser1);
+    Assertions.assertEquals(428, missingPrecondition.statusCode(), missingPrecondition.body());
+
+    HttpResponse<String> updated = request("PUT", "/folders/" + encode(folderId),
+        "{\"schema:name\": \"Renamed Test Folder\", \"schema:description\": \"Updated description\"}",
+        authHeaderUser1, "\"1\"");
     Assertions.assertEquals(200, updated.statusCode());
+    Assertions.assertEquals("\"2\"", updated.headers().firstValue("ETag").orElse(null));
+
+    HttpResponse<String> staleUpdate = request("PUT", "/folders/" + encode(folderId),
+        "{\"schema:name\": \"Stale Folder Name\", \"schema:description\": \"stale\"}",
+        authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(412, staleUpdate.statusCode(), staleUpdate.body());
 
     HttpResponse<String> staleDelete = request("DELETE", "/folders/" + encode(folderId), null,
         authHeaderUser1, "\"1\"");

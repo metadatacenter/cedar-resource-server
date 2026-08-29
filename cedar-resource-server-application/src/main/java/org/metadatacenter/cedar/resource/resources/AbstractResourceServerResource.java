@@ -1220,6 +1220,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response updateFolderNameAndDescriptionInGraphDb(CedarRequestContext c, CedarFolderId folderId) throws CedarException {
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .errorMessage("Updating a folder requires the ETag returned by GET in If-Match")
+          .build();
+    }
+    RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
     userMustHaveWriteAccessToFolder(c, folderId);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -1292,12 +1299,18 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         updateFields.put(NodeProperty.NAME, nameV);
         updateFields.put(NodeProperty.NAME_LOWER, nameV.toLowerCase());
       }
-      FolderServerFolder folderServerFolderUpdated;
+      VersionedResource<FolderServerFolder> updatedSnapshot;
       try {
-        folderServerFolderUpdated = folderSession.updateFolderById(folderId, updateFields);
+        updatedSnapshot = folderSession.updateFolderById(folderId, updateFields, precondition);
       } catch (SiblingNameConflictException e) {
         return siblingNameConflictResponse(nameV);
+      } catch (RevisionConflictException e) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+            .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+            .errorMessage("The folder has been updated since it was read")
+            .build();
       }
+      FolderServerFolder folderServerFolderUpdated = updatedSnapshot.resource();
 
       String newName = folderServerFolderUpdated.getName();
       if (oldName == null || !oldName.equals(newName)) {
@@ -1309,7 +1322,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
 
       ProvenanceNameUtil.addProvenanceDisplayName(folderServerFolderUpdated);
-      return Response.ok().entity(folderServerFolderUpdated).build();
+      return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updatedSnapshot.revision()))
+          .entity(folderServerFolderUpdated).build();
     }
   }
 
