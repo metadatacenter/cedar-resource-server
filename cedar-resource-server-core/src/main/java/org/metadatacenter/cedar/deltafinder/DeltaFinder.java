@@ -115,8 +115,12 @@ public class DeltaFinder {
       FieldSchemaArtifact oldField = oldFields.get(key);
       FieldSchemaArtifact newField = newFields.get(key);
 
-      String oldType = oldField.getClass().getSimpleName();
-      String newType = newField.getClass().getSimpleName();
+      // The model's own input type, not the implementing class. getSimpleName() reported the
+      // package-private record behind the interface — "TextFieldRecord" for a field the model, the
+      // JSON and every other surface call "textfield" — so the delta named a type no caller could
+      // look up and that changes whenever the implementation is renamed.
+      String oldType = oldField.fieldUi().inputType().getText();
+      String newType = newField.fieldUi().inputType().getText();
       // Any change of field type is destructive: the stored values were written against the old type.
       if (!oldType.equals(newType)) {
         delta.addDestructiveChange(new TypeChange(key, oldType, newType, true));

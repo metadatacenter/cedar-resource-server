@@ -26,8 +26,8 @@ public class TestTemplate11 extends SimpleTemplateTest {
     boolean hasTypeChange = destructive.stream().anyMatch(c ->
         c instanceof TypeChange &&
             c.getFieldName().equals("Field 2") &&
-            ((TypeChange) c).getOldType().equals("TextFieldRecord") &&
-            ((TypeChange) c).getNewType().equals("TemporalFieldRecord")
+            ((TypeChange) c).getOldType().equals("textfield") &&
+            ((TypeChange) c).getNewType().equals("temporal")
     );
     assertTrue(hasTypeChange, "Should contain destructive TypeChange on Field 2");
 
