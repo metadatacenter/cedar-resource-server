@@ -629,9 +629,14 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       resp.put("canBeUpdated", destructive.isEmpty() && nonDestructive.isEmpty());
       resp.put("numberOfInstances", instanceCount);
 
+      // The version this call reports as "old", and the next version it predicts, both come from the
+      // stored template. Reading them off the submitted body instead made the prediction a function
+      // of what the client sent: /publish-create-draft-template derives the same pair from the
+      // stored document, so a client whose submitted pav:version differed from what is stored was
+      // told one next version here and given another when it published.
       ResourceVersion oldVersion =
-          ResourceVersion.forValueWithValidation(newModelArtifact.version()
-              .orElseThrow(() -> new IllegalArgumentException("Submitted template has no pav:version"))
+          ResourceVersion.forValueWithValidation(oldModelArtifact.version()
+              .orElseThrow(() -> new IllegalArgumentException("Stored template has no pav:version"))
               .toString());
       ResourceVersion newVersion = oldVersion.nextPatchVersion();
 
