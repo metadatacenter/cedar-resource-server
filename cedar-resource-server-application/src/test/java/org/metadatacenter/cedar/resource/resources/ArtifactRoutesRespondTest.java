@@ -12,27 +12,17 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
+import org.metadatacenter.util.test.RouteSurface;
 import org.metadatacenter.util.test.TestAuthUtil;
 
-import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * Probes every endpoint of the four artifact-type resource classes on the booted application,
- * unauthenticated. Every route is expected to answer
+ * Probes every authenticated endpoint registered by the booted application. Every route is expected to answer
  * 401 (the authentication assertion fires before anything else on all of them); a 404 or 405
- * would mean the route vanished or changed verb, which is exactly the regression this test
- * exists to catch before the parameterization refactor.
- *
- * The route list is driven by the same reflection helper the snapshot test uses, so the two
- * tests can never disagree about what the surface is.
+ * would mean the route vanished or changed verb. The class inventory comes from Jersey's runtime
+ * registrations, so registering a resource automatically puts its endpoints under this check.
  */
 public class ArtifactRoutesRespondTest {
 
@@ -50,10 +40,6 @@ public class ArtifactRoutesRespondTest {
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
       new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
 
-  private static final HttpClient CLIENT = HttpClient.newHttpClient();
-
-  private static final Pattern PATH_TEMPLATE_VARIABLE = Pattern.compile("\\{([^}]+)}");
-
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
     SERVER.before();
@@ -69,50 +55,27 @@ public class ArtifactRoutesRespondTest {
   }
 
   @Test
-  public void everyDeclaredRouteRejectsUnauthenticatedRequests() throws Exception {
-    StringBuilder failures = new StringBuilder();
+  public void everyRegisteredAuthenticatedRouteRejectsUnauthenticatedRequests() {
+    org.glassfish.jersey.server.ResourceConfig resourceConfig =
+        SERVER.getEnvironment().jersey().getResourceConfig();
+    List<Object> registeredComponents = new java.util.ArrayList<>();
+    registeredComponents.addAll(resourceConfig.getInstances());
+    registeredComponents.addAll(resourceConfig.getSingletons());
+    registeredComponents.addAll(resourceConfig.getClasses());
+    registeredComponents.addAll(resourceConfig.getResources());
+    List<Class<?>> registeredResources = RouteSurface.registeredResourceClasses(
+        registeredComponents,
+        "org.metadatacenter.cedar.resource.resources").stream()
+        .filter(resourceClass -> !resourceClass.getSimpleName().equals("IndexResource"))
+        .toList();
 
-    for (ArtifactResourceSurface.Endpoint endpoint : ArtifactResourceSurface.endpoints()) {
-      String key = endpoint.key();
-      int status = probe(endpoint);
-
-      if (status == 404 || status == 405) {
-        failures.append(key).append(": got ").append(status)
-            .append(" - the route vanished or changed verb\n");
-        continue;
-      }
-      if (status != 401) {
-        failures.append(key).append(": expected 401 but got ").append(status).append('\n');
-      }
-    }
-
-    Assertions.assertEquals(0, failures.length(), "Route responses diverged from the authentication contract:\n" + failures);
-  }
-
-  private int probe(ArtifactResourceSurface.Endpoint endpoint) throws Exception {
-    HttpRequest.Builder builder = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + substitutePathParameters(endpoint.fullPath)));
-    if (endpoint.verb.equals("POST") || endpoint.verb.equals("PUT")) {
-      builder.header("Content-Type", "application/json");
-      builder.method(endpoint.verb, HttpRequest.BodyPublishers.ofString("{}"));
-    } else {
-      builder.method(endpoint.verb, HttpRequest.BodyPublishers.noBody());
-    }
-    HttpResponse<String> response = CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-    return response.statusCode();
-  }
-
-  /**
-   * Replaces every path template variable with a syntactically plausible URL-encoded CEDAR
-   * artifact id, derived from the route's own root segment (e.g. the template_element_id
-   * becomes an encoded https://repo.metadatacenter.org/template-elements/... id).
-   */
-  private String substitutePathParameters(String pathTemplate) {
-    String root = pathTemplate.substring(1, pathTemplate.indexOf('/', 1) > 0 ? pathTemplate.indexOf('/', 1) : pathTemplate.length());
-    String plausibleId = "https://repo.metadatacenter.org/" + root + "/8bc64ab5-df6b-48c8-8c61-6c016245918e";
-    String encodedId = URLEncoder.encode(plausibleId, StandardCharsets.UTF_8);
-    Matcher matcher = PATH_TEMPLATE_VARIABLE.matcher(pathTemplate);
-    return matcher.replaceAll(Matcher.quoteReplacement(encodedId));
+    Assertions.assertTrue(registeredResources.size() > 4,
+        "the runtime-derived inventory should include resources beyond the four artifact classes: "
+            + registeredResources);
+    RouteSurface.assertEveryRouteAnswers(
+        "http://localhost:" + SERVER.getLocalPort(),
+        RouteSurface.endpoints(registeredResources),
+        401);
   }
 
 }
