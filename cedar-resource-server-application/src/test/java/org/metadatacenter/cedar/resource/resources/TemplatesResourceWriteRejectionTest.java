@@ -40,13 +40,13 @@ import java.util.Map;
 public class TemplatesResourceWriteRejectionTest {
 
   static {
-    // Must run before the test support boots the server. Alternate ports, so the test
+    // Must run before the test support boots the server. OS-assigned ports, so the test
     // instance never collides with a running dev server; Redis on a dead port, since queue
     // writes are best-effort.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19007",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19107",
-        "CEDAR_RESOURCE_STOP_PORT", "19207",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_HTTP_PORT", "1",
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1",

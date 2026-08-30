@@ -94,11 +94,11 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
   static {
     // Must run before the test support boots the server, which reads the Neo4j env vars. Ports are
-    // distinct from the dev server and from every other booting test class in this module.
+    // assigned by the OS, so they cannot collide with the dev server or another test in this module.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19037",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19137",
-        "CEDAR_RESOURCE_STOP_PORT", "19237",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 

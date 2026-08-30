@@ -27,13 +27,13 @@ import java.util.Map;
 public class ArtifactRoutesRespondTest {
 
   static {
-    // Must run before the test support boots the server. Alternate ports, distinct from the
+    // Must run before the test support boots the server. OS-assigned ports, distinct from the
     // dev server and from the other booting test classes; Redis on a dead port, since queue
     // writes are best-effort.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19008",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19108",
-        "CEDAR_RESOURCE_STOP_PORT", "19208",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 

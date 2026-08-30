@@ -43,9 +43,9 @@ public class CommandOpenResourceTest {
 
   static {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19025",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19125",
-        "CEDAR_RESOURCE_STOP_PORT", "19225",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 
