@@ -4,7 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.metadatacenter.artifacts.model.core.ElementSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
+import org.metadatacenter.artifacts.model.core.TemplateInstanceArtifact;
+import org.metadatacenter.artifacts.model.core.TextField;
 import org.metadatacenter.artifacts.model.renderer.JsonArtifactRenderer;
 import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
@@ -21,6 +24,7 @@ import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
@@ -74,9 +78,11 @@ public class CommandFileSystemResourceTest {
   private static CedarFolderId homeFolderId;
   private static CedarFolderId moveDestinationId;
   private static FolderServerArtifact sourceArtifact;
-  private static String copiedArtifactId;
   private static String missingArtifactId;
   private static JsonNode postedArtifact;
+  private static CedarConfig cedarConfig;
+  private static FolderServiceSession folderSession;
+  private static NoOpNodeIndexingService nodeIndexingService;
   private static int sourceGetStatus = 200;
   private static boolean omitSourceGetBody;
   private static String receivedPutIfMatch;
@@ -89,21 +95,21 @@ public class CommandFileSystemResourceTest {
 
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
-    CedarConfig cedarConfig = CedarConfig.getInstance(environment);
-    copiedArtifactId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    cedarConfig = CedarConfig.getInstance(environment);
     missingArtifactId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     authHeader = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
+    nodeIndexingService = new NoOpNodeIndexingService(cedarConfig);
     AbstractResourceServerResource.injectServices(
-        new NoOpNodeIndexingService(cedarConfig),
+        nodeIndexingService,
         new IndexUtils(cedarConfig).getNodeSearchingService(),
         new SearchPermissionEnqueueService(cedarConfig),
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
-    FolderServiceSession folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
+    folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
     homeFolderId = folderSession.findHomeFolderOf().getResourceId();
     org.metadatacenter.model.folderserver.basic.FolderServerFolder moveDestination =
         new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
@@ -290,6 +296,45 @@ public class CommandFileSystemResourceTest {
 
   @Test
   @Order(8)
+  public void authenticatedCreatesReachArtifactGraphAndIndexServices() throws Exception {
+    JsonArtifactRenderer renderer = new JsonArtifactRenderer();
+    URI templateId = URI.create("https://repo.metadatacenter.org/templates/write-path-fixture");
+    Map<String, ObjectNode> artifacts = Map.of(
+        "/templates", renderer.renderTemplateSchemaArtifact(
+            TemplateSchemaArtifact.builder().withName("Created template").build()),
+        "/template-elements", renderer.renderElementSchemaArtifact(
+            ElementSchemaArtifact.builder().withName("Created element").build()),
+        "/template-fields", renderer.renderFieldSchemaArtifact(
+            TextField.builder().withName("Created field").build()),
+        "/template-instances", renderer.renderTemplateInstanceArtifact(
+            TemplateInstanceArtifact.builder().withName("Created instance").withIsBasedOn(templateId).build()));
+
+    for (Map.Entry<String, ObjectNode> artifact : artifacts.entrySet()) {
+      HttpResponse<String> response = CLIENT.send(HttpRequest.newBuilder()
+              .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + artifact.getKey()))
+              .header("Authorization", authHeader)
+              .header("Content-Type", "application/json")
+              .POST(HttpRequest.BodyPublishers.ofString(artifact.getValue().toString()))
+              .build(),
+          HttpResponse.BodyHandlers.ofString());
+
+      Assertions.assertEquals(201, response.statusCode(), artifact.getKey() + ": " + response.body());
+      JsonNode created = JsonMapper.MAPPER.readTree(response.body());
+      String createdId = created.path("@id").asText();
+      Assertions.assertFalse(createdId.isBlank(), response.body());
+      Assertions.assertNotNull(folderSession.findArtifactById(
+              CedarArtifactId.build(createdId, resourceTypeForPath(artifact.getKey()))),
+          artifact.getKey() + " should be represented in the resource graph");
+      Assertions.assertTrue(nodeIndexingService.wasIndexed(createdId),
+          artifact.getKey() + " should be offered to the indexing service");
+      Assertions.assertTrue(response.headers().firstValue("Location").orElse("").endsWith(
+          java.net.URLEncoder.encode(createdId, StandardCharsets.UTF_8)),
+          artifact.getKey() + " should return Resource's created-artifact location");
+    }
+  }
+
+  @Test
+  @Order(9)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
     artifactServer.stop(0);
     artifactServer = null;
@@ -355,10 +400,12 @@ public class CommandFileSystemResourceTest {
     } else if ("POST".equals(exchange.getRequestMethod())) {
       postedArtifact = JsonMapper.MAPPER.readTree(exchange.getRequestBody());
       ObjectNode created = ((ObjectNode) postedArtifact).deepCopy();
-      created.put("@id", copiedArtifactId);
+      CedarResourceType resourceType = resourceTypeForPath(exchange.getRequestURI().getPath());
+      String createdArtifactId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(resourceType);
+      created.put("@id", createdArtifactId);
       status = 201;
       response = created.toString().getBytes(StandardCharsets.UTF_8);
-      exchange.getResponseHeaders().set("Location", copiedArtifactId);
+      exchange.getResponseHeaders().set("Location", createdArtifactId);
     } else if ("PUT".equals(exchange.getRequestMethod())) {
       receivedPutIfMatch = exchange.getRequestHeaders().getFirst("If-Match");
       response = exchange.getRequestBody().readAllBytes();
@@ -386,6 +433,16 @@ public class CommandFileSystemResourceTest {
       exchange.getResponseBody().write(response);
     }
     exchange.close();
+  }
+
+  private static CedarResourceType resourceTypeForPath(String path) {
+    return switch (path) {
+      case "/templates" -> CedarResourceType.TEMPLATE;
+      case "/template-elements" -> CedarResourceType.ELEMENT;
+      case "/template-fields" -> CedarResourceType.FIELD;
+      case "/template-instances" -> CedarResourceType.INSTANCE;
+      default -> throw new IllegalArgumentException("Unexpected artifact create path " + path);
+    };
   }
 
   private static ObjectNode sourceDocument() {

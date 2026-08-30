@@ -6,6 +6,9 @@ import org.metadatacenter.model.folderserver.basic.FileSystemResource;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.search.IndexedDocumentId;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * A NodeIndexingService that indexes nothing, for integration tests that run without OpenSearch.
  * Lives in the service's package because the parent constructor is package-private. Only the
@@ -14,13 +17,20 @@ import org.metadatacenter.server.search.IndexedDocumentId;
  */
 public class NoOpNodeIndexingService extends NodeIndexingService {
 
+  private final Set<String> indexedResourceIds = ConcurrentHashMap.newKeySet();
+
   public NoOpNodeIndexingService(CedarConfig cedarConfig) {
     super(cedarConfig, "no-op-index", null);
   }
 
   @Override
   public IndexedDocumentId indexDocument(FileSystemResource resource, CedarRequestContext requestContext) {
+    indexedResourceIds.add(resource.getId());
     return null;
+  }
+
+  public boolean wasIndexed(String resourceId) {
+    return indexedResourceIds.contains(resourceId);
   }
 
   @Override
