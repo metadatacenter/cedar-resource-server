@@ -34,6 +34,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
@@ -75,15 +76,29 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     if (!ValueSetsImportStatusManager.getInstance().tryStart()) {
       return CedarResponse.badRequest().errorMessage("Value set loading already in progress").build();
     } else {
-      ExecutorService executor = Executors.newSingleThreadExecutor();
-      executor.submit(() -> {
-        LoadValueSetsOntologyTask task = new LoadValueSetsOntologyTask(cedarConfig);
-        runValueSetsImportJob(() -> {
-          CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-          task.loadValueSetsOntology(cedarAdminRequestContext);
+      // The status is claimed above and released by runValueSetsImportJob, but only once the job
+      // runs. A failure to create the thread or accept the task would leave it IN_PROGRESS with
+      // nothing to clear it, and every later import refused with "already in progress" until the
+      // server restarts. Release it here on that path, and report a start that did not happen.
+      ExecutorService executor = null;
+      try {
+        executor = Executors.newSingleThreadExecutor();
+        executor.submit(() -> {
+          LoadValueSetsOntologyTask task = new LoadValueSetsOntologyTask(cedarConfig);
+          runValueSetsImportJob(() -> {
+            CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+            task.loadValueSetsOntology(cedarAdminRequestContext);
+          });
         });
-      });
-      executor.shutdown();
+      } catch (RuntimeException | Error e) {
+        ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
+        log.error("Could not start the value sets ontology import; released the import status", e);
+        throw e;
+      } finally {
+        if (executor != null) {
+          executor.shutdown();
+        }
+      }
       return Response.ok().build();
     }
   }
@@ -174,8 +189,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       return alreadyRunning(IndexJobGuard.Index.SEARCH);
     }
 
-    ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> runClaimedIndexJob(IndexJobGuard.Index.SEARCH, "search index regeneration", () -> {
+    submitClaimedIndexJob(IndexJobGuard.Index.SEARCH, "search index regeneration", () -> {
       // 1. LOAD VALUE SETS ONTOLOGY. This step is only required in CEDAR installations that need to load CDEs into the
       // index (e.g., CEDAR Production). In those cases, this task ensures that the CDE values are available to be
       // indexed before the index regeneration task begins. In the case of installations that don't manage CDEs, this
@@ -194,8 +208,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       RegenerateSearchIndexTask regenerateIndexTask = new RegenerateSearchIndexTask(cedarConfig);
       CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
       regenerateIndexTask.regenerateSearchIndex(force, cedarAdminRequestContext);
-    }));
-    executor.shutdown();
+    });
 
     return Response.ok().build();
   }
@@ -223,13 +236,11 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       return alreadyRunning(IndexJobGuard.Index.SEARCH);
     }
 
-    ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> runClaimedIndexJob(IndexJobGuard.Index.SEARCH, "empty search index generation", () -> {
+    submitClaimedIndexJob(IndexJobGuard.Index.SEARCH, "empty search index generation", () -> {
       GenerateEmptySearchIndexTask task = new GenerateEmptySearchIndexTask(cedarConfig);
       CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
       task.generateEmptySearchIndex(cedarAdminRequestContext);
-    }));
-    executor.shutdown();
+    });
 
     return Response.ok().build();
   }
@@ -270,13 +281,11 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       return alreadyRunning(IndexJobGuard.Index.RULES);
     }
 
-    ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> runClaimedIndexJob(IndexJobGuard.Index.RULES, "rules index regeneration", () -> {
+    submitClaimedIndexJob(IndexJobGuard.Index.RULES, "rules index regeneration", () -> {
       RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
       CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
       task.regenerateRulesIndex(force, cedarAdminRequestContext);
-    }));
-    executor.shutdown();
+    });
 
     return Response.ok().build();
   }
@@ -304,15 +313,49 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       return alreadyRunning(IndexJobGuard.Index.RULES);
     }
 
-    ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> runClaimedIndexJob(IndexJobGuard.Index.RULES, "empty rules index generation", () -> {
+    submitClaimedIndexJob(IndexJobGuard.Index.RULES, "empty rules index generation", () -> {
       GenerateEmptyRulesIndexTask task = new GenerateEmptyRulesIndexTask(cedarConfig);
       CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
       task.generateEmptyRulesIndex(cedarAdminRequestContext);
-    }));
-    executor.shutdown();
+    });
 
     return Response.ok().build();
+  }
+
+  /**
+   * Hands a claimed index job to a thread of its own, releasing the claim if it never gets there.
+   *
+   * <p>{@link IndexJobGuard#runClaimed} releases the index on every path the job itself can take,
+   * but only once the job runs. Between the claim and the job's first instruction sits the executor:
+   * creating a thread, and accepting the task. Either can fail, and the claim taken a moment earlier
+   * would then be held on behalf of a job that never started — which no later request can clear,
+   * because the guard has no reset path and every subsequent rebuild is refused with a 409 naming a
+   * job that is not running. Only a restart of the server clears it.
+   *
+   * <p>A failure to start is reported rather than swallowed. Answering 200 for a rebuild that was
+   * never scheduled tells the caller the opposite of what happened.
+   */
+  private static void submitClaimedIndexJob(IndexJobGuard.Index index, String description,
+                                            IndexJobGuard.Job job) {
+    submitClaimedIndexJob(index, description, job, Executors::newSingleThreadExecutor);
+  }
+
+  /** The executor is supplied so a test can hand over one that cannot create a thread or take a task. */
+  static void submitClaimedIndexJob(IndexJobGuard.Index index, String description, IndexJobGuard.Job job,
+                                    Supplier<ExecutorService> executors) {
+    ExecutorService executor = null;
+    try {
+      executor = executors.get();
+      executor.submit(() -> runClaimedIndexJob(index, description, job));
+    } catch (RuntimeException | Error e) {
+      IndexJobGuard.finish(index, e);
+      log.error("Could not start {}; released the index claim", description, e);
+      throw e;
+    } finally {
+      if (executor != null) {
+        executor.shutdown();
+      }
+    }
   }
 
   private static void runClaimedIndexJob(IndexJobGuard.Index index, String description, IndexJobGuard.Job job) {
