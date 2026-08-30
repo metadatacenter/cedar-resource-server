@@ -27,6 +27,10 @@ import java.util.concurrent.TimeUnit;
 public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
 
   private static final String LABEL = "CedarArtifactDeletionOutbox";
+  private static final String JOB_PROJECTION = "e.jobId AS jobId, e.resourceId AS resourceId, "
+      + "e.resourceType AS resourceType, e.artifactEtag AS artifactEtag, "
+      + "e.graphSnapshotJson AS graphSnapshotJson, e.previousVersionId AS previousVersionId, "
+      + "e.artifactDeleted AS artifactDeleted, e.graphDeleted AS graphDeleted";
   private final Driver driver;
   private final long initialDelayMillis;
 
@@ -71,7 +75,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
         + "e.graphSnapshotJson = $graphSnapshotJson, e.previousVersionId = $previousVersionId, "
         + "e.artifactDeleted = $artifactDeleted, e.graphDeleted = false, e.createdAt = timestamp(), "
         + "e.nextAttemptAt = timestamp() + $initialDelayMillis "
-        + "RETURN e";
+        + "RETURN " + JOB_PROJECTION;
     Map<String, Object> parameters = new HashMap<>();
     parameters.put("jobId", UUID.randomUUID().toString());
     parameters.put("resourceId", resourceId);
@@ -88,7 +92,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
 
   public List<ArtifactDeletionJob> pending(int limit) {
     String query = "MATCH (e:" + LABEL + ") WHERE coalesce(e.nextAttemptAt, 0) <= timestamp() "
-        + "RETURN e ORDER BY e.createdAt, e.jobId LIMIT $limit";
+        + "RETURN " + JOB_PROJECTION + " ORDER BY e.createdAt, e.jobId LIMIT $limit";
     try (Session session = driver.session()) {
       return session.readTransaction(tx -> {
         List<ArtifactDeletionJob> jobs = new ArrayList<>();
@@ -139,16 +143,15 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
   }
 
   private static ArtifactDeletionJob fromRecord(Record record) {
-    var node = record.get("e").asNode();
     return new ArtifactDeletionJob(
-        node.get("jobId").asString(),
-        node.get("resourceId").asString(),
-        CedarResourceType.forValue(node.get("resourceType").asString()),
-        node.get("artifactEtag").isNull() ? null : node.get("artifactEtag").asString(),
-        node.get("graphSnapshotJson").asString(),
-        node.get("previousVersionId").isNull() ? null : node.get("previousVersionId").asString(),
-        node.get("artifactDeleted").asBoolean(false),
-        node.get("graphDeleted").asBoolean(false));
+        record.get("jobId").asString(),
+        record.get("resourceId").asString(),
+        CedarResourceType.forValue(record.get("resourceType").asString()),
+        record.get("artifactEtag").isNull() ? null : record.get("artifactEtag").asString(),
+        record.get("graphSnapshotJson").asString(),
+        record.get("previousVersionId").isNull() ? null : record.get("previousVersionId").asString(),
+        record.get("artifactDeleted").asBoolean(false),
+        record.get("graphDeleted").asBoolean(false));
   }
 
   @Override

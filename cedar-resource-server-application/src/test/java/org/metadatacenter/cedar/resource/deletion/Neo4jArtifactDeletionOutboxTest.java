@@ -6,6 +6,8 @@ import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.GraphDatabase;
 import org.neo4j.harness.Neo4jBuilders;
 
+import java.util.concurrent.Executors;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -60,6 +62,32 @@ class Neo4jArtifactDeletionOutboxTest {
       assertEquals(first.jobId(), repeated.jobId());
       assertEquals("\"3\"", repeated.artifactEtag(), "the first accepted deletion controls the saga");
       assertEquals(1, outbox.count());
+    }
+  }
+
+  @Test
+  void concurrentRemovalNeverReturnsAPropertylessDeletionJob() throws Exception {
+    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
+         var outbox = new Neo4jArtifactDeletionOutbox(
+             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+      var executor = Executors.newFixedThreadPool(2);
+      try {
+        for (int iteration = 0; iteration < 100; iteration++) {
+          ArtifactDeletionJob prepared = outbox.prepare("racing-artifact", CedarResourceType.ELEMENT,
+              "\"9\"", "{\"resourceType\":\"element\"}", null, true);
+          var pending = executor.submit(() -> outbox.pending(10));
+          var removed = executor.submit(() -> outbox.remove(prepared.jobId()));
+          for (ArtifactDeletionJob job : pending.get()) {
+            assertEquals(prepared.jobId(), job.jobId());
+            assertEquals("racing-artifact", job.resourceId());
+            assertEquals(CedarResourceType.ELEMENT, job.resourceType());
+          }
+          removed.get();
+        }
+      } finally {
+        executor.shutdownNow();
+      }
+      assertEquals(0, outbox.count());
     }
   }
 }
