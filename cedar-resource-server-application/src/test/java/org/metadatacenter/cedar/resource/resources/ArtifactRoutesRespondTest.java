@@ -20,16 +20,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Probes every endpoint of the four artifact-type resource classes on the booted application,
- * unauthenticated, and pins the observed status per route. Every route is expected to answer
+ * unauthenticated. Every route is expected to answer
  * 401 (the authentication assertion fires before anything else on all of them); a 404 or 405
  * would mean the route vanished or changed verb, which is exactly the regression this test
  * exists to catch before the parameterization refactor.
@@ -57,19 +54,6 @@ public class ArtifactRoutesRespondTest {
 
   private static final Pattern PATH_TEMPLATE_VARIABLE = Pattern.compile("\\{([^}]+)}");
 
-  /**
-   * The frozen expectation per route: every artifact-type endpoint rejects an unauthenticated
-   * request with 401 before touching anything else. If a route ever needs a different
-   * pre-authentication status, pin it here with a comment explaining why.
-   */
-  private static final Map<String, Integer> EXPECTED_STATUS = new HashMap<>();
-
-  static {
-    for (ArtifactResourceSurface.Endpoint endpoint : ArtifactResourceSurface.endpoints()) {
-      EXPECTED_STATUS.put(endpoint.key(), 401);
-    }
-  }
-
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
     SERVER.before();
@@ -85,13 +69,11 @@ public class ArtifactRoutesRespondTest {
   }
 
   @Test
-  public void everyDeclaredRouteRespondsWithItsPinnedStatus() throws Exception {
-    Set<String> probed = new HashSet<>();
+  public void everyDeclaredRouteRejectsUnauthenticatedRequests() throws Exception {
     StringBuilder failures = new StringBuilder();
 
     for (ArtifactResourceSurface.Endpoint endpoint : ArtifactResourceSurface.endpoints()) {
       String key = endpoint.key();
-      probed.add(key);
       int status = probe(endpoint);
 
       if (status == 404 || status == 405) {
@@ -99,22 +81,12 @@ public class ArtifactRoutesRespondTest {
             .append(" - the route vanished or changed verb\n");
         continue;
       }
-      Integer expected = EXPECTED_STATUS.get(key);
-      if (expected == null) {
-        failures.append(key).append(": got ").append(status)
-            .append(" - no pinned expectation for this route; add one to EXPECTED_STATUS\n");
-      } else if (expected != status) {
-        failures.append(key).append(": expected ").append(expected).append(" but got ").append(status).append('\n');
+      if (status != 401) {
+        failures.append(key).append(": expected 401 but got ").append(status).append('\n');
       }
     }
 
-    for (String pinned : EXPECTED_STATUS.keySet()) {
-      if (!probed.contains(pinned)) {
-        failures.append(pinned).append(": pinned but no longer declared by any resource class\n");
-      }
-    }
-
-    Assertions.assertEquals(0, failures.length(), "Route responses diverged from the pinned expectations:\n" + failures);
+    Assertions.assertEquals(0, failures.length(), "Route responses diverged from the authentication contract:\n" + failures);
   }
 
   private int probe(ArtifactResourceSurface.Endpoint endpoint) throws Exception {
