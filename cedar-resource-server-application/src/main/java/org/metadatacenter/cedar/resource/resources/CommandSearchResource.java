@@ -14,7 +14,6 @@ import org.metadatacenter.cedar.resource.search.IndexJobGuard;
 import org.metadatacenter.cedar.resource.search.ValueSetsImportStatusManager;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
-import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
@@ -73,24 +72,16 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     AdminCommand.LOAD_VALUESETS_ONTOLOGY.enforce(c);
 
-    if (ValueSetsImportStatusManager.getInstance().getImportStatus() == ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS) {
+    if (!ValueSetsImportStatusManager.getInstance().tryStart()) {
       return CedarResponse.badRequest().errorMessage("Value set loading already in progress").build();
     } else {
-      ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS);
-
       ExecutorService executor = Executors.newSingleThreadExecutor();
       executor.submit(() -> {
         LoadValueSetsOntologyTask task = new LoadValueSetsOntologyTask(cedarConfig);
-        try {
+        runValueSetsImportJob(() -> {
           CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-
           task.loadValueSetsOntology(cedarAdminRequestContext);
-
-          ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.COMPLETE);
-        } catch (CedarProcessingException e) {
-          ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
-          log.error("Error in load value sets ontology executor", e);
-        }
+        });
       });
       executor.shutdown();
       return Response.ok().build();
@@ -184,7 +175,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     }
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> {
+    executor.submit(() -> runClaimedIndexJob(IndexJobGuard.Index.SEARCH, "search index regeneration", () -> {
       // 1. LOAD VALUE SETS ONTOLOGY. This step is only required in CEDAR installations that need to load CDEs into the
       // index (e.g., CEDAR Production). In those cases, this task ensures that the CDE values are available to be
       // indexed before the index regeneration task begins. In the case of installations that don't manage CDEs, this
@@ -194,22 +185,16 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
         loadOntologyTask.loadValueSetsOntology(cedarAdminRequestContext);
         ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.COMPLETE);
-      } catch (CedarProcessingException e) {
+      } catch (Exception e) {
         ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
-        log.warn("Failed to load value sets ontology: " + e.getMessage());
+        log.warn("Failed to load value sets ontology", e);
       }
 
       // 2. REGENERATE SEARCH INDEX
       RegenerateSearchIndexTask regenerateIndexTask = new RegenerateSearchIndexTask(cedarConfig);
-      try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-        regenerateIndexTask.regenerateSearchIndex(force, cedarAdminRequestContext);
-        IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, null);
-      } catch (Exception e) {
-        IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, e);
-        log.error("Error in index regeneration executor", e);
-      }
-    });
+      CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+      regenerateIndexTask.regenerateSearchIndex(force, cedarAdminRequestContext);
+    }));
     executor.shutdown();
 
     return Response.ok().build();
@@ -239,17 +224,11 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     }
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> {
+    executor.submit(() -> runClaimedIndexJob(IndexJobGuard.Index.SEARCH, "empty search index generation", () -> {
       GenerateEmptySearchIndexTask task = new GenerateEmptySearchIndexTask(cedarConfig);
-      try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-        task.generateEmptySearchIndex(cedarAdminRequestContext);
-        IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, null);
-      } catch (Exception e) {
-        IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, e);
-        log.error("Error in index regeneration executor", e);
-      }
-    });
+      CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+      task.generateEmptySearchIndex(cedarAdminRequestContext);
+    }));
     executor.shutdown();
 
     return Response.ok().build();
@@ -292,17 +271,11 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     }
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> {
+    executor.submit(() -> runClaimedIndexJob(IndexJobGuard.Index.RULES, "rules index regeneration", () -> {
       RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
-      try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-        task.regenerateRulesIndex(force, cedarAdminRequestContext);
-        IndexJobGuard.finish(IndexJobGuard.Index.RULES, null);
-      } catch (Exception e) {
-        IndexJobGuard.finish(IndexJobGuard.Index.RULES, e);
-        log.error("Error in index regeneration executor", e);
-      }
-    });
+      CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+      task.regenerateRulesIndex(force, cedarAdminRequestContext);
+    }));
     executor.shutdown();
 
     return Response.ok().build();
@@ -332,20 +305,36 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     }
 
     ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> {
+    executor.submit(() -> runClaimedIndexJob(IndexJobGuard.Index.RULES, "empty rules index generation", () -> {
       GenerateEmptyRulesIndexTask task = new GenerateEmptyRulesIndexTask(cedarConfig);
-      try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-        task.generateEmptyRulesIndex(cedarAdminRequestContext);
-        IndexJobGuard.finish(IndexJobGuard.Index.RULES, null);
-      } catch (Exception e) {
-        IndexJobGuard.finish(IndexJobGuard.Index.RULES, e);
-        log.error("Error in index regeneration executor", e);
-      }
-    });
+      CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+      task.generateEmptyRulesIndex(cedarAdminRequestContext);
+    }));
     executor.shutdown();
 
     return Response.ok().build();
+  }
+
+  private static void runClaimedIndexJob(IndexJobGuard.Index index, String description, IndexJobGuard.Job job) {
+    try {
+      IndexJobGuard.runClaimed(index, job);
+    } catch (Exception e) {
+      log.error("Error in {} executor", description, e);
+    }
+  }
+
+  private static void runValueSetsImportJob(IndexJobGuard.Job job) {
+    try {
+      job.run();
+      ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.COMPLETE);
+    } catch (Exception e) {
+      ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
+      log.error("Error in load value sets ontology executor", e);
+    } catch (Error e) {
+      ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
+      log.error("Fatal error in load value sets ontology executor", e);
+      throw e;
+    }
   }
 
 }

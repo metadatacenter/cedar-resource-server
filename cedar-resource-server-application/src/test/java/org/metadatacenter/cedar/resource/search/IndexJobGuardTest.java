@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -90,6 +91,21 @@ public class IndexJobGuardTest {
     assertNotNull(status.finishedAt());
     assertTrue(IndexJobGuard.tryStart(IndexJobGuard.Index.SEARCH, "regenerate-search-index"),
         "a failure must not leave the index claimed");
+  }
+
+  @Test
+  public void runClaimedReleasesTheIndexAfterAnUncheckedFailure() {
+    assertTrue(IndexJobGuard.tryStart(IndexJobGuard.Index.SEARCH, "regenerate-search-index"));
+
+    assertThrows(IllegalStateException.class,
+        () -> IndexJobGuard.runClaimed(IndexJobGuard.Index.SEARCH, () -> {
+          throw new IllegalStateException("admin user unavailable");
+        }));
+
+    IndexJobGuard.Status status = IndexJobGuard.status(IndexJobGuard.Index.SEARCH);
+    assertEquals(IndexJobGuard.State.FAILED, status.state());
+    assertTrue(status.failure().contains("admin user unavailable"), status.failure());
+    assertTrue(IndexJobGuard.tryStart(IndexJobGuard.Index.SEARCH, "regenerate-search-index"));
   }
 
   /** Nothing has run for an index until something does, and that reads as idle rather than as complete. */

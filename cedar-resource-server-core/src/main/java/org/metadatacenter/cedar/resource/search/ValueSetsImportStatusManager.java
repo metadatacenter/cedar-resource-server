@@ -29,7 +29,15 @@ public class ValueSetsImportStatusManager
     return singleInstance;
   }
 
-  public ImportStatus getImportStatus() { return importStatus; }
+  public synchronized ImportStatus getImportStatus() { return importStatus; }
+
+  public synchronized boolean tryStart() {
+    if (importStatus == ImportStatus.IN_PROGRESS) {
+      return false;
+    }
+    importStatus = ImportStatus.IN_PROGRESS;
+    return true;
+  }
 
   public synchronized void setImportStatus(ImportStatus importStatus) {
     this.importStatus = importStatus;

@@ -18,10 +18,14 @@ import java.util.Map;
  * so they exclude each other; the search and rules indexes are independent, so they do not.
  *
  * <p>{@link #tryStart} decides and claims in one synchronized step. Reading a status and then setting
- * it, as the value-set import does, leaves the window between the two calls open — narrower than no
- * check at all, but still a window.
+ * it would leave a window between the two calls in which multiple jobs could start.
  */
 public final class IndexJobGuard {
+
+  @FunctionalInterface
+  public interface Job {
+    void run() throws Exception;
+  }
 
   /** The indexes a rebuild can contend over. */
   public enum Index {
@@ -67,6 +71,22 @@ public final class IndexJobGuard {
     }
     STATUS.put(index, new Status(State.RUNNING, command, Instant.now().toString(), null, null));
     return true;
+  }
+
+  /** Run a previously claimed job and release its index on every success or failure path. */
+  public static void runClaimed(Index index, Job job) throws Exception {
+    Throwable failure = null;
+    try {
+      job.run();
+    } catch (Exception e) {
+      failure = e;
+      throw e;
+    } catch (Error e) {
+      failure = e;
+      throw e;
+    } finally {
+      finish(index, failure);
+    }
   }
 
   /** Release the index and record how the job ended. A failure keeps its message for the status. */
