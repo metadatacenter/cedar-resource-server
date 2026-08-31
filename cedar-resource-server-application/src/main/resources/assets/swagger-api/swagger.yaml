@@ -1956,6 +1956,13 @@ paths:
         name: category_id
         schema:
           type: string
+      - description: Continuation from a previous answer. Only /search-deep serves
+          one; this route refuses it rather than answering the first page as though
+          the caller had never asked to carry on.
+        in: query
+        name: continuation
+        schema:
+          type: string
       responses:
         "200":
           description: Successful operation

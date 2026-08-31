@@ -75,9 +75,12 @@ public class SearchResource extends AbstractSearchResource {
           + "list of special folders will be returned ('/Shared', etc.)")
       @QueryParam(QP_MODE) Optional<String> mode,
       @Parameter(description = "Category Id. All the artifacts in the given category will be returned.")
-      @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam) throws CedarException {
+      @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam,
+      @Parameter(description = "Continuation from a previous answer. Only /search-deep serves one; this route "
+          + "refuses it rather than answering the first page as though the caller had never asked to carry on.")
+      @QueryParam(QP_CONTINUATION) Optional<String> continuationParam) throws CedarException {
 
     return super.search(q, id, resourceTypes, versionParam, publicationStatusParam, isBasedOnParam, sortParam,
-        limitParam, offsetParam, sharing, mode, categoryIdParam, Optional.empty(), false);
+        limitParam, offsetParam, sharing, mode, categoryIdParam, continuationParam, false);
   }
 }
