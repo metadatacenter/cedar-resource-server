@@ -96,7 +96,7 @@ public class AdminCommandAuthorizationMatrixTest {
   public void adminIndexCommandsRefuseNonAdmins() {
     PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
 
-    // The six mutating commands: admin-only, so 401 for anonymous and 403 for either regular user. No
+    // The mutating commands: admin-only, so 401 for anonymous and 403 for either regular user. No
     // ADMIN row — that would pass the gate and run a destructive rebuild/wipe, or provision a user.
     //
     // auth-user-callback belongs here even though it is a service callback rather than an operator
@@ -109,6 +109,9 @@ public class AdminCommandAuthorizationMatrixTest {
         "/command/generate-empty-search-index",
         "/command/regenerate-rules-index",
         "/command/generate-empty-rules-index",
+        "/command/reset-search-index-job",
+        "/command/reset-rules-index-job",
+        "/command/reset-valuesets-import",
         "/command/auth-user-callback"}) {
       matrix.when("POST", path)
           .expect(ANONYMOUS, 401)

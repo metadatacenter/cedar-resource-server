@@ -33,6 +33,14 @@ public enum AdminCommand {
   GENERATE_EMPTY_RULES_INDEX(CedarPermission.RULES_INDEX_REINDEX),
 
   /**
+   * Taking back a claim that passed its deadline frees the index for the next rebuild, so it asks for the
+   * same permission as the rebuild it unblocks rather than one of its own.
+   */
+  RESET_SEARCH_INDEX_JOB(CedarPermission.SEARCH_INDEX_REINDEX),
+  RESET_RULES_INDEX_JOB(CedarPermission.RULES_INDEX_REINDEX),
+  RESET_VALUESETS_IMPORT(CedarPermission.SEARCH_INDEX_REINDEX),
+
+  /**
    * The Keycloak event listener's user-provisioning callback. {@code USER_UPDATE} comes only from the
    * {@code userAdministrator} role, which the {@code normal} blueprint grants to nobody and the built-in
    * admin holds. The listener already authenticates with {@code CEDAR_ADMIN_USER_API_KEY}, so this asks

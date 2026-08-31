@@ -1,8 +1,12 @@
 package org.metadatacenter.cedar.resource.search;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.Instant;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * One index rebuild at a time per index, and a record of how the last one ended.
@@ -19,8 +23,16 @@ import java.util.Map;
  *
  * <p>{@link #tryStart} decides and claims in one synchronized step. Reading a status and then setting
  * it would leave a window between the two calls in which multiple jobs could start.
+ *
+ * <p>Every exception a job can throw releases the index, but a job that never returns cannot be
+ * released by any of those paths, and its claim would otherwise be held until the server restarted.
+ * A claim therefore carries {@link JobClaim#DEADLINE}: past it the status reports the claim as
+ * overdue, and {@link #reset} lets an operator take the index back. A reset invalidates the claim, so
+ * the abandoned job cannot report over whoever holds the index next.
  */
 public final class IndexJobGuard {
+
+  private static final Logger log = LoggerFactory.getLogger(IndexJobGuard.class);
 
   @FunctionalInterface
   public interface Job {
@@ -39,22 +51,48 @@ public final class IndexJobGuard {
     /** The last job finished and did what it was asked to. */
     COMPLETE,
     /** The last job threw. The index may be half-rebuilt; {@code failure} says what happened. */
-    FAILED
+    FAILED,
+    /** The last claim passed its deadline and an operator reset it. The job may still be running. */
+    ABANDONED
   }
 
-  /** What became of the most recent job for one index, or that none has run. */
-  public record Status(State state, String command, String startedAt, String finishedAt, String failure) {
+  /**
+   * What became of the most recent job for one index, or that none has run. The timestamps are
+   * rendered rather than held so that this reads the same over HTTP as it does in Java;
+   * {@code deadlineAt} and {@code overdue} describe a running job and are empty otherwise.
+   */
+  public record Status(State state, String command, String startedAt, String finishedAt,
+                       String deadlineAt, boolean overdue, String failure) {
+  }
 
-    static Status idle() {
-      return new Status(State.IDLE, null, null, null, null);
+  /**
+   * One index as the guard holds it: the claim carries who took it and when, and outlives the job as
+   * the record of what ran. {@code claim} is the identity a release must present, and it is the
+   * current holder only while the state is {@link State#RUNNING}.
+   */
+  private record Entry(State state, JobClaim claim, Instant finishedAt, String failure) {
+
+    static Entry idle() {
+      return new Entry(State.IDLE, null, null, null);
+    }
+
+    Status render(Instant now) {
+      boolean running = state == State.RUNNING;
+      return new Status(state,
+          claim == null ? null : claim.command(),
+          claim == null ? null : claim.startedAt().toString(),
+          finishedAt == null ? null : finishedAt.toString(),
+          running ? claim.deadlineAt().toString() : null,
+          running && claim.isOverdue(now),
+          failure);
     }
   }
 
-  private static final Map<Index, Status> STATUS = new EnumMap<>(Index.class);
+  private static final Map<Index, Entry> ENTRIES = new EnumMap<>(Index.class);
 
   static {
     for (Index index : Index.values()) {
-      STATUS.put(index, Status.idle());
+      ENTRIES.put(index, Entry.idle());
     }
   }
 
@@ -62,19 +100,26 @@ public final class IndexJobGuard {
   }
 
   /**
-   * Claim the index for a job, or report that one is already running. The caller must call
-   * {@link #finish} for every claim it takes, or the index stays claimed until the server restarts.
+   * Claim the index for a job, or report that one is already running. The caller must pass the claim
+   * back to {@link #finish}, or the index stays claimed until the claim passes its deadline and an
+   * operator resets it.
    */
-  public static synchronized boolean tryStart(Index index, String command) {
-    if (STATUS.get(index).state() == State.RUNNING) {
-      return false;
+  public static Optional<JobClaim> tryStart(Index index, String command) {
+    return tryStart(index, command, Instant.now());
+  }
+
+  /** The claim instant is supplied so a test can place a claim on either side of its deadline. */
+  static synchronized Optional<JobClaim> tryStart(Index index, String command, Instant now) {
+    if (ENTRIES.get(index).state() == State.RUNNING) {
+      return Optional.empty();
     }
-    STATUS.put(index, new Status(State.RUNNING, command, Instant.now().toString(), null, null));
-    return true;
+    JobClaim claim = new JobClaim(command, now);
+    ENTRIES.put(index, new Entry(State.RUNNING, claim, null, null));
+    return Optional.of(claim);
   }
 
   /** Run a previously claimed job and release its index on every success or failure path. */
-  public static void runClaimed(Index index, Job job) throws Exception {
+  public static void runClaimed(Index index, JobClaim claim, Job job) throws Exception {
     Throwable failure = null;
     try {
       job.run();
@@ -85,24 +130,71 @@ public final class IndexJobGuard {
       failure = e;
       throw e;
     } finally {
-      finish(index, failure);
+      finish(index, claim, failure);
     }
   }
 
-  /** Release the index and record how the job ended. A failure keeps its message for the status. */
-  public static synchronized void finish(Index index, Throwable failure) {
-    Status running = STATUS.get(index);
+  /**
+   * Release the index and record how the job ended. A failure keeps its message for the status. A
+   * claim that is no longer the one held — reset as overdue, and possibly replaced since — releases
+   * nothing and is logged, because the job reporting it no longer speaks for this index.
+   */
+  public static void finish(Index index, JobClaim claim, Throwable failure) {
+    finish(index, claim, failure, Instant.now());
+  }
+
+  static synchronized void finish(Index index, JobClaim claim, Throwable failure, Instant now) {
+    Entry entry = ENTRIES.get(index);
+    if (entry.state() != State.RUNNING || entry.claim() != claim) {
+      log.warn("A {} job reported on the {} index after its claim was taken away; ignoring the report",
+          claim.command(), index.name().toLowerCase());
+      return;
+    }
     String message = failure == null ? null
         : failure.getClass().getSimpleName() + (failure.getMessage() == null ? "" : ": " + failure.getMessage());
-    STATUS.put(index, new Status(failure == null ? State.COMPLETE : State.FAILED,
-        running.command(), running.startedAt(), Instant.now().toString(), message));
+    ENTRIES.put(index, new Entry(failure == null ? State.COMPLETE : State.FAILED, claim, now, message));
   }
 
-  public static synchronized Status status(Index index) {
-    return STATUS.get(index);
+  /**
+   * Take back an index whose claim has passed its deadline, so the next rebuild can run. Reports
+   * whether there was such a claim: an index that is idle, or busy with a claim still within its
+   * deadline, is left exactly as it was.
+   *
+   * <p>This does not stop the abandoned job. Nothing can, which is why the deadline is long enough
+   * that reaching it means the job is stuck rather than slow.
+   */
+  public static boolean reset(Index index) {
+    return reset(index, Instant.now());
   }
 
-  public static synchronized Map<Index, Status> statuses() {
-    return new EnumMap<>(STATUS);
+  static synchronized boolean reset(Index index, Instant now) {
+    Entry entry = ENTRIES.get(index);
+    if (entry.state() != State.RUNNING || !entry.claim().isOverdue(now)) {
+      return false;
+    }
+    log.warn("Resetting the {} index: the {} job claimed at {} passed its {}-hour deadline",
+        index.name().toLowerCase(), entry.claim().command(), entry.claim().startedAt(),
+        JobClaim.DEADLINE.toHours());
+    ENTRIES.put(index, new Entry(State.ABANDONED, entry.claim(), now,
+        "the claim passed its " + JobClaim.DEADLINE.toHours() + "-hour deadline and was reset"));
+    return true;
+  }
+
+  public static Status status(Index index) {
+    return status(index, Instant.now());
+  }
+
+  static synchronized Status status(Index index, Instant now) {
+    return ENTRIES.get(index).render(now);
+  }
+
+  public static Map<Index, Status> statuses() {
+    return statuses(Instant.now());
+  }
+
+  static synchronized Map<Index, Status> statuses(Instant now) {
+    Map<Index, Status> rendered = new EnumMap<>(Index.class);
+    ENTRIES.forEach((index, entry) -> rendered.put(index, entry.render(now)));
+    return rendered;
   }
 }

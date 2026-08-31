@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.cedar.resource.search.IndexJobGuard;
+import org.metadatacenter.cedar.resource.search.JobClaim;
 import org.metadatacenter.cedar.resource.search.ValueSetsImportStatusManager;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -32,6 +33,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
@@ -46,6 +48,14 @@ public class CommandSearchResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CommandSearchResource.class);
   private static UserService userService;
+
+  private static final String RESET_DESCRIPTION =
+      "Only one rebuild or import runs at a time, and a job that never returns would otherwise hold its claim "
+          + "until the server restarted, refusing every later command with a conflict naming a job that is not "
+          + "running. A claim is believed for six hours; past that the status reports it as overdue and this "
+          + "command takes it back, so the next command can run. It does not stop the abandoned job — nothing "
+          + "can — so run it only once the log shows that job has stopped making progress. A claim within its "
+          + "deadline is left alone, and answers with a conflict.";
 
   public CommandSearchResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -67,40 +77,25 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "An import is already running"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response loadValueSetsOntology() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     AdminCommand.LOAD_VALUESETS_ONTOLOGY.enforce(c);
 
-    if (!ValueSetsImportStatusManager.getInstance().tryStart()) {
-      return CedarResponse.badRequest().errorMessage("Value set loading already in progress").build();
-    } else {
-      // The status is claimed above and released by runValueSetsImportJob, but only once the job
-      // runs. A failure to create the thread or accept the task would leave it IN_PROGRESS with
-      // nothing to clear it, and every later import refused with "already in progress" until the
-      // server restarts. Release it here on that path, and report a start that did not happen.
-      ExecutorService executor = null;
-      try {
-        executor = Executors.newSingleThreadExecutor();
-        executor.submit(() -> {
-          LoadValueSetsOntologyTask task = new LoadValueSetsOntologyTask(cedarConfig);
-          runValueSetsImportJob(() -> {
-            CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-            task.loadValueSetsOntology(cedarAdminRequestContext);
-          });
-        });
-      } catch (RuntimeException | Error e) {
-        ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
-        log.error("Could not start the value sets ontology import; released the import status", e);
-        throw e;
-      } finally {
-        if (executor != null) {
-          executor.shutdown();
-        }
-      }
-      return Response.ok().build();
+    Optional<JobClaim> claim = ValueSetsImportStatusManager.getInstance().tryStart();
+    if (claim.isEmpty()) {
+      return importAlreadyRunning();
     }
+
+    submitValueSetsImportJob(claim.get(), () -> {
+      LoadValueSetsOntologyTask task = new LoadValueSetsOntologyTask(cedarConfig);
+      CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+      task.loadValueSetsOntology(cedarAdminRequestContext);
+    });
+
+    return Response.ok().build();
   }
 
   @GET
@@ -127,15 +122,39 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   /**
    * A rebuild of this index is already running, so this one does not start. 409 rather than 400: the
    * request is well formed and will be accepted once the running job finishes.
+   *
+   * <p>A claim past its deadline says so and names the way out, because that is the case in which the
+   * caller is otherwise told to wait for a job that may have stopped running hours ago.
    */
   private Response alreadyRunning(IndexJobGuard.Index index) {
     IndexJobGuard.Status status = IndexJobGuard.status(index);
     return CedarResponse.conflict()
         .errorMessage("A " + status.command() + " job started at " + status.startedAt()
-            + " is still running over the " + index.name().toLowerCase() + " index")
+            + " is still running over the " + index.name().toLowerCase() + " index"
+            + (status.overdue()
+               ? ", and it passed its deadline at " + status.deadlineAt()
+                 + ". Reset it with POST " + resetPath(index) + " if it has stopped making progress"
+               : ""))
         .parameter("index", index.name())
         .parameter("command", status.command())
         .parameter("startedAt", status.startedAt())
+        .parameter("deadlineAt", status.deadlineAt())
+        .parameter("overdue", status.overdue())
+        .build();
+  }
+
+  /** An import is already running, reported the way a busy index is. */
+  private Response importAlreadyRunning() {
+    ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
+    return CedarResponse.conflict()
+        .errorMessage("A value sets ontology import started at " + imports.getStartedAt() + " is still running"
+            + (imports.isOverdue()
+               ? ", and it passed its deadline at " + imports.getDeadlineAt()
+                 + ". Reset it with POST /command/reset-valuesets-import if it has stopped making progress"
+               : ""))
+        .parameter("startedAt", imports.getStartedAt())
+        .parameter("deadlineAt", imports.getDeadlineAt())
+        .parameter("overdue", imports.isOverdue())
         .build();
   }
 
@@ -156,6 +175,95 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     return Response.ok().entity(JsonMapper.MAPPER.valueToTree(IndexJobGuard.statuses())).build();
+  }
+
+  /** Each index is claimed on its own, so each is taken back on its own and under its own permission. */
+  private static String resetPath(IndexJobGuard.Index index) {
+    return index == IndexJobGuard.Index.SEARCH ? "/command/reset-search-index-job" : "/command/reset-rules-index-job";
+  }
+
+  @POST
+  @Timed
+  @Path("/reset-search-index-job")
+  @Operation(summary = "Take back a search index rebuild that passed its deadline.", description = RESET_DESCRIPTION,
+      tags = {"Command", "Administration"})
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "The claim was reset, and the index is free"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "409", description = "Nothing is running, or the running job is within its deadline"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
+  })
+  public Response resetSearchIndexJob() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    AdminCommand.RESET_SEARCH_INDEX_JOB.enforce(c);
+
+    return resetIndexJob(IndexJobGuard.Index.SEARCH);
+  }
+
+  @POST
+  @Timed
+  @Path("/reset-rules-index-job")
+  @Operation(summary = "Take back a rules index rebuild that passed its deadline.", description = RESET_DESCRIPTION,
+      tags = {"Command", "Administration"})
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "The claim was reset, and the index is free"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "409", description = "Nothing is running, or the running job is within its deadline"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
+  })
+  public Response resetRulesIndexJob() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    AdminCommand.RESET_RULES_INDEX_JOB.enforce(c);
+
+    return resetIndexJob(IndexJobGuard.Index.RULES);
+  }
+
+  private Response resetIndexJob(IndexJobGuard.Index index) {
+    if (!IndexJobGuard.reset(index)) {
+      IndexJobGuard.Status status = IndexJobGuard.status(index);
+      return CedarResponse.conflict()
+          .errorMessage("Nothing to reset on the " + index.name().toLowerCase() + " index: it is "
+              + status.state().name().toLowerCase()
+              + (status.state() == IndexJobGuard.State.RUNNING
+                 ? " and within its deadline, which expires at " + status.deadlineAt() : ""))
+          .parameter("index", index.name())
+          .parameter("state", status.state().name())
+          .parameter("deadlineAt", status.deadlineAt())
+          .build();
+    }
+    return Response.ok().entity(JsonMapper.MAPPER.valueToTree(IndexJobGuard.status(index))).build();
+  }
+
+  @POST
+  @Timed
+  @Path("/reset-valuesets-import")
+  @Operation(summary = "Take back a value sets ontology import that passed its deadline.",
+      description = RESET_DESCRIPTION, tags = {"Command", "Administration"})
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "The claim was reset, and the import is free"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "409", description = "Nothing is running, or the running import is within its deadline"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
+  })
+  public Response resetValueSetsImport() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    AdminCommand.RESET_VALUESETS_IMPORT.enforce(c);
+
+    ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
+    if (!imports.reset()) {
+      return CedarResponse.conflict()
+          .errorMessage("Nothing to reset: the value sets ontology import is "
+              + imports.getImportStatus().name().toLowerCase()
+              + (imports.getImportStatus() == ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS
+                 ? " and within its deadline, which expires at " + imports.getDeadlineAt() : ""))
+          .parameter("importStatus", imports.getImportStatus().name())
+          .parameter("deadlineAt", imports.getDeadlineAt())
+          .build();
+    }
+    return Response.ok().entity(JsonMapper.MAPPER.valueToTree(imports)).build();
   }
 
   @POST
@@ -185,23 +293,34 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarParameter forceParam = requestBody.get("force");
     final boolean force = forceParam.booleanValue();
 
-    if (!IndexJobGuard.tryStart(IndexJobGuard.Index.SEARCH, "regenerate-search-index")) {
+    Optional<JobClaim> claim = IndexJobGuard.tryStart(IndexJobGuard.Index.SEARCH, "regenerate-search-index");
+    if (claim.isEmpty()) {
       return alreadyRunning(IndexJobGuard.Index.SEARCH);
     }
 
-    submitClaimedIndexJob(IndexJobGuard.Index.SEARCH, "search index regeneration", () -> {
+    submitClaimedIndexJob(IndexJobGuard.Index.SEARCH, claim.get(), "search index regeneration", () -> {
       // 1. LOAD VALUE SETS ONTOLOGY. This step is only required in CEDAR installations that need to load CDEs into the
       // index (e.g., CEDAR Production). In those cases, this task ensures that the CDE values are available to be
       // indexed before the index regeneration task begins. In the case of installations that don't manage CDEs, this
       // task won't be able to load the CADSR-VS.owl file and will throw a warning.
-      LoadValueSetsOntologyTask loadOntologyTask = new LoadValueSetsOntologyTask(cedarConfig);
-      try {
-        CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-        loadOntologyTask.loadValueSetsOntology(cedarAdminRequestContext);
-        ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.COMPLETE);
-      } catch (Exception e) {
-        ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
-        log.warn("Failed to load value sets ontology", e);
+      //
+      // The import is claimed here as /command/load-valuesets-ontology claims it. This route used to run
+      // the same task without claiming, so a regeneration could load the ontology alongside an import
+      // already running, and report COMPLETE over the status of the import that was still going.
+      ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
+      Optional<JobClaim> importClaim = imports.tryStart();
+      if (importClaim.isEmpty()) {
+        log.warn("A value sets ontology import is already running, so this regeneration does not load it again");
+      } else {
+        LoadValueSetsOntologyTask loadOntologyTask = new LoadValueSetsOntologyTask(cedarConfig);
+        try {
+          CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
+          loadOntologyTask.loadValueSetsOntology(cedarAdminRequestContext);
+          imports.finish(importClaim.get(), null);
+        } catch (Exception e) {
+          imports.finish(importClaim.get(), e);
+          log.warn("Failed to load value sets ontology", e);
+        }
       }
 
       // 2. REGENERATE SEARCH INDEX
@@ -232,11 +351,12 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     AdminCommand.GENERATE_EMPTY_SEARCH_INDEX.enforce(c);
 
-    if (!IndexJobGuard.tryStart(IndexJobGuard.Index.SEARCH, "generate-empty-search-index")) {
+    Optional<JobClaim> claim = IndexJobGuard.tryStart(IndexJobGuard.Index.SEARCH, "generate-empty-search-index");
+    if (claim.isEmpty()) {
       return alreadyRunning(IndexJobGuard.Index.SEARCH);
     }
 
-    submitClaimedIndexJob(IndexJobGuard.Index.SEARCH, "empty search index generation", () -> {
+    submitClaimedIndexJob(IndexJobGuard.Index.SEARCH, claim.get(), "empty search index generation", () -> {
       GenerateEmptySearchIndexTask task = new GenerateEmptySearchIndexTask(cedarConfig);
       CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
       task.generateEmptySearchIndex(cedarAdminRequestContext);
@@ -277,11 +397,12 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestBody requestBody = c.request().getRequestBody();
     CedarParameter forceParam = requestBody.get("force");
     final boolean force = forceParam.booleanValue();
-    if (!IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "regenerate-rules-index")) {
+    Optional<JobClaim> claim = IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "regenerate-rules-index");
+    if (claim.isEmpty()) {
       return alreadyRunning(IndexJobGuard.Index.RULES);
     }
 
-    submitClaimedIndexJob(IndexJobGuard.Index.RULES, "rules index regeneration", () -> {
+    submitClaimedIndexJob(IndexJobGuard.Index.RULES, claim.get(), "rules index regeneration", () -> {
       RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
       CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
       task.regenerateRulesIndex(force, cedarAdminRequestContext);
@@ -309,11 +430,12 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     AdminCommand.GENERATE_EMPTY_RULES_INDEX.enforce(c);
 
-    if (!IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "generate-empty-rules-index")) {
+    Optional<JobClaim> claim = IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "generate-empty-rules-index");
+    if (claim.isEmpty()) {
       return alreadyRunning(IndexJobGuard.Index.RULES);
     }
 
-    submitClaimedIndexJob(IndexJobGuard.Index.RULES, "empty rules index generation", () -> {
+    submitClaimedIndexJob(IndexJobGuard.Index.RULES, claim.get(), "empty rules index generation", () -> {
       GenerateEmptyRulesIndexTask task = new GenerateEmptyRulesIndexTask(cedarConfig);
       CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
       task.generateEmptyRulesIndex(cedarAdminRequestContext);
@@ -328,27 +450,26 @@ public class CommandSearchResource extends AbstractResourceServerResource {
    * <p>{@link IndexJobGuard#runClaimed} releases the index on every path the job itself can take,
    * but only once the job runs. Between the claim and the job's first instruction sits the executor:
    * creating a thread, and accepting the task. Either can fail, and the claim taken a moment earlier
-   * would then be held on behalf of a job that never started — which no later request can clear,
-   * because the guard has no reset path and every subsequent rebuild is refused with a 409 naming a
-   * job that is not running. Only a restart of the server clears it.
+   * would then be held on behalf of a job that never started, so every subsequent rebuild is refused
+   * with a 409 naming a job that is not running until the claim passes its deadline hours later.
    *
    * <p>A failure to start is reported rather than swallowed. Answering 200 for a rebuild that was
    * never scheduled tells the caller the opposite of what happened.
    */
-  private static void submitClaimedIndexJob(IndexJobGuard.Index index, String description,
+  private static void submitClaimedIndexJob(IndexJobGuard.Index index, JobClaim claim, String description,
                                             IndexJobGuard.Job job) {
-    submitClaimedIndexJob(index, description, job, Executors::newSingleThreadExecutor);
+    submitClaimedIndexJob(index, claim, description, job, Executors::newSingleThreadExecutor);
   }
 
   /** The executor is supplied so a test can hand over one that cannot create a thread or take a task. */
-  static void submitClaimedIndexJob(IndexJobGuard.Index index, String description, IndexJobGuard.Job job,
-                                    Supplier<ExecutorService> executors) {
+  static void submitClaimedIndexJob(IndexJobGuard.Index index, JobClaim claim, String description,
+                                    IndexJobGuard.Job job, Supplier<ExecutorService> executors) {
     ExecutorService executor = null;
     try {
       executor = executors.get();
-      executor.submit(() -> runClaimedIndexJob(index, description, job));
+      executor.submit(() -> runClaimedIndexJob(index, claim, description, job));
     } catch (RuntimeException | Error e) {
-      IndexJobGuard.finish(index, e);
+      IndexJobGuard.finish(index, claim, e);
       log.error("Could not start {}; released the index claim", description, e);
       throw e;
     } finally {
@@ -358,23 +479,47 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     }
   }
 
-  private static void runClaimedIndexJob(IndexJobGuard.Index index, String description, IndexJobGuard.Job job) {
+  private static void runClaimedIndexJob(IndexJobGuard.Index index, JobClaim claim, String description,
+                                         IndexJobGuard.Job job) {
     try {
-      IndexJobGuard.runClaimed(index, job);
+      IndexJobGuard.runClaimed(index, claim, job);
     } catch (Exception e) {
       log.error("Error in {} executor", description, e);
     }
   }
 
-  private static void runValueSetsImportJob(IndexJobGuard.Job job) {
+  /** The value sets import is handed to a thread the same way, and released on the same failure to start. */
+  private static void submitValueSetsImportJob(JobClaim claim, IndexJobGuard.Job job) {
+    submitValueSetsImportJob(claim, job, Executors::newSingleThreadExecutor);
+  }
+
+  static void submitValueSetsImportJob(JobClaim claim, IndexJobGuard.Job job,
+                                       Supplier<ExecutorService> executors) {
+    ExecutorService executor = null;
+    try {
+      executor = executors.get();
+      executor.submit(() -> runValueSetsImportJob(claim, job));
+    } catch (RuntimeException | Error e) {
+      ValueSetsImportStatusManager.getInstance().finish(claim, e);
+      log.error("Could not start the value sets ontology import; released the import claim", e);
+      throw e;
+    } finally {
+      if (executor != null) {
+        executor.shutdown();
+      }
+    }
+  }
+
+  private static void runValueSetsImportJob(JobClaim claim, IndexJobGuard.Job job) {
+    ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
     try {
       job.run();
-      ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.COMPLETE);
+      imports.finish(claim, null);
     } catch (Exception e) {
-      ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
+      imports.finish(claim, e);
       log.error("Error in load value sets ontology executor", e);
     } catch (Error e) {
-      ValueSetsImportStatusManager.getInstance().setImportStatus(ValueSetsImportStatusManager.ImportStatus.ERROR);
+      imports.finish(claim, e);
       log.error("Fatal error in load value sets ontology executor", e);
       throw e;
     }
