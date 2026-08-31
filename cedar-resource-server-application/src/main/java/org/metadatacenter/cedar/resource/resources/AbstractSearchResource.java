@@ -117,10 +117,14 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
       if (sortParam.isEmpty()) {
         sortList = new ArrayList<>();
       }
+      // Only this branch reads the search index, and the two calls can serve different depths. The
+      // graph-backed branch above pages with SKIP and is bounded by neither.
       if (searchDeep) {
+        pagedSearchQuery.validateDeepOffset();
         r = nodeSearchingService
             .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
       } else {
+        pagedSearchQuery.validateShallowWindow();
         r = nodeSearchingService
             .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
       }

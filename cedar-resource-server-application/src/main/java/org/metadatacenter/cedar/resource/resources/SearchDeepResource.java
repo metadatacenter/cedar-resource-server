@@ -67,7 +67,8 @@ public class SearchDeepResource extends AbstractSearchResource {
       @QueryParam(QP_SORT) Optional<String> sortParam,
       @Parameter(description = "Paging limit")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-      @Parameter(description = "Paging offset")
+      @Parameter(description = "Paging offset. This call walks to the offset a page at a time, so a "
+          + "configured maximum bounds the walk; a larger offset is refused with a 400.")
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
       @Parameter(description = "Sharing modifier for the search. Only the artifacts and folder matching the criteria will "
           + "be returned.")
