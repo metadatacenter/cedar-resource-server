@@ -2143,6 +2143,47 @@ paths:
       - Template Elements
       - Resource Details
   /template-elements/{template_element_id}/download:
+    get:
+      description: "Download a template element as JSON or YAML, selected via the\
+        \ Accept header. This reads and returns the template element and changes nothing,\
+        \ which is what GET is for; the POST on the same path does the same thing\
+        \ and remains for existing callers."
+      operationId: getTemplateElementDownload
+      parameters:
+      - description: Template Element identifier.
+        in: path
+        name: template_element_id
+        required: true
+        schema:
+          type: string
+      - description: "Desired output format: 'application/json' or 'application/yaml'."
+        in: header
+        name: Accept
+        schema:
+          type: string
+      - description: "When downloading YAML, produce a compact representation."
+        in: query
+        name: compact
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The template element content as an attachment
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Download a template element
+      tags:
+      - Template Elements
     post:
       description: "Download a template element as JSON or YAML, selected via the\
         \ Accept header."
@@ -2599,6 +2640,47 @@ paths:
       - Template Fields
       - Resource Details
   /template-fields/{template_field_id}/download:
+    get:
+      description: "Download a template field as JSON or YAML, selected via the Accept\
+        \ header. This reads and returns the template field and changes nothing, which\
+        \ is what GET is for; the POST on the same path does the same thing and remains\
+        \ for existing callers."
+      operationId: getTemplateFieldDownload
+      parameters:
+      - description: Template Field identifier.
+        in: path
+        name: template_field_id
+        required: true
+        schema:
+          type: string
+      - description: "Desired output format: 'application/json' or 'application/yaml'."
+        in: header
+        name: Accept
+        schema:
+          type: string
+      - description: "When downloading YAML, produce a compact representation."
+        in: query
+        name: compact
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The template field content as an attachment
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Download a template field
+      tags:
+      - Template Fields
     post:
       description: "Download a template field as JSON or YAML, selected via the Accept\
         \ header."
@@ -3061,6 +3143,47 @@ paths:
       - Template Instances
       - Resource Details
   /template-instances/{template_instance_id}/download:
+    get:
+      description: "Download a template instance as JSON or YAML, selected via the\
+        \ Accept header. This reads and returns the template instance and changes\
+        \ nothing, which is what GET is for; the POST on the same path does the same\
+        \ thing and remains for existing callers."
+      operationId: getTemplateInstanceDownload
+      parameters:
+      - description: Template Instance identifier.
+        in: path
+        name: template_instance_id
+        required: true
+        schema:
+          type: string
+      - description: "Desired output format: 'application/json' or 'application/yaml'."
+        in: header
+        name: Accept
+        schema:
+          type: string
+      - description: "When downloading YAML, produce a compact representation."
+        in: query
+        name: compact
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The template instance content as an attachment
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Download a template instance
+      tags:
+      - Template Instances
     post:
       description: "Download a template instance as JSON or YAML, selected via the\
         \ Accept header."
@@ -3519,6 +3642,47 @@ paths:
       - Templates
       - Resource Details
   /templates/{template_id}/download:
+    get:
+      description: "Download a template as JSON or YAML, selected via the Accept header.\
+        \ This reads and returns the template and changes nothing, which is what GET\
+        \ is for; the POST on the same path does the same thing and remains for existing\
+        \ callers."
+      operationId: getTemplateDownload
+      parameters:
+      - description: Template identifier.
+        in: path
+        name: template_id
+        required: true
+        schema:
+          type: string
+      - description: "Desired output format: 'application/json' or 'application/yaml'."
+        in: header
+        name: Accept
+        schema:
+          type: string
+      - description: "When downloading YAML, produce a compact representation."
+        in: query
+        name: compact
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The template content as an attachment
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Download a template
+      tags:
+      - Templates
     post:
       description: "Download a template as JSON or YAML, selected via the Accept header."
       operationId: downloadTemplate
