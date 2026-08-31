@@ -19,6 +19,7 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
 import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
 import org.metadatacenter.util.TrustedByUtil;
@@ -185,13 +186,20 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
       total = folderSession.searchIsBasedOnCount(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()));
     } else if (nlqt == NodeListQueryType.SEARCH_ID) {
       resources = new ArrayList<>();
+      FolderServerResourceExtract found = null;
       FolderServerArtifact resourceById = folderSession.findArtifactById(CedarUntypedArtifactId.build(id));
       if (resourceById != null) {
-        resources.add(FolderServerResourceExtract.fromNode(resourceById));
+        found = FolderServerResourceExtract.fromNode(resourceById);
       } else {
         FolderServerFolder folderById = folderSession.findFolderById(CedarFolderId.build(id));
         if (folderById != null) {
-          resources.add(FolderServerResourceExtract.fromNode(folderById));
+          found = FolderServerResourceExtract.fromNode(folderById);
+        }
+      }
+      if (found != null) {
+        FolderServerResourceExtract visible = readableOrRedacted(c, permissionSession, found);
+        if (visible != null) {
+          resources.add(visible);
         }
       }
       total = resources.size();
@@ -206,7 +214,9 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     // Maybe - just maybe - storing the parent folderId on the Neo4j node and in the search index doc is not a bad idea?
     // Then it could be checked directly, without reading in the parent
     for (FolderServerResourceExtract resourceExtract : resources) {
-      if (!resourceExtract.getType().equals(CedarResourceType.FOLDER)) {
+      // A redacted entry carries its identifier and its type and nothing else. Reading its parent folder
+      // to label it would report which folder holds a resource the caller may not read.
+      if (resourceExtract.isActiveUserCanRead() && !resourceExtract.getType().equals(CedarResourceType.FOLDER)) {
         FolderServerFolder parentFolder = folderSession.getParentFolder(CedarUntypedArtifactId.build(resourceExtract.getId()));
         TrustedByUtil.decorateWithTrustedBy(resourceExtract, parentFolder, cedarConfig.getTrustedFolders().getFoldersMap());
       }
@@ -218,5 +228,31 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     r.setResources(resources);
 
     return r;
+  }
+
+  /**
+   * The extract as it stands when the active user may read the resource, and reduced to its identifier
+   * and type when they may not.
+   *
+   * <p>Every other search served here filters unreadable resources inside its Cypher, so one never
+   * reaches this level. A lookup by identifier has nothing to filter: the caller supplied the
+   * identifier, and one identifier resolves to one resource. So an unreadable resource is redacted
+   * instead of dropped, which reports it as one the active user cannot read and carries none of its
+   * name, description, provenance or timestamps. A resource type that cannot be redacted answers null
+   * and is dropped by the caller.
+   *
+   * <p>{@link CedarPermission#READ_NOT_READABLE_NODE} reads everything, exactly as it turns the Cypher
+   * permission conditions off for every other search served here.
+   */
+  private FolderServerResourceExtract readableOrRedacted(CedarRequestContext c,
+                                                         ResourcePermissionServiceSession permissionSession,
+                                                         FolderServerResourceExtract extract) {
+    if (c.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE)) {
+      return extract;
+    }
+    if (permissionSession.userHasReadAccessToResource(extract.getResourceId())) {
+      return extract;
+    }
+    return FolderServerResourceExtract.anonymous(extract);
   }
 }
