@@ -87,7 +87,7 @@ import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_DESCRIPTION;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
-public class AbstractResourceServerResource extends CedarMicroserviceResource {
+public abstract class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
 
@@ -105,19 +105,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         .build();
   }
 
-  // The workspace/graph services, received as a field rather than reached as a global from each
-  // method. The one-argument constructor supplies the single managed instance from the sanctioned
-  // composition-root accessor; the two-argument constructor lets a test inject a specific one. Every
-  // subclass keeps calling super(cedarConfig) unchanged.
-  protected final CedarDataServices dataServices;
 
-  protected AbstractResourceServerResource(CedarConfig cedarConfig) {
-    this(cedarConfig, CedarDataServices.getInstance());
+  public AbstractResourceServerResource(CedarConfig cedarConfig) {
+    super(cedarConfig);
   }
 
-  protected AbstractResourceServerResource(CedarConfig cedarConfig, CedarDataServices dataServices) {
-    super(cedarConfig);
-    this.dataServices = dataServices;
+  public AbstractResourceServerResource(CedarConfig cedarConfig, CedarDataServices dataServices) {
+    super(cedarConfig, dataServices);
   }
 
   public static void injectServices(NodeIndexingService nodeIndexingService,

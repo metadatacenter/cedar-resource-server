@@ -35,7 +35,7 @@ import java.util.Optional;
 import static org.metadatacenter.constant.CedarQueryParameters.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
-public class AbstractSearchResource extends AbstractResourceServerResource {
+public abstract class AbstractSearchResource extends AbstractResourceServerResource {
 
   public AbstractSearchResource(CedarConfig cedarConfig) {
     super(cedarConfig);
