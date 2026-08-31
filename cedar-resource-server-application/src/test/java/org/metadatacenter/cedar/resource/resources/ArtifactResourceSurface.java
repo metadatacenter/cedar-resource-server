@@ -21,16 +21,17 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Reflection over the declared JAX-RS surface of the four artifact-type resource classes. Both
- * surface tests drive off this helper: the snapshot test renders the canonical description, and
- * the routes test enumerates the endpoints to probe against the booted application.
+ * Reflection over the declared JAX-RS surface of the four artifact-type resource classes. The
+ * snapshot test renders the canonical description from it without booting the application. The
+ * routes test derives its own inventory from Jersey's runtime registrations, so it covers every
+ * resource class the application registers rather than only these four.
  *
  * The description is deliberately canonical and deterministic: one line per endpoint-fact,
  * sorted lexicographically, so any change to the surface produces a minimal, readable diff.
  */
 final class ArtifactResourceSurface {
 
-  static final List<Class<?>> RESOURCE_CLASSES = List.of(
+  private static final List<Class<?>> RESOURCE_CLASSES = List.of(
       TemplatesResource.class,
       TemplateElementsResource.class,
       TemplateFieldsResource.class,
@@ -49,11 +50,10 @@ final class ArtifactResourceSurface {
     final List<String> consumes;
     final List<String> parameterFacts;
     final String apiOperationValue;
-    final boolean acceptsBody;
 
     private Endpoint(String declaringClass, String methodName, String verb, String fullPath,
                      List<String> produces, List<String> consumes, List<String> parameterFacts,
-                     String apiOperationValue, boolean acceptsBody) {
+                     String apiOperationValue) {
       this.declaringClass = declaringClass;
       this.methodName = methodName;
       this.verb = verb;
@@ -62,7 +62,6 @@ final class ArtifactResourceSurface {
       this.consumes = consumes;
       this.parameterFacts = parameterFacts;
       this.apiOperationValue = apiOperationValue;
-      this.acceptsBody = acceptsBody;
     }
 
     String key() {
@@ -71,7 +70,7 @@ final class ArtifactResourceSurface {
   }
 
   /** All endpoints of the four classes, sorted by verb + path (deterministic). */
-  static List<Endpoint> endpoints() {
+  private static List<Endpoint> endpoints() {
     List<Endpoint> endpoints = new ArrayList<>();
     for (Class<?> resourceClass : RESOURCE_CLASSES) {
       String classPath = resourceClass.getAnnotation(Path.class).value();
@@ -91,19 +90,14 @@ final class ArtifactResourceSurface {
         List<String> produces = Arrays.asList(methodProduces != null ? methodProduces.value() : classProduces);
         List<String> consumes = Arrays.asList(methodConsumes != null ? methodConsumes.value() : classConsumes);
         List<String> parameterFacts = new ArrayList<>();
-        boolean acceptsBody = false;
         Parameter[] parameters = method.getParameters();
         for (int i = 0; i < parameters.length; i++) {
-          String fact = describeParameter(parameters[i]);
-          if (fact.startsWith("body")) {
-            acceptsBody = true;
-          }
-          parameterFacts.add("param[" + i + "]=" + fact);
+          parameterFacts.add("param[" + i + "]=" + describeParameter(parameters[i]));
         }
         Operation apiOperation = method.getAnnotation(Operation.class);
         String apiOperationValue = apiOperation == null ? null : apiOperation.summary();
         endpoints.add(new Endpoint(method.getDeclaringClass().getSimpleName(), method.getName(), verb, fullPath,
-            produces, consumes, parameterFacts, apiOperationValue, acceptsBody));
+            produces, consumes, parameterFacts, apiOperationValue));
       }
     }
     endpoints.sort(Comparator.comparing(Endpoint::key));
