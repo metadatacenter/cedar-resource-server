@@ -33,7 +33,8 @@ public class SearchDeepResource extends AbstractSearchResource {
   @GET
   @Timed
   @Path("/search-deep")
-  @Operation(summary = "Search resources", description = "Search resources using different criteria. This call can go further than 10.000 resources. It is "
+  @Operation(summary = "Search resources", description = "Search resources using different criteria. This call can go further than 10.000 resources, "
+          + "by offset or, for a whole result set, by following the continuation each answer carries. It is "
           + "not intended for everyday use. All of the parameters are optional, but you need to provide at least "
           + "one search criteria. The parameters can be combined, but not all of the combinations will work. You "
           + "can see the type of the executed search in the response body.", tags = {"Search", "Template Fields", "Template Elements", "Templates", "Template Instances", "Folders",
@@ -77,9 +78,15 @@ public class SearchDeepResource extends AbstractSearchResource {
           + "list of special folders will be returned ('/Shared', etc.)")
       @QueryParam(QP_MODE) Optional<String> mode,
       @Parameter(description = "Category Id. All the artifacts in the given category will be returned.")
-      @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam) throws CedarException {
+      @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam,
+      @Parameter(description = "Where to carry on from, instead of an offset. Pass 'start' for the first "
+          + "page, then the 'continuation' each answer carries until an answer has none, which is the "
+          + "end of the results. A page costs the same wherever it falls, so this is the way to read a "
+          + "whole result set. The query, filters, sort and user must stay as they were, and the walk "
+          + "reads one snapshot of the index, so rows created or deleted while it runs do not move it.")
+      @QueryParam(QP_CONTINUATION) Optional<String> continuationParam) throws CedarException {
 
     return super.search(q, id, resourceTypes, versionParam, publicationStatusParam, isBasedOnParam, sortParam,
-        limitParam, offsetParam, sharing, mode, categoryIdParam, true);
+        limitParam, offsetParam, sharing, mode, categoryIdParam, continuationParam, true);
   }
 }

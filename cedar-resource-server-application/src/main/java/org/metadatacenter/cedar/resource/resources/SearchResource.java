@@ -78,6 +78,6 @@ public class SearchResource extends AbstractSearchResource {
       @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam) throws CedarException {
 
     return super.search(q, id, resourceTypes, versionParam, publicationStatusParam, isBasedOnParam, sortParam,
-        limitParam, offsetParam, sharing, mode, categoryIdParam, false);
+        limitParam, offsetParam, sharing, mode, categoryIdParam, Optional.empty(), false);
   }
 }

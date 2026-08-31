@@ -16,6 +16,8 @@ import org.metadatacenter.model.request.NodeListQueryTypeDetector;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.exception.CedarAssertionException;
+import org.metadatacenter.server.search.elasticsearch.service.DeepSearchPageResponse;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
@@ -26,6 +28,7 @@ import org.metadatacenter.util.TrustedByUtil;
 import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedSortedTypedSearchQuery;
+import org.metadatacenter.util.http.SearchContinuation;
 
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Response;
@@ -54,6 +57,7 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
                          @QueryParam(QP_SHARING) Optional<String> sharingParam,
                          @QueryParam(QP_MODE) Optional<String> modeParam,
                          @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam,
+                         @QueryParam(QP_CONTINUATION) Optional<String> continuationParam,
                          boolean searchDeep) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
@@ -74,7 +78,8 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         .queryParam(QP_OFFSET, offsetParam)
         .queryParam(QP_SHARING, sharingParam)
         .queryParam(QP_MODE, modeParam)
-        .queryParam(QP_CATEGORY_ID, categoryIdParam);
+        .queryParam(QP_CATEGORY_ID, categoryIdParam)
+        .queryParam(QP_CONTINUATION, continuationParam);
 
     PagedSortedTypedSearchQuery pagedSearchQuery = new PagedSortedTypedSearchQuery(
         cedarConfig.getResourceRESTAPI().getPagination())
@@ -90,6 +95,21 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         .limit(limitParam)
         .offset(offsetParam);
     pagedSearchQuery.validate();
+
+    if (continuationParam.isPresent()) {
+      if (!searchDeep) {
+        throw new CedarAssertionException("A continuation is only served by /search-deep!")
+            .parameter(QP_CONTINUATION, continuationParam.get())
+            .badRequest();
+      }
+      if (offsetParam.isPresent()) {
+        // One says where to carry on from and the other says how far in to start. A request holding
+        // both is asking for two different pages.
+        throw new CedarAssertionException("Pass a continuation or an offset, not both!")
+            .parameter(QP_OFFSET, offsetParam.get())
+            .badRequest();
+      }
+    }
 
     int limit = pagedSearchQuery.getLimit();
     int offset = pagedSearchQuery.getOffset();
@@ -117,8 +137,12 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
       if (sortParam.isEmpty()) {
         sortList = new ArrayList<>();
       }
-      // Only this branch reads the search index, and the two calls can serve different depths. The
-      // graph-backed branch above pages with SKIP and is bounded by neither.
+      // Only this branch reads the search index, and the three ways into it serve different depths.
+      // The graph-backed branch above pages with SKIP and is bounded by none of them.
+      if (continuationParam.isPresent()) {
+        return continuationPage(c, pagedSearchQuery, continuationParam.get(), queryString, idString, resourceTypeList,
+            version, publicationStatus, categoryId, sortList, limit, absoluteUrl, nlqt);
+      }
       if (searchDeep) {
         pagedSearchQuery.validateDeepOffset();
         r = nodeSearchingService
@@ -131,6 +155,47 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     }
     r.setNodeListQueryType(nlqt);
     r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, r.getTotalCount(), limit, offset));
+    ProvenanceNameUtil.addProvenanceDisplayNames(r);
+    return Response.ok().entity(r).build();
+  }
+
+  /**
+   * A page of a walk the caller drives. The first page is asked for by value, every page after it by
+   * the token the previous one answered with, and the walk ends when a page comes back without one.
+   */
+  private Response continuationPage(CedarRequestContext c, PagedSortedTypedSearchQuery pagedSearchQuery,
+                                    String continuationValue, String queryString, String idString,
+                                    List<String> resourceTypeList, ResourceVersionFilter version,
+                                    ResourcePublicationStatusFilter publicationStatus, String categoryId,
+                                    List<String> sortList, int limit, String absoluteUrl,
+                                    NodeListQueryType nlqt) throws CedarException {
+    String userId = c.getCedarUser().getId();
+    String fingerprint = SearchContinuation.fingerprint(queryString, idString, resourceTypeList,
+        pagedSearchQuery.getVersionAsString(), pagedSearchQuery.getPublicationStatusAsString(), categoryId, sortList);
+
+    SearchContinuation current = SearchContinuation.isStart(continuationValue)
+        ? null
+        : SearchContinuation.decode(continuationValue, userId, fingerprint);
+
+    DeepSearchPageResponse page = nodeSearchingService.searchDeepPage(c, queryString, idString, resourceTypeList,
+        version, publicationStatus, categoryId, sortList, limit,
+        current == null ? 0 : current.getRowsSeen(),
+        current == null ? 0 : current.getTotalCount(),
+        current == null ? null : current.getPointInTimeId(),
+        current == null ? null : current.getSearchAfterValues(),
+        absoluteUrl);
+
+    FolderServerNodeListResponse r = page.response();
+    String nextContinuation = null;
+    if (page.hasMore()) {
+      long rowsSeen = r.getCurrentOffset() + r.getResources().size();
+      nextContinuation = SearchContinuation
+          .of(page.pointInTimeId(), page.nextSearchAfter(), userId, fingerprint, rowsSeen, r.getTotalCount())
+          .encode();
+      r.setContinuation(nextContinuation);
+    }
+    r.setNodeListQueryType(nlqt);
+    r.setPaging(LinkHeaderUtil.getContinuationLinkHeaders(absoluteUrl, limit, nextContinuation));
     ProvenanceNameUtil.addProvenanceDisplayNames(r);
     return Response.ok().entity(r).build();
   }
