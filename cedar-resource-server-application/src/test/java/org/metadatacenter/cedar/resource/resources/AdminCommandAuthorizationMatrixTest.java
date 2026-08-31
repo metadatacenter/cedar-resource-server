@@ -43,9 +43,9 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
  * deliberately never probed: it would pass the gate, and the point is to assert the gate without ever
  * letting a command that wipes an index or provisions a user actually run.
  *
- * <p>The one non-mutating row — the status poll — is intentionally not admin-gated (it needs only a
- * logged-in user). Asserting a regular user's 200 there is what proves the 403s are about the missing
- * admin permission, not a blanket block on {@code /command}.
+ * <p>The non-mutating rows — the status polls — are intentionally not admin-gated (they need only a
+ * logged-in user). Asserting a regular user's 200 and 404 there is what proves the 403s are about the
+ * missing admin permission, not a blanket block on {@code /command}.
  */
 public class AdminCommandAuthorizationMatrixTest {
 
@@ -125,6 +125,17 @@ public class AdminCommandAuthorizationMatrixTest {
         .expect(ANONYMOUS, 401)
         .expect(OWNER, 200)
         .expect(OTHER_USER, 200);
+
+    // A job's own status is gated the same way as the collection it belongs to. The 404 is the gate
+    // passing: no job answers to this identifier, which a caller can only be told once it is through.
+    for (String path : new String[] {
+        "/command/index-job-status/00000000-0000-0000-0000-000000000000",
+        "/command/load-valuesets-ontology-status/00000000-0000-0000-0000-000000000000"}) {
+      matrix.when("GET", path)
+          .expect(ANONYMOUS, 401)
+          .expect(OWNER, 404)
+          .expect(OTHER_USER, 404);
+    }
 
     matrix.verify();
   }

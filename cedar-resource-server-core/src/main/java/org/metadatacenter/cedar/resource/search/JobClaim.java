@@ -2,6 +2,7 @@ package org.metadatacenter.cedar.resource.search;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * A claim on work that only one job may run at a time, and the deadline past which the claim is no
@@ -14,9 +15,12 @@ import java.time.Instant;
  * would leave the guard saying nothing is running while a rebuild is under way: the concurrency the
  * guard exists to prevent, reintroduced by the recovery path.
  *
- * <p>Identity is object identity. This class deliberately inherits {@code equals} from
- * {@code Object}, and defining value equality on it would defeat the check above, since two claims
- * taken for the same command at the same instant would then be interchangeable.
+ * <p>Within the server that identity is object identity: the class deliberately inherits
+ * {@code equals} from {@code Object}, because nothing needs to compare two claims and defining value
+ * equality would only invite a comparison that defeats the check above. {@link #id()} is the same
+ * identity written down for a caller, which holds no reference and can carry only a string. It is
+ * what a start reports and what a status poll takes, so a caller can ask after the job it started
+ * rather than after whatever is running now.
  *
  * <p>Passing the deadline neither stops a job nor releases what it holds. It says only that the
  * claim is no longer believed, which lets a status report say so and lets an operator reset it. The
@@ -29,12 +33,19 @@ public final class JobClaim {
   /** How long a claim is believed before it is reported overdue and an operator may reset it. */
   public static final Duration DEADLINE = Duration.ofHours(6);
 
+  private final String id;
   private final String command;
   private final Instant startedAt;
 
   public JobClaim(String command, Instant startedAt) {
+    this.id = UUID.randomUUID().toString();
     this.command = command;
     this.startedAt = startedAt;
+  }
+
+  /** The claim as a caller can carry it: reported when the job starts, taken by a status poll. */
+  public String id() {
+    return id;
   }
 
   public String command() {

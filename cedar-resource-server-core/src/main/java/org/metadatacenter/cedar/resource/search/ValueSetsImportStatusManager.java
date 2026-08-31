@@ -4,6 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -19,6 +22,12 @@ import java.util.Optional;
  * {@code /command/load-valuesets-ontology-status}, reads {@code importStatus} and acts on the name
  * it finds there. An import abandoned as overdue reports {@code ERROR}, which is both true of it and
  * a value that caller already understands.
+ *
+ * <p>That status describes the latest import, whichever one that is. An import is therefore also
+ * answerable by the identifier its command returned, so a caller that started one learns what became
+ * of that one rather than of whatever ran next. {@link #find} keeps answering for the last
+ * {@link #RETAINED_JOBS} finished imports and forgets them after that, since they are held in memory
+ * rather than stored.
  */
 public class ValueSetsImportStatusManager {
 
@@ -28,6 +37,17 @@ public class ValueSetsImportStatusManager {
     NOT_YET_INITIATED, IN_PROGRESS, COMPLETE, ERROR
   }
 
+  /**
+   * One import as a caller reads it back, in the shape the status endpoint returns for the latest
+   * one. {@code deadlineAt} and {@code overdue} describe a running import and are empty otherwise.
+   */
+  public record ImportJob(String jobId, ImportStatus importStatus, String startedAt, String finishedAt,
+                          String deadlineAt, boolean overdue, String failure) {
+  }
+
+  /** How many finished imports stay answerable by identifier. */
+  static final int RETAINED_JOBS = 20;
+
   private ImportStatus importStatus;
 
   /** Who holds the import, and the record of what ran once they no longer do. */
@@ -36,6 +56,9 @@ public class ValueSetsImportStatusManager {
   private Instant finishedAt;
 
   private String failure;
+
+  /** What became of each import that has finished, oldest first, by the identifier of its claim. */
+  private final Map<String, ImportJob> finished = new LinkedHashMap<>();
 
   private static ValueSetsImportStatusManager singleInstance;
 
@@ -88,6 +111,7 @@ public class ValueSetsImportStatusManager {
     finishedAt = now;
     this.failure = failure == null ? null
         : failure.getClass().getSimpleName() + (failure.getMessage() == null ? "" : ": " + failure.getMessage());
+    remember(now);
   }
 
   /**
@@ -108,7 +132,56 @@ public class ValueSetsImportStatusManager {
     importStatus = ImportStatus.ERROR;
     finishedAt = now;
     failure = "the claim passed its " + JobClaim.DEADLINE.toHours() + "-hour deadline and was reset";
+    remember(now);
     return true;
+  }
+
+  /**
+   * Keep what became of the import that just ended, so its own identifier still answers once a later
+   * import has replaced the status above. Only a finished import is kept: the running one is rendered
+   * as it stands, since {@code overdue} is true of it only from some instant onwards.
+   */
+  private void remember(Instant now) {
+    finished.remove(claim.id());
+    finished.put(claim.id(), snapshot(now));
+    Iterator<String> oldestFirst = finished.keySet().iterator();
+    while (finished.size() > RETAINED_JOBS && oldestFirst.hasNext()) {
+      oldestFirst.next();
+      oldestFirst.remove();
+    }
+  }
+
+  /**
+   * What became of one import, named by the identifier its command returned, and empty once no import
+   * answers to it. The running import is rendered live rather than read back, so a poll on it reports
+   * the deadline it has reached rather than the one it was queued under.
+   */
+  public synchronized Optional<ImportJob> find(String jobId) {
+    if (claim != null && claim.id().equals(jobId) && importStatus == ImportStatus.IN_PROGRESS) {
+      return Optional.of(snapshot(Instant.now()));
+    }
+    return Optional.ofNullable(finished.get(jobId));
+  }
+
+  /** The latest import in the same shape {@link #find} returns, which is what a start reports. */
+  public synchronized ImportJob snapshot() {
+    return snapshot(Instant.now());
+  }
+
+  private ImportJob snapshot(Instant now) {
+    boolean running = importStatus == ImportStatus.IN_PROGRESS;
+    return new ImportJob(claim == null ? null : claim.id(),
+        importStatus,
+        claim == null ? null : claim.startedAt().toString(),
+        finishedAt == null ? null : finishedAt.toString(),
+        running ? claim.deadlineAt().toString() : null,
+        running && claim.isOverdue(now),
+        failure);
+  }
+
+  /** The latest import as a caller can carry it, and null before any import has run. */
+  public synchronized String getJobId() {
+    return claim == null ? null : claim.id();
   }
 
   public synchronized ImportStatus getImportStatus() {

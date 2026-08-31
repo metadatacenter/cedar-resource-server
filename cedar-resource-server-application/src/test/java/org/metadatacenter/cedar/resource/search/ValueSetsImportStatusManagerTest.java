@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -24,6 +25,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The import is claimed the way an index rebuild is, and for the same reason: before the claim
  * carried a deadline, an import that never returned left {@code IN_PROGRESS} standing, refused every
  * later import, and could be cleared only by restarting the server.
+ *
+ * <p>The identifier is asserted for the reason it exists: the status above describes the latest
+ * import, so a caller reading it after a second import started would be told about that one.
  */
 class ValueSetsImportStatusManagerTest {
 
@@ -89,6 +93,58 @@ class ValueSetsImportStatusManagerTest {
     assertEquals(ValueSetsImportStatusManager.ImportStatus.ERROR, manager.getImportStatus());
     assertTrue(manager.getFailure().contains("deadline"), manager.getFailure());
     assertTrue(manager.tryStart().isPresent(), "the point of the reset is that the next import can run");
+  }
+
+  /**
+   * One import keeps one identifier from the moment it is queued to whatever became of it, and keeps
+   * answering under it once a later import has replaced the status above.
+   */
+  @Test
+  void anImportAnswersForItselfAfterALaterImportReplacedTheStatus() {
+    JobClaim first = manager.tryStart(CLAIMED_AT).orElseThrow();
+    manager.finish(first, new IllegalStateException("no path configured"));
+    JobClaim second = manager.tryStart().orElseThrow();
+
+    assertEquals(ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS, manager.getImportStatus(),
+        "the status describes the import that replaced the first one");
+    assertEquals(second.id(), manager.getJobId());
+
+    ValueSetsImportStatusManager.ImportJob found = manager.find(first.id()).orElseThrow();
+    assertEquals(ValueSetsImportStatusManager.ImportStatus.ERROR, found.importStatus());
+    assertTrue(found.failure().contains("no path configured"), found.failure());
+
+    manager.finish(second, null);
+  }
+
+  /** A reset is the abandoned import's outcome, so its own identifier reports it rather than nothing. */
+  @Test
+  void anAbandonedImportReportsTheResetUnderItsOwnIdentifier() {
+    JobClaim abandoned = manager.tryStart(CLAIMED_AT).orElseThrow();
+
+    assertTrue(manager.reset(PAST_DEADLINE));
+
+    ValueSetsImportStatusManager.ImportJob found = manager.find(abandoned.id()).orElseThrow();
+    assertEquals(ValueSetsImportStatusManager.ImportStatus.ERROR, found.importStatus());
+    assertTrue(found.failure().contains("deadline"), found.failure());
+  }
+
+  /**
+   * The running import is rendered as it stands rather than read back from what was recorded when it
+   * was queued, so a poll on it reports the deadline it has reached.
+   */
+  @Test
+  void theRunningImportIsReportedAsItStands() {
+    JobClaim running = manager.tryStart(CLAIMED_AT).orElseThrow();
+
+    ValueSetsImportStatusManager.ImportJob found = manager.find(running.id()).orElseThrow();
+    assertEquals(ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS, found.importStatus());
+    assertEquals(CLAIMED_AT.plus(JobClaim.DEADLINE).toString(), found.deadlineAt());
+    assertTrue(found.overdue(), "a claim taken in the past has passed its deadline by now");
+  }
+
+  @Test
+  void noImportAnswersToAnIdentifierNothingWasQueuedUnder() {
+    assertTrue(manager.find(UUID.randomUUID().toString()).isEmpty());
   }
 
   @Test

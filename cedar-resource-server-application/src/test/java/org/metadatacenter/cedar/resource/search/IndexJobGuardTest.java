@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -35,6 +36,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>The deadline is worth a test for the opposite reason: it is the one path that lets an index be
  * claimed twice, so what it refuses matters as much as what it allows.
+ *
+ * <p>The identifier is worth a test because reading an index answers a different question from
+ * reading a job. They agree only while the job the caller started is the last one to have run over
+ * its index, and the whole point of the identifier is the case where they no longer do.
  */
 public class IndexJobGuardTest {
 
@@ -237,6 +242,81 @@ public class IndexJobGuardTest {
 
     IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, current, null);
     assertEquals(IndexJobGuard.State.COMPLETE, IndexJobGuard.status(IndexJobGuard.Index.SEARCH).state());
+  }
+
+  /**
+   * One job keeps one identifier from the moment it is queued to whatever became of it, so a caller
+   * that polls the identifier the command returned reads its own job's outcome rather than its start.
+   */
+  @Test
+  public void aJobKeepsOneIdentifierFromQueuedToFinished() {
+    JobClaim claim = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+
+    assertEquals(IndexJobGuard.State.RUNNING, IndexJobGuard.find(claim.id()).orElseThrow().state());
+
+    IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, claim, new IllegalStateException("opensearch refused the alias"));
+
+    IndexJobGuard.Status found = IndexJobGuard.find(claim.id()).orElseThrow();
+    assertEquals(IndexJobGuard.State.FAILED, found.state());
+    assertEquals(claim.id(), found.jobId());
+    assertTrue(found.failure().contains("opensearch refused the alias"), found.failure());
+  }
+
+  /**
+   * The case the identifier exists for. Reading the index alone would report the job that replaced
+   * this one, so a caller polling after a later rebuild started would be told that its own rebuild
+   * is running when it failed, or that it succeeded when the success is somebody else's.
+   */
+  @Test
+  public void aJobAnswersForItselfAfterALaterJobTookOverItsIndex() {
+    JobClaim first = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+    IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, first, new IllegalStateException("half a rebuild"));
+    JobClaim second = claim(IndexJobGuard.Index.SEARCH, "generate-empty-search-index").orElseThrow();
+
+    assertEquals(IndexJobGuard.State.RUNNING, IndexJobGuard.status(IndexJobGuard.Index.SEARCH).state(),
+        "the index reports the job that took it over");
+    assertEquals(IndexJobGuard.State.FAILED, IndexJobGuard.find(first.id()).orElseThrow().state(),
+        "the first job still answers for itself");
+    assertEquals(second.id(), IndexJobGuard.status(IndexJobGuard.Index.SEARCH).jobId());
+  }
+
+  /** A reset is the abandoned job's outcome, so its own identifier reports it rather than nothing. */
+  @Test
+  public void anAbandonedJobReportsTheResetUnderItsOwnIdentifier() {
+    JobClaim abandoned = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+
+    assertTrue(IndexJobGuard.reset(IndexJobGuard.Index.SEARCH, PAST_DEADLINE));
+
+    IndexJobGuard.Status found = IndexJobGuard.find(abandoned.id()).orElseThrow();
+    assertEquals(IndexJobGuard.State.ABANDONED, found.state());
+    assertTrue(found.failure().contains("deadline"), found.failure());
+  }
+
+  @Test
+  public void noJobAnswersToAnIdentifierNothingWasQueuedUnder() {
+    assertTrue(IndexJobGuard.find(UUID.randomUUID().toString()).isEmpty());
+  }
+
+  /**
+   * Jobs are held in memory, so the window on them is bounded. A job pushed out of it is no longer
+   * known, and a running job is never the one pushed out: it is the job most likely to be polled, and
+   * evicting it would answer "no such job" about a rebuild that is under way.
+   */
+  @Test
+  public void theWindowOnFinishedJobsIsBoundedAndKeepsTheRunningOne() {
+    JobClaim running = claim(IndexJobGuard.Index.RULES, "regenerate-rules-index").orElseThrow();
+    JobClaim oldest = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+    IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, oldest, null);
+
+    for (int i = 0; i < IndexJobGuard.RETAINED_JOBS; i++) {
+      JobClaim later = claim(IndexJobGuard.Index.SEARCH, "generate-empty-search-index").orElseThrow();
+      IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, later, null);
+    }
+
+    assertTrue(IndexJobGuard.find(oldest.id()).isEmpty(), "the oldest finished job is forgotten");
+    assertEquals(IndexJobGuard.State.RUNNING, IndexJobGuard.find(running.id()).orElseThrow().state(),
+        "a running job is not pushed out by the jobs that finish around it");
+    IndexJobGuard.finish(IndexJobGuard.Index.RULES, running, null);
   }
 
   /** Every claim in this class is taken at the same instant, so the deadline constants apply to all of them. */

@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -29,6 +31,12 @@ import java.util.Optional;
  * A claim therefore carries {@link JobClaim#DEADLINE}: past it the status reports the claim as
  * overdue, and {@link #reset} lets an operator take the index back. A reset invalidates the claim, so
  * the abandoned job cannot report over whoever holds the index next.
+ *
+ * <p>A job is also answerable by its own identifier, which is what the command that started it
+ * returns. Reading the index alone answers a different question: it says what the last job over that
+ * index did, and the two are the same job only until another command runs. {@link #find} answers for
+ * the job the caller asked about, and stops knowing it once {@link #RETAINED_JOBS} later jobs have
+ * pushed it out.
  */
 public final class IndexJobGuard {
 
@@ -61,7 +69,7 @@ public final class IndexJobGuard {
    * rendered rather than held so that this reads the same over HTTP as it does in Java;
    * {@code deadlineAt} and {@code overdue} describe a running job and are empty otherwise.
    */
-  public record Status(State state, String command, String startedAt, String finishedAt,
+  public record Status(String jobId, State state, String command, String startedAt, String finishedAt,
                        String deadlineAt, boolean overdue, String failure) {
   }
 
@@ -78,7 +86,8 @@ public final class IndexJobGuard {
 
     Status render(Instant now) {
       boolean running = state == State.RUNNING;
-      return new Status(state,
+      return new Status(claim == null ? null : claim.id(),
+          state,
           claim == null ? null : claim.command(),
           claim == null ? null : claim.startedAt().toString(),
           finishedAt == null ? null : finishedAt.toString(),
@@ -96,7 +105,43 @@ public final class IndexJobGuard {
     }
   }
 
+  /**
+   * How many jobs stay answerable by identifier. Jobs are held in memory, so this is a window rather
+   * than a record: it is wide enough that a caller polling the job it started still finds it long
+   * after the job finished, and narrow enough that an operator rebuilding an index every few minutes
+   * for a day does not accumulate a status for each attempt.
+   */
+  static final int RETAINED_JOBS = 20;
+
+  /**
+   * Every job this guard still knows, oldest first, including any it is running now. An entry
+   * here is the same object the index holds, so a job that finishes is answerable by identifier in
+   * the state it finished in rather than in the state it was queued in.
+   */
+  private static final Map<String, Entry> BY_ID = new LinkedHashMap<>();
+
   private IndexJobGuard() {
+  }
+
+  /**
+   * Record an index's job as both the index's current entry and the job's own, so it can be found by
+   * either. A running job is never pushed out of the by-identifier window: it is the one entry a
+   * caller is most likely to be polling, and evicting it would answer "no such job" about a rebuild
+   * that is under way.
+   */
+  private static void hold(Index index, Entry entry) {
+    ENTRIES.put(index, entry);
+    if (entry.claim() == null) {
+      return;
+    }
+    BY_ID.remove(entry.claim().id());
+    BY_ID.put(entry.claim().id(), entry);
+    Iterator<Map.Entry<String, Entry>> oldestFirst = BY_ID.entrySet().iterator();
+    while (BY_ID.size() > RETAINED_JOBS && oldestFirst.hasNext()) {
+      if (oldestFirst.next().getValue().state() != State.RUNNING) {
+        oldestFirst.remove();
+      }
+    }
   }
 
   /**
@@ -114,7 +159,7 @@ public final class IndexJobGuard {
       return Optional.empty();
     }
     JobClaim claim = new JobClaim(command, now);
-    ENTRIES.put(index, new Entry(State.RUNNING, claim, null, null));
+    hold(index, new Entry(State.RUNNING, claim, null, null));
     return Optional.of(claim);
   }
 
@@ -152,7 +197,7 @@ public final class IndexJobGuard {
     }
     String message = failure == null ? null
         : failure.getClass().getSimpleName() + (failure.getMessage() == null ? "" : ": " + failure.getMessage());
-    ENTRIES.put(index, new Entry(failure == null ? State.COMPLETE : State.FAILED, claim, now, message));
+    hold(index, new Entry(failure == null ? State.COMPLETE : State.FAILED, claim, now, message));
   }
 
   /**
@@ -175,7 +220,7 @@ public final class IndexJobGuard {
     log.warn("Resetting the {} index: the {} job claimed at {} passed its {}-hour deadline",
         index.name().toLowerCase(), entry.claim().command(), entry.claim().startedAt(),
         JobClaim.DEADLINE.toHours());
-    ENTRIES.put(index, new Entry(State.ABANDONED, entry.claim(), now,
+    hold(index, new Entry(State.ABANDONED, entry.claim(), now,
         "the claim passed its " + JobClaim.DEADLINE.toHours() + "-hour deadline and was reset"));
     return true;
   }
@@ -186,6 +231,18 @@ public final class IndexJobGuard {
 
   static synchronized Status status(Index index, Instant now) {
     return ENTRIES.get(index).render(now);
+  }
+
+  /**
+   * What became of one job, named by the identifier its command returned, and empty once no job
+   * answers to it — an identifier from before the last restart, or one pushed out of the window.
+   */
+  public static Optional<Status> find(String jobId) {
+    return find(jobId, Instant.now());
+  }
+
+  static synchronized Optional<Status> find(String jobId, Instant now) {
+    return Optional.ofNullable(BY_ID.get(jobId)).map(entry -> entry.render(now));
   }
 
   public static Map<Index, Status> statuses() {
