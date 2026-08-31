@@ -124,7 +124,7 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         r = nodeSearchingService
             .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
       } else {
-        pagedSearchQuery.validateShallowWindow();
+        pagedSearchQuery.validateShallowWindow(cedarConfig.getElasticsearchConfig().getMaxResultWindow());
         r = nodeSearchingService
             .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
       }
