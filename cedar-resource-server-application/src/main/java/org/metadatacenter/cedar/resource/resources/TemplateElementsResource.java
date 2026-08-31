@@ -116,6 +116,30 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     return executeArtifactGetNegotiated(c, CedarResourceType.ELEMENT, eid, compactParam);
   }
 
+  @GET
+  @Timed
+  @Path("/{template_element_id}/download")
+  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @Operation(summary = "Download a template element", description = "Download a template element as JSON or YAML, selected via the Accept "
+      + "header. This reads and returns the template element and changes nothing, which is what GET is for; the POST on "
+      + "the same path does the same thing and remains for existing callers.")
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "The template element content as an attachment"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
+  })
+  public Response getTemplateElementDownload(
+      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id,
+      @Parameter(description = "Desired output format: 'application/json' or 'application/yaml'.")
+      @HeaderParam("Accept") String acceptHeader,
+      @Parameter(description = "When downloading YAML, produce a compact representation.")
+      @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
+    return downloadTemplateElement(id, acceptHeader, compactParam);
+  }
+
   @POST
   @Timed
   @Path("/{template_element_id}/download")
