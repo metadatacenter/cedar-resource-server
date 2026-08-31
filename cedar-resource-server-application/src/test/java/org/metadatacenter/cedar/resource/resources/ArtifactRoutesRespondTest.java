@@ -12,6 +12,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
+import org.metadatacenter.cedar.util.dw.CedarMicroserviceIndexResource;
 import org.metadatacenter.util.test.RouteSurface;
 import org.metadatacenter.util.test.TestAuthUtil;
 
@@ -66,7 +67,7 @@ public class ArtifactRoutesRespondTest {
     List<Class<?>> registeredResources = RouteSurface.registeredResourceClasses(
         registeredComponents,
         "org.metadatacenter.cedar.resource.resources").stream()
-        .filter(resourceClass -> !resourceClass.getSimpleName().equals("IndexResource"))
+        .filter(resourceClass -> !CedarMicroserviceIndexResource.class.isAssignableFrom(resourceClass))
         .toList();
 
     Assertions.assertTrue(registeredResources.size() > 4,

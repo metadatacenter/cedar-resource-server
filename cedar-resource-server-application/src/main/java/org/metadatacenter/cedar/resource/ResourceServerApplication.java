@@ -6,6 +6,7 @@ import io.dropwizard.lifecycle.Managed;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
 import org.metadatacenter.cedar.resource.search.IndexCreator;
+import org.metadatacenter.cedar.util.dw.CedarMicroserviceIndexResource;
 import org.metadatacenter.cedar.util.dw.CedarDefaultHealthCheck;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
 import org.metadatacenter.config.CedarConfig;
@@ -81,7 +82,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
       }
     });
 
-    final IndexResource index = new IndexResource(cedarConfig);
+    final CedarMicroserviceIndexResource index =
+        new CedarMicroserviceIndexResource(cedarConfig, getServerName());
     environment.jersey().register(index);
 
     final FoldersResource folders = new FoldersResource(cedarConfig);
