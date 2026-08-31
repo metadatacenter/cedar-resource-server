@@ -90,18 +90,48 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
     }
   }
 
+  /**
+   * The jobs due for another attempt.
+   *
+   * <p>The whole property map is read in one step, and a row that does not carry the fields that
+   * identify a job is dropped. Neo4j is read committed rather than snapshot isolated, so a
+   * {@link #remove} committing while this query runs is visible to it, and a projection that names
+   * each property separately is evaluated one property at a time: a delete landing between two of
+   * them returned a row whose earlier fields were read and whose later ones were null. A caller then
+   * received a job with a null {@code resourceId} for an artifact that no longer had a deletion to
+   * finish. {@code properties(e)} is a single read, so a row is either the whole job or nothing that
+   * resembles one, and a node being deleted is by definition not pending.
+   */
   public List<ArtifactDeletionJob> pending(int limit) {
     String query = "MATCH (e:" + LABEL + ") WHERE coalesce(e.nextAttemptAt, 0) <= timestamp() "
-        + "RETURN " + JOB_PROJECTION + " ORDER BY e.createdAt, e.jobId LIMIT $limit";
+        + "WITH e ORDER BY e.createdAt, e.jobId LIMIT $limit "
+        + "RETURN properties(e) AS job";
     try (Session session = driver.session()) {
       return session.readTransaction(tx -> {
         List<ArtifactDeletionJob> jobs = new ArrayList<>();
         for (Record record : tx.run(query, Map.of("limit", limit)).list()) {
-          jobs.add(fromRecord(record));
+          if (record.get("job").isNull()) {
+            continue;
+          }
+          Map<String, Object> properties = record.get("job").asMap();
+          if (identifiesAJob(properties)) {
+            jobs.add(fromProperties(properties));
+          }
         }
         return jobs;
       });
     }
+  }
+
+  /**
+   * Whether a property map describes a job rather than the remains of one being deleted. These three
+   * are set unconditionally by {@link #prepare}; {@code artifactEtag} and {@code previousVersionId}
+   * are nullable by design, and {@code properties} omits a key whose value is null.
+   */
+  private static boolean identifiesAJob(Map<String, Object> properties) {
+    return properties.get("jobId") != null
+        && properties.get("resourceId") != null
+        && properties.get("resourceType") != null;
   }
 
   public void markArtifactDeleted(String jobId) {
@@ -140,6 +170,18 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
       return session.readTransaction(tx -> tx.run(
           "MATCH (e:" + LABEL + ") RETURN count(e) AS pending").single().get("pending").asLong());
     }
+  }
+
+  private static ArtifactDeletionJob fromProperties(Map<String, Object> properties) {
+    return new ArtifactDeletionJob(
+        (String) properties.get("jobId"),
+        (String) properties.get("resourceId"),
+        CedarResourceType.forValue((String) properties.get("resourceType")),
+        (String) properties.get("artifactEtag"),
+        (String) properties.get("graphSnapshotJson"),
+        (String) properties.get("previousVersionId"),
+        Boolean.TRUE.equals(properties.get("artifactDeleted")),
+        Boolean.TRUE.equals(properties.get("graphDeleted")));
   }
 
   private static ArtifactDeletionJob fromRecord(Record record) {
