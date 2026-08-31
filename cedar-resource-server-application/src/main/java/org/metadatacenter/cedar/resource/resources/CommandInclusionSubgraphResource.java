@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.bridge.CedarDataServices;
-import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
+import org.metadatacenter.cedar.resource.artifact.ArtifactServerUtil;
 import org.metadatacenter.cedar.resource.model.InclusionSubgraphUpdateOutcome;
 import org.metadatacenter.cedar.resource.model.InclusionSubgraphUpdateReport;
 import org.metadatacenter.config.CedarConfig;

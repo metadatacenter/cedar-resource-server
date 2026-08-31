@@ -11,7 +11,7 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
-import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
+import org.metadatacenter.cedar.resource.artifact.ArtifactServerUtil;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionJob;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;

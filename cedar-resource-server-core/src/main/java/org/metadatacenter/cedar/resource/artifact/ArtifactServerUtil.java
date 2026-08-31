@@ -1,4 +1,4 @@
-package org.metadatacenter.cedar.artifact;
+package org.metadatacenter.cedar.resource.artifact;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.hc.core5.http.HttpEntity;

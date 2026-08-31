@@ -19,7 +19,7 @@ import org.metadatacenter.artifacts.util.TemplateVersionFreezer;
 import org.metadatacenter.cedar.resource.util.TerminologyVersionResolver;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.PathInfoBuilder;
-import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
+import org.metadatacenter.cedar.resource.artifact.ArtifactServerUtil;
 import org.metadatacenter.cedar.deltafinder.Delta;
 import org.metadatacenter.cedar.deltafinder.DeltaFinder;
 import org.metadatacenter.cedar.deltafinder.change.Change;
