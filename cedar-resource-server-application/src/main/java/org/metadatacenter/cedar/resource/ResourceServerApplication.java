@@ -6,8 +6,8 @@ import io.dropwizard.lifecycle.Managed;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
 import org.metadatacenter.cedar.resource.search.IndexCreator;
+import org.metadatacenter.cedar.util.dw.CedarDependencyHealthCheck;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceIndexResource;
-import org.metadatacenter.cedar.util.dw.CedarDefaultHealthCheck;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
@@ -143,7 +143,11 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final RecommendResource recommend = new RecommendResource(cedarConfig);
     environment.jersey().register(recommend);
 
-    final CedarDefaultHealthCheck healthCheck = new CedarDefaultHealthCheck();
-    environment.healthChecks().register("message", healthCheck);
+    // Search and folder listing are the bulk of what this server answers, and both read the
+    // OpenSearch index. Redis is not gated here: the search-permission events it carries go to a
+    // Neo4j outbox first and a managed relay drains it, so an outage delays reindexing rather than
+    // stopping the server.
+    environment.healthChecks().register("opensearch", CedarDependencyHealthCheck.gating(
+        "OpenSearch", new IndexUtils(cedarConfig).getEsManagementService()::verifyConnectivity));
   }
 }
