@@ -11,7 +11,7 @@ info:
     as `"7-json"`, `"7-yaml"`, and `"7-resource-record"` identify different bytes of the same
     stored revision and are valid write preconditions.
   title: CEDAR Resource Server API
-  version: 2.9.5-SNAPSHOT
+  version: 2.9.5
 paths:
   /categories:
     get:
