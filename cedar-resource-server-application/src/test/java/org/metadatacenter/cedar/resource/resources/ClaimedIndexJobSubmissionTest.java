@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.search.IndexJobGuard;
 import org.metadatacenter.cedar.resource.search.JobClaim;
@@ -28,6 +30,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ClaimedIndexJobSubmissionTest {
 
   private static final IndexJobGuard.Index INDEX = IndexJobGuard.Index.SEARCH;
+
+  /**
+   * Both claims live in process-wide state — {@link IndexJobGuard} in statics, the import manager in
+   * a singleton — so a test that ends with either still claimed decides whether the next one can
+   * claim at all. Each method here opens with {@code tryStart().orElseThrow()}, which turns that
+   * into a NoSuchElementException naming nothing, and the order methods run in is not fixed: these
+   * passed locally and failed on the runner for that reason alone.
+   *
+   * <p>Clearing both before each test makes every one of them start from the state it assumes,
+   * whatever ran before it.
+   */
+  @BeforeEach
+  public void releaseAnyClaimLeftByAnotherTest() {
+    releaseBothClaims();
+  }
+
+  /** And leaves the same clean state behind, so this class cannot be the one that breaks another. */
+  @AfterEach
+  public void leaveNoClaimForTheNextTest() {
+    releaseBothClaims();
+  }
+
+  private static void releaseBothClaims() {
+    IndexJobGuard.reset(INDEX);
+    ValueSetsImportStatusManager.getInstance().reset();
+  }
 
   @Test
   public void aRefusedTaskReleasesTheClaim() {
