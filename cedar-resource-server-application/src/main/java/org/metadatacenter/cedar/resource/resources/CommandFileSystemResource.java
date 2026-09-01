@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -27,6 +28,7 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.*;
+import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.ResourceVersion;
@@ -34,6 +36,10 @@ import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.RevisionConflictException;
+import org.metadatacenter.server.RevisionPrecondition;
+import org.metadatacenter.server.SiblingNameConflictException;
+import org.metadatacenter.server.VersionedResource;
 import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
@@ -41,6 +47,7 @@ import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -264,15 +271,20 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/move-resource-to-folder")
-  @Operation(summary = "Move resource", description = "Move resource to a given folder. Folders or artifacts (fields, elements, templates, instances) can "
-          + "be moved.", tags = {"Command", "File Operations"})
+  @Operation(summary = "Move resource", description = "Move a folder or artifact to a given folder. Send the "
+      + "ETag returned by the source resource's details endpoint (or GET /folders/{id}) in If-Match. "
+      + "A successful move advances the source resource ETag and the revisions of both affected parent folders.",
+      tags = {"Command", "File Operations"}, parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Parameters of the move operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.MoveRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "201", description = "Resource moved",
+          headers = @io.swagger.v3.oas.annotations.headers.Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response moveResourceToFolder() throws CedarException {
@@ -385,27 +397,51 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     // Check if the user has write permission to the target folder
     userMustHaveWriteAccessToFolder(c, targetFolderId);
 
-    boolean moved;
-    if (sourceResourceType == CedarResourceType.FOLDER) {
-      CedarFolderId sourceFolderId = sourceId.asFolderId();
-      moved = folderSession.moveFolder(sourceFolderId, targetFolderId);
-      searchPermissionEnqueueService.folderMoved(sourceId.getId());
-    } else {
-      CedarArtifactId sourceArtifactId = sourceId.asArtifactId();
-      moved = folderSession.moveResource(sourceArtifactId, targetFolderId);
-      searchPermissionEnqueueService.resourceMoved(sourceId.getId());
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .id(sourceId)
+          .errorMessage("Moving a resource requires the source resource ETag in If-Match")
+          .build();
     }
-    if (!moved) {
+    RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
+
+    VersionedResource<? extends FileSystemResource> moved;
+    try {
+      if (sourceResourceType == CedarResourceType.FOLDER) {
+        CedarFolderId sourceFolderId = sourceId.asFolderId();
+        moved = folderSession.moveFolder(sourceFolderId, targetFolderId, precondition);
+      } else {
+        CedarArtifactId sourceArtifactId = sourceId.asArtifactId();
+        moved = folderSession.moveResource(sourceArtifactId, targetFolderId, precondition);
+      }
+    } catch (SiblingNameConflictException e) {
+      return siblingNameConflictResponse(sourceResourceType == CedarResourceType.FOLDER
+          ? sourceFolder.getName() : sourceResource.getName());
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .id(sourceId)
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .errorMessage("The resource has changed since it was read")
+          .build();
+    }
+    if (moved == null) {
       BackendCallResult<?> backendCallResult = new BackendCallResult<>();
       backendCallResult.addError(CedarErrorType.SERVER_ERROR)
           .errorKey(CedarErrorKey.NODE_NOT_MOVED)
           .message("There was an error while moving the resource");
       throw new CedarBackendException(backendCallResult);
     } else {
+      if (sourceResourceType == CedarResourceType.FOLDER) {
+        searchPermissionEnqueueService.folderMoved(sourceId.getId());
+      } else {
+        searchPermissionEnqueueService.resourceMoved(sourceId.getId());
+      }
       FileSystemResource movedNode = folderSession.findResourceById(sourceId);
       UriBuilder builder = uriInfo.getAbsolutePathBuilder();
       URI uri = builder.build();
-      return Response.created(uri).entity(movedNode).build();
+      return Response.created(uri).header(HttpHeaders.ETAG, RevisionPreconditionParser.format(moved.revision()))
+          .entity(movedNode).build();
     }
   }
 
@@ -413,7 +449,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @Timed
   @Path("/rename-resource")
   @Operation(summary = "Rename resource", description = "Change name and/or description of a resource. Folders or artifacts (fields, elements, templates, "
-          + "instances) can be altered.", tags = {"Command", "File Operations"})
+          + "instances) can be altered.", tags = {"Command", "File Operations"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Parameters of the rename operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.RenameRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation"),
@@ -421,6 +458,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response renameResource() throws CedarException {
@@ -490,6 +529,13 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     // Check read permission
     c.must(c.user()).have(permission);
 
+    String expectedEtag = c.getIfMatchHeader();
+    if (expectedEtag == null || expectedEtag.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .errorMessage("Renaming a resource requires the ETag returned by GET in If-Match")
+          .build();
+    }
+
     if (isFolder) {
       return updateFolderNameAndDescriptionInGraphDb(c, (CedarFolderId) fsResourceId);
     } else {
@@ -504,8 +550,6 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
         if (currentTemplateEntity != null) {
           try {
-            Header revisionHeader = templateCurrentProxyResponse.getFirstHeader(HttpHeaders.ETAG);
-            String expectedEtag = revisionHeader == null ? null : revisionHeader.getValue();
             String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
             JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
             String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();

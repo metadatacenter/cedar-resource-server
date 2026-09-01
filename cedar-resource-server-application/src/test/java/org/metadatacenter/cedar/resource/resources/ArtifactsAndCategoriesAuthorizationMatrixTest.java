@@ -41,8 +41,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.ANONYMOUS;
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.OTHER_USER;
@@ -87,11 +94,11 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
   static {
     // Must run before the test support boots the server, which reads the Neo4j env vars. Ports are
-    // distinct from the dev server and from every other booting test class in this module.
+    // assigned by the OS, so they cannot collide with the dev server or another test in this module.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19037",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19137",
-        "CEDAR_RESOURCE_STOP_PORT", "19237",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 
@@ -107,7 +114,9 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   private static String categoryName;
   private static String siblingCategoryName;
   private static String adminAuthHeader;
+  private static String user1Id;
   private static CedarCategoryId categoryId;
+  private static CedarCategoryId rootCategoryId;
   private static CedarCategoryId inaccessibleCategoryId;
   private static CedarRequestContext user1Context;
 
@@ -145,6 +154,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
 
     user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+    user1Id = TestAuthUtil.getTestUser1(cedarConfig).getId();
 
     // One node per artifact type in the workspace graph, under user 1's home folder. Created through
     // the graph session rather than the REST API on purpose: a POST would proxy the content to the
@@ -163,7 +173,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     // A category owned by user 1, under the root category that seeding creates.
     FolderServerCategory rootCategory = CedarDataServices.getInstance().getCategoryServiceSession(user1Context).getRootCategory();
     Assertions.assertNotNull(rootCategory, "the seeded graph should contain the root category");
-    CedarCategoryId rootCategoryId = rootCategory.getResourceId();
+    rootCategoryId = rootCategory.getResourceId();
     categoryName = "Matrix Category";
     FolderServerCategory category = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
         .createCategory(rootCategoryId, categoryName,
@@ -282,6 +292,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
       // other write row. This denial reaches the call-result path, which once defaulted to 401 (see
       // the category row below); it now carries CedarErrorType.PERMISSION, so it answers 403 to match.
       matrix.when("PUT", artifact.path() + "/permissions", permissionsBody)
+          .header("If-Match", "*")
           .expect(ANONYMOUS, 401)
           .expect(OTHER_USER, 403);
     }
@@ -353,6 +364,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     // and, for the owner-change path that does reach the call-result validator, the same
     // CedarErrorType.PERMISSION (403) the resource path now uses. The whole write-denial family is 403.
     matrix.when("PUT", categoryPath + "/permissions", permissionsBody)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401)
         .expect(OTHER_USER, 403);
 
@@ -370,13 +382,131 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     String renameBody = "{\"schema:name\": \"" + siblingCategoryName
         + "\", \"schema:description\": \"duplicate sibling name\"}";
 
-    HttpResponse<String> response = request("PUT", categoryPath, renameBody, adminAuthHeader);
+    HttpResponse<String> response = request("PUT", categoryPath, renameBody, adminAuthHeader, "\"1\"");
     Assertions.assertEquals(409, response.statusCode(), response.body());
     Assertions.assertTrue(response.body().contains("categoryAlreadyPresent"), response.body());
 
     HttpResponse<String> after = request("GET", categoryPath, null, adminAuthHeader);
     Assertions.assertEquals(200, after.statusCode(), after.body());
     Assertions.assertEquals(categoryName, JsonMapper.MAPPER.readTree(after.body()).path("schema:name").asText());
+  }
+
+  @Test
+  public void duplicateCategoryCreationReturnsConflictInsteadOfFalseCreationEtag() throws Exception {
+    String duplicateBody = "{\"schema:name\":\"" + categoryName
+        + "\",\"schema:description\":\"duplicate\",\"parentCategoryId\":\""
+        + rootCategoryId.getId() + "\",\"schema:identifier\":\"duplicate\"}";
+
+    HttpResponse<String> response = request("POST", "/categories", duplicateBody, adminAuthHeader);
+
+    Assertions.assertEquals(409, response.statusCode(), response.body());
+    Assertions.assertTrue(response.headers().firstValue("ETag").isEmpty(),
+        "a conflict must not advertise a newly-created category revision");
+  }
+
+  @Test
+  public void categoryDeleteRefusesChildrenAndAttachedArtifacts() throws Exception {
+    var categories = CedarDataServices.getInstance().getCategoryServiceSession(user1Context);
+    FolderServerCategory guardedParent = categories.createCategory(rootCategoryId, "REST Delete Guard Parent",
+        "Parent with a child", null);
+    FolderServerCategory guardedChild = categories.createCategory(guardedParent.getResourceId(),
+        "REST Delete Guard Child", "Blocks deletion of its parent", null);
+    String guardedParentPath = "/categories/" + URLEncoder.encode(guardedParent.getId(), StandardCharsets.UTF_8);
+
+    HttpResponse<String> guardedParentGet = request("GET", guardedParentPath, null, adminAuthHeader);
+    Assertions.assertEquals(200, guardedParentGet.statusCode(), guardedParentGet.body());
+    HttpResponse<String> childBlocked = request("DELETE", guardedParentPath, null, adminAuthHeader,
+        guardedParentGet.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(409, childBlocked.statusCode(), childBlocked.body());
+    Assertions.assertTrue(childBlocked.body().contains("categoryCanNotBeDeleted"), childBlocked.body());
+    Assertions.assertTrue(childBlocked.body().contains("nonEmptyCategory"), childBlocked.body());
+    Assertions.assertTrue(childBlocked.body().contains("\"childCategoryCount\":1"), childBlocked.body());
+    Assertions.assertNotNull(categories.getCategoryById(guardedChild.getResourceId()));
+
+    FolderServerCategory guardedAttached = categories.createCategory(rootCategoryId, "REST Delete Guard Attached",
+        "Category with an attached artifact", null);
+    Artifact artifact = artifacts.get(0);
+    Assertions.assertTrue(categories.attachCategoryToArtifact(
+        guardedAttached.getResourceId(), CedarUntypedArtifactId.build(artifact.id())));
+    String guardedAttachedPath = "/categories/"
+        + URLEncoder.encode(guardedAttached.getId(), StandardCharsets.UTF_8);
+    HttpResponse<String> guardedAttachedGet = request("GET", guardedAttachedPath, null, adminAuthHeader);
+    Assertions.assertEquals(200, guardedAttachedGet.statusCode(), guardedAttachedGet.body());
+    HttpResponse<String> artifactBlocked = request("DELETE", guardedAttachedPath, null, adminAuthHeader,
+        guardedAttachedGet.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(409, artifactBlocked.statusCode(), artifactBlocked.body());
+    Assertions.assertTrue(artifactBlocked.body().contains("\"artifactCount\":1"), artifactBlocked.body());
+    Assertions.assertNotNull(categories.getCategoryById(guardedAttached.getResourceId()));
+  }
+
+  @Test
+  public void concurrentCategoryDeletesConvergeWithoutServerErrors() throws Exception {
+    FolderServerCategory category = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
+        .createCategory(rootCategoryId, "Concurrent Delete Category " + UUID.randomUUID(),
+            "A sacrificial category for the repeated DELETE regression test", null);
+    Assertions.assertNotNull(category);
+    String path = "/categories/" + URLEncoder.encode(category.getId(), StandardCharsets.UTF_8);
+    HttpResponse<String> current = request("GET", path, null, adminAuthHeader);
+    Assertions.assertEquals(200, current.statusCode(), current.body());
+    String etag = current.headers().firstValue("ETag").orElseThrow();
+
+    int count = 20;
+    ExecutorService executor = Executors.newFixedThreadPool(count);
+    CountDownLatch ready = new CountDownLatch(count);
+    CountDownLatch start = new CountDownLatch(1);
+    List<Future<Integer>> futures = new ArrayList<>(count);
+    try {
+      for (int i = 0; i < count; i++) {
+        futures.add(executor.submit(() -> {
+          ready.countDown();
+          start.await();
+          return request("DELETE", path, null, adminAuthHeader, etag).statusCode();
+        }));
+      }
+      Assertions.assertTrue(ready.await(5, TimeUnit.SECONDS));
+      start.countDown();
+      List<Integer> statuses = new ArrayList<>(count);
+      for (Future<Integer> future : futures) {
+        statuses.add(future.get());
+      }
+      Assertions.assertEquals(1, statuses.stream().filter(status -> status == 204).count(), statuses::toString);
+      Assertions.assertTrue(statuses.stream().allMatch(status -> status == 204 || status == 404 || status == 412),
+          () -> "concurrent DELETE returned a non-convergent status: " + statuses);
+
+      String staleBody = "{\"schema:name\":\"Deleted Category\","
+          + "\"schema:description\":\"must stay deleted\",\"schema:identifier\":\"deleted\"}";
+      for (String ifMatch : List.of("\"1\"", "*")) {
+        HttpResponse<String> staleUpdate = request("PUT", path, staleBody, adminAuthHeader, ifMatch);
+        Assertions.assertEquals(412, staleUpdate.statusCode(), staleUpdate.body());
+      }
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  public void categoryPermissionReplacementUsesETags() throws Exception {
+    String path = categoryPath + "/permissions";
+    String body = "{\"owner\":{\"@id\":\"" + user1Id
+        + "\"},\"userPermissions\":[],\"groupPermissions\":[]}";
+
+    HttpResponse<String> initial = request("GET", path, null, adminAuthHeader);
+    Assertions.assertEquals(200, initial.statusCode(), initial.body());
+    Assertions.assertEquals("\"1\"", initial.headers().firstValue("ETag").orElse(null));
+
+    HttpResponse<String> missing = request("PUT", path, body, adminAuthHeader);
+    Assertions.assertEquals(428, missing.statusCode(), missing.body());
+
+    HttpResponse<String> updated = request("PUT", path, body, adminAuthHeader, "\"1\"");
+    Assertions.assertEquals(200, updated.statusCode(), updated.body());
+    Assertions.assertEquals("\"2\"", updated.headers().firstValue("ETag").orElse(null));
+
+    HttpResponse<String> stale = request("PUT", path, body, adminAuthHeader, "\"1\"");
+    Assertions.assertEquals(412, stale.statusCode(), stale.body());
+
+    HttpResponse<String> wildcard = request("PUT", path, body, adminAuthHeader, "*");
+    Assertions.assertEquals(200, wildcard.statusCode(), wildcard.body());
+    Assertions.assertEquals("\"3\"", wildcard.headers().firstValue("ETag").orElse(null));
   }
 
   @Test
@@ -395,11 +525,19 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   }
 
   private HttpResponse<String> request(String method, String path, String body, String authHeader) throws Exception {
+    return request(method, path, body, authHeader, null);
+  }
+
+  private HttpResponse<String> request(String method, String path, String body, String authHeader,
+                                       String ifMatch) throws Exception {
     HttpRequest.Builder builder = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
         .header("Content-Type", "application/json");
     if (authHeader != null) {
       builder.header("Authorization", authHeader);
+    }
+    if (ifMatch != null) {
+      builder.header("If-Match", ifMatch);
     }
     builder.method(method, body == null
         ? HttpRequest.BodyPublishers.noBody()

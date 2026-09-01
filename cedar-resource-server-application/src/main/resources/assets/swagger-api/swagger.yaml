@@ -1,8 +1,17 @@
 openapi: 3.0.1
 info:
-  description: Better Metadata - Better Science
+  description: |
+    Better Metadata - Better Science
+
+    Mutable resources use strong ETags for optimistic concurrency. Read the resource (or its
+    permissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing
+    required precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`
+    accepts whichever revision currently exists and therefore deliberately gives up lost-update
+    protection. Comma-separated strong validators are also accepted. Representation suffixes such
+    as `"7-json"`, `"7-yaml"`, and `"7-resource-record"` identify different bytes of the same
+    stored revision and are valid write preconditions.
   title: CEDAR Resource Server API
-  version: 2.9.3
+  version: 2.9.4
 paths:
   /categories:
     get:
@@ -60,6 +69,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Category"
           description: A category
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -68,6 +81,8 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "409":
+          description: A sibling category with the same name already exists
         "500":
           description: Internal server error
       security:
@@ -139,6 +154,7 @@ paths:
       description: Delete a category.
       operationId: deleteCategory
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: category_id
@@ -156,6 +172,12 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "409":
+          description: Category still has children or attached artifacts
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -180,6 +202,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Category"
           description: A category
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -199,6 +225,7 @@ paths:
       description: Update a category.
       operationId: updateCategory
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: category_id
@@ -219,6 +246,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Category"
           description: A category
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -227,6 +258,12 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "409":
+          description: A sibling category already has the requested name
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -248,6 +285,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -268,6 +309,7 @@ paths:
       description: Update permissions of a category.
       operationId: updateCategoryPermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: category_id
@@ -277,6 +319,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -285,6 +331,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -578,11 +628,20 @@ paths:
       description: "Regenerate rules index. This is an administrative command, you\
         \ need special permission to run it. The old index will be deleted and replaced\
         \ by a new empty one. The recommendations will work, but will not return results,\
-        \ since the index will be empty."
+        \ since the index will be empty. The work is asynchronous, so this answers\
+        \ as soon as the job is queued rather than once it has been done: 202, the\
+        \ job's identifier, and a Location header naming where to poll it. A 200 would\
+        \ say the work had finished, which is the one thing this response cannot mean."
       operationId: generateEmptyRulesIndex
       responses:
-        "200":
-          description: Successful operation
+        "202":
+          description: The rebuild was queued
+          headers:
+            Location:
+              description: Where to poll this job's status.
+              schema:
+                type: string
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -593,6 +652,12 @@ paths:
           description: Not found
         "409":
           description: A rebuild of this index is already running
+          headers:
+            Location:
+              description: Where to poll the running job's status.
+              schema:
+                type: string
+              style: simple
         "500":
           description: Internal server error
       security:
@@ -606,11 +671,20 @@ paths:
       description: "Empty search index. This is an administrative command, you need\
         \ special permission to run it. The old index will be deleted and replaced\
         \ by a new empty one. The search will work, but will not return results, since\
-        \ the index will be empty."
+        \ the index will be empty. The work is asynchronous, so this answers as soon\
+        \ as the job is queued rather than once it has been done: 202, the job's identifier,\
+        \ and a Location header naming where to poll it. A 200 would say the work\
+        \ had finished, which is the one thing this response cannot mean."
       operationId: generateEmptySearchIndex
       responses:
-        "200":
-          description: Successful operation
+        "202":
+          description: The rebuild was queued
+          headers:
+            Location:
+              description: Where to poll this job's status.
+              schema:
+                type: string
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -621,6 +695,12 @@ paths:
           description: Not found
         "409":
           description: A rebuild of this index is already running
+          headers:
+            Location:
+              description: Where to poll the running job's status.
+              schema:
+                type: string
+              style: simple
         "500":
           description: Internal server error
       security:
@@ -684,8 +764,9 @@ paths:
   /command/index-job-status:
     get:
       description: "What became of the most recent rebuild of each index, and whether\
-        \ one is running now. A rebuild returns as soon as it starts and finishes\
-        \ in the background, so this is where its outcome is reported."
+        \ one is running now. A rebuild is queued rather than performed, so this is\
+        \ where its outcome is reported. To follow one rebuild in particular, poll\
+        \ it by the identifier its command returned."
       operationId: indexJobStatus
       responses:
         "200":
@@ -702,15 +783,58 @@ paths:
       tags:
       - Command
       - Administration
+  /command/index-job-status/{jobId}:
+    get:
+      description: "Report what became of the rebuild named by the identifier its\
+        \ command returned. Reading an index instead answers a different question:\
+        \ it says what the last job over that index did, which is the same job only\
+        \ until another command runs. Jobs are held in memory, so an identifier from\
+        \ before the last restart, or one that twenty later jobs have pushed out,\
+        \ is no longer known."
+      operationId: indexJobStatusById
+      parameters:
+      - description: "Job identifier, as returned when the rebuild was queued."
+        in: path
+        name: jobId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The job and its current state
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: No job answers to this identifier
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Status of one index rebuild job
+      tags:
+      - Command
+      - Administration
   /command/load-valuesets-ontology:
     post:
       description: "Load the OWL value sets ontology generated by the NCI caDSR CDE\
         \ injestor. Each time the ingestor runs (typically nightly) and new value\
-        \ sets ontology is created, which descibed the value sets used by caDSR CDEs."
+        \ sets ontology is created, which descibed the value sets used by caDSR CDEs.\
+        \ The work is asynchronous, so this answers as soon as the job is queued rather\
+        \ than once it has been done: 202, the job's identifier, and a Location header\
+        \ naming where to poll it. A 200 would say the work had finished, which is\
+        \ the one thing this response cannot mean."
       operationId: loadValueSetsOntology
       responses:
-        "200":
-          description: Successful operation
+        "202":
+          description: The import was queued
+          headers:
+            Location:
+              description: Where to poll this import.
+              schema:
+                type: string
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -719,6 +843,14 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "409":
+          description: An import is already running
+          headers:
+            Location:
+              description: Where to poll the running import.
+              schema:
+                type: string
+              style: simple
         "500":
           description: Internal server error
       security:
@@ -728,7 +860,9 @@ paths:
       - Command
   /command/load-valuesets-ontology-status:
     get:
-      description: Get the current status of the value sets ontology loading process.
+      description: "Get the current status of the latest value sets ontology import,\
+        \ whichever import that is. To follow one import in particular, poll it by\
+        \ the identifier its command returned."
       operationId: loadValueSetsOntologyStatus
       responses:
         "200":
@@ -748,20 +882,57 @@ paths:
       summary: Get the status of the value sets ontology loading
       tags:
       - Command
+  /command/load-valuesets-ontology-status/{jobId}:
+    get:
+      description: "Report what became of the import named by the identifier its command\
+        \ returned, rather than of whichever import ran last. Imports are held in\
+        \ memory, so an identifier from before the last restart, or one that twenty\
+        \ later imports have pushed out, is no longer known."
+      operationId: loadValueSetsOntologyStatusById
+      parameters:
+      - description: "Import identifier, as returned when the import was queued."
+        in: path
+        name: jobId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The import and its current state
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: No import answers to this identifier
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Get the status of one value sets ontology import
+      tags:
+      - Command
   /command/make-artifact-not-open:
     post:
-      description: Make artifact not open.
+      description: Remove an artifact from OpenView. Use the ETag returned by the
+        artifact's /details endpoint.
       operationId: makeArtifactNotOpen
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
             schema:
               $ref: "#/components/schemas/IdRequest"
-        description: Id of the artifact to make open
+        description: Id of the artifact to make not open
         required: true
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -770,6 +941,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -780,8 +955,11 @@ paths:
       - OpenView
   /command/make-artifact-open:
     post:
-      description: Make artifact open.
+      description: Expose an artifact through OpenView. Use the ETag returned by the
+        artifact's /details endpoint.
       operationId: makeArtifactOpen
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
@@ -792,6 +970,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -800,6 +982,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -810,18 +996,24 @@ paths:
       - OpenView
   /command/make-folder-not-open:
     post:
-      description: Make folder not open.
+      description: "Remove a folder from OpenView. Use the ETag returned by GET /folders/{id}."
       operationId: makeFolderNotOpen
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
             schema:
               $ref: "#/components/schemas/IdRequest"
-        description: Id of the folder to make open
+        description: Id of the folder to make not open
         required: true
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -830,6 +1022,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -840,8 +1036,11 @@ paths:
       - OpenView
   /command/make-folder-open:
     post:
-      description: Make folder open.
+      description: "Expose a folder through OpenView. Use the ETag returned by GET\
+        \ /folders/{id}."
       operationId: makeFolderOpen
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
@@ -852,6 +1051,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -860,6 +1063,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -870,9 +1077,13 @@ paths:
       - OpenView
   /command/move-resource-to-folder:
     post:
-      description: "Move resource to a given folder. Folders or artifacts (fields,\
-        \ elements, templates, instances) can be moved."
+      description: "Move a folder or artifact to a given folder. Send the ETag returned\
+        \ by the source resource's details endpoint (or GET /folders/{id}) in If-Match.\
+        \ A successful move advances the source resource ETag and the revisions of\
+        \ both affected parent folders."
       operationId: moveResourceToFolder
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
@@ -881,8 +1092,12 @@ paths:
         description: Parameters of the move operation
         required: true
       responses:
-        "200":
-          description: Successful operation
+        "201":
+          description: Resource moved
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -891,6 +1106,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -978,7 +1197,11 @@ paths:
         \ discards every rule in the system and recommendations stop returning results.\
         \ The force parameter is read but has no effect. Use /command/generate-empty-rules-index\
         \ if emptying the index is what you want. To repopulate the index, call the\
-        \ value recommender's /command/generate-rules/{template_id} for each template."
+        \ value recommender's /command/generate-rules/{template_id} for each template.\
+        \ The work is asynchronous, so this answers as soon as the job is queued rather\
+        \ than once it has been done: 202, the job's identifier, and a Location header\
+        \ naming where to poll it. A 200 would say the work had finished, which is\
+        \ the one thing this response cannot mean."
       operationId: regenerateRulesIndex
       requestBody:
         content:
@@ -988,8 +1211,14 @@ paths:
         description: Force or not
         required: true
       responses:
-        "200":
-          description: Successful operation
+        "202":
+          description: The rebuild was queued
+          headers:
+            Location:
+              description: Where to poll this job's status.
+              schema:
+                type: string
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1000,6 +1229,12 @@ paths:
           description: Not found
         "409":
           description: A rebuild of this index is already running
+          headers:
+            Location:
+              description: Where to poll the running job's status.
+              schema:
+                type: string
+              style: simple
         "500":
           description: Internal server error
       security:
@@ -1013,12 +1248,14 @@ paths:
     post:
       description: "Regenerate search index. This is an administrative command, you\
         \ need special permission to run it. If there is no need for reindexing, the\
-        \ task will not run. It can be forced using the force parameter. A background\
-        \ task will be started. The status of the task can be monitored in the resource\
-        \ server log files. While the reindexing runs, the old index is still used\
-        \ for searching. Once the new index is ready, the old one will be removed,\
-        \ and the new one will be used for searching. The reindexing computes permissions,\
-        \ it can run for a long time."
+        \ task will not run. It can be forced using the force parameter. While the\
+        \ reindexing runs, the old index is still used for searching. Once the new\
+        \ index is ready, the old one will be removed, and the new one will be used\
+        \ for searching. The reindexing computes permissions, it can run for a long\
+        \ time. The work is asynchronous, so this answers as soon as the job is queued\
+        \ rather than once it has been done: 202, the job's identifier, and a Location\
+        \ header naming where to poll it. A 200 would say the work had finished, which\
+        \ is the one thing this response cannot mean."
       operationId: regenerateSearchIndex
       requestBody:
         content:
@@ -1028,8 +1265,14 @@ paths:
         description: Force or not
         required: true
       responses:
-        "200":
-          description: Successful operation
+        "202":
+          description: The rebuild was queued
+          headers:
+            Location:
+              description: Where to poll this job's status.
+              schema:
+                type: string
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1040,6 +1283,12 @@ paths:
           description: Not found
         "409":
           description: A rebuild of this index is already running
+          headers:
+            Location:
+              description: Where to poll the running job's status.
+              schema:
+                type: string
+              style: simple
         "500":
           description: Internal server error
       security:
@@ -1053,6 +1302,8 @@ paths:
       description: "Change name and/or description of a resource. Folders or artifacts\
         \ (fields, elements, templates, instances) can be altered."
       operationId: renameResource
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
           '*/*':
@@ -1071,6 +1322,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1079,6 +1334,90 @@ paths:
       tags:
       - Command
       - File Operations
+  /command/reset-rules-index-job:
+    post:
+      description: "Only one rebuild or import runs at a time, and a job that never\
+        \ returns would otherwise hold its claim until the server restarted, refusing\
+        \ every later command with a conflict naming a job that is not running. A\
+        \ claim is believed for six hours; past that the status reports it as overdue\
+        \ and this command takes it back, so the next command can run. It does not\
+        \ stop the abandoned job — nothing can — so run it only once the log shows\
+        \ that job has stopped making progress. A claim within its deadline is left\
+        \ alone, and answers with a conflict."
+      operationId: resetRulesIndexJob
+      responses:
+        "200":
+          description: "The claim was reset, and the index is free"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "409":
+          description: "Nothing is running, or the running job is within its deadline"
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Take back a rules index rebuild that passed its deadline.
+      tags:
+      - Command
+      - Administration
+  /command/reset-search-index-job:
+    post:
+      description: "Only one rebuild or import runs at a time, and a job that never\
+        \ returns would otherwise hold its claim until the server restarted, refusing\
+        \ every later command with a conflict naming a job that is not running. A\
+        \ claim is believed for six hours; past that the status reports it as overdue\
+        \ and this command takes it back, so the next command can run. It does not\
+        \ stop the abandoned job — nothing can — so run it only once the log shows\
+        \ that job has stopped making progress. A claim within its deadline is left\
+        \ alone, and answers with a conflict."
+      operationId: resetSearchIndexJob
+      responses:
+        "200":
+          description: "The claim was reset, and the index is free"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "409":
+          description: "Nothing is running, or the running job is within its deadline"
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Take back a search index rebuild that passed its deadline.
+      tags:
+      - Command
+      - Administration
+  /command/reset-valuesets-import:
+    post:
+      description: "Only one rebuild or import runs at a time, and a job that never\
+        \ returns would otherwise hold its claim until the server restarted, refusing\
+        \ every later command with a conflict naming a job that is not running. A\
+        \ claim is believed for six hours; past that the status reports it as overdue\
+        \ and this command takes it back, so the next command can run. It does not\
+        \ stop the abandoned job — nothing can — so run it only once the log shows\
+        \ that job has stopped making progress. A claim within its deadline is left\
+        \ alone, and answers with a conflict."
+      operationId: resetValueSetsImport
+      responses:
+        "200":
+          description: "The claim was reset, and the import is free"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "409":
+          description: "Nothing is running, or the running import is within its deadline"
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Take back a value sets ontology import that passed its deadline.
+      tags:
+      - Command
+      - Administration
   /command/validate:
     post:
       description: "Validate CEDAR resources (i.e., templates, elements and instances)\
@@ -1146,6 +1485,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Folder"
           description: A folder
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1166,6 +1509,7 @@ paths:
       description: Delete a folder.
       operationId: deleteFolder
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -1183,6 +1527,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1207,6 +1555,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Folder"
           description: A folder
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1226,6 +1578,7 @@ paths:
       description: Update a folder.
       operationId: createOrUpdateFolder
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -1239,6 +1592,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Folder"
           description: A folder
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+          description: A folder created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1247,6 +1614,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1413,6 +1784,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1442,6 +1817,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1462,6 +1841,7 @@ paths:
       description: Update permissions of a folder.
       operationId: updateFolderPermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -1471,6 +1851,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1479,6 +1863,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1568,6 +1956,13 @@ paths:
         name: category_id
         schema:
           type: string
+      - description: Continuation from a previous answer. Only /search-deep serves
+          one; this route refuses it rather than answering the first page as though
+          the caller had never asked to carry on.
+        in: query
+        name: continuation
+        schema:
+          type: string
       responses:
         "200":
           description: Successful operation
@@ -1596,10 +1991,11 @@ paths:
   /search-deep:
     get:
       description: "Search resources using different criteria. This call can go further\
-        \ than 10.000 resources. It is not intended for everyday use. All of the parameters\
-        \ are optional, but you need to provide at least one search criteria. The\
-        \ parameters can be combined, but not all of the combinations will work. You\
-        \ can see the type of the executed search in the response body."
+        \ than 10.000 resources, by offset or, for a whole result set, by following\
+        \ the continuation each answer carries. It is not intended for everyday use.\
+        \ All of the parameters are optional, but you need to provide at least one\
+        \ search criteria. The parameters can be combined, but not all of the combinations\
+        \ will work. You can see the type of the executed search in the response body."
       operationId: searchDeep
       parameters:
       - description: Search term. It will be looked up in the artifact names
@@ -1651,7 +2047,9 @@ paths:
         schema:
           type: integer
           format: int32
-      - description: Paging offset
+      - description: "Paging offset. This call walks to the offset a page at a time,\
+          \ so a configured maximum bounds the walk; a larger offset is refused with\
+          \ a 400."
         in: query
         name: offset
         schema:
@@ -1673,6 +2071,16 @@ paths:
           returned.
         in: query
         name: category_id
+        schema:
+          type: string
+      - description: "Where to carry on from, instead of an offset. Pass 'start' for\
+          \ the first page, then the 'continuation' each answer carries until an answer\
+          \ has none, which is the end of the results. A page costs the same wherever\
+          \ it falls, so this is the way to read a whole result set. The query, filters,\
+          \ sort and user must stay as they were, and the walk reads one snapshot\
+          \ of the index, so rows created or deleted while it runs do not move it."
+        in: query
+        name: continuation
         schema:
           type: string
       responses:
@@ -1746,6 +2154,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateElement"
           description: A template element
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1763,9 +2175,13 @@ paths:
       - Template Elements
   /template-elements/{template_element_id}:
     delete:
-      description: Delete a template element.
+      description: "Conditionally delete a template element using its current ETag.\
+        \ CEDAR durably records an accepted deletion before removing content and automatically\
+        \ resumes any interrupted workspace-graph, search-index, or value-recommender\
+        \ cleanup."
       operationId: deleteTemplateElement
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Element identifier.
         in: path
         name: template_element_id
@@ -1773,8 +2189,10 @@ paths:
         schema:
           type: string
       responses:
+        "202":
+          description: Content deleted; durable downstream cleanup is pending
         "204":
-          description: Successful operation (no content)
+          description: Deletion completed across content and downstream stores
         "400":
           description: Bad request
         "401":
@@ -1783,6 +2201,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1819,6 +2241,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateElement"
           description: A template element
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1840,6 +2266,7 @@ paths:
         \ the compact form is a lossy read-time convenience and is rejected."
       operationId: updateTemplateElement
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: Template Element identifier.
         in: path
         name: template_element_id
@@ -1890,6 +2317,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateElement"
           description: A template element
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateElement"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateElement"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateElement"
+          description: A template element created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1898,6 +2345,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -1919,6 +2370,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -1936,6 +2391,47 @@ paths:
       - Template Elements
       - Resource Details
   /template-elements/{template_element_id}/download:
+    get:
+      description: "Download a template element as JSON or YAML, selected via the\
+        \ Accept header. This reads and returns the template element and changes nothing,\
+        \ which is what GET is for; the POST on the same path does the same thing\
+        \ and remains for existing callers."
+      operationId: getTemplateElementDownload
+      parameters:
+      - description: Template Element identifier.
+        in: path
+        name: template_element_id
+        required: true
+        schema:
+          type: string
+      - description: "Desired output format: 'application/json' or 'application/yaml'."
+        in: header
+        name: Accept
+        schema:
+          type: string
+      - description: "When downloading YAML, produce a compact representation."
+        in: query
+        name: compact
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The template element content as an attachment
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Download a template element
+      tags:
+      - Template Elements
     post:
       description: "Download a template element as JSON or YAML, selected via the\
         \ Accept header."
@@ -1989,6 +2485,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2009,6 +2509,7 @@ paths:
       description: Update permissions of a template element.
       operationId: updateTemplateElementPermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Element identifier.
         in: path
         name: template_element_id
@@ -2018,6 +2519,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2026,6 +2531,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2142,6 +2651,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateField"
           description: A template field
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2159,9 +2672,13 @@ paths:
       - Template Fields
   /template-fields/{template_field_id}:
     delete:
-      description: Delete a template field.
+      description: "Conditionally delete a template field using its current ETag.\
+        \ CEDAR durably records an accepted deletion before removing content and automatically\
+        \ resumes any interrupted workspace-graph, search-index, or value-recommender\
+        \ cleanup."
       operationId: deleteTemplateField
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Field identifier.
         in: path
         name: template_field_id
@@ -2169,8 +2686,10 @@ paths:
         schema:
           type: string
       responses:
+        "202":
+          description: Content deleted; durable downstream cleanup is pending
         "204":
-          description: Successful operation (no content)
+          description: Deletion completed across content and downstream stores
         "400":
           description: Bad request
         "401":
@@ -2179,6 +2698,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2215,6 +2738,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateField"
           description: A template field
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2236,6 +2763,7 @@ paths:
         \ the compact form is a lossy read-time convenience and is rejected."
       operationId: updateTemplateField
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: Template Field identifier.
         in: path
         name: template_field_id
@@ -2286,6 +2814,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateField"
           description: A template field
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateField"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateField"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateField"
+          description: A template field created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2294,6 +2842,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2315,6 +2867,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2332,6 +2888,47 @@ paths:
       - Template Fields
       - Resource Details
   /template-fields/{template_field_id}/download:
+    get:
+      description: "Download a template field as JSON or YAML, selected via the Accept\
+        \ header. This reads and returns the template field and changes nothing, which\
+        \ is what GET is for; the POST on the same path does the same thing and remains\
+        \ for existing callers."
+      operationId: getTemplateFieldDownload
+      parameters:
+      - description: Template Field identifier.
+        in: path
+        name: template_field_id
+        required: true
+        schema:
+          type: string
+      - description: "Desired output format: 'application/json' or 'application/yaml'."
+        in: header
+        name: Accept
+        schema:
+          type: string
+      - description: "When downloading YAML, produce a compact representation."
+        in: query
+        name: compact
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The template field content as an attachment
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Download a template field
+      tags:
+      - Template Fields
     post:
       description: "Download a template field as JSON or YAML, selected via the Accept\
         \ header."
@@ -2385,6 +2982,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2405,6 +3006,7 @@ paths:
       description: Update permissions of a template field.
       operationId: updateTemplateFieldPermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Field identifier.
         in: path
         name: template_field_id
@@ -2414,6 +3016,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2422,6 +3028,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2538,6 +3148,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateInstance"
           description: A template instance
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2555,9 +3169,13 @@ paths:
       - Template Instances
   /template-instances/{template_instance_id}:
     delete:
-      description: Delete a template instance.
+      description: "Conditionally delete a template instance using its current ETag.\
+        \ CEDAR durably records an accepted deletion before removing content and automatically\
+        \ resumes any interrupted workspace-graph, search-index, or value-recommender\
+        \ cleanup."
       operationId: deleteTemplateInstance
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Instance identifier.
         in: path
         name: template_instance_id
@@ -2565,8 +3183,10 @@ paths:
         schema:
           type: string
       responses:
+        "202":
+          description: Content deleted; durable downstream cleanup is pending
         "204":
-          description: Successful operation (no content)
+          description: Deletion completed across content and downstream stores
         "400":
           description: Bad request
         "401":
@@ -2575,6 +3195,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2617,6 +3241,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateInstance"
           description: A template instance
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2638,6 +3266,7 @@ paths:
         \ the compact form is a lossy read-time convenience and is rejected."
       operationId: updateTemplateInstance
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: Template Instance identifier.
         in: path
         name: template_instance_id
@@ -2688,6 +3317,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateInstance"
           description: A template instance
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateInstance"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateInstance"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/TemplateInstance"
+          description: A template instance created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2696,6 +3345,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2717,6 +3370,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2734,6 +3391,47 @@ paths:
       - Template Instances
       - Resource Details
   /template-instances/{template_instance_id}/download:
+    get:
+      description: "Download a template instance as JSON or YAML, selected via the\
+        \ Accept header. This reads and returns the template instance and changes\
+        \ nothing, which is what GET is for; the POST on the same path does the same\
+        \ thing and remains for existing callers."
+      operationId: getTemplateInstanceDownload
+      parameters:
+      - description: Template Instance identifier.
+        in: path
+        name: template_instance_id
+        required: true
+        schema:
+          type: string
+      - description: "Desired output format: 'application/json' or 'application/yaml'."
+        in: header
+        name: Accept
+        schema:
+          type: string
+      - description: "When downloading YAML, produce a compact representation."
+        in: query
+        name: compact
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The template instance content as an attachment
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Download a template instance
+      tags:
+      - Template Instances
     post:
       description: "Download a template instance as JSON or YAML, selected via the\
         \ Accept header."
@@ -2787,6 +3485,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2807,6 +3509,7 @@ paths:
       description: Update permissions of a template instance.
       operationId: updateTemplateInstancePermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template Instance identifier.
         in: path
         name: template_instance_id
@@ -2816,6 +3519,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2824,6 +3531,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -2908,6 +3619,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Template"
           description: A template
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -2960,9 +3675,13 @@ paths:
       - Recommendations
   /templates/{template_id}:
     delete:
-      description: Delete a template.
+      description: "Conditionally delete a template using its current ETag. CEDAR\
+        \ durably records an accepted deletion before removing content and automatically\
+        \ resumes any interrupted workspace-graph, search-index, or value-recommender\
+        \ cleanup."
       operationId: deleteTemplate
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template identifier.
         in: path
         name: template_id
@@ -2970,8 +3689,10 @@ paths:
         schema:
           type: string
       responses:
+        "202":
+          description: Content deleted; durable downstream cleanup is pending
         "204":
-          description: Successful operation (no content)
+          description: Deletion completed across content and downstream stores
         "400":
           description: Bad request
         "401":
@@ -2980,6 +3701,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -3015,6 +3740,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Template"
           description: A template
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3036,6 +3765,7 @@ paths:
         \ compact form is a lossy read-time convenience and is rejected."
       operationId: updateTemplate
       parameters:
+      - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
       - description: Template identifier.
         in: path
         name: template_id
@@ -3086,6 +3816,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Template"
           description: A template
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/Template"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/Template"
+          description: A template created with the supplied identifier
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3094,6 +3844,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -3115,6 +3869,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3132,6 +3890,47 @@ paths:
       - Templates
       - Resource Details
   /templates/{template_id}/download:
+    get:
+      description: "Download a template as JSON or YAML, selected via the Accept header.\
+        \ This reads and returns the template and changes nothing, which is what GET\
+        \ is for; the POST on the same path does the same thing and remains for existing\
+        \ callers."
+      operationId: getTemplateDownload
+      parameters:
+      - description: Template identifier.
+        in: path
+        name: template_id
+        required: true
+        schema:
+          type: string
+      - description: "Desired output format: 'application/json' or 'application/yaml'."
+        in: header
+        name: Accept
+        schema:
+          type: string
+      - description: "When downloading YAML, produce a compact representation."
+        in: query
+        name: compact
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The template content as an attachment
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Download a template
+      tags:
+      - Templates
     post:
       description: "Download a template as JSON or YAML, selected via the Accept header."
       operationId: downloadTemplate
@@ -3184,6 +3983,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3204,6 +4007,7 @@ paths:
       description: Update permissions of a template.
       operationId: updateTemplatePermissions
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template identifier.
         in: path
         name: template_id
@@ -3213,6 +4017,10 @@ paths:
       responses:
         "200":
           description: Successful operation
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
         "400":
           description: Bad request
         "401":
@@ -3221,6 +4029,10 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
         "500":
           description: Internal server error
       security:
@@ -3318,6 +4130,44 @@ paths:
       tags:
       - Users
 components:
+  headers:
+    ETag:
+      description: Strong validator for the returned representation and its stored
+        revision.
+      example: '"7"'
+      schema:
+        type: string
+  parameters:
+    IfMatch:
+      description: |
+        Strong ETag returned by the corresponding GET. `*` accepts any current revision; a
+        comma-separated list succeeds when any supplied strong validator names the current stored
+        revision. Weak, stale, and malformed validators fail with 412.
+      example: '"7"'
+      in: header
+      name: If-Match
+      required: true
+      schema:
+        type: string
+    IfMatchForCreateOrReplace:
+      description: |
+        Required when the identifier already exists and the PUT replaces it; omit it when creating
+        a resource with a new client-supplied identifier. If supplied for an absent resource, the
+        request fails with 412 rather than creating it. Use the strong ETag returned by GET. `*`
+        accepts any current revision that still exists and deliberately gives up lost-update protection.
+      example: '"7"'
+      in: header
+      name: If-Match
+      required: false
+      schema:
+        type: string
+  responses:
+    PreconditionFailed:
+      description: |
+        The supplied If-Match value is stale, weak, or malformed. When a current revision exists,
+        the error body's `parameters.currentETag` identifies it.
+    PreconditionRequired:
+      description: This operation requires the current resource ETag in If-Match.
   schemas:
     Category:
       type: object

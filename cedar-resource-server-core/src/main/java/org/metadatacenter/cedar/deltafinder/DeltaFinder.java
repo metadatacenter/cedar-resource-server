@@ -27,16 +27,7 @@ public class DeltaFinder {
                               List<String> newOrder,
                               Delta delta) {
 
-    Set<String> oldKeys = new HashSet<>();
-    oldKeys.addAll(oldFields.keySet());
-    oldKeys.addAll(oldElements.keySet());
-
-    Set<String> newKeys = new HashSet<>();
-    newKeys.addAll(newFields.keySet());
-    newKeys.addAll(newElements.keySet());
-
     // Step 1: Detect Renames
-    Map<String, String> renamedFields = new HashMap<>();
     Set<String> matchedOldKeys = new HashSet<>();
     Set<String> matchedNewKeys = new HashSet<>();
 
@@ -55,7 +46,6 @@ public class DeltaFinder {
             Objects.equals(oldField.fieldUi(), newField.fieldUi()) &&
             areValueConstraintsEqual(oldField, newField)) {
 
-          renamedFields.put(oldKey, newKey);
           matchedOldKeys.add(oldKey);
           matchedNewKeys.add(newKey);
           delta.addNonDestructiveChange(new Rename(oldKey, newKey));
@@ -79,7 +69,6 @@ public class DeltaFinder {
             Objects.equals(oldElement.elementSchemas(), newElement.elementSchemas()) &&
             Objects.equals(oldElement.getUi(), newElement.getUi())) {
 
-          renamedFields.put(oldKey, newKey);
           matchedOldKeys.add(oldKey);
           matchedNewKeys.add(newKey);
           delta.addNonDestructiveChange(new Rename(oldKey, newKey));
@@ -126,15 +115,15 @@ public class DeltaFinder {
       FieldSchemaArtifact oldField = oldFields.get(key);
       FieldSchemaArtifact newField = newFields.get(key);
 
-      String oldType = oldField.getClass().getSimpleName();
-      String newType = newField.getClass().getSimpleName();
+      // The model's own input type, not the implementing class. getSimpleName() reported the
+      // package-private record behind the interface — "TextFieldRecord" for a field the model, the
+      // JSON and every other surface call "textfield" — so the delta named a type no caller could
+      // look up and that changes whenever the implementation is renamed.
+      String oldType = oldField.fieldUi().inputType().getText();
+      String newType = newField.fieldUi().inputType().getText();
+      // Any change of field type is destructive: the stored values were written against the old type.
       if (!oldType.equals(newType)) {
-        boolean destructive = isDestructiveTypeChange(oldType, newType);
-        if (destructive) {
-          delta.addDestructiveChange(new TypeChange(key, oldType, newType, true));
-        } else {
-          delta.addNonDestructiveChange(new TypeChange(key, oldType, newType, false));
-        }
+        delta.addDestructiveChange(new TypeChange(key, oldType, newType, true));
       }
 
       detectValueConstraintsChange(oldField, newField, key, delta);
@@ -169,12 +158,14 @@ public class DeltaFinder {
       }
     }
 
-    if (!filteredOldOrder.equals(filteredNewOrder)) {
-      // If all changes are renames and no unmatched fields exist, suppress OrderChange
-      if (!matchedOldKeys.isEmpty() && filteredOldOrder.size() == filteredNewOrder.size() && matchedOldKeys.size() == filteredOldOrder.size()) {
-        // All fields were renamed — order change is redundant
-        // No action needed
-      } else if (isSpecialRename(oldFields, newFields, oldOrder, newOrder)) {
+    // Every position the order lost or gained is explained by a rename already reported, so an
+    // order change on top of it would say the same thing twice.
+    boolean orderExplainedByRenames = !matchedOldKeys.isEmpty()
+        && filteredOldOrder.size() == filteredNewOrder.size()
+        && matchedOldKeys.size() == filteredOldOrder.size();
+
+    if (!filteredOldOrder.equals(filteredNewOrder) && !orderExplainedByRenames) {
+      if (isSpecialRename(oldFields, newFields, oldOrder, newOrder)) {
         String[] rename = detectFieldRename(oldFields, newFields);
         delta.addNonDestructiveChange(new SpecialRename(rename[0], rename[1]));
       } else {
@@ -184,17 +175,6 @@ public class DeltaFinder {
 
   }
 
-
-  private boolean isDestructiveTypeChange(String oldType, String newType) {
-    if (oldType.equals(newType)) {
-      return false;
-    }
-    return true;
-  }
-
-  private boolean isDestructiveConstraintChange(String oldC, String newC) {
-    return oldC.length() < newC.length();
-  }
 
   private boolean isSpecialRename(Map<String, FieldSchemaArtifact> oldFields,
                                   Map<String, FieldSchemaArtifact> newFields,

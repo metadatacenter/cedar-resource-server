@@ -4,6 +4,7 @@ import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -61,7 +62,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       + "compact form is a lossy read-time convenience and is rejected.")
   @RequestBody(description = "The template field to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateField.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A template field", content = @Content(schema = @Schema(implementation = TemplateField.class))),
+      @ApiResponse(responseCode = "201", description = "A template field", content = @Content(schema = @Schema(implementation = TemplateField.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -91,7 +93,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @Operation(summary = "Get a template field", description = "Get a template field as JSON or YAML, selected via the "
       + "Accept header.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A template field", content = @Content(schema = @Schema(implementation = TemplateField.class))),
+      @ApiResponse(responseCode = "200", description = "A template field", content = @Content(schema = @Schema(implementation = TemplateField.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -113,6 +116,30 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     return executeArtifactGetNegotiated(c, CedarResourceType.FIELD, fid, compactParam);
   }
 
+
+  @GET
+  @Timed
+  @Path("/{template_field_id}/download")
+  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @Operation(summary = "Download a template field", description = "Download a template field as JSON or YAML, selected via the Accept "
+      + "header. This reads and returns the template field and changes nothing, which is what GET is for; the POST on "
+      + "the same path does the same thing and remains for existing callers.")
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "The template field content as an attachment"),
+      @ApiResponse(responseCode = "400", description = "Bad request"),
+      @ApiResponse(responseCode = "401", description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", description = "Forbidden"),
+      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error")
+  })
+  public Response getTemplateFieldDownload(
+      @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id,
+      @Parameter(description = "Desired output format: 'application/json' or 'application/yaml'.")
+      @HeaderParam("Accept") String acceptHeader,
+      @Parameter(description = "When downloading YAML, produce a compact representation.")
+      @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
+    return downloadTemplateField(id, acceptHeader, compactParam);
+  }
 
   @POST
   @Timed
@@ -192,7 +219,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @Path("/{template_field_id}/details")
   @Operation(summary = "Get details of a template field", description = "Get details of a template field.", tags = {"Template Fields", "Resource Details"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -216,14 +244,21 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Update a template field", description = "Update a template field. The body can be JSON or YAML, "
       + "selected via the Content-Type header. A YAML body must be the full or minimal form: the "
-      + "compact form is a lossy read-time convenience and is rejected.")
+      + "compact form is a lossy read-time convenience and is rejected.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatchForCreateOrReplace"))
   @RequestBody(description = "The template field to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateField.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A template field", content = @Content(schema = @Schema(implementation = TemplateField.class))),
+      @ApiResponse(responseCode = "200", description = "A template field", content = @Content(schema = @Schema(implementation = TemplateField.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "201", description = "A template field created with the supplied identifier",
+          content = @Content(schema = @Schema(implementation = TemplateField.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateTemplateField(
@@ -252,13 +287,19 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{template_field_id}")
-  @Operation(summary = "Delete a template field", description = "Delete a template field.")
+  @Operation(summary = "Delete a template field", description = "Conditionally delete a template field using its current ETag. "
+      + "CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted "
+      + "workspace-graph, search-index, or value-recommender cleanup.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
+      @ApiResponse(responseCode = "202", description = "Content deleted; durable downstream cleanup is pending"),
+      @ApiResponse(responseCode = "204", description = "Deletion completed across content and downstream stores"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response deleteTemplateField(
@@ -276,7 +317,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @Path("/{template_field_id}/permissions")
   @Operation(summary = "Get permissions of a template field", description = "Get permissions of a template field.", tags = {"Template Fields", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -296,13 +338,17 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{template_field_id}/permissions")
-  @Operation(summary = "Update permissions of a template field", description = "Update permissions of a template field.", tags = {"Template Fields", "Permissions"})
+  @Operation(summary = "Update permissions of a template field", description = "Update permissions of a template field.", tags = {"Template Fields", "Permissions"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateTemplateFieldPermissions(

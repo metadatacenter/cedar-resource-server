@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.cedar.resource.resources.swaggermodel.Folder;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.LinkedData;
@@ -26,13 +28,18 @@ import org.metadatacenter.operation.CedarOperations;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.ResourcePermissionServiceSession;
+import org.metadatacenter.server.RevisionConflictException;
+import org.metadatacenter.server.VersionedResource;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
+import org.metadatacenter.util.http.RevisionPreconditionParser;
 
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 
@@ -53,7 +60,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Operation(summary = "Create a folder", description = "Create a folder.")
   @RequestBody(description = "The folder to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Folder.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class))),
+      @ApiResponse(responseCode = "201", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -71,7 +79,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}")
   @Operation(summary = "Get a folder", description = "Get a folder.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class))),
+      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -88,9 +97,18 @@ public class FoldersResource extends AbstractResourceServerResource {
     CedarFolderId fid = CedarFolderId.build(id);
 
     userMustHaveReadAccessToFolder(c, fid);
-    FolderServerFolderCurrentUserReport folderServerFolder = getFolderReport(c, fid);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+    VersionedResource<FolderServerFolder> snapshot = folderSession.findVersionedFolderById(fid);
+    if (snapshot == null) {
+      return CedarResponse.notFound().id(id).errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+          .errorMessage("The folder can not be found by id").build();
+    }
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
+    FolderServerFolderCurrentUserReport folderServerFolder = GraphDbPermissionReader.getFolderCurrentUserReport(
+        c, folderSession, permissionSession, snapshot.resource());
     ProvenanceNameUtil.addProvenanceDisplayName(folderServerFolder);
-    return Response.ok().entity(folderServerFolder).build();
+    return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(snapshot.revision()))
+        .entity(folderServerFolder).build();
   }
 
   @GET
@@ -98,7 +116,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}/details")
   @Operation(summary = "Get the details of a folder", description = "Get the details of a folder.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -115,13 +134,20 @@ public class FoldersResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{folder_id}")
-  @Operation(summary = "Update a folder", description = "Update a folder.")
+  @Operation(summary = "Update a folder", description = "Update a folder.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatchForCreateOrReplace"))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class))),
+      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "201", description = "A folder created with the supplied identifier",
+          content = @Content(schema = @Schema(implementation = Folder.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response createOrUpdateFolder(
@@ -140,6 +166,12 @@ public class FoldersResource extends AbstractResourceServerResource {
     if (folder != null) {
       return updateFolderNameAndDescriptionInGraphDb(c, folderId);
     } else {
+      if (c.getIfMatchHeader() != null && !c.getIfMatchHeader().isBlank()) {
+        return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_FAILED)
+            .id(folderId)
+            .errorMessage("The folder no longer exists")
+            .build();
+      }
       CedarParameter atIdParameter = c.request().getRequestBody().get(LinkedData.ID);
       if (atIdParameter.isEmpty()) {
         return CedarResponse.badRequest()
@@ -164,13 +196,16 @@ public class FoldersResource extends AbstractResourceServerResource {
   @DELETE
   @Timed
   @Path("/{folder_id}")
-  @Operation(summary = "Delete a folder", description = "Delete a folder.")
+  @Operation(summary = "Delete a folder", description = "Delete a folder.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
       @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response deleteFolder(
@@ -217,17 +252,36 @@ public class FoldersResource extends AbstractResourceServerResource {
             .errorMessage("System folders can not be deleted")
             .build();
       } else {
-        boolean deleted = folderSession.deleteFolderById(fid);
+        String ifMatch = c.getIfMatchHeader();
+        if (ifMatch == null || ifMatch.isBlank()) {
+          return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_REQUIRED)
+              .errorMessage("Deleting a folder requires the ETag returned by GET in If-Match")
+              .build();
+        }
+        boolean deleted;
+        try {
+          deleted = folderSession.deleteFolderById(fid, RevisionPreconditionParser.parse(ifMatch));
+        } catch (RevisionConflictException e) {
+          return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_FAILED)
+              .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+              .errorMessage("The folder has been updated since it was read")
+              .build();
+        }
         if (deleted) {
           removeIndexDocument(CedarUntypedFilesystemResourceId.build(id));
           return CedarResponse.noContent().build();
-        } else {
-          return CedarResponse.internalServerError()
-              .id(id)
-              .errorKey(CedarErrorKey.FOLDER_NOT_DELETED)
-              .errorMessage("The folder can not be delete by id")
+        }
+        if (folderSession.findFolderById(fid) == null) {
+          return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_FAILED)
+              .errorMessage("The folder was deleted before this deletion could be applied")
               .build();
         }
+        return CedarResponse.badRequest()
+            .id(id)
+            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
+            .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_FOLDER)
+            .errorMessage("The folder became non-empty before it could be deleted")
+            .build();
       }
     }
   }
@@ -237,7 +291,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}/permissions")
   @Operation(summary = "Get permissions of a folder", description = "Get permissions of a folder.", tags = {"Folders", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -259,13 +314,17 @@ public class FoldersResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{folder_id}/permissions")
-  @Operation(summary = "Update permissions of a folder", description = "Update permissions of a folder.", tags = {"Folders", "Permissions"})
+  @Operation(summary = "Update permissions of a folder", description = "Update permissions of a folder.", tags = {"Folders", "Permissions"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateFolderPermissions(
@@ -383,7 +442,11 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServerFolder brandNewFolder = new FolderServerFolder();
     brandNewFolder.setName(nameV);
     brandNewFolder.setDescription(descriptionV);
-    newFolder = folderSession.createFolderAsChildOfId(brandNewFolder, parentFolder.getResourceId(), newFolderId);
+    try {
+      newFolder = folderSession.createFolderAsChildOfId(brandNewFolder, parentFolder.getResourceId(), newFolderId);
+    } catch (org.metadatacenter.server.SiblingNameConflictException e) {
+      return siblingNameConflictResponse(nameV);
+    }
 
     if (newFolder == null) {
       return CedarResponse.badRequest()
@@ -398,6 +461,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
     URI uri = builder.path(CedarUrlUtil.urlEncode(newFolder.getId())).build();
     createIndexFolder(newFolder, c);
-    return Response.created(uri).entity(newFolder).build();
+    return Response.created(uri).header(HttpHeaders.ETAG, RevisionPreconditionParser.format(1L))
+        .entity(newFolder).build();
   }
 }

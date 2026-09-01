@@ -71,11 +71,11 @@ public class ArtifactPermissionLevelMatrixTest {
 
   static {
     // Must run before the test support boots the server, which reads the Neo4j env vars. Ports are
-    // distinct from the dev server and from every other booting test class in this module.
+    // assigned by the OS, so they cannot collide with the dev server or another test in this module.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19057",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19157",
-        "CEDAR_RESOURCE_STOP_PORT", "19257",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 
@@ -166,6 +166,7 @@ public class ArtifactPermissionLevelMatrixTest {
     // an anonymous caller is refused with 401 by the authentication layer.
     for (Fixture f : resharable) {
       matrix.when("PUT", f.path() + "/permissions", resharePermissionsBody())
+          .header("If-Match", "*")
           .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
     }
 
@@ -199,6 +200,7 @@ public class ArtifactPermissionLevelMatrixTest {
     // Each re-share row gets its own fixture, because this one succeeds and rewrites the ACL.
     for (Fixture f : resharable) {
       matrix.when("PUT", f.path() + "/permissions", resharePermissionsBody())
+          .header("If-Match", "*")
           .expect(ANONYMOUS, 401).expect(OTHER_USER, 200);
     }
 

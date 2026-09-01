@@ -61,9 +61,9 @@ public class CommandVersionResourceTest {
 
   static {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19027",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19127",
-        "CEDAR_RESOURCE_STOP_PORT", "19227",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(ARTIFACT_PORT),
@@ -436,15 +436,20 @@ public class CommandVersionResourceTest {
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
             + URLEncoder.encode(deleteRetryTemplateId.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authHeader)
+        .header("If-Match", "*")
         .DELETE()
         .build();
 
     HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
-    Assertions.assertEquals(204, response.statusCode(), response.body());
+    Assertions.assertEquals(202, response.statusCode(),
+        "the graph delete should finish while the unavailable value-recommender queue remains durably pending");
     Assertions.assertNull(folderSession.findArtifactById(deleteRetryTemplateId),
         "the resumed delete left the stale graph node behind");
-    Assertions.assertEquals(1, DELETE_RETRY_ARTIFACT_CALLS.get());
+    Assertions.assertTrue(AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount() > 0,
+        "the unavailable projection queue should leave a durable completion job");
+    Assertions.assertEquals(0, DELETE_RETRY_ARTIFACT_CALLS.get(),
+        "a preflight 404 should skip the redundant artifact DELETE");
   }
 
   /** A draft artifact whose graph node cannot be created must be discarded without demoting its source. */
@@ -612,8 +617,10 @@ public class CommandVersionResourceTest {
       exchange.close();
       return;
     }
-    if (retryingDelete && "DELETE".equals(exchange.getRequestMethod())) {
-      DELETE_RETRY_ARTIFACT_CALLS.incrementAndGet();
+    if (retryingDelete) {
+      if ("DELETE".equals(exchange.getRequestMethod())) {
+        DELETE_RETRY_ARTIFACT_CALLS.incrementAndGet();
+      }
       exchange.sendResponseHeaders(404, -1);
       exchange.close();
       return;

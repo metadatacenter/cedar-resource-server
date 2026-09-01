@@ -11,7 +11,9 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
-import org.metadatacenter.cedar.artifact.ArtifactServerUtil;
+import org.metadatacenter.cedar.resource.artifact.ArtifactServerUtil;
+import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
+import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionJob;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
@@ -60,6 +62,7 @@ import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,7 +87,7 @@ import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_DESCRIPTION;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
-public class AbstractResourceServerResource extends CedarMicroserviceResource {
+public abstract class AbstractResourceServerResource extends CedarMicroserviceResource {
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
 
@@ -92,20 +95,23 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected static NodeSearchingService nodeSearchingService;
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
   protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
+  protected static ArtifactDeletionCompletionService artifactDeletionCompletionService;
 
-  // The workspace/graph services, received as a field rather than reached as a global from each
-  // method. The one-argument constructor supplies the single managed instance from the sanctioned
-  // composition-root accessor; the two-argument constructor lets a test inject a specific one. Every
-  // subclass keeps calling super(cedarConfig) unchanged.
-  protected final CedarDataServices dataServices;
-
-  protected AbstractResourceServerResource(CedarConfig cedarConfig) {
-    this(cedarConfig, CedarDataServices.getInstance());
+  protected Response siblingNameConflictResponse(String name) {
+    return CedarResponse.conflict()
+        .errorKey(CedarErrorKey.UNIQUE_CONSTRAINT_COLLISION)
+        .errorMessage("A sibling with the same name already exists")
+        .parameter("name", name)
+        .build();
   }
 
-  protected AbstractResourceServerResource(CedarConfig cedarConfig, CedarDataServices dataServices) {
+
+  public AbstractResourceServerResource(CedarConfig cedarConfig) {
     super(cedarConfig);
-    this.dataServices = dataServices;
+  }
+
+  public AbstractResourceServerResource(CedarConfig cedarConfig, CedarDataServices dataServices) {
+    super(cedarConfig, dataServices);
   }
 
   public static void injectServices(NodeIndexingService nodeIndexingService,
@@ -116,6 +122,11 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     AbstractResourceServerResource.nodeSearchingService = nodeSearchingService;
     AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
     AbstractResourceServerResource.valuerecommenderReindexQueueService = valuerecommenderReindexQueueService;
+  }
+
+  public static void injectArtifactDeletionCompletionService(
+      ArtifactDeletionCompletionService deletionCompletionService) {
+    AbstractResourceServerResource.artifactDeletionCompletionService = deletionCompletionService;
   }
 
   protected static <T extends FileSystemResource> T deserializeResource(ClassicHttpResponse proxyResponse, Class<T> klazz) throws CedarProcessingException {
@@ -356,7 +367,7 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
                                                   CedarArtifactId artifactId) {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
-      ClassicHttpResponse discardResponse = ProxyUtil.proxyDelete(url, context);
+      ClassicHttpResponse discardResponse = ProxyUtil.proxyDelete(url, context, "\"1\"");
       int status = discardResponse.getCode();
       if (status != HttpStatus.SC_NO_CONTENT && status != HttpStatus.SC_OK && status != HttpStatus.SC_NOT_FOUND) {
         log.error("Refused create left {} on the artifact server: discard answered {}", artifactId, status);
@@ -418,12 +429,19 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       return generateStatusResponse(proxyResponse);
     }
-    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
     try {
       String artifactSource = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
       JsonNode artifactNode = JsonMapper.MAPPER.readTree(artifactSource);
-      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compact.isPresent() && compact.get());
+      boolean compactRepresentation = compact.isPresent() && compact.get();
+      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compactRepresentation);
+      String canonicalEtag = headerValue(proxyResponse, HttpHeaders.ETAG);
+      String yamlEtag = representationEtag(canonicalEtag,
+          compactRepresentation ? "yaml-compact" : "yaml");
+      response.setHeader(HttpHeaders.ETAG, yamlEtag);
+      response.setHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT);
       return CedarResponse.ok()
+          .header(HttpHeaders.ETAG, yamlEtag)
+          .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
           .type(responseType.get().toString())
           .entity(yamlContent)
           .build();
@@ -509,8 +527,38 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * entity is not artifact JSON (errors, graph metadata) are returned unchanged.
    */
   protected Response negotiateArtifactResponse(Response jsonResponse, CedarResourceType resourceType) {
-    return ArtifactYamlTranscoder.negotiatedArtifactResponse(
+    Response negotiated = ArtifactYamlTranscoder.negotiatedArtifactResponse(
         jsonResponse, resourceType, negotiatedArtifactResponseType());
+    Response.ResponseBuilder responseBuilder = Response.fromResponse(negotiated)
+        .header(HttpHeaders.VARY, HttpHeaders.ACCEPT);
+    response.setHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT);
+    if (Response.Status.Family.familyOf(negotiated.getStatus()) == Response.Status.Family.SUCCESSFUL) {
+      String representation = null;
+      if (ArtifactYamlTranscoder.isYaml(negotiated.getMediaType())) {
+        representation = "yaml";
+      } else if (!(jsonResponse.getEntity() instanceof JsonNode)) {
+        // Resource-server writes return the graph record, not the stored artifact bytes served by
+        // GET. Keep its validator distinct while retaining the artifact revision for If-Match.
+        representation = "resource-record";
+      }
+      if (representation != null) {
+        String representationEtag = representationEtag(response.getHeader(HttpHeaders.ETAG), representation);
+        response.setHeader(HttpHeaders.ETAG, representationEtag);
+        responseBuilder.header(HttpHeaders.ETAG, null).header(HttpHeaders.ETAG, representationEtag);
+      }
+    }
+    return responseBuilder.build();
+  }
+
+  private String representationEtag(String currentEtag, String representation) {
+    if (currentEtag == null) {
+      return null;
+    }
+    RevisionPrecondition currentRevision = RevisionPreconditionParser.parse(currentEtag);
+    if (currentRevision.revisions().size() == 1) {
+      return RevisionPreconditionParser.format(currentRevision.revisions().iterator().next(), representation);
+    }
+    return currentEtag;
   }
 
   /**
@@ -546,10 +594,17 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     userMustHaveReadAccessToArtifact(context, id);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-    FolderServerArtifact resource = folderSession.findArtifactById(id);
+    VersionedResource<FolderServerArtifact> snapshot = folderSession.findVersionedArtifactById(id);
+    if (snapshot == null) {
+      return CedarResponse.notFound().id(id).errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+          .errorMessage("The artifact details can not be found by id").build();
+    }
+    FolderServerArtifact resource = snapshot.resource();
 
     ProvenanceNameUtil.addProvenanceDisplayName(resource);
-    return CedarResponse.ok().entity(resource).build();
+    return CedarResponse.ok()
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(snapshot.revision()))
+        .entity(resource).build();
   }
 
   protected Response executeResourceCreateOrUpdateViaPut(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<String> folderId) throws CedarException {
@@ -585,6 +640,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           expectedEtag);
     } else {
       context.must(context.user()).have(CedarPermission.getCreateForArtifactType(resourceType));
+      if (expectedEtag != null && !expectedEtag.isBlank()) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+            .id(id)
+            .errorKey(CedarErrorKey.ARTIFACT_HAS_MOVED_ON)
+            .errorMessage("The artifact no longer exists")
+            .build();
+      }
       // A verbatim write replaces a document this server already holds. Routing it to creation instead
       // would answer 201 to a request that asserted the artifact exists, so a mistyped identifier would
       // leave a copy under an identifier nothing refers to.
@@ -752,11 +814,15 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     }
   }
 
-  private record ArtifactPreImage(String content, String etag) {
+  protected record ArtifactPreImage(String content, String etag) {
   }
 
-  private static String headerValue(ClassicHttpResponse response, String name) {
-    return response.getFirstHeader(name) == null ? null : response.getFirstHeader(name).getValue();
+  protected static String headerValue(ClassicHttpResponse response, String name) {
+    return Arrays.stream(response.getHeaders())
+        .filter(header -> name.equalsIgnoreCase(header.getName()))
+        .map(header -> header.getValue())
+        .findFirst()
+        .orElse(null);
   }
 
   /**
@@ -767,9 +833,9 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
    * their newer content is preserved. Like create cleanup, this is best effort: the original graph
    * failure remains the response, while any inability to restore is recorded with the artifact id.
    */
-  private void restoreArtifactAfterFailedGraphUpdate(CedarRequestContext context, CedarResourceType resourceType,
-                                                     CedarArtifactId artifactId, ArtifactPreImage preImage,
-                                                     String replacementEtag, boolean verbatim) {
+  protected void restoreArtifactAfterFailedGraphUpdate(CedarRequestContext context, CedarResourceType resourceType,
+                                                       CedarArtifactId artifactId, ArtifactPreImage preImage,
+                                                       String replacementEtag, boolean verbatim) {
     if (preImage == null || replacementEtag == null || replacementEtag.isBlank()) {
       log.error("Failed graph update left {} changed on the artifact server: conditional rollback is unavailable",
           artifactId);
@@ -886,6 +952,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id) throws CedarException {
     // Check delete preconditions
     userMustHaveWriteAccessToArtifact(c, id);
+    if (c.getIfMatchHeader() == null || c.getIfMatchHeader().isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .id(id.getId())
+          .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
+          .errorMessage("Deleting an artifact requires the ETag returned by GET in If-Match")
+          .build();
+    }
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerArtifact artifact = folderSession.findArtifactById(id);
 
@@ -911,18 +984,48 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
     //       .build();
     // }
 
-    // Delete from artifact server
+    CedarSchemaArtifactId previousVersion = null;
+    if (isSchemaArtifact && schemaArtifact.isLatestVersion() != null && schemaArtifact.isLatestVersion()) {
+      previousVersion = schemaArtifact.getPreviousVersion();
+    }
+
+    // Resolve the content-store validator before recording the saga. In particular, turn wildcard
+    // deletion into a concrete revision so a delayed retry can never delete a newly recreated object.
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
+    String artifactEtag = null;
+    boolean artifactAlreadyDeleted = false;
     try {
-      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-      ClassicHttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c);
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      int statusCode = proxyResponse.getCode();
-      if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
-        // artifact was not deleted
-        return generateStatusResponse(proxyResponse);
-      } else {
-        if (statusCode == HttpStatus.SC_NOT_FOUND) {
-          log.warn("Artifact not found on artifact server, but still trying to delete from Neo4j. Id:" + id);
+      try (ClassicHttpResponse current = ProxyUtil.proxyGet(url, c)) {
+        int status = current.getCode();
+        if (status == HttpStatus.SC_OK) {
+          artifactEtag = headerValue(current, HttpHeaders.ETAG);
+          EntityUtils.consume(current.getEntity());
+          if (artifactEtag == null || artifactEtag.isBlank()) {
+            return CedarResponse.badGateway().id(id)
+                .errorMessage("Artifact service returned an artifact without an ETag before deletion")
+                .build();
+          }
+          RevisionPrecondition currentRevision = RevisionPreconditionParser.parse(artifactEtag);
+          if (currentRevision.revisions().size() != 1) {
+            return CedarResponse.badGateway().id(id)
+                .errorMessage("Artifact service returned an invalid ETag before deletion")
+                .build();
+          }
+          long revision = currentRevision.revisions().iterator().next();
+          if (!RevisionPreconditionParser.parse(c.getIfMatchHeader()).matches(revision)) {
+            return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+                .id(id)
+                .errorKey(CedarErrorKey.ARTIFACT_HAS_MOVED_ON)
+                .errorMessage("The artifact has been updated since it was read")
+                .parameter("currentETag", artifactEtag)
+                .build();
+          }
+        } else if (status == HttpStatus.SC_NOT_FOUND) {
+          EntityUtils.consume(current.getEntity());
+          artifactAlreadyDeleted = true;
+          artifactEtag = c.getIfMatchHeader();
+        } else {
+          return generateStatusResponse(current);
         }
       }
     } catch (CedarException e) {
@@ -931,50 +1034,35 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
       throw new CedarProcessingException(e);
     }
 
-    // Check whether it is latest version
-    CedarSchemaArtifactId previousVersion = null;
-    if (isSchemaArtifact) {
-      if (schemaArtifact.isLatestVersion() != null && schemaArtifact.isLatestVersion()) {
-        previousVersion = schemaArtifact.getPreviousVersion();
-      }
-    }
+    ArtifactDeletionJob deletion = artifactDeletionCompletionService.prepare(id, artifact, artifactEtag,
+        previousVersion == null ? null : previousVersion.getId(), artifactAlreadyDeleted);
 
-    boolean deleted = folderSession.deleteResourceById(id);
-    if (deleted) {
-      if (previousVersion != null) {
-        folderSession.setLatestVersion(previousVersion);
-        folderSession.setLatestPublishedVersion(previousVersion);
-      }
-    } else {
-      return CedarResponse.internalServerError()
-          .id(id)
-          .errorKey(CedarErrorKey.ARTIFACT_NOT_DELETED)
-          .errorMessage("The artifact can not be delete by id")
-          .parameter("id", id)
-          .build();
-    }
-
-    removeIndexDocument(id);
-    removeValuerecommenderResource(artifact);
-    // reindex the previous version, since that just became the latest
-    if (isSchemaArtifact) {
-      CedarSchemaArtifactId previousId = schemaArtifact.getPreviousVersion();
-      // Doublecheck if it is present on the artifact server as well
-      if (previousId != null) {
-        String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(resourceType, previousId, c, microserviceUrlUtil, response);
-        if (getResponse != null) {
-          JsonNode getJsonNode = null;
-          try {
-            getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-            if (getJsonNode != null) {
-              FolderServerArtifact folderServerPreviousR = folderSession.findArtifactById(previousId);
-              updateIndexResource(folderServerPreviousR, c);
+    if (!artifactAlreadyDeleted) {
+      try {
+        try (ClassicHttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c, deletion.artifactEtag())) {
+          ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+          int statusCode = proxyResponse.getCode();
+          if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
+            if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
+              artifactDeletionCompletionService.abandon(deletion);
             }
-          } catch (Exception e) {
-            log.error("There was an error while reindexing the new latest version", e);
+            return generateStatusResponse(proxyResponse);
           }
+          EntityUtils.consume(proxyResponse.getEntity());
         }
+      } catch (IOException e) {
+        throw new CedarProcessingException(e);
       }
+      artifactDeletionCompletionService.markArtifactDeleted(deletion);
+    } else {
+      log.warn("Artifact not found on artifact server; resuming durable graph deletion. Id:{}", id);
+    }
+
+    try {
+      artifactDeletionCompletionService.completeAfterArtifactDeletion(deletion, c);
+    } catch (CedarProcessingException e) {
+      log.error("Artifact {} was removed from the content store; durable cleanup remains pending", id, e);
+      return Response.accepted().build();
     }
 
     return Response.noContent().build();
@@ -1081,8 +1169,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
     userMustHaveReadAccess(permissionSession, resourceId);
 
-    CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(resourceId);
-    return Response.ok().entity(permissions).build();
+    VersionedResourcePermissions permissions = permissionSession.getVersionedResourcePermissions(resourceId);
+    return Response.ok()
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(permissions.revision()))
+        .entity(permissions.content()).build();
   }
 
   protected Response updateResourcePermissions(CedarRequestContext c, CedarFilesystemResourceId resourceId) throws CedarException {
@@ -1108,7 +1198,32 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
           .errorMessage("The resource can not be found by id")
           .build();
     } else {
-      BackendCallResult backendCallResult = permissionSession.updateResourcePermissions(resourceId, permissionsRequest);
+      // Evaluate authority before the HTTP precondition. A caller who cannot change this ACL must
+      // receive the same 403 whether or not they guessed that the endpoint uses ETags.
+      if (!permissionSession.userHasWriteAccessToResource(resourceId)) {
+        throw new CedarPermissionException("You do not have write access to the resource")
+            .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
+            .parameter("resourceId", resourceId.getId());
+      }
+      String ifMatch = c.getIfMatchHeader();
+      if (ifMatch == null || ifMatch.isBlank()) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+            .id(resourceId)
+            .errorMessage("Replacing resource permissions requires the ETag returned by GET in If-Match")
+            .build();
+      }
+
+      BackendCallResult<VersionedResourcePermissions> backendCallResult;
+      try {
+        backendCallResult = permissionSession.updateResourcePermissions(resourceId, permissionsRequest,
+            RevisionPreconditionParser.parse(ifMatch));
+      } catch (RevisionConflictException e) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+            .id(resourceId)
+            .errorMessage("The resource permissions have been updated since they were read")
+            .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+            .build();
+      }
       if (backendCallResult.isError()) {
         throw new CedarBackendException(backendCallResult);
       }
@@ -1119,8 +1234,10 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
       }
 
-      CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(resourceId);
-      return Response.ok().entity(permissions).build();
+      VersionedResourcePermissions permissions = backendCallResult.getPayload();
+      return Response.ok()
+          .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(permissions.revision()))
+          .entity(permissions.content()).build();
     }
   }
 
@@ -1175,6 +1292,13 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
   }
 
   protected Response updateFolderNameAndDescriptionInGraphDb(CedarRequestContext c, CedarFolderId folderId) throws CedarException {
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .errorMessage("Updating a folder requires the ETag returned by GET in If-Match")
+          .build();
+    }
+    RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
     userMustHaveWriteAccessToFolder(c, folderId);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -1247,7 +1371,23 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
         updateFields.put(NodeProperty.NAME, nameV);
         updateFields.put(NodeProperty.NAME_LOWER, nameV.toLowerCase());
       }
-      FolderServerFolder folderServerFolderUpdated = folderSession.updateFolderById(folderId, updateFields);
+      VersionedResource<FolderServerFolder> updatedSnapshot;
+      try {
+        updatedSnapshot = folderSession.updateFolderById(folderId, updateFields, precondition);
+      } catch (SiblingNameConflictException e) {
+        return siblingNameConflictResponse(nameV);
+      } catch (RevisionConflictException e) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+            .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+            .errorMessage("The folder has been updated since it was read")
+            .build();
+      }
+      if (updatedSnapshot == null) {
+        return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+            .errorMessage("The folder was deleted before the update could be applied")
+            .build();
+      }
+      FolderServerFolder folderServerFolderUpdated = updatedSnapshot.resource();
 
       String newName = folderServerFolderUpdated.getName();
       if (oldName == null || !oldName.equals(newName)) {
@@ -1259,7 +1399,8 @@ public class AbstractResourceServerResource extends CedarMicroserviceResource {
 
 
       ProvenanceNameUtil.addProvenanceDisplayName(folderServerFolderUpdated);
-      return Response.ok().entity(folderServerFolderUpdated).build();
+      return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updatedSnapshot.revision()))
+          .entity(folderServerFolderUpdated).build();
     }
   }
 

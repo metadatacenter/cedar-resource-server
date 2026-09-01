@@ -40,13 +40,13 @@ import java.util.Map;
 public class TemplatesResourceWriteRejectionTest {
 
   static {
-    // Must run before the test support boots the server. Alternate ports, so the test
+    // Must run before the test support boots the server. OS-assigned ports, so the test
     // instance never collides with a running dev server; Redis on a dead port, since queue
     // writes are best-effort.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19007",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19107",
-        "CEDAR_RESOURCE_STOP_PORT", "19207",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_HTTP_PORT", "1",
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
@@ -112,14 +112,21 @@ public class TemplatesResourceWriteRejectionTest {
 
   private HttpResponse<String> putTemplate(String id, String query, String body, String contentType,
                                            String authHeader) throws Exception {
-    HttpRequest request = HttpRequest.newBuilder()
+    return putTemplate(id, query, body, contentType, authHeader, null);
+  }
+
+  private HttpResponse<String> putTemplate(String id, String query, String body, String contentType,
+                                           String authHeader, String ifMatch) throws Exception {
+    HttpRequest.Builder request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
             + URLEncoder.encode(id, StandardCharsets.UTF_8) + query))
         .header("Authorization", authHeader)
-        .header("Content-Type", contentType)
-        .PUT(HttpRequest.BodyPublishers.ofString(body))
-        .build();
-    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        .header("Content-Type", contentType);
+    if (ifMatch != null) {
+      request.header("If-Match", ifMatch);
+    }
+    return CLIENT.send(request.PUT(HttpRequest.BodyPublishers.ofString(body)).build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 
   @Test
@@ -182,6 +189,16 @@ public class TemplatesResourceWriteRejectionTest {
       Assertions.assertEquals(403, response.statusCode());
     } finally {
       updateOnlyUser.setPermissions(originalPermissions);
+    }
+  }
+
+  @Test
+  public void conditionalPutCannotCreateAnAbsentGraphArtifact() throws Exception {
+    String absentId = "https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c725";
+    for (String ifMatch : List.of("\"9\"", "*")) {
+      HttpResponse<String> response = putTemplate(absentId, "", "{}", "application/json",
+          authHeaderUser1, ifMatch);
+      Assertions.assertEquals(412, response.statusCode(), response.body());
     }
   }
 

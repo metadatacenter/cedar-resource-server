@@ -16,15 +16,19 @@ import org.metadatacenter.model.request.NodeListQueryTypeDetector;
 import org.metadatacenter.model.request.NodeListRequest;
 import org.metadatacenter.model.response.FolderServerNodeListResponse;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.exception.CedarAssertionException;
+import org.metadatacenter.server.search.elasticsearch.service.DeepSearchPageResponse;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
+import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.ResourcePublicationStatusFilter;
 import org.metadatacenter.server.security.model.user.ResourceVersionFilter;
 import org.metadatacenter.util.TrustedByUtil;
 import org.metadatacenter.util.http.CedarURIBuilder;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedSortedTypedSearchQuery;
+import org.metadatacenter.util.http.SearchContinuation;
 
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Response;
@@ -35,7 +39,7 @@ import java.util.Optional;
 import static org.metadatacenter.constant.CedarQueryParameters.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
-public class AbstractSearchResource extends AbstractResourceServerResource {
+public abstract class AbstractSearchResource extends AbstractResourceServerResource {
 
   public AbstractSearchResource(CedarConfig cedarConfig) {
     super(cedarConfig);
@@ -53,6 +57,7 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
                          @QueryParam(QP_SHARING) Optional<String> sharingParam,
                          @QueryParam(QP_MODE) Optional<String> modeParam,
                          @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam,
+                         @QueryParam(QP_CONTINUATION) Optional<String> continuationParam,
                          boolean searchDeep) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
@@ -73,7 +78,8 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         .queryParam(QP_OFFSET, offsetParam)
         .queryParam(QP_SHARING, sharingParam)
         .queryParam(QP_MODE, modeParam)
-        .queryParam(QP_CATEGORY_ID, categoryIdParam);
+        .queryParam(QP_CATEGORY_ID, categoryIdParam)
+        .queryParam(QP_CONTINUATION, continuationParam);
 
     PagedSortedTypedSearchQuery pagedSearchQuery = new PagedSortedTypedSearchQuery(
         cedarConfig.getResourceRESTAPI().getPagination())
@@ -89,6 +95,21 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
         .limit(limitParam)
         .offset(offsetParam);
     pagedSearchQuery.validate();
+
+    if (continuationParam.isPresent()) {
+      if (!searchDeep) {
+        throw new CedarAssertionException("A continuation is only served by /search-deep!")
+            .parameter(QP_CONTINUATION, continuationParam.get())
+            .badRequest();
+      }
+      if (offsetParam.isPresent()) {
+        // One says where to carry on from and the other says how far in to start. A request holding
+        // both is asking for two different pages.
+        throw new CedarAssertionException("Pass a continuation or an offset, not both!")
+            .parameter(QP_OFFSET, offsetParam.get())
+            .badRequest();
+      }
+    }
 
     int limit = pagedSearchQuery.getLimit();
     int offset = pagedSearchQuery.getOffset();
@@ -116,16 +137,65 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
       if (sortParam.isEmpty()) {
         sortList = new ArrayList<>();
       }
+      // Only this branch reads the search index, and the three ways into it serve different depths.
+      // The graph-backed branch above pages with SKIP and is bounded by none of them.
+      if (continuationParam.isPresent()) {
+        return continuationPage(c, pagedSearchQuery, continuationParam.get(), queryString, idString, resourceTypeList,
+            version, publicationStatus, categoryId, sortList, limit, absoluteUrl, nlqt);
+      }
       if (searchDeep) {
+        pagedSearchQuery.validateDeepOffset();
         r = nodeSearchingService
             .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
       } else {
+        pagedSearchQuery.validateShallowWindow(cedarConfig.getElasticsearchConfig().getMaxResultWindow());
         r = nodeSearchingService
             .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
       }
     }
     r.setNodeListQueryType(nlqt);
     r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, r.getTotalCount(), limit, offset));
+    ProvenanceNameUtil.addProvenanceDisplayNames(r);
+    return Response.ok().entity(r).build();
+  }
+
+  /**
+   * A page of a walk the caller drives. The first page is asked for by value, every page after it by
+   * the token the previous one answered with, and the walk ends when a page comes back without one.
+   */
+  private Response continuationPage(CedarRequestContext c, PagedSortedTypedSearchQuery pagedSearchQuery,
+                                    String continuationValue, String queryString, String idString,
+                                    List<String> resourceTypeList, ResourceVersionFilter version,
+                                    ResourcePublicationStatusFilter publicationStatus, String categoryId,
+                                    List<String> sortList, int limit, String absoluteUrl,
+                                    NodeListQueryType nlqt) throws CedarException {
+    String userId = c.getCedarUser().getId();
+    String fingerprint = SearchContinuation.fingerprint(queryString, idString, resourceTypeList,
+        pagedSearchQuery.getVersionAsString(), pagedSearchQuery.getPublicationStatusAsString(), categoryId, sortList);
+
+    SearchContinuation current = SearchContinuation.isStart(continuationValue)
+        ? null
+        : SearchContinuation.decode(continuationValue, userId, fingerprint);
+
+    DeepSearchPageResponse page = nodeSearchingService.searchDeepPage(c, queryString, idString, resourceTypeList,
+        version, publicationStatus, categoryId, sortList, limit,
+        current == null ? 0 : current.getRowsSeen(),
+        current == null ? 0 : current.getTotalCount(),
+        current == null ? null : current.getPointInTimeId(),
+        current == null ? null : current.getSearchAfterValues(),
+        absoluteUrl);
+
+    FolderServerNodeListResponse r = page.response();
+    String nextContinuation = null;
+    if (page.hasMore()) {
+      long rowsSeen = r.getCurrentOffset() + r.getResources().size();
+      nextContinuation = SearchContinuation
+          .of(page.pointInTimeId(), page.nextSearchAfter(), userId, fingerprint, rowsSeen, r.getTotalCount())
+          .encode();
+      r.setContinuation(nextContinuation);
+    }
+    r.setNodeListQueryType(nlqt);
+    r.setPaging(LinkHeaderUtil.getContinuationLinkHeaders(absoluteUrl, limit, nextContinuation));
     ProvenanceNameUtil.addProvenanceDisplayNames(r);
     return Response.ok().entity(r).build();
   }
@@ -185,13 +255,20 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
       total = folderSession.searchIsBasedOnCount(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()));
     } else if (nlqt == NodeListQueryType.SEARCH_ID) {
       resources = new ArrayList<>();
+      FolderServerResourceExtract found = null;
       FolderServerArtifact resourceById = folderSession.findArtifactById(CedarUntypedArtifactId.build(id));
       if (resourceById != null) {
-        resources.add(FolderServerResourceExtract.fromNode(resourceById));
+        found = FolderServerResourceExtract.fromNode(resourceById);
       } else {
         FolderServerFolder folderById = folderSession.findFolderById(CedarFolderId.build(id));
         if (folderById != null) {
-          resources.add(FolderServerResourceExtract.fromNode(folderById));
+          found = FolderServerResourceExtract.fromNode(folderById);
+        }
+      }
+      if (found != null) {
+        FolderServerResourceExtract visible = readableOrRedacted(c, permissionSession, found);
+        if (visible != null) {
+          resources.add(visible);
         }
       }
       total = resources.size();
@@ -206,7 +283,9 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     // Maybe - just maybe - storing the parent folderId on the Neo4j node and in the search index doc is not a bad idea?
     // Then it could be checked directly, without reading in the parent
     for (FolderServerResourceExtract resourceExtract : resources) {
-      if (!resourceExtract.getType().equals(CedarResourceType.FOLDER)) {
+      // A redacted entry carries its identifier and its type and nothing else. Reading its parent folder
+      // to label it would report which folder holds a resource the caller may not read.
+      if (resourceExtract.isActiveUserCanRead() && !resourceExtract.getType().equals(CedarResourceType.FOLDER)) {
         FolderServerFolder parentFolder = folderSession.getParentFolder(CedarUntypedArtifactId.build(resourceExtract.getId()));
         TrustedByUtil.decorateWithTrustedBy(resourceExtract, parentFolder, cedarConfig.getTrustedFolders().getFoldersMap());
       }
@@ -218,5 +297,31 @@ public class AbstractSearchResource extends AbstractResourceServerResource {
     r.setResources(resources);
 
     return r;
+  }
+
+  /**
+   * The extract as it stands when the active user may read the resource, and reduced to its identifier
+   * and type when they may not.
+   *
+   * <p>Every other search served here filters unreadable resources inside its Cypher, so one never
+   * reaches this level. A lookup by identifier has nothing to filter: the caller supplied the
+   * identifier, and one identifier resolves to one resource. So an unreadable resource is redacted
+   * instead of dropped, which reports it as one the active user cannot read and carries none of its
+   * name, description, provenance or timestamps. A resource type that cannot be redacted answers null
+   * and is dropped by the caller.
+   *
+   * <p>{@link CedarPermission#READ_NOT_READABLE_NODE} reads everything, exactly as it turns the Cypher
+   * permission conditions off for every other search served here.
+   */
+  private FolderServerResourceExtract readableOrRedacted(CedarRequestContext c,
+                                                         ResourcePermissionServiceSession permissionSession,
+                                                         FolderServerResourceExtract extract) {
+    if (c.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE)) {
+      return extract;
+    }
+    if (permissionSession.userHasReadAccessToResource(extract.getResourceId())) {
+      return extract;
+    }
+    return FolderServerResourceExtract.anonymous(extract);
   }
 }

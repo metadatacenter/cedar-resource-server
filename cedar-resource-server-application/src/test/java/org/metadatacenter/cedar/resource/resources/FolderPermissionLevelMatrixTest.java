@@ -73,11 +73,11 @@ public class FolderPermissionLevelMatrixTest {
 
   static {
     // Must run before the test support boots the server, which reads the Neo4j env vars. Ports are
-    // distinct from the dev server and from every other booting test class in this module.
+    // assigned by the OS, so they cannot collide with the dev server or another test in this module.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19047",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19147",
-        "CEDAR_RESOURCE_STOP_PORT", "19247",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 
@@ -176,6 +176,7 @@ public class FolderPermissionLevelMatrixTest {
     // The boundary. Each of these gets its own folder so an unexpected success cannot invalidate the
     // rows around it.
     matrix.when("PUT", path(renameable), RENAME_BODY)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
     matrix.when("DELETE", path(deletable))
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
@@ -184,6 +185,7 @@ public class FolderPermissionLevelMatrixTest {
     // access. An authenticated reader is refused with 403 (permission denial via CedarErrorType
     // .PERMISSION); an anonymous caller is refused with 401 by the authentication layer.
     matrix.when("PUT", path(resharable) + "/permissions", resharePermissionsBody())
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
 
     matrix.verify();
@@ -223,6 +225,7 @@ public class FolderPermissionLevelMatrixTest {
         .expect(ANONYMOUS, 401).expect(OWNER, 200).expect(OTHER_USER, 200);
 
     matrix.when("PUT", path(renameable), RENAME_BODY)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 200);
 
     // WRITE confers re-sharing. This was written expecting a refusal and is recorded as a 200
@@ -237,6 +240,7 @@ public class FolderPermissionLevelMatrixTest {
     // model, but it is not what a six-level permission enum suggests, and it is pinned here so the
     // behaviour is a decision rather than a discovery. If it is ever tightened, this row fails.
     matrix.when("PUT", path(resharable) + "/permissions", resharePermissionsBody())
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 200);
 
     matrix.verify();
@@ -293,6 +297,7 @@ public class FolderPermissionLevelMatrixTest {
     matrix.when("GET", path(readable) + "/contents")
         .expect(ANONYMOUS, 401).expect(OWNER, 200).expect(OTHER_USER, 200);
     matrix.when("PUT", path(renameable), RENAME_BODY)
+        .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
 
     matrix.verify();

@@ -43,19 +43,19 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
  * deliberately never probed: it would pass the gate, and the point is to assert the gate without ever
  * letting a command that wipes an index or provisions a user actually run.
  *
- * <p>The one non-mutating row — the status poll — is intentionally not admin-gated (it needs only a
- * logged-in user). Asserting a regular user's 200 there is what proves the 403s are about the missing
- * admin permission, not a blanket block on {@code /command}.
+ * <p>The non-mutating rows — the status polls — are intentionally not admin-gated (they need only a
+ * logged-in user). Asserting a regular user's 200 and 404 there is what proves the 403s are about the
+ * missing admin permission, not a blanket block on {@code /command}.
  */
 public class AdminCommandAuthorizationMatrixTest {
 
   static {
     // Must run before the test support boots the server, which reads the Neo4j env vars. Ports are
-    // distinct from the dev server and from every other booting test class.
+    // assigned by the OS, so they cannot collide with the dev server or another test.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "19077",
-        "CEDAR_RESOURCE_ADMIN_PORT", "19177",
-        "CEDAR_RESOURCE_STOP_PORT", "19277",
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1"));
   }
 
@@ -96,7 +96,7 @@ public class AdminCommandAuthorizationMatrixTest {
   public void adminIndexCommandsRefuseNonAdmins() {
     PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
 
-    // The six mutating commands: admin-only, so 401 for anonymous and 403 for either regular user. No
+    // The mutating commands: admin-only, so 401 for anonymous and 403 for either regular user. No
     // ADMIN row — that would pass the gate and run a destructive rebuild/wipe, or provision a user.
     //
     // auth-user-callback belongs here even though it is a service callback rather than an operator
@@ -109,6 +109,9 @@ public class AdminCommandAuthorizationMatrixTest {
         "/command/generate-empty-search-index",
         "/command/regenerate-rules-index",
         "/command/generate-empty-rules-index",
+        "/command/reset-search-index-job",
+        "/command/reset-rules-index-job",
+        "/command/reset-valuesets-import",
         "/command/auth-user-callback"}) {
       matrix.when("POST", path)
           .expect(ANONYMOUS, 401)
@@ -122,6 +125,17 @@ public class AdminCommandAuthorizationMatrixTest {
         .expect(ANONYMOUS, 401)
         .expect(OWNER, 200)
         .expect(OTHER_USER, 200);
+
+    // A job's own status is gated the same way as the collection it belongs to. The 404 is the gate
+    // passing: no job answers to this identifier, which a caller can only be told once it is through.
+    for (String path : new String[] {
+        "/command/index-job-status/00000000-0000-0000-0000-000000000000",
+        "/command/load-valuesets-ontology-status/00000000-0000-0000-0000-000000000000"}) {
+      matrix.when("GET", path)
+          .expect(ANONYMOUS, 401)
+          .expect(OWNER, 404)
+          .expect(OTHER_USER, 404);
+    }
 
     matrix.verify();
   }

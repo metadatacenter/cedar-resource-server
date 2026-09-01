@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -17,9 +18,11 @@ import org.metadatacenter.cedar.resource.resources.swaggermodel.Category;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
+import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
@@ -31,23 +34,30 @@ import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.CategoryPermissionServiceSession;
+import org.metadatacenter.server.CategoryNotEmptyException;
 import org.metadatacenter.server.CategoryServiceSession;
+import org.metadatacenter.server.RevisionConflictException;
+import org.metadatacenter.server.RevisionPrecondition;
+import org.metadatacenter.server.SiblingNameConflictException;
+import org.metadatacenter.server.VersionedCategoryPermissions;
+import org.metadatacenter.server.VersionedResource;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.permission.category.CategoryPermissionRequest;
-import org.metadatacenter.server.security.model.permission.category.CategoryPermissions;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedQuery;
+import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
@@ -138,11 +148,13 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Operation(summary = "Create a category", description = "Create a category.")
   @RequestBody(description = "The category to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Category.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A category", content = @Content(schema = @Schema(implementation = Category.class))),
+      @ApiResponse(responseCode = "201", description = "A category", content = @Content(schema = @Schema(implementation = Category.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "A sibling category with the same name already exists"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response createCategory() throws CedarException {
@@ -173,17 +185,19 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     userMustHaveWriteAccessToCategory(c, ccParentId);
 
-    FolderServerCategory newCategory = null;
-    // If the category already exists, return it
+    FolderServerCategory newCategory;
     FolderServerCategory existingCategory = categorySession.getCategoryByParentAndName(ccParentId, categoryName.stringValue());
     if (existingCategory != null) {
       log.warn("There is a category with the same name (" + categoryName.stringValue()
           + ") under the parent category. Category names must be unique!");
-      newCategory = existingCategory;
-    }
-    else {
-      newCategory = categorySession.createCategory(ccParentId, categoryName.stringValue(), categoryDescription.stringValue(),
-          identifier.stringValue());
+      return siblingNameConflictResponse(categoryName.stringValue());
+    } else {
+      try {
+        newCategory = categorySession.createCategory(ccParentId, categoryName.stringValue(), categoryDescription.stringValue(),
+            identifier.stringValue());
+      } catch (SiblingNameConflictException e) {
+        return siblingNameConflictResponse(categoryName.stringValue());
+      }
       c.should(newCategory).be(NonNull).otherwiseInternalServerError(
           new CedarErrorPack()
               .message("There was an error while creating the category!")
@@ -194,7 +208,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
     URI uri = builder.path(CedarUrlUtil.urlEncode(newCategory.getId())).build();
-    return Response.created(uri).entity(newCategory).build();
+    return Response.created(uri).header(HttpHeaders.ETAG, RevisionPreconditionParser.format(1L))
+        .entity(newCategory).build();
   }
 
   @GET
@@ -232,7 +247,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Path("/{category_id}")
   @Operation(summary = "Get a category", description = "Get a category.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class))),
+      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -251,15 +267,17 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     CedarCategoryId ccid = CedarCategoryId.build(id);
-    FolderServerCategory category = categorySession.getCategoryById(ccid);
-    c.should(category).be(NonNull).otherwiseNotFound(
+
+    VersionedResource<FolderServerCategory> snapshot = categorySession.getVersionedCategoryById(ccid);
+    c.should(snapshot).be(NonNull).otherwiseNotFound(
         new CedarErrorPack()
             .message("The category can not be found by id!")
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    ProvenanceNameUtil.addProvenanceDisplayName(category);
-    return Response.ok().entity(category).build();
+    ProvenanceNameUtil.addProvenanceDisplayName(snapshot.resource());
+    return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(snapshot.revision()))
+        .entity(snapshot.resource()).build();
   }
 
   @GET
@@ -293,14 +311,19 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{category_id}")
-  @Operation(summary = "Update a category", description = "Update a category.")
+  @Operation(summary = "Update a category", description = "Update a category.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "The category to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Category.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class))),
+      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class)),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "A sibling category already has the requested name"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateCategory(
@@ -313,16 +336,22 @@ public class CategoriesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.CATEGORY_UPDATE);
     CedarCategoryId ccid = CedarCategoryId.build(id);
 
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .errorMessage("Updating a category requires the ETag returned by GET in If-Match")
+          .build();
+    }
+    RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
+
     CedarRequestBody requestBody = c.request().getRequestBody();
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
     FolderServerCategory existingCategory = categorySession.getCategoryById(ccid);
-    c.should(existingCategory).be(NonNull).otherwiseNotFound(
-        new CedarErrorPack()
-            .message("The category can not be found by id!")
-            .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
-    );
+    if (existingCategory == null) {
+      return categoryUpdateTargetDeleted();
+    }
 
     CedarParameter categoryName = requestBody.get(NodeProperty.NAME.getValue());
     CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
@@ -342,36 +371,59 @@ public class CategoriesResource extends AbstractResourceServerResource {
           .build();
     }
 
-    FolderServerCategory categoryWritable = userMustHaveWriteAccessToCategory(c, ccid);
+    try {
+      userMustHaveWriteAccessToCategory(c, ccid);
+    } catch (CedarObjectNotFoundException e) {
+      return categoryUpdateTargetDeleted();
+    }
 
     Map<NodeProperty, String> updateFields = new HashMap<>();
     updateFields.put(NodeProperty.NAME, categoryName.stringValue());
     updateFields.put(NodeProperty.NAME_LOWER, categoryName.stringValue().toLowerCase());
     updateFields.put(NodeProperty.DESCRIPTION, categoryDescription.stringValue());
     updateFields.put(NodeProperty.IDENTIFIER, categoryIdentifier.stringValue());
-    FolderServerCategory updatedCategory = categorySession.updateCategoryById(ccid, updateFields);
+    VersionedResource<FolderServerCategory> updatedCategory;
+    try {
+      updatedCategory = categorySession.updateCategoryById(ccid, updateFields, precondition);
+    } catch (SiblingNameConflictException e) {
+      return siblingNameConflictResponse(categoryName.stringValue());
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .errorMessage("The category has been updated since it was read")
+          .build();
+    }
 
-    c.should(updatedCategory).be(NonNull).otherwiseInternalServerError(
-        new CedarErrorPack()
-            .message("There was an error while updating the category!")
-            .operation(CedarOperations.update(FolderServerCategory.class, "id", ccid.getId()))
-    );
+    if (updatedCategory == null) {
+      return categoryUpdateTargetDeleted();
+    }
 
-    ProvenanceNameUtil.addProvenanceDisplayName(updatedCategory);
+    ProvenanceNameUtil.addProvenanceDisplayName(updatedCategory.resource());
 
-    return Response.ok().entity(updatedCategory).build();
+    return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updatedCategory.revision()))
+        .entity(updatedCategory.resource()).build();
+  }
+
+  private static Response categoryUpdateTargetDeleted() {
+    return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+        .errorMessage("The category no longer exists, so the conditional update can not be applied")
+        .build();
   }
 
   @DELETE
   @Timed
   @Path("/{category_id}")
-  @Operation(summary = "Delete a category", description = "Delete a category.")
+  @Operation(summary = "Delete a category", description = "Delete a category.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
       @ApiResponse(responseCode = "204", description = "Successful operation (no content)"),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "409", description = "Category still has children or attached artifacts"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response deleteCategory(
@@ -393,11 +445,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    //TODO: check if it can be deleted:
-    // - it has no child nodes
-    // - it has no artifacts attached
-    // - also perform some kind of permission checking
-
     FolderServerCategory categoryWritable = userMustHaveWriteAccessToCategory(c, ccid);
 
     if (categoryWritable.getParentCategoryId() == null) {
@@ -410,12 +457,35 @@ public class CategoriesResource extends AbstractResourceServerResource {
       throw new CedarBadRequestException(cedarErrorPack);
     }
 
-    boolean deleted = categorySession.deleteCategoryById(ccid);
-    c.should(deleted).be(True).otherwiseInternalServerError(
-        new CedarErrorPack()
-            .message("There was an error while deleting the category!")
-            .operation(CedarOperations.delete(FolderServerCategory.class, "id", ccid.getId()))
-    );
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .errorMessage("Deleting a category requires the ETag returned by GET in If-Match")
+          .build();
+    }
+    boolean deleted;
+    try {
+      deleted = categorySession.deleteCategoryById(ccid, RevisionPreconditionParser.parse(ifMatch));
+    } catch (CategoryNotEmptyException e) {
+      return CedarResponse.conflict()
+          .id(id)
+          .errorKey(CedarErrorKey.CATEGORY_CAN_NOT_BE_DELETED)
+          .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_CATEGORY)
+          .parameter("childCategoryCount", e.getChildCategoryCount())
+          .parameter("artifactCount", e.getArtifactCount())
+          .errorMessage("Categories with children or attached artifacts can not be deleted")
+          .build();
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .errorMessage("The category has been updated since it was read")
+          .build();
+    }
+    if (!deleted) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .errorMessage("The category was deleted before this deletion could be applied")
+          .build();
+    }
 
     //searchPermissionEnqueueService.groupDeleted(id);
 
@@ -429,7 +499,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Path("/{category_id}/permissions")
   @Operation(summary = "Get permissions of a category", description = "Get permissions of a category.", tags = {"Categories", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
@@ -450,21 +521,28 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarCategoryId categoryId = CedarCategoryId.build(id);
     userMustHaveWriteAccessToCategory(c, categoryId);
 
-    CategoryPermissions permissions = categoryPermissionSession.getCategoryPermissions(categoryId);
-    return Response.ok().entity(permissions).build();
+    VersionedCategoryPermissions permissions =
+        categoryPermissionSession.getVersionedCategoryPermissions(categoryId);
+    return Response.ok()
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(permissions.revision()))
+        .entity(permissions.content()).build();
 
   }
 
   @PUT
   @Timed
   @Path("/{category_id}/permissions")
-  @Operation(summary = "Update permissions of a category", description = "Update permissions of a category.", tags = {"Categories", "Permissions"})
+  @Operation(summary = "Update permissions of a category", description = "Update permissions of a category.", tags = {"Categories", "Permissions"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Successful operation",
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),
       @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
       @ApiResponse(responseCode = "500", description = "Internal server error")
   })
   public Response updateCategoryPermissions(
@@ -496,14 +574,33 @@ public class CategoriesResource extends AbstractResourceServerResource {
           .build();
     }
 
-    BackendCallResult backendCallResult = categoryPermissionSession.updateCategoryPermissions(categoryId,
-        permissionsRequest);
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .id(categoryId)
+          .errorMessage("Replacing category permissions requires the ETag returned by GET in If-Match")
+          .build();
+    }
+
+    BackendCallResult<VersionedCategoryPermissions> backendCallResult;
+    try {
+      backendCallResult = categoryPermissionSession.updateCategoryPermissions(categoryId,
+          permissionsRequest, RevisionPreconditionParser.parse(ifMatch));
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .id(categoryId)
+          .errorMessage("The category permissions have been updated since they were read")
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .build();
+    }
     if (backendCallResult.isError()) {
       throw new CedarBackendException(backendCallResult);
     }
 
-    CategoryPermissions permissions = categoryPermissionSession.getCategoryPermissions(categoryId);
-    return Response.ok().entity(permissions).build();
+    VersionedCategoryPermissions permissions = backendCallResult.getPayload();
+    return Response.ok()
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(permissions.revision()))
+        .entity(permissions.content()).build();
   }
 
 

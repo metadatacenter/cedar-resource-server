@@ -4,8 +4,10 @@ import io.dropwizard.core.setup.Bootstrap;
 import io.dropwizard.core.setup.Environment;
 import io.dropwizard.lifecycle.Managed;
 import org.metadatacenter.cedar.resource.resources.*;
+import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
 import org.metadatacenter.cedar.resource.search.IndexCreator;
-import org.metadatacenter.cedar.util.dw.CedarDefaultHealthCheck;
+import org.metadatacenter.cedar.util.dw.CedarDependencyHealthCheck;
+import org.metadatacenter.cedar.util.dw.CedarMicroserviceIndexResource;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.ServerName;
@@ -20,6 +22,7 @@ import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueSe
 public class ResourceServerApplication extends CedarMicroserviceApplication<ResourceServerConfiguration> {
 
   private SearchPermissionEnqueueService searchPermissionEnqueueService;
+  private ArtifactDeletionCompletionService artifactDeletionCompletionService;
 
   public static void main(String[] args) throws Exception {
     new ResourceServerApplication().run(args);
@@ -48,11 +51,14 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     ValuerecommenderReindexQueueService valuerecommenderReindexQueueService =
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent());
+    artifactDeletionCompletionService = new ArtifactDeletionCompletionService(
+        cedarConfig, userService, nodeIndexingService, valuerecommenderReindexQueueService);
 
     CommandGenericResource.injectUserService(userService);
     CommandSearchResource.injectUserService(userService);
     SearchResource.injectServices(nodeIndexingService, nodeSearchingService,
         searchPermissionEnqueueService, valuerecommenderReindexQueueService);
+    AbstractResourceServerResource.injectArtifactDeletionCompletionService(artifactDeletionCompletionService);
 
     CommandVersionResource.injectCloneInstancesEnqueueServices(cloneInstanceEnqueueService);
 
@@ -66,15 +72,18 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
       @Override
       public void start() {
         searchPermissionEnqueueService.start();
+        artifactDeletionCompletionService.start();
       }
 
       @Override
       public void stop() {
+        artifactDeletionCompletionService.close();
         searchPermissionEnqueueService.close();
       }
     });
 
-    final IndexResource index = new IndexResource(cedarConfig);
+    final CedarMicroserviceIndexResource index =
+        new CedarMicroserviceIndexResource(cedarConfig, getServerName());
     environment.jersey().register(index);
 
     final FoldersResource folders = new FoldersResource(cedarConfig);
@@ -134,7 +143,11 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final RecommendResource recommend = new RecommendResource(cedarConfig);
     environment.jersey().register(recommend);
 
-    final CedarDefaultHealthCheck healthCheck = new CedarDefaultHealthCheck();
-    environment.healthChecks().register("message", healthCheck);
+    // Search and folder listing are the bulk of what this server answers, and both read the
+    // OpenSearch index. Redis is not gated here: the search-permission events it carries go to a
+    // Neo4j outbox first and a managed relay drains it, so an outage delays reindexing rather than
+    // stopping the server.
+    environment.healthChecks().register("opensearch", CedarDependencyHealthCheck.gating(
+        "OpenSearch", new IndexUtils(cedarConfig).getEsManagementService()::verifyConnectivity));
   }
 }
