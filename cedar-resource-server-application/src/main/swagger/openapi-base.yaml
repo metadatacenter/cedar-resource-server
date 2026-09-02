@@ -14,6 +14,9 @@ info:
     protection. Comma-separated strong validators are also accepted. Representation suffixes such
     as `"7-json"`, `"7-yaml"`, and `"7-resource-record"` identify different bytes of the same
     stored revision and are valid write preconditions.
+
+    See the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)
+    for authentication, request examples, and complete ETag guidance.
   version: ${project.version}
 components:
   headers:
