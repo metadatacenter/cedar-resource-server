@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource.search;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,10 +38,27 @@ class ValueSetsImportStatusManagerTest {
 
   private final ValueSetsImportStatusManager manager = ValueSetsImportStatusManager.getInstance();
 
+  /**
+   * The manager is a process-wide singleton, so a claim left outstanding crosses from one test to
+   * the next and from one class to the next. Some tests claim at CLAIMED_AT and one claims at the
+   * wall clock, so the reset instant has to be later than both.
+   */
   @BeforeEach
-  void releaseAnyClaim() {
-    // The manager is a process-wide singleton, so leave no claim behind for the next test. Some tests
-    // claim at CLAIMED_AT and one claims at the wall clock, so the reset has to be later than both.
+  void startFromAnUnclaimedImport() {
+    takeBackAnyClaim();
+  }
+
+  /**
+   * Tests here deliberately leave an import in progress, and an import in progress is refused
+   * however long ago it was claimed, since only a reset weighs the deadline. Clearing it here keeps
+   * the next class that asks for an import from being refused instead of queued.
+   */
+  @AfterEach
+  void leaveNoClaimForTheNextTest() {
+    takeBackAnyClaim();
+  }
+
+  private void takeBackAnyClaim() {
     manager.reset(Instant.now().plus(JobClaim.DEADLINE).plus(JobClaim.DEADLINE));
   }
 

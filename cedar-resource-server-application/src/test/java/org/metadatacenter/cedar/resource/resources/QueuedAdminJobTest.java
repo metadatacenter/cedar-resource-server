@@ -6,6 +6,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
@@ -104,6 +105,17 @@ public class QueuedAdminJobTest {
   }
 
   /**
+   * A claim another class left outstanding refuses this class's first command, and the order classes
+   * run in is not fixed. An import in progress is refused however long ago it was claimed, since
+   * only a reset weighs the deadline, so an inherited claim has to be taken back rather than waited
+   * out.
+   */
+  @BeforeEach
+  public void startFromAnUnclaimedImport() {
+    takeBackAnyImportClaim();
+  }
+
+  /**
    * The guard and the import manager are process-wide, and the server under test shares them with
    * this class, so a claim left behind would refuse the next test's command. An import the server
    * queued is claimed on its own account and taken back rather than released, since the reset instant
@@ -113,6 +125,10 @@ public class QueuedAdminJobTest {
   public void releaseEverything() {
     taken.forEach((index, claim) -> IndexJobGuard.finish(index, claim, null));
     taken.clear();
+    takeBackAnyImportClaim();
+  }
+
+  private static void takeBackAnyImportClaim() {
     ValueSetsImportStatusManager.getInstance()
         .reset(Instant.now().plus(JobClaim.DEADLINE).plus(JobClaim.DEADLINE));
   }
@@ -135,8 +151,10 @@ public class QueuedAdminJobTest {
    */
   @Test
   public void anImportIsPolledByTheIdentifierItReturned() throws Exception {
-    String jobId = JsonMapper.MAPPER.readTree(post("/command/load-valuesets-ontology", adminAuthHeader).body())
-        .get("jobId").asText();
+    HttpResponse<String> queued = post("/command/load-valuesets-ontology", adminAuthHeader);
+    assertEquals(202, queued.statusCode(),
+        "the import was refused rather than queued, so it names no job: " + queued.body());
+    String jobId = JsonMapper.MAPPER.readTree(queued.body()).get("jobId").asText();
 
     HttpResponse<String> polled = get("/command/load-valuesets-ontology-status/" + jobId, userAuthHeader);
 
