@@ -212,7 +212,12 @@ public final class IndexJobGuard {
     return reset(index, Instant.now());
   }
 
-  static synchronized boolean reset(Index index, Instant now) {
+  /**
+   * The instant is supplied so a caller can weigh the deadline as of a chosen moment. A test takes
+   * back a claim of any age by passing one past every deadline it could have set, the way
+   * {@link ValueSetsImportStatusManager#reset(Instant)} is used for the import.
+   */
+  public static synchronized boolean reset(Index index, Instant now) {
     Entry entry = ENTRIES.get(index);
     if (entry.state() != State.RUNNING || !entry.claim().isOverdue(now)) {
       return false;
