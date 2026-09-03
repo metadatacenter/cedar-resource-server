@@ -146,8 +146,9 @@ public final class IndexJobGuard {
 
   /**
    * Claim the index for a job, or report that one is already running. The caller must pass the claim
-   * back to {@link #finish}, or the index stays claimed until the claim passes its deadline and an
-   * operator resets it.
+   * back to {@link #finish}, or the index stays claimed until an operator resets it. Passing the
+   * deadline releases nothing on its own. It only allows the reset, so an abandoned job goes on
+   * refusing every rebuild until someone runs one.
    */
   public static Optional<JobClaim> tryStart(Index index, String command) {
     return tryStart(index, command, Instant.now());
