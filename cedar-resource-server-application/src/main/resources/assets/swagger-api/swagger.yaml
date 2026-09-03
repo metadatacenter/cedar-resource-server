@@ -15,6 +15,14 @@ info:
     for authentication, request examples, and complete ETag guidance.
   title: CEDAR Resource Server API
   version: 2.9.7-SNAPSHOT
+tags:
+- name: Templates
+- name: Template Elements
+- name: Template Fields
+- name: Template Instances
+- name: Folders
+- name: Folder Contents
+- name: Categories
 paths:
   /categories:
     get:
