@@ -3,6 +3,8 @@ package org.metadatacenter.cedar.resource.resources;
 import com.codahale.metrics.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -60,7 +62,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @Path("/{folder_id}/contents")
   @Operation(summary = "Get the contents of a folder", description = "Get the contents of a folder.", tags = {"Folders", "Folder Contents", "Versioning"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "A page of resources in the folder",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ResourceListResponse"))),
       @ApiResponse(responseCode = "400", description = "Bad request"),
       @ApiResponse(responseCode = "401", description = "Unauthorized"),
       @ApiResponse(responseCode = "403", description = "Forbidden"),

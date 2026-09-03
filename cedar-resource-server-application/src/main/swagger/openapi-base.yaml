@@ -19,6 +19,134 @@ info:
     for authentication, request examples, and complete ETag guidance.
   version: ${project.version}
 components:
+  schemas:
+    ResourceSummary:
+      type: object
+      description: |
+        A folder or artifact summary. The exact additional properties depend on the resource type
+        and on the fields requested by the caller.
+      required:
+        - '@id'
+        - resourceType
+      properties:
+        '@id':
+          type: string
+          format: uri
+        resourceType:
+          type: string
+          enum: [folder, field, element, template, instance]
+        'schema:name':
+          type: string
+          nullable: true
+        'schema:description':
+          type: string
+          nullable: true
+        activeUserCanRead:
+          type: boolean
+        createdOnTS:
+          type: integer
+          format: int64
+        lastUpdatedOnTS:
+          type: integer
+          format: int64
+      additionalProperties: true
+    NodeListRequest:
+      type: object
+      description: The normalized search and paging criteria used for this response.
+      properties:
+        resource_types:
+          type: array
+          items:
+            type: string
+        version:
+          type: string
+          nullable: true
+        publicationStatus:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+        sort:
+          type: array
+          nullable: true
+          items:
+            type: string
+        q:
+          type: string
+          nullable: true
+        id:
+          type: string
+          format: uri
+          nullable: true
+        categoryId:
+          type: string
+          format: uri
+          nullable: true
+        mode:
+          type: string
+          nullable: true
+        is_based_on:
+          type: string
+          format: uri
+          nullable: true
+      additionalProperties: false
+    ResourceListResponse:
+      type: object
+      description: |
+        One page of folders and artifact summaries. Optional category, path, and continuation
+        properties appear only for query modes that produce them.
+      required:
+        - resources
+        - totalCount
+        - currentOffset
+        - nodeListQueryType
+        - '@context'
+      properties:
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        pathInfo:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        totalCount:
+          type: integer
+          format: int64
+        currentOffset:
+          type: integer
+          format: int64
+        paging:
+          type: object
+          additionalProperties:
+            type: string
+            format: uri
+        continuation:
+          type: string
+          description: Opaque token for the next deep-search page; absent at the end.
+        nodeListQueryType:
+          type: string
+        categoryName:
+          type: string
+          nullable: true
+        categoryPath:
+          type: array
+          nullable: true
+          items:
+            type: object
+            additionalProperties: true
+        request:
+          $ref: '#/components/schemas/NodeListRequest'
+        '@context':
+          type: object
+          additionalProperties:
+            type: string
+      additionalProperties: true
   headers:
     ETag:
       description: Strong validator for the returned representation and its stored revision.

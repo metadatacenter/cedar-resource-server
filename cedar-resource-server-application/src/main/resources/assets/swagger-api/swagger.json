@@ -2163,7 +2163,14 @@
         } ],
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResourceListResponse"
+                }
+              }
+            },
+            "description" : "A page of resources in the folder"
           },
           "400" : {
             "description" : "Bad request"
@@ -2523,7 +2530,14 @@
         } ],
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResourceListResponse"
+                }
+              }
+            },
+            "description" : "A page of resources matching the search"
           },
           "400" : {
             "description" : "Bad request"
@@ -2648,7 +2662,14 @@
         } ],
         "responses" : {
           "200" : {
-            "description" : "Successful operation"
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResourceListResponse"
+                }
+              }
+            },
+            "description" : "A page of resources matching the search"
           },
           "400" : {
             "description" : "Bad request"
@@ -5615,6 +5636,65 @@
           }
         }
       },
+      "NodeListRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "The normalized search and paging criteria used for this response.",
+        "properties" : {
+          "categoryId" : {
+            "type" : "string",
+            "format" : "uri",
+            "nullable" : true
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uri",
+            "nullable" : true
+          },
+          "is_based_on" : {
+            "type" : "string",
+            "format" : "uri",
+            "nullable" : true
+          },
+          "limit" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "mode" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "offset" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "publicationStatus" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "q" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "resource_types" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "sort" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "nullable" : true
+          },
+          "version" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
       "PublishArtifactRequest" : {
         "type" : "object",
         "description" : "Info about the publishing process.",
@@ -5646,6 +5726,105 @@
             "description" : "New name of the resource."
           }
         }
+      },
+      "ResourceListResponse" : {
+        "type" : "object",
+        "additionalProperties" : true,
+        "description" : "One page of folders and artifact summaries. Optional category, path, and continuation\nproperties appear only for query modes that produce them.\n",
+        "properties" : {
+          "@context" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "categoryName" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "categoryPath" : {
+            "type" : "array",
+            "items" : {
+              "type" : "object",
+              "additionalProperties" : true
+            },
+            "nullable" : true
+          },
+          "continuation" : {
+            "type" : "string",
+            "description" : "Opaque token for the next deep-search page; absent at the end."
+          },
+          "currentOffset" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "nodeListQueryType" : {
+            "type" : "string"
+          },
+          "paging" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string",
+              "format" : "uri"
+            }
+          },
+          "pathInfo" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ResourceSummary"
+            },
+            "nullable" : true
+          },
+          "request" : {
+            "$ref" : "#/components/schemas/NodeListRequest"
+          },
+          "resources" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ResourceSummary"
+            }
+          },
+          "totalCount" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "@context", "currentOffset", "nodeListQueryType", "resources", "totalCount" ]
+      },
+      "ResourceSummary" : {
+        "type" : "object",
+        "additionalProperties" : true,
+        "description" : "A folder or artifact summary. The exact additional properties depend on the resource type\nand on the fields requested by the caller.\n",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "activeUserCanRead" : {
+            "type" : "boolean"
+          },
+          "createdOnTS" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "lastUpdatedOnTS" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "resourceType" : {
+            "type" : "string",
+            "enum" : [ "folder", "field", "element", "template", "instance" ]
+          },
+          "schema:description" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "schema:name" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        },
+        "required" : [ "@id", "resourceType" ]
       },
       "Template" : {
         "type" : "object",
