@@ -193,8 +193,16 @@ components:
       description: |
         The supplied If-Match value is stale, weak, or malformed. When a current revision exists,
         the error body's `parameters.currentETag` identifies it.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CedarError'
     PreconditionRequired:
       description: This operation requires the current resource ETag in If-Match.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CedarError'
   securitySchemes:
     api_key:
       type: apiKey
