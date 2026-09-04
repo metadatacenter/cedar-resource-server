@@ -488,6 +488,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (ArtifactYamlTranscoder.isYaml(httpHeaders.getMediaType())) {
       try {
         return ArtifactYamlTranscoder.yamlToJsonString(requestBody, resourceType, templateResolver);
+      } catch (ArtifactYamlTranscoder.CompactYamlBodyException e) {
+        throw new CedarBadRequestException(e.getMessage(), e);
       } catch (IOException e) {
         if (e.getCause() instanceof CedarException cedarException) {
           throw cedarException;

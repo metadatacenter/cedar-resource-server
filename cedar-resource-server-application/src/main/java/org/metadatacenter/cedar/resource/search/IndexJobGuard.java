@@ -146,8 +146,9 @@ public final class IndexJobGuard {
 
   /**
    * Claim the index for a job, or report that one is already running. The caller must pass the claim
-   * back to {@link #finish}, or the index stays claimed until the claim passes its deadline and an
-   * operator resets it.
+   * back to {@link #finish}, or the index stays claimed until an operator resets it. Passing the
+   * deadline releases nothing on its own. It only allows the reset, so an abandoned job goes on
+   * refusing every rebuild until someone runs one.
    */
   public static Optional<JobClaim> tryStart(Index index, String command) {
     return tryStart(index, command, Instant.now());
@@ -212,7 +213,12 @@ public final class IndexJobGuard {
     return reset(index, Instant.now());
   }
 
-  static synchronized boolean reset(Index index, Instant now) {
+  /**
+   * The instant is supplied so a caller can weigh the deadline as of a chosen moment. A test takes
+   * back a claim of any age by passing one past every deadline it could have set, the way
+   * {@link ValueSetsImportStatusManager#reset(Instant)} is used for the import.
+   */
+  public static synchronized boolean reset(Index index, Instant now) {
     Entry entry = ENTRIES.get(index);
     if (entry.state() != State.RUNNING || !entry.claim().isOverdue(now)) {
       return false;

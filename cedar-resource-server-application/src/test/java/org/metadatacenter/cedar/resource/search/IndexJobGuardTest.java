@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource.search;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -47,10 +48,27 @@ public class IndexJobGuardTest {
   private static final Instant WITHIN_DEADLINE = CLAIMED_AT.plus(JobClaim.DEADLINE).minusSeconds(1);
   private static final Instant PAST_DEADLINE = CLAIMED_AT.plus(JobClaim.DEADLINE).plusSeconds(1);
 
+  /**
+   * The guard is process-wide, so a claim left outstanding crosses from one test to the next and
+   * from one class to the next. Some tests claim at CLAIMED_AT and one claims at the wall clock, so
+   * the reset instant has to be later than both.
+   */
   @BeforeEach
-  public void releaseEverything() {
-    // The guard is process-wide, so leave no claim behind for the next test. Some tests claim at
-    // CLAIMED_AT and one claims at the wall clock, so the reset has to be later than both.
+  public void startFromUnclaimedIndexes() {
+    releaseEveryIndex();
+  }
+
+  /**
+   * Tests here deliberately leave an index claimed, and a claim refuses the next one however long
+   * ago it was taken, since only a reset weighs the deadline. Clearing it here keeps the next class
+   * that claims an index from opening with a refusal.
+   */
+  @AfterEach
+  public void leaveNoClaimForTheNextTest() {
+    releaseEveryIndex();
+  }
+
+  private static void releaseEveryIndex() {
     Instant afterEveryDeadline = Instant.now().plus(JobClaim.DEADLINE).plus(JobClaim.DEADLINE);
     for (IndexJobGuard.Index index : IndexJobGuard.Index.values()) {
       IndexJobGuard.reset(index, afterEveryDeadline);

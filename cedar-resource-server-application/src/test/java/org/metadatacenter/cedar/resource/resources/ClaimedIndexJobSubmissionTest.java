@@ -7,6 +7,7 @@ import org.metadatacenter.cedar.resource.search.IndexJobGuard;
 import org.metadatacenter.cedar.resource.search.JobClaim;
 import org.metadatacenter.cedar.resource.search.ValueSetsImportStatusManager;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -52,9 +53,17 @@ public class ClaimedIndexJobSubmissionTest {
     releaseBothClaims();
   }
 
+  /**
+   * The no-argument resets weigh the deadline as of now, so they take back only a claim that is
+   * already six hours old and leave a fresh one exactly where it is. An instant past every deadline
+   * a test could have set takes back either, which is what these hooks promise.
+   */
   private static void releaseBothClaims() {
-    IndexJobGuard.reset(INDEX);
-    ValueSetsImportStatusManager.getInstance().reset();
+    Instant afterEveryDeadline = Instant.now().plus(JobClaim.DEADLINE).plus(JobClaim.DEADLINE);
+    for (IndexJobGuard.Index index : IndexJobGuard.Index.values()) {
+      IndexJobGuard.reset(index, afterEveryDeadline);
+    }
+    ValueSetsImportStatusManager.getInstance().reset(afterEveryDeadline);
   }
 
   @Test

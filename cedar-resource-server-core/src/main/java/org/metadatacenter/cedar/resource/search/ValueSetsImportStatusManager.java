@@ -75,7 +75,9 @@ public class ValueSetsImportStatusManager {
 
   /**
    * Claim the import, or report that one is already running. The caller must pass the claim back to
-   * {@link #finish}, or the import stays claimed until its deadline passes and an operator resets it.
+   * {@link #finish}, or the import stays claimed until an operator resets it. Passing the deadline
+   * releases nothing on its own. It only allows the reset, so an abandoned import goes on refusing
+   * every later one until someone runs it.
    */
   public Optional<JobClaim> tryStart() {
     return tryStart(Instant.now());

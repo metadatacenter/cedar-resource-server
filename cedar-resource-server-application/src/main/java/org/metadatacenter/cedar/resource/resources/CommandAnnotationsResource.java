@@ -22,6 +22,7 @@ import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.rest.assertion.noun.CedarParameter;
 import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
@@ -72,9 +74,14 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
-    String requestContent = requestBody.asJsonString();
-    String id = requestBody.get("@id").stringValue();
-    String doiInRequest = requestBody.get("doi").stringValue();
+    c.must(requestBody).be(NonEmpty);
+    CedarParameter idParameter = requestBody.get("@id");
+    CedarParameter doiParameter = requestBody.get("doi");
+    c.must(idParameter).be(NonEmpty);
+    c.must(doiParameter).be(NonEmpty);
+
+    String id = idParameter.stringValue();
+    String doiInRequest = doiParameter.stringValue();
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
@@ -84,7 +91,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
     CedarResourceType resourceType = folderServerOldResource.getType();
 
-    if (doiInRequest != null && !resourceType.supportsDOI()) {
+    if (!resourceType.supportsDOI()) {
       return CedarResponse.badRequest()
           .errorMessage("The doi is not supported by the given resource type")
           .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)

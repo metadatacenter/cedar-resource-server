@@ -20,6 +20,7 @@ import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.model.folderserver.basic.FolderServerField;
 import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
@@ -153,6 +154,65 @@ public class CommandAnnotationsResourceTest {
   }
 
   @Test
+  public void missingNullAndBlankDoiAreRejectedBeforeAnyWrite() throws Exception {
+    for (String body : List.of(
+        "{\"@id\": \"" + artifactId.getId() + "\"}",
+        "{\"@id\": \"" + artifactId.getId() + "\", \"doi\": null}",
+        "{\"@id\": \"" + artifactId.getId() + "\", \"doi\": \"   \"}")) {
+      HttpResponse<String> response = postDoiCommand(body);
+      Assertions.assertEquals(400, response.statusCode(), response.body());
+    }
+
+    Assertions.assertEquals(0, PUT_REQUESTS.get());
+    Assertions.assertFalse(currentArtifact.has("_annotations"));
+    FolderServerArtifact graphArtifact = CedarDataServices.getInstance().getFolderServiceSession(userContext)
+        .findArtifactById(artifactId);
+    Assertions.assertNull(graphArtifact.getDOI());
+  }
+
+  @Test
+  public void emptyRequestBodyIsRejectedBeforeAnyWrite() throws Exception {
+    HttpResponse<String> response = postDoiCommand("");
+
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    Assertions.assertEquals(0, PUT_REQUESTS.get());
+    Assertions.assertFalse(currentArtifact.has("_annotations"));
+  }
+
+  @Test
+  public void missingNullAndBlankArtifactIdAreRejectedBeforeAnyWrite() throws Exception {
+    for (String body : List.of(
+        "{\"doi\": \"10.1234/missing-id\"}",
+        "{\"@id\": null, \"doi\": \"10.1234/null-id\"}",
+        "{\"@id\": \"   \", \"doi\": \"10.1234/blank-id\"}")) {
+      HttpResponse<String> response = postDoiCommand(body);
+      Assertions.assertEquals(400, response.statusCode(), response.body());
+    }
+
+    Assertions.assertEquals(0, PUT_REQUESTS.get());
+    Assertions.assertFalse(currentArtifact.has("_annotations"));
+  }
+
+  @Test
+  public void doiIsRejectedForUnsupportedResourceTypeBeforeArtifactWrite() throws Exception {
+    FolderServiceSession folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
+    CedarFolderId homeFolderId = folderSession.findHomeFolderOf().getResourceId();
+    FolderServerField field = new FolderServerField();
+    field.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FIELD));
+    field.setName("DOI unsupported resource fixture");
+    field.setDescription("DOI command unsupported resource integration test");
+    FolderServerArtifact created = folderSession.createResourceAsChildOfId(field, homeFolderId);
+    Assertions.assertNotNull(created);
+
+    HttpResponse<String> response = postDoiCommand(
+        "{\"@id\": \"" + created.getId() + "\", \"doi\": \"10.1234/field\"}");
+
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    Assertions.assertEquals(0, PUT_REQUESTS.get());
+    Assertions.assertNull(folderSession.findArtifactById(CedarUntypedArtifactId.build(created.getId())).getDOI());
+  }
+
+  @Test
   public void concurrentDifferentDoisCannotBothCommit() throws Exception {
     ExecutorService executor = Executors.newFixedThreadPool(2);
     try {
@@ -204,6 +264,10 @@ public class CommandAnnotationsResourceTest {
 
   private static HttpResponse<String> setDoi(String doi) throws Exception {
     String body = "{\"@id\": \"" + artifactId.getId() + "\", \"doi\": \"" + doi + "\"}";
+    return postDoiCommand(body);
+  }
+
+  private static HttpResponse<String> postDoiCommand(String body) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/annotations/doi"))
         .header("Authorization", authHeader)
