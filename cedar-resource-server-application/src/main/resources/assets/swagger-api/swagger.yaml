@@ -14,7 +14,7 @@ info:
     See the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)
     for authentication, request examples, and complete ETag guidance.
   title: CEDAR Resource Server API
-  version: 2.9.7-SNAPSHOT
+  version: 2.9.7
 tags:
 - name: Templates
 - name: Template Elements
