@@ -31,6 +31,12 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(ArtifactDeletionCompletionService.class);
   private static final int BATCH_SIZE = 25;
+  /**
+   * How many times a deletion is retried before it is parked. The relay runs every five seconds, so
+   * this is a few minutes of trying -- long enough to sit out a restart of the artifact server, and
+   * short enough that a job which will never finish stops asking.
+   */
+  private static final long MAX_ATTEMPTS = 60;
   private final CedarConfig cedarConfig;
   private final UserService userService;
   private final NodeIndexingService nodeIndexingService;
@@ -161,6 +167,16 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
                 continue;
               }
               if (status != HttpStatus.SC_NO_CONTENT && status != HttpStatus.SC_NOT_FOUND) {
+                if (status >= 400 && status < 500) {
+                  // The artifact server refused this deletion on its merits, as it does for a
+                  // template that stored instances still reference. Sending the identical request
+                  // again cannot change that answer, so stop rather than ask every five seconds
+                  // for as long as the process lives.
+                  log.error("Abandoning deletion {}: the artifact server refused it with {}",
+                      job.resourceId(), status);
+                  outbox.park(job.jobId(), "Artifact server refused the deletion with " + status);
+                  continue;
+                }
                 throw new IllegalStateException("Artifact server returned " + status);
               }
             }
@@ -169,8 +185,18 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
           }
           completeAfterArtifactDeletion(job, admin);
         } catch (Exception e) {
-          outbox.defer(job.jobId());
-          log.error("Artifact deletion {} remains pending and will be retried", job.resourceId(), e);
+          long attempts = outbox.defer(job.jobId());
+          if (attempts >= MAX_ATTEMPTS) {
+            log.error("Parking deletion {} after {} attempts; it needs attention rather than another"
+                + " attempt", job.resourceId(), attempts, e);
+            outbox.park(job.jobId(), "No progress after " + attempts + " attempts: " + e);
+          } else {
+            // A retry that is still within its budget is the mechanism working, not a fault, and
+            // logging it as an error leaves this service with an error count that never returns
+            // to zero.
+            log.warn("Artifact deletion {} remains pending and will be retried (attempt {})",
+                job.resourceId(), attempts, e);
+          }
         }
       }
     } catch (Exception e) {

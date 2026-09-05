@@ -51,6 +51,59 @@ class Neo4jArtifactDeletionOutboxTest {
   }
 
   @Test
+  void deferringCountsTheAttemptsSoARetryBudgetCanBeSpent() {
+    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
+         var outbox = new Neo4jArtifactDeletionOutbox(
+             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+      String jobId = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "\"7\"",
+          "{\"resourceType\":\"template\"}", null, false).jobId();
+
+      assertEquals(1, outbox.defer(jobId));
+      assertEquals(2, outbox.defer(jobId));
+      assertEquals(3, outbox.defer(jobId));
+    }
+  }
+
+  /**
+   * A refused deletion leaves the artifact in place, so the job is kept and made visible rather
+   * than dropped. What must stop is the asking.
+   */
+  @Test
+  void aParkedJobStopsBeingOfferedButStaysInTheOutbox() {
+    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
+         var outbox = new Neo4jArtifactDeletionOutbox(
+             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+      String jobId = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "\"7\"",
+          "{\"resourceType\":\"template\"}", null, false).jobId();
+      assertEquals(1, outbox.pending(10).size());
+
+      outbox.park(jobId, "Artifact server refused the deletion with 400");
+
+      assertTrue(outbox.pending(10).isEmpty(), "a parked job must not be retried");
+      assertEquals(1, outbox.count(), "the job is kept so the refusal can be found");
+      assertEquals(1, outbox.parkedCount());
+    }
+  }
+
+  @Test
+  void parkingOneJobLeavesTheOthersRunning() {
+    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
+         var outbox = new Neo4jArtifactDeletionOutbox(
+             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+      String refused = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "\"7\"",
+          "{\"resourceType\":\"template\"}", null, false).jobId();
+      outbox.prepare("artifact-2", CedarResourceType.TEMPLATE, "\"8\"",
+          "{\"resourceType\":\"template\"}", null, false);
+
+      outbox.park(refused, "Artifact server refused the deletion with 400");
+
+      assertEquals(1, outbox.pending(10).size());
+      assertEquals("artifact-2", outbox.pending(10).get(0).resourceId());
+      assertEquals(1, outbox.parkedCount());
+    }
+  }
+
+  @Test
   void concurrentPreparationUsesOneJobPerArtifact() {
     try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
          var outbox = new Neo4jArtifactDeletionOutbox(

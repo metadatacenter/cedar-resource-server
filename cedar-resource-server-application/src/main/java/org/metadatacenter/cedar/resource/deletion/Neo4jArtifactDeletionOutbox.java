@@ -9,6 +9,7 @@ import org.neo4j.driver.Config;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.Record;
+import org.neo4j.driver.Result;
 import org.neo4j.driver.Session;
 
 import java.util.ArrayList;
@@ -104,6 +105,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
    */
   public List<ArtifactDeletionJob> pending(int limit) {
     String query = "MATCH (e:" + LABEL + ") WHERE coalesce(e.nextAttemptAt, 0) <= timestamp() "
+        + "AND coalesce(e.parked, false) = false "
         + "WITH e ORDER BY e.createdAt, e.jobId LIMIT $limit "
         + "RETURN properties(e) AS job";
     try (Session session = driver.session()) {
@@ -142,8 +144,48 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
     update(jobId, "SET e.graphDeleted = true, e.nextAttemptAt = timestamp() + $delay", initialDelayMillis);
   }
 
-  public void defer(String jobId) {
-    update(jobId, "SET e.nextAttemptAt = timestamp() + $delay", 5_000);
+  /**
+   * Defers a job to its next attempt and reports how many attempts it has now had. A caller that
+   * watches that number stop rising towards a limit is watching a job that repetition will not
+   * finish, which is the difference between a dependency that is briefly away and one that has
+   * given a considered answer.
+   */
+  public long defer(String jobId) {
+    String query = "MATCH (e:" + LABEL + " {jobId: $jobId}) "
+        + "SET e.attempts = coalesce(e.attempts, 0) + 1, e.nextAttemptAt = timestamp() + $delay "
+        + "RETURN e.attempts AS attempts";
+    try (Session session = driver.session()) {
+      return session.writeTransaction(tx -> {
+        Result result = tx.run(query, Map.of("jobId", jobId, "delay", 5_000));
+        return result.hasNext() ? result.next().get("attempts").asLong(0L) : 0L;
+      });
+    }
+  }
+
+  /**
+   * Stops retrying a job and records why. The job stays in the outbox rather than being removed,
+   * because a deletion that was refused leaves the artifact in place and someone has to be able to
+   * find it. {@link #pending} skips a parked job, so the relay stops re-sending a request that has
+   * already been answered.
+   */
+  public void park(String jobId, String reason) {
+    try (Session session = driver.session()) {
+      session.writeTransaction(tx -> {
+        tx.run("MATCH (e:" + LABEL + " {jobId: $jobId}) "
+                + "SET e.parked = true, e.parkedReason = $reason, e.parkedAt = timestamp()",
+            Map.of("jobId", jobId, "reason", reason)).consume();
+        return null;
+      });
+    }
+  }
+
+  /** How many deletions are parked: jobs waiting on a person rather than on another attempt. */
+  public long parkedCount() {
+    try (Session session = driver.session()) {
+      return session.readTransaction(tx -> tx.run(
+          "MATCH (e:" + LABEL + ") WHERE e.parked = true RETURN count(e) AS parked")
+          .single().get("parked").asLong());
+    }
   }
 
   private void update(String jobId, String setter, long delay) {
