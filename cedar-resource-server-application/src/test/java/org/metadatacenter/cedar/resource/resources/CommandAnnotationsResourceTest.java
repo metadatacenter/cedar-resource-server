@@ -31,13 +31,13 @@ import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
+import org.metadatacenter.util.test.TestHttpClient;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -66,7 +66,6 @@ public class CommandAnnotationsResourceTest {
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
       new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
 
-  private static final HttpClient CLIENT = HttpClient.newHttpClient();
   private static final AtomicInteger PUT_REQUESTS = new AtomicInteger();
   private static final Object ARTIFACT_LOCK = new Object();
 
@@ -274,7 +273,7 @@ public class CommandAnnotationsResourceTest {
         .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build();
-    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    return TestHttpClient.send(request);
   }
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {

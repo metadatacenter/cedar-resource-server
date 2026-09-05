@@ -17,6 +17,7 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateElement;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
@@ -64,11 +65,11 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @ApiResponses({
       @ApiResponse(responseCode = "201", description = "A template element", content = @Content(schema = @Schema(implementation = TemplateElement.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response createTemplateElement(
       @Parameter(description = "Folder identifier. The artifact will be created in this folder. The user must have write "
@@ -95,11 +96,11 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "A template element", content = @Content(schema = @Schema(implementation = TemplateElement.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response findTemplateElement(
       @Parameter(description = "Template Element identifier. Example: https://repo.metadatacenter.org/template-elements/"
@@ -125,11 +126,11 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       + "the same path does the same thing and remains for existing callers.")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template element content as an attachment"),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateElementDownload(
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id,
@@ -148,11 +149,11 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       + "via the Accept header.")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template element content as an attachment"),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response downloadTemplateElement(
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id,
@@ -220,11 +221,11 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation",
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response findTemplateElementDetails(
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
@@ -252,13 +253,13 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "201", description = "A template element created with the supplied identifier",
           content = @Content(schema = @Schema(implementation = TemplateElement.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
       @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response updateTemplateElement(
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id,
@@ -293,13 +294,13 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "Content deleted; durable downstream cleanup is pending"),
       @ApiResponse(responseCode = "204", description = "Deletion completed across content and downstream stores"),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
       @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response deleteTemplateElement(
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
@@ -318,11 +319,11 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation",
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateElementPermissions(
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
@@ -342,13 +343,13 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation",
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
       @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response updateTemplateElementPermissions(
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
@@ -366,11 +367,11 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Operation(summary = "Get report of a template element", description = "Get report of a template element.", tags = {"Template Elements", "Resource Report", "Versioning"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation"),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateElementInstanceReport(
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
@@ -388,11 +389,11 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Operation(summary = "Get a list of versions of a template element", description = "Get a list of versions of a template element.", tags = {"Template Elements", "Resource Report", "Versioning"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation"),
-      @ApiResponse(responseCode = "400", description = "Bad request"),
-      @ApiResponse(responseCode = "401", description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", description = "Forbidden"),
-      @ApiResponse(responseCode = "404", description = "Not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error")
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateElementVersions(
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
