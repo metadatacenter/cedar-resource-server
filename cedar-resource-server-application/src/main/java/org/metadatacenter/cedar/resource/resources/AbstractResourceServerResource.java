@@ -50,6 +50,7 @@ import org.metadatacenter.server.search.permission.SearchPermissionEnqueueServic
 import org.metadatacenter.server.search.util.InclusionSubgraphUtil;
 import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.permission.category.CategoryCapability;
 import org.metadatacenter.server.security.model.permission.resource.ResourceCapability;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
@@ -1483,7 +1484,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     return Response.ok(resourceReport).build();
   }
 
-  protected FolderServerCategory userMustHaveWriteAccessToCategory(CedarRequestContext context, CedarCategoryId categoryId) throws CedarException {
+  protected FolderServerCategoryCurrentUserReport userMustHaveCategoryCapability(
+      CedarRequestContext context, CedarCategoryId categoryId, CategoryCapability capability) throws CedarException {
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(context);
     CategoryPermissionServiceSession categoryPermissionSession =
         dataServices.getCategoryPermissionServiceSession(context);
@@ -1495,34 +1497,13 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           .errorKey(CedarErrorKey.CATEGORY_NOT_FOUND)
           .parameter("categoryId", categoryId);
     }
-    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_CATEGORY) ||
-        fsCategory.getCurrentUserPermissions().isCanWrite()) {
+    if (fsCategory.getCurrentUserPermissions().getCapabilities().contains(capability)) {
       return fsCategory;
     } else {
-      throw new CedarPermissionException("You do not have write access to the category")
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_CATEGORY)
-          .parameter("categoryId", categoryId);
-    }
-  }
-
-  protected FolderServerCategory userMustHaveAttachAccessToCategory(CedarRequestContext context, CedarCategoryId categoryId) throws CedarException {
-    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(context);
-    CategoryPermissionServiceSession categoryPermissionSession = dataServices.getCategoryPermissionServiceSession(context);
-
-    FolderServerCategoryCurrentUserReport fsCategory = GraphDbPermissionReader.getCategoryCurrentUserReport(categorySession,
-        categoryPermissionSession, categoryId);
-    if (fsCategory == null) {
-      throw new CedarObjectNotFoundException("Category not found by id")
-          .errorKey(CedarErrorKey.CATEGORY_NOT_FOUND)
-          .parameter("categoryId", categoryId);
-    }
-    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_CATEGORY) ||
-        fsCategory.getCurrentUserPermissions().isCanWrite() ||
-        fsCategory.getCurrentUserPermissions().isCanAttach()) {
-      return fsCategory;
-    } else {
-      throw new CedarPermissionException("You do not have write access to the category")
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_CATEGORY)
+      throw new CedarPermissionException("You do not have the required capability on the category")
+          .errorKey(capability == CategoryCapability.READ_CATEGORY
+              ? CedarErrorKey.NO_READ_ACCESS_TO_CATEGORY : CedarErrorKey.NO_WRITE_ACCESS_TO_CATEGORY)
+          .parameter("requiredCapability", capability)
           .parameter("categoryId", categoryId);
     }
   }

@@ -660,7 +660,7 @@
     },
     "/categories/{category_id}/permissions" : {
       "get" : {
-        "description" : "Get permissions of a category.",
+        "description" : "Get the category owner, direct user grants and direct group grants. Any user with the readCategory capability may read this response.",
         "operationId" : "getCategoryPermissions",
         "parameters" : [ {
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
@@ -673,7 +673,14 @@
         } ],
         "responses" : {
           "200" : {
-            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryPermissions"
+                }
+              }
+            },
+            "description" : "Category permissions",
             "headers" : {
               "ETag" : {
                 "$ref" : "#/components/headers/ETag",
@@ -735,11 +742,11 @@
         "security" : [ {
           "api_key" : [ ]
         } ],
-        "summary" : "Get permissions of a category",
+        "summary" : "Get category permissions",
         "tags" : [ "Categories", "Permissions" ]
       },
       "put" : {
-        "description" : "Update permissions of a category.",
+        "description" : "Atomically replace the direct user and group role grants. This operation does not change ownership or inherited roles. The caller must have the manageGrants capability.",
         "operationId" : "updateCategoryPermissions",
         "parameters" : [ {
           "$ref" : "#/components/parameters/IfMatch"
@@ -752,9 +759,27 @@
             "type" : "string"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CategoryAclUpdateRequest"
+              }
+            }
+          },
+          "description" : "Complete replacement for the category's direct grants.",
+          "required" : true
+        },
         "responses" : {
           "200" : {
-            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryPermissions"
+                }
+              }
+            },
+            "description" : "Updated category permissions",
             "headers" : {
               "ETag" : {
                 "$ref" : "#/components/headers/ETag",
@@ -822,7 +847,7 @@
         "security" : [ {
           "api_key" : [ ]
         } ],
-        "summary" : "Update permissions of a category",
+        "summary" : "Replace category grants",
         "tags" : [ "Categories", "Permissions" ]
       }
     },
@@ -894,7 +919,7 @@
     },
     "/command/attach-categories" : {
       "post" : {
-        "description" : "Attach a list of existing categories to an existing artifact. The user must have the updateResource capability on the artifact. The user must have 'attach' access to all the categories. The call will exit at the firts category without 'attach' access",
+        "description" : "Attach a list of existing categories to an existing artifact. The user must have the updateResource capability on the artifact and the attachCategory capability on every category. Authorization is completed before any category is attached.",
         "operationId" : "attachCategoriesToArtifact",
         "requestBody" : {
           "content" : {
@@ -971,7 +996,7 @@
     },
     "/command/attach-category" : {
       "post" : {
-        "description" : "Attach an existing category to an existing artifact. The user must have the updateResource capability on the artifact. The user must have 'attach' access to the category.",
+        "description" : "Attach an existing category to an existing artifact. The user must have the updateResource capability on the artifact and the attachCategory capability on the category.",
         "operationId" : "attachCategoryToArtifact",
         "requestBody" : {
           "content" : {
@@ -1427,7 +1452,7 @@
     },
     "/command/detach-category" : {
       "post" : {
-        "description" : "Detach an existing category from an existing artifact. The user must have the updateResource capability on the artifact. The user must have 'attach' access to the category.",
+        "description" : "Detach an existing category from an existing artifact. The user must have the updateResource capability on the artifact and the detachCategory capability on the category.",
         "operationId" : "detachCategoryFromArtifact",
         "requestBody" : {
           "content" : {
@@ -3243,6 +3268,95 @@
         } ],
         "summary" : "Take back a value sets ontology import that passed its deadline.",
         "tags" : [ "Command", "Administration" ]
+      }
+    },
+    "/command/transfer-category-ownership" : {
+      "post" : {
+        "description" : "Replace the owner of a category with another user. Only the current owner may perform this operation. Send the ETag returned by the category permissions endpoint in If-Match.",
+        "operationId" : "transferCategoryOwnership",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransferOwnershipRequest"
+              }
+            }
+          },
+          "description" : "The category and new owner.",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryPermissions"
+                }
+              }
+            },
+            "description" : "Ownership transferred",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Bad request"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Transfer category ownership",
+        "tags" : [ "Command", "Categories", "Permissions" ]
       }
     },
     "/command/transfer-resource-ownership" : {
@@ -10040,6 +10154,31 @@
           }
         }
       },
+      "CategoryAclUpdateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "groupPermissions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryGroupGrant"
+            }
+          },
+          "owner" : {
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/CategoryUserReference"
+            } ],
+            "deprecated" : true,
+            "description" : "Accepted for compatibility when it names the current owner. Ownership is changed through the separate transfer operation."
+          },
+          "userPermissions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryUserGrant"
+            }
+          }
+        },
+        "required" : [ "groupPermissions", "userPermissions" ]
+      },
       "CategoryAttachListRequest" : {
         "type" : "object",
         "description" : "Parameters of the attach operation.",
@@ -10072,6 +10211,93 @@
           }
         }
       },
+      "CategoryCapability" : {
+        "type" : "string",
+        "description" : "An operation authorized by the current user's effective access to the category.",
+        "enum" : [ "readCategory", "attachCategory", "detachCategory", "updateCategory", "createChildCategory", "deleteCategory", "manageGrants", "moveCategory", "transferOwnership" ]
+      },
+      "CategoryGroupGrant" : {
+        "type" : "object",
+        "properties" : {
+          "group" : {
+            "$ref" : "#/components/schemas/CategoryGroupReference"
+          },
+          "role" : {
+            "$ref" : "#/components/schemas/CategoryRole"
+          }
+        },
+        "required" : [ "group", "role" ]
+      },
+      "CategoryGroupReference" : {
+        "type" : "object",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "schema:name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "@id" ]
+      },
+      "CategoryPermissions" : {
+        "type" : "object",
+        "properties" : {
+          "groupPermissions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryGroupGrant"
+            }
+          },
+          "owner" : {
+            "$ref" : "#/components/schemas/CategoryUserReference"
+          },
+          "userPermissions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryUserGrant"
+            }
+          }
+        },
+        "required" : [ "groupPermissions", "owner", "userPermissions" ]
+      },
+      "CategoryRole" : {
+        "type" : "string",
+        "description" : "The strongest Viewer, Classifier, Editor or Manager role granted to the current user.",
+        "enum" : [ "viewer", "classifier", "editor", "manager" ]
+      },
+      "CategoryUserGrant" : {
+        "type" : "object",
+        "properties" : {
+          "role" : {
+            "$ref" : "#/components/schemas/CategoryRole"
+          },
+          "user" : {
+            "$ref" : "#/components/schemas/CategoryUserReference"
+          }
+        },
+        "required" : [ "role", "user" ]
+      },
+      "CategoryUserReference" : {
+        "type" : "object",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "firstName" : {
+            "type" : "string"
+          },
+          "lastName" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "@id" ]
+      },
       "CedarError" : {
         "type" : "object",
         "additionalProperties" : true,
@@ -10096,7 +10322,7 @@
           "errorKey" : {
             "type" : "string",
             "description" : "Stable machine-readable error identifier.",
-            "enum" : [ "templateElementNotCreated", "templateElementNotFound", "templateElementNotDeleted", "templateElementNotUpdated", "templateElementsNotListed", "templateFieldNotCreated", "templateFieldNotFound", "templateFieldNotDeleted", "templateFieldNotUpdated", "templateFieldsNotListed", "templateNotCreated", "templateNotFound", "templateNotDeleted", "templateNotUpdated", "templatesNotListed", "templateInstanceNotCreated", "templateInstanceNotFound", "templateInstanceNotDeleted", "templateInstanceNotUpdated", "templateInstancesNotListed", "noReadAccessToResource", "noWriteAccessToResource", "noReadAccessToFolder", "noWriteAccessToFolder", "noReadAccessToTemplate", "noWriteAccessToTemplate", "noReadAccessToTemplateElement", "noWriteAccessToTemplateElement", "noReadAccessToTemplateField", "noWriteAccessToTemplateField", "noReadAccessToTemplateInstance", "noWriteAccessToTemplateInstance", "noReadAccessToArtifact", "noWriteAccessToArtifact", "noWriteAccessToCategory", "folderNotFound", "artifactNotFound", "artifactPreconditionRequired", "artifactHasMovedOn", "verbatimWriteRefused", "nodeNotFound", "unknownResourceType", "missingParameter", "invalidInput", "sourceFolderNotFound", "sourceResourceNotFound", "targetFolderNotFound", "nodeNotMoved", "groupNotFound", "userNotFound", "uniqueConstraintCollision", "invalidData", "notAuthorized", "permissionMissing", "tokenInvalid", "userInfoLoadByTokenFailed", "userInfoLoadByApiKeyFailed", "cedarUserNotFound", "authorizationNotFound", "permissionNotOwned", "authorizationTypeUnknown", "apiKeyNotFound", "tokenMissing", "tokenExpired", "parentFolderNotSpecified", "parentFolderSpecifiedTwice", "pathNotNormalized", "parentFolderNotFound", "updateInvalidFolderName", "createInvalidFolderName", "nodeAlreadyPresent", "folderNotCreated", "missingNameAndDescription", "missingData", "folderNotDeleted", "artifactNotDeleted", "resourceNotCreated", "invalidResourceType", "invalidArtifactType", "readOtherProfileForbidden", "updateOtherProfileForbidden", "folderCanNotBeDeleted", "folderCanNotBeChanged", "groupAlreadyPresent", "groupCanBeModifiedOnlyByGroupAdmin", "groupCanBeDeletedOnlyByGroupAdmin", "groupUsersNotUpdated", "specialGroupCanNotBeDeleted", "folderPermissionsCanNotBeChanged", "unknownInstanceOutputFormat", "folderCopyNotAllowed", "methodNotImplemented", "upstreamServerError", "nothingToDo", "parentCategoryNotFound", "categoryAlreadyPresent", "categoryNotFound", "categoryCanNotBeDeleted", "rootCategoryCanNotBeDeleted", "unableToAttachCategory", "unableToDetachCategory", "noCategoriesWereAttached", "malformedJsonRequestBody", "malformedSearchTerm", "publishedArtifactCanNotBeChanged", "publishedArtifactCanNotBeDeleted", "versioningOnlyOnLatest", "versioningOnlyByOwner", "nonVersionedArtifactType", "createDraftOnlyFromPublished", "publishOnlyDraft", "draftNotCreated", "contentNotValid", "doiNotSupportedByResourceType", "doiCanNotBeSetForEmptyAtId", "doiCanNotBeAltered", "doiCanNotBeSet", "doiAlreadyExists", "dataCiteDOIDisabled", "resourceNotFound", "internalError" ],
+            "enum" : [ "templateElementNotCreated", "templateElementNotFound", "templateElementNotDeleted", "templateElementNotUpdated", "templateElementsNotListed", "templateFieldNotCreated", "templateFieldNotFound", "templateFieldNotDeleted", "templateFieldNotUpdated", "templateFieldsNotListed", "templateNotCreated", "templateNotFound", "templateNotDeleted", "templateNotUpdated", "templatesNotListed", "templateInstanceNotCreated", "templateInstanceNotFound", "templateInstanceNotDeleted", "templateInstanceNotUpdated", "templateInstancesNotListed", "noReadAccessToResource", "noWriteAccessToResource", "noReadAccessToFolder", "noWriteAccessToFolder", "noReadAccessToTemplate", "noWriteAccessToTemplate", "noReadAccessToTemplateElement", "noWriteAccessToTemplateElement", "noReadAccessToTemplateField", "noWriteAccessToTemplateField", "noReadAccessToTemplateInstance", "noWriteAccessToTemplateInstance", "noReadAccessToArtifact", "noWriteAccessToArtifact", "noReadAccessToCategory", "noWriteAccessToCategory", "folderNotFound", "artifactNotFound", "artifactPreconditionRequired", "artifactHasMovedOn", "verbatimWriteRefused", "nodeNotFound", "unknownResourceType", "missingParameter", "invalidInput", "sourceFolderNotFound", "sourceResourceNotFound", "targetFolderNotFound", "nodeNotMoved", "groupNotFound", "userNotFound", "uniqueConstraintCollision", "invalidData", "notAuthorized", "permissionMissing", "tokenInvalid", "userInfoLoadByTokenFailed", "userInfoLoadByApiKeyFailed", "cedarUserNotFound", "authorizationNotFound", "permissionNotOwned", "authorizationTypeUnknown", "apiKeyNotFound", "tokenMissing", "tokenExpired", "parentFolderNotSpecified", "parentFolderSpecifiedTwice", "pathNotNormalized", "parentFolderNotFound", "updateInvalidFolderName", "createInvalidFolderName", "nodeAlreadyPresent", "folderNotCreated", "missingNameAndDescription", "missingData", "folderNotDeleted", "artifactNotDeleted", "resourceNotCreated", "invalidResourceType", "invalidArtifactType", "readOtherProfileForbidden", "updateOtherProfileForbidden", "folderCanNotBeDeleted", "folderCanNotBeChanged", "groupAlreadyPresent", "groupCanBeModifiedOnlyByGroupAdmin", "groupCanBeDeletedOnlyByGroupAdmin", "groupUsersNotUpdated", "specialGroupCanNotBeDeleted", "folderPermissionsCanNotBeChanged", "unknownInstanceOutputFormat", "folderCopyNotAllowed", "methodNotImplemented", "upstreamServerError", "nothingToDo", "parentCategoryNotFound", "categoryAlreadyPresent", "categoryNotFound", "categoryCanNotBeDeleted", "rootCategoryCanNotBeDeleted", "unableToAttachCategory", "unableToDetachCategory", "noCategoriesWereAttached", "malformedJsonRequestBody", "malformedSearchTerm", "publishedArtifactCanNotBeChanged", "publishedArtifactCanNotBeDeleted", "versioningOnlyOnLatest", "versioningOnlyByOwner", "nonVersionedArtifactType", "createDraftOnlyFromPublished", "publishOnlyDraft", "draftNotCreated", "contentNotValid", "doiNotSupportedByResourceType", "doiCanNotBeSetForEmptyAtId", "doiCanNotBeAltered", "doiCanNotBeSet", "doiAlreadyExists", "dataCiteDOIDisabled", "resourceNotFound", "internalError" ],
             "nullable" : true
           },
           "errorMessage" : {
@@ -10207,6 +10433,29 @@
             "description" : "Copy sharing settings, or leave the new artifact unshared"
           }
         }
+      },
+      "CurrentUserCategoryPermissions" : {
+        "type" : "object",
+        "description" : "The current user's effective category role, ownership and capabilities.",
+        "properties" : {
+          "capabilities" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryCapability"
+            },
+            "uniqueItems" : true
+          },
+          "owner" : {
+            "type" : "boolean"
+          },
+          "role" : {
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/CategoryRole"
+            } ],
+            "nullable" : true
+          }
+        },
+        "required" : [ "capabilities", "owner" ]
       },
       "CurrentUserResourcePermissions" : {
         "type" : "object",
@@ -10597,11 +10846,11 @@
       },
       "TransferOwnershipRequest" : {
         "type" : "object",
-        "description" : "The resource and user involved in an ownership transfer.",
+        "description" : "The resource or category and user involved in an ownership transfer.",
         "properties" : {
           "@id" : {
             "type" : "string",
-            "description" : "Identifier of the artifact or folder."
+            "description" : "Identifier of the artifact, folder or category."
           },
           "newOwnerId" : {
             "type" : "string",

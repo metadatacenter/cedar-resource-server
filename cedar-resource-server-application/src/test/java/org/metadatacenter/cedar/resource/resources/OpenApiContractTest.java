@@ -51,6 +51,34 @@ class OpenApiContractTest {
         permissions.at("/properties/capabilities/items/$ref").asText());
     assertEquals("#/components/schemas/ResourceAction",
         permissions.at("/properties/availableActions/items/$ref").asText());
+
+    assertEnum(schemas.path("CategoryRole"), "viewer", "classifier", "editor", "manager");
+    assertEnum(schemas.path("CategoryCapability"),
+        "readCategory", "attachCategory", "detachCategory", "updateCategory",
+        "createChildCategory", "deleteCategory", "manageGrants", "moveCategory",
+        "transferOwnership");
+    JsonNode categoryPermissions = schemas.path("CurrentUserCategoryPermissions");
+    assertEquals("#/components/schemas/CategoryRole",
+        categoryPermissions.at("/properties/role/allOf/0/$ref").asText());
+    assertEquals("#/components/schemas/CategoryCapability",
+        categoryPermissions.at("/properties/capabilities/items/$ref").asText());
+
+    assertEquals("#/components/schemas/CategoryRole",
+        schemas.at("/CategoryUserGrant/properties/role/$ref").asText());
+    assertEquals("#/components/schemas/CategoryRole",
+        schemas.at("/CategoryGroupGrant/properties/role/$ref").asText());
+    assertEquals("#/components/schemas/CategoryUserGrant",
+        schemas.at("/CategoryPermissions/properties/userPermissions/items/$ref").asText());
+    assertEquals("#/components/schemas/CategoryGroupGrant",
+        schemas.at("/CategoryPermissions/properties/groupPermissions/items/$ref").asText());
+
+    JsonNode categoryAclPath = readSpec().at("/paths/~1categories~1{category_id}~1permissions");
+    assertEquals("#/components/schemas/CategoryPermissions",
+        categoryAclPath.at("/get/responses/200/content/application~1json/schema/$ref").asText());
+    assertEquals("#/components/schemas/CategoryAclUpdateRequest",
+        categoryAclPath.at("/put/requestBody/content/*~1*/schema/$ref").asText());
+    assertEquals("#/components/schemas/CategoryPermissions",
+        categoryAclPath.at("/put/responses/200/content/application~1json/schema/$ref").asText());
   }
 
   private static void assertEnum(JsonNode schema, String... expectedValues) {
