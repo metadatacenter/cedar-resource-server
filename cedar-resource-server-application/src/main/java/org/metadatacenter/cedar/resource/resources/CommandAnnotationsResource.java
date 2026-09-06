@@ -62,7 +62,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/annotations/doi")
-  @Operation(summary = "Set the DOI of an artifact", description = "Set the DOI annotation of an artifact. The user must have 'write' access to the artifact. The "
+  @Operation(summary = "Set the DOI of an artifact", description = "Set the DOI annotation of an artifact. The user must have the updateResource capability on the artifact. The "
           + "resource type must support DOIs, and an existing DOI can not be altered.")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation"),
@@ -88,7 +88,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
-    userMustHaveWriteAccessToArtifact(c, artifactId);
+    userMustHaveCapabilityOnArtifact(c, artifactId, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
 
     FolderServerArtifact folderServerOldResource = folderSession.findArtifactById(artifactId);
 

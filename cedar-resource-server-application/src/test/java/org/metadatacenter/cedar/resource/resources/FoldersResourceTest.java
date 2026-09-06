@@ -171,7 +171,7 @@ public class FoldersResourceTest {
     HttpResponse<String> response = request("GET", "/folders/" + encode(homeFolderId), null, authHeaderUser2);
     // The requester is authenticated but denied by the folder's ACL: forbidden, not unauthorized
     Assertions.assertEquals(403, response.statusCode());
-    Assertions.assertTrue(response.body().contains("You do not have read access to the folder"));
+    Assertions.assertTrue(response.body().contains("You do not have the required capability on the folder"));
   }
 
   @Test

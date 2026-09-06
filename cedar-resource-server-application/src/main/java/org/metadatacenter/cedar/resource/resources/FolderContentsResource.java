@@ -127,7 +127,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     }
 
     ResourcePermissionServiceSession permissionServiceSession = dataServices.getResourcePermissionServiceSession(c);
-    boolean hasRead = permissionServiceSession.userHasReadAccessToResource(fid);
+    boolean hasRead = permissionServiceSession.userHasCapability(fid,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.LIST_FOLDER_CONTENTS);
     if (!hasRead) {
       return CedarResponse.forbidden()
           .id(id)
@@ -149,6 +150,9 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     List<FolderServerResourceExtract> pathInfo = PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, folder);
 
     FolderServerNodeListResponse r = NodeListUtil.findFolderContents(cedarConfig, folderSession, fid, absoluteURI.toString(), pathInfo, pagedSortedTypedQuery);
+    for (FolderServerResourceExtract resource : r.getResources()) {
+      PathInfoBuilder.addCurrentUserPermissions(permissionSession, resource);
+    }
 
     ProvenanceNameUtil.addProvenanceDisplayNames(r);
     return Response.ok(r).build();
@@ -226,7 +230,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     }
 
     ResourcePermissionServiceSession permissionServiceSession = dataServices.getResourcePermissionServiceSession(c);
-    boolean hasRead = permissionServiceSession.userHasReadAccessToResource(fid);
+    boolean hasRead = permissionServiceSession.userHasCapability(fid,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.LIST_FOLDER_CONTENTS);
     if (!hasRead) {
       return CedarResponse.forbidden()
           .id(id)

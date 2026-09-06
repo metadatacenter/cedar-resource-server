@@ -138,7 +138,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   private Response publishArtifact(CedarRequestContext c, CedarUntypedSchemaArtifactId aid,
                                    ResourceVersion newVersion) throws CedarException {
-    userMustHaveReadAccessToArtifact(c, aid);
+    userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     FolderServerArtifactCurrentUserReport folderServerResourceOld = getArtifactReport(c, aid);
 
@@ -379,7 +379,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                                        ResourceVersion newVersion, CedarFolderId fid, boolean propagateSharing,
                                        String newFolderName) throws CedarException {
 
-    userMustHaveReadAccessToArtifact(c, aid);
+    userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     FolderServerArtifactCurrentUserReport folderServerResourceOld = getArtifactReport(c, aid);
 
@@ -411,10 +411,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
-    userMustHaveWriteAccessToFolder(c, fid);
-
-    // Check if the user has write permission to the target folder
-    userMustHaveWriteAccessToFolder(c, fid);
+    userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(artifactType, aid, c,
         microserviceUrlUtil, response);
@@ -469,7 +466,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             }
           }
 
-          userMustHaveWriteAccessToFolder(c, fid);
+          userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
 
           String artifactServerPostRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(newDocument);
 
@@ -588,7 +585,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, tid);
+    userMustHaveCapabilityOnArtifact(c, tid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     Map<String, Object> resp = new HashMap<>();
 
@@ -675,7 +672,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, tid);
+    userMustHaveCapabilityOnArtifact(c, tid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(CedarResourceType.TEMPLATE, tid, c,
         microserviceUrlUtil, response);

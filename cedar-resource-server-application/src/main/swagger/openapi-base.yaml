@@ -158,6 +158,63 @@ components:
           additionalProperties:
             type: string
       additionalProperties: true
+    ResourceRole:
+      type: string
+      description: The strongest Viewer, Editor or Manager role granted to the current user.
+      enum:
+        - viewer
+        - editor
+        - manager
+    ResourceCapability:
+      type: string
+      description: An operation authorized by the current user's effective access to the resource.
+      enum:
+        - readResource
+        - listFolderContents
+        - updateResource
+        - createInFolder
+        - copyIntoFolder
+        - moveIntoFolder
+        - deleteResource
+        - manageGrants
+        - moveResource
+        - manageOpenView
+        - transferOwnership
+    ResourceAction:
+      type: string
+      description: An operation currently available after capabilities and resource state are considered.
+      enum:
+        - copyFromResource
+        - createDraft
+        - publish
+        - submit
+        - populate
+        - enableOpenView
+        - disableOpenView
+    CurrentUserResourcePermissions:
+      type: object
+      description: The current user's effective role, ownership, capabilities and state-dependent actions.
+      required:
+        - owner
+        - capabilities
+        - availableActions
+      properties:
+        role:
+          allOf:
+            - $ref: '#/components/schemas/ResourceRole'
+          nullable: true
+        owner:
+          type: boolean
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ResourceCapability'
+        availableActions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ResourceAction'
   headers:
     ETag:
       description: Strong validator for the returned representation and its stored revision.

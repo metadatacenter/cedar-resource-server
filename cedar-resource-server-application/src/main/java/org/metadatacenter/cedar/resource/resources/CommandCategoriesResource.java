@@ -58,7 +58,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/attach-category")
-  @Operation(summary = "Attach category to an artifact", description = "Attach an existing category to an existing artifact. The user must have 'write' access to the "
+  @Operation(summary = "Attach category to an artifact", description = "Attach an existing category to an existing artifact. The user must have the updateResource capability on the "
           + "artifact. The user must have 'attach' access to the category.", tags = {"Command", "Categories", "Category Operations"})
   @RequestBody(description = "Parameters of the attach operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachRequest.class)))
   @ApiResponses({
@@ -88,7 +88,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     CedarCategoryId ccid = CedarCategoryId.build(categoryId);
 
-    userMustHaveWriteAccessToArtifact(c, aid);
+    userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
 
     userMustHaveAttachAccessToCategory(c, ccid);
 
@@ -113,7 +113,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/detach-category")
-  @Operation(summary = "Detach category from an artifact", description = "Detach an existing category from an existing artifact. The user must have 'write' access to the "
+  @Operation(summary = "Detach category from an artifact", description = "Detach an existing category from an existing artifact. The user must have the updateResource capability on the "
           + "artifact. The user must have 'attach' access to the category.", tags = {"Command", "Categories", "Category Operations"})
   @RequestBody(description = "Parameters of the detach operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachRequest.class)))
   @ApiResponses({
@@ -143,7 +143,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     CedarCategoryId ccid = CedarCategoryId.build(categoryId);
 
-    userMustHaveWriteAccessToArtifact(c, aid);
+    userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
 
     userMustHaveAttachAccessToCategory(c, ccid);
 
@@ -168,7 +168,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/attach-categories")
-  @Operation(summary = "Attach multiple categories to an artifact", description = "Attach a list of existing categories to an existing artifact. The user must have 'write' access to "
+  @Operation(summary = "Attach multiple categories to an artifact", description = "Attach a list of existing categories to an existing artifact. The user must have the updateResource capability on "
           + "the artifact. The user must have 'attach' access to all the categories. The call will exit at the "
           + "firts category without 'attach' access", tags = {"Command", "Categories", "Category Operations"})
   @RequestBody(description = "Parameters of the attach operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachListRequest.class)))
@@ -206,7 +206,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
 
-    userMustHaveWriteAccessToArtifact(c, aid);
+    userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
 
     FolderServerArtifactCurrentUserReport folderServerResource = getArtifactReport(c, aid);
 

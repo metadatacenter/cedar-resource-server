@@ -25,7 +25,7 @@ import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.security.model.permission.resource.FilesystemResourcePermission;
+import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
@@ -118,8 +118,8 @@ public class InclusionSubgraphAuthorizationTest {
     readableTemplate = create(new FolderServerTemplate(), CedarResourceType.TEMPLATE, "ISA readable template", user1HomeId);
     invisibleTemplate = create(new FolderServerTemplate(), CedarResourceType.TEMPLATE, "ISA invisible template", user1HomeId);
 
-    grantToUser2(sourceElement, FilesystemResourcePermission.READ);
-    grantToUser2(readableTemplate, FilesystemResourcePermission.READ);
+    grantToUser2(sourceElement, ResourceRole.VIEWER);
+    grantToUser2(readableTemplate, ResourceRole.VIEWER);
 
     // Both templates include the element. The arc runs from the including artifact to the included one.
     includes(readableTemplate, sourceElement);
@@ -213,7 +213,7 @@ public class InclusionSubgraphAuthorizationTest {
     return created;
   }
 
-  private static void grantToUser2(FolderServerArtifact artifact, FilesystemResourcePermission permission) {
+  private static void grantToUser2(FolderServerArtifact artifact, ResourceRole permission) {
     ResourcePermissionsRequest request = new ResourcePermissionsRequest();
     request.setOwner(new ResourcePermissionUser(user1.getId()));
     request.getUserPermissions().add(new ResourcePermissionUserPermissionPair(

@@ -39,11 +39,14 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.RevisionConflictException;
 import org.metadatacenter.server.RevisionPrecondition;
+import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.SiblingNameConflictException;
 import org.metadatacenter.server.VersionedResource;
+import org.metadatacenter.server.VersionedResourcePermissions;
 import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.permission.resource.ResourceCapability;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -121,7 +124,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
 
     CedarFolderId targetFolderId = CedarFolderId.build(folderId);
 
-    userMustHaveReadAccessToArtifact(c, sourceArtifactId);
+    userMustHaveCapabilityOnArtifact(c, sourceArtifactId,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
 
     if (resourceType == CedarResourceType.FOLDER) {
@@ -166,8 +170,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     // Check create permission
     c.must(c.user()).have(permission2);
 
-    // Check if the user has write permission to the target folder
-    userMustHaveWriteAccessToFolder(c, targetFolderId);
+    userMustHaveCapabilityOnFolder(c, targetFolderId,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.COPY_INTO_FOLDER);
 
     String originalDocument;
     try {
@@ -314,7 +318,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     }
     CedarFilesystemResourceId sourceId = CedarFilesystemResourceId.build(sId, sourceResourceType);
 
-    userMustHaveWriteAccessToFilesystemResource(c, sourceId);
+    userMustHaveCapabilityOnFilesystemResource(c, sourceId,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.MOVE_RESOURCE);
 
     CedarPermission permissionCreate = null;
     CedarPermission permissionDelete = null;
@@ -388,15 +393,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
           .build();
     }
 
-    // Check if the user has write/delete permission to the source resource
-    if (sourceResourceType == CedarResourceType.FOLDER) {
-      userMustHaveWriteAccessToFolder(c, sourceId.asFolderId());
-    } else {
-      userMustHaveWriteAccessToArtifact(c, sourceId.asArtifactId());
-    }
-
-    // Check if the user has write permission to the target folder
-    userMustHaveWriteAccessToFolder(c, targetFolderId);
+    userMustHaveCapabilityOnFolder(c, targetFolderId,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.MOVE_INTO_FOLDER);
 
     String ifMatch = c.getIfMatchHeader();
     if (ifMatch == null || ifMatch.isBlank()) {
@@ -486,7 +484,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     }
     CedarFilesystemResourceId fsResourceId = CedarFilesystemResourceId.build(id, resourceType);
 
-    userMustHaveWriteAccessToFilesystemResource(c, fsResourceId);
+    userMustHaveCapabilityOnFilesystemResource(c, fsResourceId,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
 
     String name = null;
     if (!nameParam.isEmpty()) {
@@ -597,6 +596,84 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         return CedarResponse.internalServerError().build();
       }
     }
+  }
+
+  @POST
+  @Timed
+  @Path("/transfer-resource-ownership")
+  @Operation(summary = "Transfer resource ownership",
+      description = "Replace the owner of an artifact or folder with another user. The current owner alone may perform this operation. "
+          + "Send the ETag returned by the resource permissions endpoint in If-Match.",
+      tags = {"Command", "Permissions"}, parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
+  @RequestBody(description = "The resource and new owner.", required = true,
+      content = @Content(schema = @Schema(
+          implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TransferOwnershipRequest.class)))
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "Ownership transferred",
+          headers = @io.swagger.v3.oas.annotations.headers.Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired")
+  })
+  public Response transferResourceOwnership() throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+    CedarParameter idParam = c.request().getRequestBody().get(LinkedData.ID);
+    CedarParameter newOwnerIdParam = c.request().getRequestBody().get("newOwnerId");
+    c.must(idParam).be(NonEmpty);
+    c.must(newOwnerIdParam).be(NonEmpty);
+
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+    CedarResourceId untypedId = CedarUntypedResourceId.build(idParam.stringValue());
+    CedarResourceType resourceType = folderSession.getResourceType(untypedId);
+    boolean permissionControlledResource = resourceType != null && switch (resourceType) {
+      case FOLDER, FIELD, ELEMENT, TEMPLATE, INSTANCE -> true;
+      default -> false;
+    };
+    if (!permissionControlledResource) {
+      throw new CedarObjectNotFoundException("Resource not found by id")
+          .errorKey(CedarErrorKey.NODE_NOT_FOUND)
+          .parameter("resourceId", untypedId);
+    }
+    CedarFilesystemResourceId resourceId = CedarFilesystemResourceId.build(untypedId.getId(), resourceType);
+    userMustHaveCapabilityOnFilesystemResource(c, resourceId, ResourceCapability.TRANSFER_OWNERSHIP);
+
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .id(resourceId)
+          .errorMessage("Transferring ownership requires the permissions ETag in If-Match")
+          .build();
+    }
+
+    ResourcePermissionServiceSession permissions = dataServices.getResourcePermissionServiceSession(c);
+    BackendCallResult<VersionedResourcePermissions> result;
+    try {
+      result = permissions.transferResourceOwnership(resourceId,
+          CedarUserId.build(newOwnerIdParam.stringValue()), RevisionPreconditionParser.parse(ifMatch));
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .id(resourceId)
+          .errorMessage("The resource permissions have changed since they were read")
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .build();
+    }
+    if (result.isError()) {
+      throw new CedarBackendException(result);
+    }
+
+    if (resourceType == CedarResourceType.FOLDER) {
+      searchPermissionEnqueueService.folderPermissionsChanged(resourceId);
+    } else {
+      searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
+    }
+    VersionedResourcePermissions transferred = result.getPayload();
+    return Response.ok(transferred.content())
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(transferred.revision()))
+        .build();
   }
 
 }

@@ -828,7 +828,7 @@
     },
     "/command/annotations/doi" : {
       "post" : {
-        "description" : "Set the DOI annotation of an artifact. The user must have 'write' access to the artifact. The resource type must support DOIs, and an existing DOI can not be altered.",
+        "description" : "Set the DOI annotation of an artifact. The user must have the updateResource capability on the artifact. The resource type must support DOIs, and an existing DOI can not be altered.",
         "operationId" : "setDOI",
         "responses" : {
           "200" : {
@@ -894,7 +894,7 @@
     },
     "/command/attach-categories" : {
       "post" : {
-        "description" : "Attach a list of existing categories to an existing artifact. The user must have 'write' access to the artifact. The user must have 'attach' access to all the categories. The call will exit at the firts category without 'attach' access",
+        "description" : "Attach a list of existing categories to an existing artifact. The user must have the updateResource capability on the artifact. The user must have 'attach' access to all the categories. The call will exit at the firts category without 'attach' access",
         "operationId" : "attachCategoriesToArtifact",
         "requestBody" : {
           "content" : {
@@ -971,7 +971,7 @@
     },
     "/command/attach-category" : {
       "post" : {
-        "description" : "Attach an existing category to an existing artifact. The user must have 'write' access to the artifact. The user must have 'attach' access to the category.",
+        "description" : "Attach an existing category to an existing artifact. The user must have the updateResource capability on the artifact. The user must have 'attach' access to the category.",
         "operationId" : "attachCategoryToArtifact",
         "requestBody" : {
           "content" : {
@@ -1427,7 +1427,7 @@
     },
     "/command/detach-category" : {
       "post" : {
-        "description" : "Detach an existing category from an existing artifact. The user must have 'write' access to the artifact. The user must have 'attach' access to the category.",
+        "description" : "Detach an existing category from an existing artifact. The user must have the updateResource capability on the artifact. The user must have 'attach' access to the category.",
         "operationId" : "detachCategoryFromArtifact",
         "requestBody" : {
           "content" : {
@@ -1758,7 +1758,7 @@
     },
     "/command/inclusions-subgraph-update" : {
       "post" : {
-        "description" : "Propagate a change to the given artifact across the tree of affected artifacts, updating each referencing artifact on the artifact server. The caller needs read access to the artifact that changed and write access to every artifact selected for update; if any one of them is not writable the whole request is refused and nothing is written. The response reports what became of each target.",
+        "description" : "Propagate a change to the given artifact across the tree of affected artifacts, updating each referencing artifact on the artifact server. The caller needs the readResource capability on the artifact that changed and the updateResource capability on every artifact selected for update. If the caller lacks either capability, the whole request is refused and nothing is written. The response reports what became of each target.",
         "operationId" : "updateInclusionSubgraph",
         "responses" : {
           "200" : {
@@ -3245,6 +3245,88 @@
         "tags" : [ "Command", "Administration" ]
       }
     },
+    "/command/transfer-resource-ownership" : {
+      "post" : {
+        "description" : "Replace the owner of an artifact or folder with another user. The current owner alone may perform this operation. Send the ETag returned by the resource permissions endpoint in If-Match.",
+        "operationId" : "transferResourceOwnership",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransferOwnershipRequest"
+              }
+            }
+          },
+          "description" : "The resource and new owner.",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Ownership transferred",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Bad request"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Transfer resource ownership",
+        "tags" : [ "Command", "Permissions" ]
+      }
+    },
     "/command/validate" : {
       "post" : {
         "description" : "Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model. To use this service you will need to append the resource text in the request body as the payload. However, in the case of validating the template instance, you have an additional option to include the template text by organizing them as follows: { \"schema\": <template text>, \"instance\": <instance text> }. The validation service will return a report in JSON format as follows: { \"validates\": \"\", \"warnings\": [], \"errors\": [] }",
@@ -4548,7 +4630,7 @@
         "description" : "Create a template element. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplateElement",
         "parameters" : [ {
-          "description" : "Folder identifier. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
+          "description" : "Folder identifier. The artifact will be created in this folder. The user must have the createInFolder capability on the folder. If not provided, the artifact will be created in the user's home folder.",
           "in" : "query",
           "name" : "folder_id",
           "schema" : {
@@ -5859,7 +5941,7 @@
         "description" : "Create a template field. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplateField",
         "parameters" : [ {
-          "description" : "Folder identifier. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
+          "description" : "Folder identifier. The artifact will be created in this folder. The user must have the createInFolder capability on the folder. If not provided, the artifact will be created in the user's home folder.",
           "in" : "query",
           "name" : "folder_id",
           "schema" : {
@@ -7170,7 +7252,7 @@
         "description" : "Create a template instance. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplateInstance",
         "parameters" : [ {
-          "description" : "Folder identifier. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
+          "description" : "Folder identifier. The artifact will be created in this folder. The user must have the createInFolder capability on the folder. If not provided, the artifact will be created in the user's home folder.",
           "in" : "query",
           "name" : "folder_id",
           "schema" : {
@@ -8413,7 +8495,7 @@
         "description" : "Create a template. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "createTemplate",
         "parameters" : [ {
-          "description" : "Folder identifier. The artifact will be created in this folder. The user must have write access to the folder. If not provided, the artifact will be created in the user's home folder.",
+          "description" : "Folder identifier. The artifact will be created in this folder. The user must have the createInFolder capability on the folder. If not provided, the artifact will be created in the user's home folder.",
           "in" : "query",
           "name" : "folder_id",
           "schema" : {
@@ -10126,6 +10208,36 @@
           }
         }
       },
+      "CurrentUserResourcePermissions" : {
+        "type" : "object",
+        "description" : "The current user's effective role, ownership, capabilities and state-dependent actions.",
+        "properties" : {
+          "availableActions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ResourceAction"
+            },
+            "uniqueItems" : true
+          },
+          "capabilities" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ResourceCapability"
+            },
+            "uniqueItems" : true
+          },
+          "owner" : {
+            "type" : "boolean"
+          },
+          "role" : {
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/ResourceRole"
+            } ],
+            "nullable" : true
+          }
+        },
+        "required" : [ "availableActions", "capabilities", "owner" ]
+      },
       "Folder" : {
         "type" : "object",
         "description" : "A CEDAR folder.",
@@ -10261,6 +10373,16 @@
           }
         }
       },
+      "ResourceAction" : {
+        "type" : "string",
+        "description" : "An operation currently available after capabilities and resource state are considered.",
+        "enum" : [ "copyFromResource", "createDraft", "publish", "submit", "populate", "enableOpenView", "disableOpenView" ]
+      },
+      "ResourceCapability" : {
+        "type" : "string",
+        "description" : "An operation authorized by the current user's effective access to the resource.",
+        "enum" : [ "readResource", "listFolderContents", "updateResource", "createInFolder", "copyIntoFolder", "moveIntoFolder", "deleteResource", "manageGrants", "moveResource", "manageOpenView", "transferOwnership" ]
+      },
       "ResourceListResponse" : {
         "type" : "object",
         "additionalProperties" : true,
@@ -10324,6 +10446,11 @@
           }
         },
         "required" : [ "@context", "currentOffset", "nodeListQueryType", "resources", "totalCount" ]
+      },
+      "ResourceRole" : {
+        "type" : "string",
+        "description" : "The strongest Viewer, Editor or Manager role granted to the current user.",
+        "enum" : [ "viewer", "editor", "manager" ]
       },
       "ResourceSummary" : {
         "type" : "object",
@@ -10467,6 +10594,21 @@
             "description" : "number of fields in the input metadata record"
           }
         }
+      },
+      "TransferOwnershipRequest" : {
+        "type" : "object",
+        "description" : "The resource and user involved in an ownership transfer.",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "description" : "Identifier of the artifact or folder."
+          },
+          "newOwnerId" : {
+            "type" : "string",
+            "description" : "Identifier of the user who will become the owner."
+          }
+        },
+        "required" : [ "@id", "newOwnerId" ]
       },
       "User" : {
         "type" : "object",

@@ -13,7 +13,7 @@ import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.server.security.model.auth.CedarNodeMaterializedPermissions;
-import org.metadatacenter.server.security.model.permission.resource.FilesystemResourcePermission;
+import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
@@ -232,7 +232,7 @@ public class IndexedSearchOpenSearchIT {
   }
 
   private static String readKey(String userId) {
-    return CedarNodeMaterializedPermissions.getKey(userId, FilesystemResourcePermission.READ);
+    return CedarNodeMaterializedPermissions.getKey(userId, ResourceRole.VIEWER);
   }
 
   private static String enc(String value) {

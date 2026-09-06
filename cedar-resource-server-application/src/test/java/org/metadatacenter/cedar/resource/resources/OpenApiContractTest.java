@@ -30,6 +30,36 @@ class OpenApiContractTest {
     }
   }
 
+  @Test
+  void permissionVocabularyIsPublishedAsAnExplicitContract() throws IOException {
+    JsonNode schemas = readSpec().at("/components/schemas");
+
+    assertEnum(schemas.path("ResourceRole"), "viewer", "editor", "manager");
+    assertEnum(schemas.path("ResourceCapability"),
+        "readResource", "listFolderContents", "updateResource", "createInFolder",
+        "copyIntoFolder", "moveIntoFolder", "deleteResource", "manageGrants",
+        "moveResource", "manageOpenView", "transferOwnership");
+    assertEnum(schemas.path("ResourceAction"),
+        "copyFromResource", "createDraft", "publish", "submit", "populate",
+        "enableOpenView", "disableOpenView");
+
+    JsonNode permissions = schemas.path("CurrentUserResourcePermissions");
+    assertEquals("#/components/schemas/ResourceRole",
+        permissions.at("/properties/role/allOf/0/$ref").asText());
+    assertTrue(permissions.at("/properties/role/nullable").asBoolean());
+    assertEquals("#/components/schemas/ResourceCapability",
+        permissions.at("/properties/capabilities/items/$ref").asText());
+    assertEquals("#/components/schemas/ResourceAction",
+        permissions.at("/properties/availableActions/items/$ref").asText());
+  }
+
+  private static void assertEnum(JsonNode schema, String... expectedValues) {
+    assertEquals(java.util.Set.of(expectedValues),
+        java.util.stream.StreamSupport.stream(schema.path("enum").spliterator(), false)
+            .map(JsonNode::asText)
+            .collect(java.util.stream.Collectors.toSet()));
+  }
+
   private static void assertResponseSchema(JsonNode spec, String path, String expectedRef) {
     assertEquals(expectedRef,
         spec.path("paths").path(path).path("get").path("responses").path("200")

@@ -72,8 +72,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response createTemplateField(
-      @Parameter(description = "Folder identifier. The artifact will be created in this folder. The user must have write "
-          + "access to the folder. If not provided, the artifact will be created in the user's home folder.")
+      @Parameter(description = "Folder identifier. The artifact will be created in this folder. The user must have the "
+          + "createInFolder capability on the folder. If not provided, the artifact will be created in the user's home folder.")
       @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
       @Parameter(description = "Not supported on write operations; write responses always render the full form.")
       @QueryParam("compact") Optional<Boolean> compactParam,
@@ -113,7 +113,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, fid);
+    userMustHaveCapabilityOnArtifact(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
     return executeArtifactGetNegotiated(c, CedarResourceType.FIELD, fid, compactParam);
   }
 
@@ -167,7 +167,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, fid);
+    userMustHaveCapabilityOnArtifact(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.FIELD, fid);
     ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
