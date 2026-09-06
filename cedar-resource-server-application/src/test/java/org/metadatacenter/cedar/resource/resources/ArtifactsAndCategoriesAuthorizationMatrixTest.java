@@ -499,7 +499,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   }
 
   @Test
-  public void categoryAclUsesRolesAndAcceptsLegacyPermissionInput() throws Exception {
+  public void categoryAclRequiresRoleVocabulary() throws Exception {
     FolderServerCategory category = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
         .createCategory(rootCategoryId, "REST Category Roles " + UUID.randomUUID(),
             "Category used to verify the role-based ACL contract", null);
@@ -513,19 +513,18 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
         + "\"},\"permission\":\"attach\"}],\"groupPermissions\":[]}";
     HttpResponse<String> legacyUpdate = request("PUT", aclRoute, legacyBody, adminAuthHeader,
         initial.headers().firstValue("ETag").orElseThrow());
-    Assertions.assertEquals(200, legacyUpdate.statusCode(), legacyUpdate.body());
-    JsonNode legacyResponse = JsonMapper.MAPPER.readTree(legacyUpdate.body());
-    Assertions.assertEquals(user1Id, legacyResponse.path("owner").path("@id").asText(),
-        "ACL replacement must preserve ownership");
-    Assertions.assertEquals("classifier",
-        legacyResponse.path("userPermissions").get(0).path("role").asText());
-    Assertions.assertFalse(legacyResponse.path("userPermissions").get(0).has("permission"),
-        "Responses use role terminology even when the compatibility input used permission");
+    Assertions.assertEquals(400, legacyUpdate.statusCode(), legacyUpdate.body());
+
+    String legacyValueBody = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2Id
+        + "\"},\"role\":\"attach\"}],\"groupPermissions\":[]}";
+    HttpResponse<String> legacyValueUpdate = request("PUT", aclRoute, legacyValueBody,
+        adminAuthHeader, initial.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(400, legacyValueUpdate.statusCode(), legacyValueUpdate.body());
 
     String roleBody = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2Id
         + "\"},\"role\":\"editor\"}],\"groupPermissions\":[]}";
     HttpResponse<String> roleUpdate = request("PUT", aclRoute, roleBody, adminAuthHeader,
-        legacyUpdate.headers().firstValue("ETag").orElseThrow());
+        initial.headers().firstValue("ETag").orElseThrow());
     Assertions.assertEquals(200, roleUpdate.statusCode(), roleUpdate.body());
 
     HttpResponse<String> categoryAsUser2 = request("GET", categoryRoute, null, actors.get(OTHER_USER));

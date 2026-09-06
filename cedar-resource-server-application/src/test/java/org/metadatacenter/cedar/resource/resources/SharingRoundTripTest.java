@@ -200,6 +200,14 @@ public class SharingRoundTripTest {
     expectRefusal(folder, JsonMapper.MAPPER.writeValueAsString(collision),
         "a request listing the owner as a grantee");
 
+    String legacyProperty = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2.getId()
+        + "\"},\"permission\":\"read\"}],\"groupPermissions\":[]}";
+    expectRefusal(folder, legacyProperty, "a request using the removed permission property");
+
+    String legacyValue = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2.getId()
+        + "\"},\"role\":\"write\"}],\"groupPermissions\":[]}";
+    expectRefusal(folder, legacyValue, "a request using a legacy permission value as a role");
+
     // None of the refusals may have changed anything: user 2 still has no access at all.
     Assertions.assertFalse(user2Permissions().userHasCapability(folder.getResourceId(), ResourceCapability.READ_RESOURCE),
         "a refused sharing request must not have granted anything");
