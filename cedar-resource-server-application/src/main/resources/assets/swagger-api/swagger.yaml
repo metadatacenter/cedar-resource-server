@@ -7142,6 +7142,7 @@ components:
           - groupAlreadyPresent
           - groupCanBeModifiedOnlyByGroupAdmin
           - groupCanBeDeletedOnlyByGroupAdmin
+          - groupRequiresAdministrator
           - groupUsersNotUpdated
           - specialGroupCanNotBeDeleted
           - folderPermissionsCanNotBeChanged
