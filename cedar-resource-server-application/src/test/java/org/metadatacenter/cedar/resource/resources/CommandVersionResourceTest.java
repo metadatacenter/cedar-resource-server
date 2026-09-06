@@ -54,22 +54,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CommandVersionResourceTest {
 
-  private static final int ARTIFACT_PORT = 19327;
-  private static final int TERMINOLOGY_PORT = 19328;
   private static final String TERMINOLOGY_VERSION_ID = "doid-version-hash";
   private static final String UNRESOLVED_ONTOLOGY = "UNRESOLVED";
-
-  static {
-    EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "0",
-        "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
-        "CEDAR_REDIS_PERSISTENT_PORT", "1",
-        "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
-        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(ARTIFACT_PORT),
-        "CEDAR_TERMINOLOGY_SERVER_HOST", "127.0.0.1",
-        "CEDAR_TERMINOLOGY_HTTP_PORT", Integer.toString(TERMINOLOGY_PORT)));
-  }
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
       new DropwizardTestSupport<>(ResourceServerApplication.class,
@@ -126,12 +112,22 @@ public class CommandVersionResourceTest {
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
-    artifactServer = HttpServer.create(new InetSocketAddress("127.0.0.1", ARTIFACT_PORT), 0);
+    artifactServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     artifactServer.createContext("/", CommandVersionResourceTest::handleArtifactRequest);
     artifactServer.start();
-    terminologyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", TERMINOLOGY_PORT), 0);
+    terminologyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     terminologyServer.createContext("/", CommandVersionResourceTest::handleTerminologyRequest);
     terminologyServer.start();
+
+    EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
+        "CEDAR_REDIS_PERSISTENT_PORT", "1",
+        "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
+        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
+        "CEDAR_TERMINOLOGY_SERVER_HOST", "127.0.0.1",
+        "CEDAR_TERMINOLOGY_HTTP_PORT", Integer.toString(terminologyServer.getAddress().getPort())));
 
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);

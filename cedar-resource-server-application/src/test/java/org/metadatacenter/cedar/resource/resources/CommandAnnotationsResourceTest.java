@@ -51,18 +51,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Cross-service failure behavior for the DOI command. */
 public class CommandAnnotationsResourceTest {
 
-  private static final int ARTIFACT_PORT = 19397;
-
-  static {
-    EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "0",
-        "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
-        "CEDAR_REDIS_PERSISTENT_PORT", "1",
-        "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
-        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(ARTIFACT_PORT)));
-  }
-
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
       new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
 
@@ -83,11 +71,19 @@ public class CommandAnnotationsResourceTest {
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
-    artifactServer = HttpServer.create(new InetSocketAddress("127.0.0.1", ARTIFACT_PORT), 0);
+    artifactServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     artifactServer.createContext("/", CommandAnnotationsResourceTest::handleArtifactRequest);
     artifactExecutor = Executors.newCachedThreadPool();
     artifactServer.setExecutor(artifactExecutor);
     artifactServer.start();
+
+    EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
+        "CEDAR_REDIS_PERSISTENT_PORT", "1",
+        "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
+        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort())));
 
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);

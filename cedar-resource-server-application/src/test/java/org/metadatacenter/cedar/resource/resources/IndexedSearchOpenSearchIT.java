@@ -23,13 +23,11 @@ import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
-import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
-import org.opensearch.client.indices.GetIndexRequest;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.net.URI;
@@ -60,8 +58,8 @@ public class IndexedSearchOpenSearchIT {
       System.getenv().getOrDefault("CEDAR_OPENSEARCH_HOST", "127.0.0.1");
   private static final String OPENSEARCH_PORT =
       System.getenv().getOrDefault("CEDAR_OPENSEARCH_REST_PORT", "9200");
-  private static final String INDEX_NAME = "cedar-search";
   private static final String RUN = UUID.randomUUID().toString().toLowerCase();
+  private static final String INDEX_NAME = "cedar-search-it-" + RUN;
   private static final String TERM = "wirepermissionprobe" + RUN.replace("-", "");
   private static final String WALK_TERM = "wirewalkprobe" + RUN.replace("-", "");
   private static final String PRIVATE_ID = templateId("private");
@@ -95,6 +93,7 @@ public class IndexedSearchOpenSearchIT {
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
     cedarConfig = CedarConfig.getInstance(environment);
+    cedarConfig.getElasticsearchConfig().getIndexes().getSearchIndex().setName(INDEX_NAME);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
@@ -111,11 +110,9 @@ public class IndexedSearchOpenSearchIT {
 
     openSearch = new RestHighLevelClient(RestClient.builder(
         new HttpHost(OPENSEARCH_HOST, Integer.parseInt(OPENSEARCH_PORT), "http")));
-    createdIndex = !openSearch.indices().exists(new GetIndexRequest(INDEX_NAME), RequestOptions.DEFAULT);
-    if (createdIndex) {
-      openSearch.indices().create(new CreateIndexRequest(INDEX_NAME)
-          .mapping(testMapping(), XContentType.JSON), RequestOptions.DEFAULT);
-    }
+    openSearch.indices().create(new CreateIndexRequest(INDEX_NAME)
+        .mapping(testMapping(), XContentType.JSON), RequestOptions.DEFAULT);
+    createdIndex = true;
 
     index(PRIVATE_ID, TERM + " private", List.of(readKey(user1Id)));
     index(SHARED_ID, TERM + " shared", List.of(readKey(user1Id), readKey(user2Id)));
@@ -132,11 +129,6 @@ public class IndexedSearchOpenSearchIT {
         try {
           if (createdIndex) {
             openSearch.indices().delete(new DeleteIndexRequest(INDEX_NAME), RequestOptions.DEFAULT);
-          } else {
-            for (String documentId : SEEDED_DOCUMENT_IDS) {
-              openSearch.delete(new DeleteRequest(INDEX_NAME, documentId), RequestOptions.DEFAULT);
-            }
-            refresh();
           }
         } finally {
           openSearch.close();
