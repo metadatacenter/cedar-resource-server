@@ -1499,13 +1499,20 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     }
     if (fsCategory.getCurrentUserPermissions().getCapabilities().contains(capability)) {
       return fsCategory;
-    } else {
-      throw new CedarPermissionException("You do not have the required capability on the category")
-          .errorKey(capability == CategoryCapability.READ_CATEGORY
-              ? CedarErrorKey.NO_READ_ACCESS_TO_CATEGORY : CedarErrorKey.NO_WRITE_ACCESS_TO_CATEGORY)
-          .parameter("requiredCapability", capability)
+    }
+    // The report is assembled from more than one read of the graph, and a category deleted between
+    // them reports no capabilities at all. That is absence rather than refusal, so a racing delete
+    // answers 404 like any other request for a category that is gone.
+    if (categorySession.getCategoryById(categoryId) == null) {
+      throw new CedarObjectNotFoundException("Category not found by id")
+          .errorKey(CedarErrorKey.CATEGORY_NOT_FOUND)
           .parameter("categoryId", categoryId);
     }
+    throw new CedarPermissionException("You do not have the required capability on the category")
+        .errorKey(capability == CategoryCapability.READ_CATEGORY
+            ? CedarErrorKey.NO_READ_ACCESS_TO_CATEGORY : CedarErrorKey.NO_WRITE_ACCESS_TO_CATEGORY)
+        .parameter("requiredCapability", capability)
+        .parameter("categoryId", categoryId);
   }
 
   protected FolderServerArtifactCurrentUserReport getArtifactReport(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
