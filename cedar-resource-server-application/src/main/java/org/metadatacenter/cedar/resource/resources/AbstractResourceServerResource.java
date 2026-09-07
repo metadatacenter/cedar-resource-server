@@ -438,7 +438,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compactRepresentation);
       String canonicalEtag = headerValue(proxyResponse, HttpHeaders.ETAG);
       String yamlEtag = representationEtag(canonicalEtag,
-          compactRepresentation ? "yaml-compact" : "yaml");
+          compactRepresentation ? "yaml-compact-v2" : "yaml");
       response.setHeader(HttpHeaders.ETAG, yamlEtag);
       response.setHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT);
       return CedarResponse.ok()
