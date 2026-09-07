@@ -97,7 +97,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
     CedarFolderId fid = CedarFolderId.build(id);
 
-    userMustHaveReadAccessToFolder(c, fid);
+    userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     VersionedResource<FolderServerFolder> snapshot = folderSession.findVersionedFolderById(fid);
     if (snapshot == null) {
@@ -218,7 +218,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
     CedarFolderId fid = CedarFolderId.build(id);
 
-    userMustHaveWriteAccessToFolder(c, fid);
+    userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.DELETE_RESOURCE);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(fid);
@@ -385,7 +385,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     if (!folderIdP.isEmpty()) {
       folderIdV = folderIdP.stringValue();
       CedarFolderId fidv = CedarFolderId.build(folderIdV);
-      userMustHaveWriteAccessToFolder(c, fidv);
+      userMustHaveCapabilityOnFolder(c, fidv, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
       parentFolder = folderSession.findFolderById(fidv);
     }
 
@@ -400,7 +400,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     // A path identifies the same parent as folderId and must carry the same authorization check.
     if (folderIdP.isEmpty()) {
-      userMustHaveWriteAccessToFolder(c, parentFolder.getResourceId());
+      userMustHaveCapabilityOnFolder(c, parentFolder.getResourceId(), org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
     }
 
 

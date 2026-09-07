@@ -319,7 +319,8 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     if (c.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE)) {
       return extract;
     }
-    if (permissionSession.userHasReadAccessToResource(extract.getResourceId())) {
+    if (permissionSession.userHasCapability(extract.getResourceId(),
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE)) {
       return extract;
     }
     return FolderServerResourceExtract.anonymous(extract);

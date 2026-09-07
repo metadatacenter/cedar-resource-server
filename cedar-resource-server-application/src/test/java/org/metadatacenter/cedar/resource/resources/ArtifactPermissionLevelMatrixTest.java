@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
@@ -27,7 +28,8 @@ import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.security.model.permission.resource.FilesystemResourcePermission;
+import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
+import org.metadatacenter.server.security.model.permission.resource.ResourceCapability;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
@@ -39,6 +41,10 @@ import org.metadatacenter.util.test.PermissionMatrix;
 import org.metadatacenter.util.test.TestAuthUtil;
 
 import java.net.URLEncoder;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,24 +55,7 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.ANONYMOUS;
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.OTHER_USER;
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
 
-/**
- * What a grant buys on an artifact, for every artifact type — the companion to
- * {@link FolderPermissionLevelMatrixTest}, which asks the same of folders.
- *
- * <p>The permission machinery is shared: artifacts and folders are both filesystem resources and both
- * ACL updates run through {@code ResourcePermissionRequestValidator}. So the expectation is that
- * artifacts behave exactly as folders do, including conferring re-sharing on a WRITE grant. That is a
- * claim about shared code rather than about these routes, though, and each artifact type has its own
- * resource class; this is what turns the expectation into an assertion.
- *
- * <p>The surface here is narrower than for folders, because artifacts have no rename and their content
- * write and delete both proxy to the artifact server, which this suite does not run. What remains is
- * the reads and the ACL update — and the ACL update is the row that matters, since it is where the
- * escalation lives.
- *
- * <p>Grants are applied through the graph session, so a failure cannot be confused with a grant that
- * did not take.
- */
+/** REST matrix for the capabilities each role supplies across every artifact type. */
 public class ArtifactPermissionLevelMatrixTest {
 
   static {
@@ -81,6 +70,7 @@ public class ArtifactPermissionLevelMatrixTest {
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
       new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
+  private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
   private static Map<PermissionMatrix.Actor, String> actors;
   private static CedarConfig cedarConfig;
@@ -137,14 +127,11 @@ public class ArtifactPermissionLevelMatrixTest {
     SERVER.after();
   }
 
-  /**
-   * A READ grant must buy reading every graph-backed view of the artifact, and must not buy the
-   * authority to widen access.
-   */
+  /** Viewer permits artifact reads but not grant management. */
   @Test
-  public void aReadGrantBuysReadingOnly() throws Exception {
-    List<Fixture> readable = fixtures("read-readable", FilesystemResourcePermission.READ);
-    List<Fixture> resharable = fixtures("read-resharable", FilesystemResourcePermission.READ);
+  public void aViewerGrantProvidesViewerCapabilitiesOnly() throws Exception {
+    List<Fixture> readable = fixtures("viewer-readable", ResourceRole.VIEWER);
+    List<Fixture> resharable = fixtures("viewer-resharable", ResourceRole.VIEWER);
 
     PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
 
@@ -172,23 +159,39 @@ public class ArtifactPermissionLevelMatrixTest {
 
     matrix.verify();
 
-    // A refusal must have changed nothing: user 2's read grant should survive its own denied attempt.
+    // A refusal must have changed nothing: user 2's Viewer grant survives the denied attempt.
     for (Fixture f : resharable) {
-      Assertions.assertTrue(user2Permissions().userHasReadAccessToResource(f.node().getResourceId()),
+      Assertions.assertTrue(user2Permissions().userHasCapability(f.node().getResourceId(), ResourceCapability.READ_RESOURCE),
           "the refused ACL update should have left the " + f.label() + "'s permissions untouched");
     }
   }
 
-  /**
-   * A WRITE grant confers re-sharing, on every artifact type, exactly as it does on a folder. Recorded
-   * as the 200 the endpoints actually answer: the ACL update is gated on write access, and
-   * {@code CHANGEPERMISSIONS} is enforced nowhere. See {@link FolderPermissionLevelMatrixTest} and the
-   * roadmap entry on the unenforced levels.
-   */
+  /** Editor permits editing but not grant management on every artifact type. */
   @Test
-  public void aWriteGrantConfersResharingOnEveryType() throws Exception {
-    List<Fixture> readable = fixtures("write-readable", FilesystemResourcePermission.WRITE);
-    List<Fixture> resharable = fixtures("write-resharable", FilesystemResourcePermission.WRITE);
+  public void anEditorGrantDoesNotConferGrantManagement() throws Exception {
+    List<Fixture> fixtures = fixtures("editor", ResourceRole.EDITOR);
+    PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
+    for (Fixture f : fixtures) {
+      matrix.when("GET", f.path() + "/details")
+          .expect(ANONYMOUS, 401).expect(OWNER, 200).expect(OTHER_USER, 200);
+      matrix.when("PUT", f.path() + "/permissions", resharePermissionsBody())
+          .header("If-Match", "*")
+          .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
+    }
+    matrix.verify();
+    for (Fixture f : fixtures) {
+      Assertions.assertTrue(user2Permissions().userHasCapability(
+          f.node().getResourceId(), ResourceCapability.UPDATE_RESOURCE));
+      Assertions.assertFalse(user2Permissions().userHasCapability(
+          f.node().getResourceId(), ResourceCapability.MANAGE_GRANTS));
+    }
+  }
+
+  /** Manager permits grant management on every artifact type. */
+  @Test
+  public void aManagerGrantConfersGrantManagementOnEveryType() throws Exception {
+    List<Fixture> readable = fixtures("manager-readable", ResourceRole.MANAGER);
+    List<Fixture> resharable = fixtures("manager-resharable", ResourceRole.MANAGER);
 
     PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
 
@@ -206,20 +209,38 @@ public class ArtifactPermissionLevelMatrixTest {
 
     matrix.verify();
 
-    // A 200 would not distinguish an accepted no-op from a real rewrite. The body restated user 1 as
-    // owner and listed no user permissions, so a grantee holding only WRITE has just revoked their own
-    // access to someone else's artifact. Assert that per type, so the escalation is demonstrated.
+    // The submitted ACL omits user 2, so a successful replacement removes their own Manager grant.
     for (Fixture f : resharable) {
-      Assertions.assertFalse(user2Permissions().userHasWriteAccessToResource(f.node().getResourceId()),
-          "user 2 held only WRITE on the " + f.label() + ", yet rewriting its ACL succeeded and removed "
-              + "their own grant: the update is gated on write access, not on CHANGEPERMISSIONS");
+      Assertions.assertFalse(user2Permissions().userHasCapability(f.node().getResourceId(), ResourceCapability.UPDATE_RESOURCE),
+          "the successful Manager ACL replacement should remove the omitted " + f.label() + " grant");
+    }
+  }
+
+  @Test
+  public void artifactDetailsExposeTheEffectiveAuthorityReport() throws Exception {
+    for (Fixture fixture : fixtures("details-authority", ResourceRole.EDITOR)) {
+      JsonNode ownerDetails = details(fixture, actors.get(OWNER));
+      JsonNode ownerPermissions = ownerDetails.path("currentUserPermissions");
+      Assertions.assertTrue(ownerPermissions.path("owner").asBoolean(), fixture.label());
+      Assertions.assertTrue(ownerPermissions.path("role").isNull(), fixture.label());
+      Assertions.assertTrue(ownerPermissions.path("capabilities").toString().contains("transferOwnership"),
+          fixture.label());
+
+      JsonNode editorDetails = details(fixture, actors.get(OTHER_USER));
+      JsonNode editorPermissions = editorDetails.path("currentUserPermissions");
+      Assertions.assertFalse(editorPermissions.path("owner").asBoolean(), fixture.label());
+      Assertions.assertEquals("editor", editorPermissions.path("role").asText(), fixture.label());
+      Assertions.assertTrue(editorPermissions.path("capabilities").toString().contains("updateResource"),
+          fixture.label());
+      Assertions.assertFalse(editorPermissions.path("capabilities").toString().contains("manageGrants"),
+          fixture.label());
     }
   }
 
   // ── fixtures and helpers ───────────────────────────────────────────────────
 
-  /** One artifact of every type, under user 1's home folder, each granted the given permission to user 2. */
-  private static List<Fixture> fixtures(String tag, FilesystemResourcePermission permission) {
+  /** One artifact of every type, under user 1's home folder, each granting the given role to user 2. */
+  private static List<Fixture> fixtures(String tag, ResourceRole role) {
     List<Fixture> built = new ArrayList<>();
     for (Type type : TYPES) {
       FolderServerArtifact artifact = type.factory().get();
@@ -238,7 +259,7 @@ public class ArtifactPermissionLevelMatrixTest {
           .createResourceAsChildOfId(artifact, user1HomeId);
       Assertions.assertNotNull(created, "the fixture " + type.label() + " should have been created");
 
-      grantToUser2(created, permission);
+      grantToUser2(created, role);
       built.add(new Fixture(type.label(),
           type.pathPrefix() + "/" + URLEncoder.encode(created.getId(), StandardCharsets.UTF_8),
           created, type.versioned()));
@@ -246,11 +267,11 @@ public class ArtifactPermissionLevelMatrixTest {
     return built;
   }
 
-  private static void grantToUser2(FolderServerArtifact artifact, FilesystemResourcePermission permission) {
+  private static void grantToUser2(FolderServerArtifact artifact, ResourceRole role) {
     ResourcePermissionsRequest request = new ResourcePermissionsRequest();
     request.setOwner(new ResourcePermissionUser(user1.getId()));
     request.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
-        new ResourcePermissionUser(user2.getId()), permission));
+        new ResourcePermissionUser(user2.getId()), role));
     BackendCallResult result = CedarDataServices.getInstance().getResourcePermissionServiceSession(user1Context)
         .updateResourcePermissions(artifact.getResourceId(), request);
     Assertions.assertFalse(result.isError(), "the grant should succeed");
@@ -270,6 +291,17 @@ public class ArtifactPermissionLevelMatrixTest {
 
   private static ResourcePermissionServiceSession user2Permissions() {
     return CedarDataServices.getInstance().getResourcePermissionServiceSession(user2Context);
+  }
+
+  private static JsonNode details(Fixture fixture, String authorization) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + fixture.path() + "/details"))
+        .header("Authorization", authorization)
+        .GET()
+        .build();
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(200, response.statusCode(), fixture.label() + ": " + response.body());
+    return JsonMapper.MAPPER.readTree(response.body());
   }
 
 }

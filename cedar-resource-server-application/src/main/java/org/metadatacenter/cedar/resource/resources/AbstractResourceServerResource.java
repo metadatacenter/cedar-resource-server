@@ -50,6 +50,8 @@ import org.metadatacenter.server.search.permission.SearchPermissionEnqueueServic
 import org.metadatacenter.server.search.util.InclusionSubgraphUtil;
 import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
+import org.metadatacenter.server.security.model.permission.category.CategoryCapability;
+import org.metadatacenter.server.security.model.permission.resource.ResourceCapability;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
@@ -191,7 +193,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     CedarFolderId fid = CedarFolderId.build(folderIdS);
 
-    userMustHaveWriteAccessToFolder(context, fid);
+    userMustHaveCapabilityOnFolder(context, fid, ResourceCapability.CREATE_IN_FOLDER);
 
     String doiInRequest = ModelUtil.extractDOIFromResourceContent(content, resourceType);
 
@@ -593,7 +595,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   }
 
   protected Response getDetails(CedarRequestContext context, CedarArtifactId id) throws CedarException {
-    userMustHaveReadAccessToArtifact(context, id);
+    userMustHaveCapabilityOnArtifact(context, id, ResourceCapability.READ_RESOURCE);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     VersionedResource<FolderServerArtifact> snapshot = folderSession.findVersionedArtifactById(id);
@@ -601,8 +603,9 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       return CedarResponse.notFound().id(id).errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
           .errorMessage("The artifact details can not be found by id").build();
     }
-    FolderServerArtifact resource = snapshot.resource();
-
+    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
+    FolderServerArtifactCurrentUserReport resource = GraphDbPermissionReader.getArtifactCurrentUserReport(
+        context, folderSession, permissionSession, cedarConfig, id);
     ProvenanceNameUtil.addProvenanceDisplayName(resource);
     return CedarResponse.ok()
         .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(snapshot.revision()))
@@ -637,7 +640,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
             .errorMessage("Updating an existing artifact requires the ETag returned by GET in If-Match")
             .build();
       }
-      userMustHaveWriteAccessToArtifact(context, id);
+      userMustHaveCapabilityOnArtifact(context, id, ResourceCapability.UPDATE_RESOURCE);
       return executeResourceUpdateOnArtifactServerAndGraphDb(context, resourceType, id, content, verbatim,
           expectedEtag);
     } else {
@@ -953,7 +956,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
   protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id) throws CedarException {
     // Check delete preconditions
-    userMustHaveWriteAccessToArtifact(c, id);
+    userMustHaveCapabilityOnArtifact(c, id, ResourceCapability.DELETE_RESOURCE);
     if (c.getIfMatchHeader() == null || c.getIfMatchHeader().isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
           .id(id.getId())
@@ -1074,48 +1077,52 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   // existence check must run first: a missing node is 404, a present-but-denied node is 403. The
   // category helpers below follow the same order.
 
-  protected void userMustHaveReadAccessToFolder(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
+  protected void userMustHaveCapabilityOnFolder(CedarRequestContext context, CedarFolderId folderId,
+                                                ResourceCapability capability) throws CedarException {
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
-    boolean hasReadAccess = permissionSession.userHasReadAccessToResource(folderId);
-    if (!hasReadAccess) {
+    if (!permissionSession.userHasCapability(folderId, capability)) {
       folderMustExist(context, folderId);
-      throw new CedarPermissionException("You do not have read access to the folder")
-          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
+      throw new CedarPermissionException("You do not have the required capability on the folder")
+          .errorKey(capability == ResourceCapability.READ_RESOURCE
+              ? CedarErrorKey.NO_READ_ACCESS_TO_FOLDER : CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
+          .parameter("requiredCapability", capability)
           .parameter("folderId", folderId);
     }
   }
 
-  protected void userMustHaveWriteAccessToFolder(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
+  protected void userMustHaveCapabilityOnArtifact(CedarRequestContext context, CedarArtifactId artifactId,
+                                                  ResourceCapability capability) throws CedarException {
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
-    boolean hasWriteAccess = permissionSession.userHasWriteAccessToResource(folderId);
-    if (!hasWriteAccess) {
-      folderMustExist(context, folderId);
-      throw new CedarPermissionException("You do not have write access to the folder")
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_FOLDER)
-          .parameter("folderId", folderId);
-    }
-  }
-
-  protected void userMustHaveReadAccessToArtifact(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
-    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
-    boolean hasReadAccess = permissionSession.userHasReadAccessToResource(artifactId);
-    if (!hasReadAccess) {
+    if (!permissionSession.userHasCapability(artifactId, capability)) {
       artifactMustExist(context, artifactId);
-      throw new CedarPermissionException("You do not have read access to the artifact")
-          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_ARTIFACT)
+      throw new CedarPermissionException("You do not have the required capability on the artifact")
+          .errorKey(capability == ResourceCapability.READ_RESOURCE
+              ? CedarErrorKey.NO_READ_ACCESS_TO_ARTIFACT : CedarErrorKey.NO_WRITE_ACCESS_TO_ARTIFACT)
+          .parameter("requiredCapability", capability)
           .parameter("resourceId", artifactId);
     }
   }
 
-  protected void userMustHaveWriteAccessToArtifact(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
+  protected FileSystemResource userMustHaveCapabilityOnFilesystemResource(CedarRequestContext context,
+                                                                           CedarFilesystemResourceId resourceId,
+                                                                           ResourceCapability capability) throws CedarException {
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
-    boolean hasWriteAccess = permissionSession.userHasWriteAccessToResource(artifactId);
-    if (!hasWriteAccess) {
-      artifactMustExist(context, artifactId);
-      throw new CedarPermissionException("You do not have write access to the artifact")
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_ARTIFACT)
-          .parameter("resourceId", artifactId);
+    if (!permissionSession.userHasCapability(resourceId, capability)) {
+      if (resourceId instanceof CedarFolderId) {
+        folderMustExist(context, resourceId.asFolderId());
+      } else {
+        artifactMustExist(context, resourceId.asArtifactId());
+      }
+      throw new CedarPermissionException("You do not have the required capability on the resource")
+          .errorKey(capability == ResourceCapability.READ_RESOURCE
+              ? CedarErrorKey.NO_READ_ACCESS_TO_RESOURCE : CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
+          .parameter("requiredCapability", capability)
+          .parameter("resourceId", resourceId);
     }
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
+    return resourceId instanceof CedarFolderId
+        ? folderSession.findFolderById(resourceId.asFolderId())
+        : folderSession.findArtifactById(resourceId.asArtifactId());
   }
 
   private void folderMustExist(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
@@ -1136,25 +1143,6 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     }
   }
 
-  protected FileSystemResource userMustHaveWriteAccessToFilesystemResource(CedarRequestContext context, CedarFilesystemResourceId resourceId) throws CedarException {
-    try {
-      if (resourceId instanceof CedarFolderId) {
-        userMustHaveWriteAccessToFolder(context, resourceId.asFolderId());
-      } else {
-        userMustHaveWriteAccessToArtifact(context, resourceId.asArtifactId());
-      }
-    } catch (CedarException e) {
-      throw e;
-    } catch (Exception e) {
-      throw new CedarProcessingException(e);
-    }
-
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-    return resourceId instanceof CedarFolderId
-        ? folderSession.findFolderById(resourceId.asFolderId())
-        : folderSession.findArtifactById(resourceId.asArtifactId());
-  }
-
   protected Response generateResourcePermissionsResponse(CedarRequestContext c, CedarFilesystemResourceId resourceId) throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
@@ -1169,7 +1157,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
-    userMustHaveReadAccess(permissionSession, resourceId);
+    userMustHaveCapability(permissionSession, resourceId, ResourceCapability.READ_RESOURCE);
 
     VersionedResourcePermissions permissions = permissionSession.getVersionedResourcePermissions(resourceId);
     return Response.ok()
@@ -1202,9 +1190,10 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     } else {
       // Evaluate authority before the HTTP precondition. A caller who cannot change this ACL must
       // receive the same 403 whether or not they guessed that the endpoint uses ETags.
-      if (!permissionSession.userHasWriteAccessToResource(resourceId)) {
-        throw new CedarPermissionException("You do not have write access to the resource")
+      if (!permissionSession.userHasCapability(resourceId, ResourceCapability.MANAGE_GRANTS)) {
+        throw new CedarPermissionException("You may not change grants on the resource")
             .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
+            .parameter("requiredCapability", ResourceCapability.MANAGE_GRANTS)
             .parameter("resourceId", resourceId.getId());
       }
       String ifMatch = c.getIfMatchHeader();
@@ -1301,7 +1290,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           .build();
     }
     RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
-    userMustHaveWriteAccessToFolder(c, folderId);
+    userMustHaveCapabilityOnFolder(c, folderId, ResourceCapability.UPDATE_RESOURCE);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folderServerFolder = folderSession.findFolderById(folderId);
@@ -1420,7 +1409,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
-    userMustHaveReadAccess(permissionSession, artifactId);
+    userMustHaveCapability(permissionSession, artifactId, ResourceCapability.READ_RESOURCE);
 
     if (!artifact.getType().isVersioned()) {
       return CedarResponse.badRequest()
@@ -1451,11 +1440,14 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     return Response.ok().entity(r).build();
   }
 
-  protected void userMustHaveReadAccess(ResourcePermissionServiceSession permissionServiceSession, CedarFilesystemResourceId resourceId) throws CedarException {
-    boolean b = permissionServiceSession.userHasReadAccessToResource(resourceId);
-    if (!b) {
-      throw new CedarPermissionException("You do not have read access to the resource")
-          .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_RESOURCE)
+  protected void userMustHaveCapability(ResourcePermissionServiceSession permissionServiceSession,
+                                        CedarFilesystemResourceId resourceId,
+                                        ResourceCapability capability) throws CedarException {
+    if (!permissionServiceSession.userHasCapability(resourceId, capability)) {
+      throw new CedarPermissionException("You do not have the required capability on the resource")
+          .errorKey(capability == ResourceCapability.READ_RESOURCE
+              ? CedarErrorKey.NO_READ_ACCESS_TO_RESOURCE : CedarErrorKey.NO_WRITE_ACCESS_TO_RESOURCE)
+          .parameter("requiredCapability", capability)
           .parameter("resourceId", resourceId.getId());
     }
   }
@@ -1475,7 +1467,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
 
-    userMustHaveReadAccess(permissionSession, artifactId);
+    userMustHaveCapability(permissionSession, artifactId, ResourceCapability.READ_RESOURCE);
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
     folderSession.addPathAndParentId(artifact);
@@ -1492,7 +1484,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     return Response.ok(resourceReport).build();
   }
 
-  protected FolderServerCategory userMustHaveWriteAccessToCategory(CedarRequestContext context, CedarCategoryId categoryId) throws CedarException {
+  protected FolderServerCategoryCurrentUserReport userMustHaveCategoryCapability(
+      CedarRequestContext context, CedarCategoryId categoryId, CategoryCapability capability) throws CedarException {
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(context);
     CategoryPermissionServiceSession categoryPermissionSession =
         dataServices.getCategoryPermissionServiceSession(context);
@@ -1504,36 +1497,22 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           .errorKey(CedarErrorKey.CATEGORY_NOT_FOUND)
           .parameter("categoryId", categoryId);
     }
-    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_CATEGORY) ||
-        fsCategory.getCurrentUserPermissions().isCanWrite()) {
+    if (fsCategory.getCurrentUserPermissions().getCapabilities().contains(capability)) {
       return fsCategory;
-    } else {
-      throw new CedarPermissionException("You do not have write access to the category")
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_CATEGORY)
-          .parameter("categoryId", categoryId);
     }
-  }
-
-  protected FolderServerCategory userMustHaveAttachAccessToCategory(CedarRequestContext context, CedarCategoryId categoryId) throws CedarException {
-    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(context);
-    CategoryPermissionServiceSession categoryPermissionSession = dataServices.getCategoryPermissionServiceSession(context);
-
-    FolderServerCategoryCurrentUserReport fsCategory = GraphDbPermissionReader.getCategoryCurrentUserReport(categorySession,
-        categoryPermissionSession, categoryId);
-    if (fsCategory == null) {
+    // The report is assembled from more than one read of the graph, and a category deleted between
+    // them reports no capabilities at all. That is absence rather than refusal, so a racing delete
+    // answers 404 like any other request for a category that is gone.
+    if (categorySession.getCategoryById(categoryId) == null) {
       throw new CedarObjectNotFoundException("Category not found by id")
           .errorKey(CedarErrorKey.CATEGORY_NOT_FOUND)
           .parameter("categoryId", categoryId);
     }
-    if (context.getCedarUser().has(CedarPermission.WRITE_NOT_WRITABLE_CATEGORY) ||
-        fsCategory.getCurrentUserPermissions().isCanWrite() ||
-        fsCategory.getCurrentUserPermissions().isCanAttach()) {
-      return fsCategory;
-    } else {
-      throw new CedarPermissionException("You do not have write access to the category")
-          .errorKey(CedarErrorKey.NO_WRITE_ACCESS_TO_CATEGORY)
-          .parameter("categoryId", categoryId);
-    }
+    throw new CedarPermissionException("You do not have the required capability on the category")
+        .errorKey(capability == CategoryCapability.READ_CATEGORY
+            ? CedarErrorKey.NO_READ_ACCESS_TO_CATEGORY : CedarErrorKey.NO_WRITE_ACCESS_TO_CATEGORY)
+        .parameter("requiredCapability", capability)
+        .parameter("categoryId", categoryId);
   }
 
   protected FolderServerArtifactCurrentUserReport getArtifactReport(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {

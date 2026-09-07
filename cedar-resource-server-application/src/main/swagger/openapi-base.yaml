@@ -158,6 +158,182 @@ components:
           additionalProperties:
             type: string
       additionalProperties: true
+    ResourceRole:
+      type: string
+      description: The strongest Viewer, Editor or Manager role granted to the current user.
+      enum:
+        - viewer
+        - editor
+        - manager
+    ResourceCapability:
+      type: string
+      description: An operation authorized by the current user's effective access to the resource.
+      enum:
+        - readResource
+        - listFolderContents
+        - updateResource
+        - createInFolder
+        - copyIntoFolder
+        - moveIntoFolder
+        - deleteResource
+        - manageGrants
+        - moveResource
+        - manageOpenView
+        - transferOwnership
+    ResourceAction:
+      type: string
+      description: An operation currently available after capabilities and resource state are considered.
+      enum:
+        - copyFromResource
+        - createDraft
+        - publish
+        - submit
+        - populate
+        - enableOpenView
+        - disableOpenView
+    CurrentUserResourcePermissions:
+      type: object
+      description: The current user's effective role, ownership, capabilities and state-dependent actions.
+      required:
+        - owner
+        - capabilities
+        - availableActions
+      properties:
+        role:
+          allOf:
+            - $ref: '#/components/schemas/ResourceRole'
+          nullable: true
+        owner:
+          type: boolean
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ResourceCapability'
+        availableActions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ResourceAction'
+    CategoryRole:
+      type: string
+      description: The strongest Viewer, Classifier, Editor or Manager role granted to the current user.
+      enum:
+        - viewer
+        - classifier
+        - editor
+        - manager
+    CategoryCapability:
+      type: string
+      description: An operation authorized by the current user's effective access to the category.
+      enum:
+        - readCategory
+        - attachCategory
+        - detachCategory
+        - updateCategory
+        - createChildCategory
+        - deleteCategory
+        - manageGrants
+        - moveCategory
+        - transferOwnership
+    CurrentUserCategoryPermissions:
+      type: object
+      description: The current user's effective category role, ownership and capabilities.
+      required:
+        - owner
+        - capabilities
+      properties:
+        role:
+          allOf:
+            - $ref: '#/components/schemas/CategoryRole'
+          nullable: true
+        owner:
+          type: boolean
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/CategoryCapability'
+    CategoryUserReference:
+      type: object
+      required:
+        - '@id'
+      properties:
+        '@id':
+          type: string
+          format: uri
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+    CategoryGroupReference:
+      type: object
+      required:
+        - '@id'
+      properties:
+        '@id':
+          type: string
+          format: uri
+        'schema:name':
+          type: string
+    CategoryUserGrant:
+      type: object
+      required:
+        - user
+        - role
+      properties:
+        user:
+          $ref: '#/components/schemas/CategoryUserReference'
+        role:
+          $ref: '#/components/schemas/CategoryRole'
+    CategoryGroupGrant:
+      type: object
+      required:
+        - group
+        - role
+      properties:
+        group:
+          $ref: '#/components/schemas/CategoryGroupReference'
+        role:
+          $ref: '#/components/schemas/CategoryRole'
+    CategoryPermissions:
+      type: object
+      required:
+        - owner
+        - userPermissions
+        - groupPermissions
+      properties:
+        owner:
+          $ref: '#/components/schemas/CategoryUserReference'
+        userPermissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryUserGrant'
+        groupPermissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryGroupGrant'
+    CategoryAclUpdateRequest:
+      type: object
+      required:
+        - userPermissions
+        - groupPermissions
+      properties:
+        owner:
+          allOf:
+            - $ref: '#/components/schemas/CategoryUserReference'
+          deprecated: true
+          description: Accepted for compatibility when it names the current owner. Ownership is changed through the separate transfer operation.
+        userPermissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryUserGrant'
+        groupPermissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryGroupGrant'
   headers:
     ETag:
       description: Strong validator for the returned representation and its stored revision.

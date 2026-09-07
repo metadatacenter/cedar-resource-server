@@ -145,7 +145,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     CedarParameter idParam = requestBody.get("@id");
     c.must(idParam).be(NonEmpty);
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(idParam.stringValue());
-    userMustHaveWriteAccessToArtifact(c, artifactId);
+    userMustHaveCapabilityOnArtifact(c, artifactId, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.MANAGE_OPENVIEW);
 
     RevisionPrecondition precondition = requirePrecondition(c);
     if (precondition == null) {
@@ -174,7 +174,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     c.must(idParam).be(NonEmpty);
     CedarFolderId folderId = CedarFolderId.build(idParam.stringValue());
 
-    userMustHaveWriteAccessToFolder(c, folderId);
+    userMustHaveCapabilityOnFolder(c, folderId, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.MANAGE_OPENVIEW);
 
     RevisionPrecondition precondition = requirePrecondition(c);
     if (precondition == null) {

@@ -27,6 +27,7 @@ import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.CedarCategoryId;
 import org.metadatacenter.model.folderserver.basic.FolderServerCategory;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerCategoryCurrentUserReport;
 import org.metadatacenter.model.folderserver.extract.FolderServerCategoryExtractWithChildren;
 import org.metadatacenter.model.request.CategoryListRequest;
 import org.metadatacenter.model.response.FolderServerCategoryListResponse;
@@ -45,8 +46,8 @@ import org.metadatacenter.server.VersionedResource;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.result.BackendCallResult;
-import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.permission.category.CategoryPermissionRequest;
+import org.metadatacenter.server.security.model.permission.category.CategoryCapability;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.LinkHeaderUtil;
@@ -105,7 +106,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
     PagedQuery pagedQuery = new PagedQuery(cedarConfig.getCategoryRESTAPI().getPagination())
         .limit(limitParam)
@@ -116,6 +116,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
     int offset = pagedQuery.getOffset();
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
+    FolderServerCategory root = categorySession.getRootCategory();
+    c.should(root).be(NonNull).otherwiseNotFound(
+        new CedarErrorPack().message("The root category can not be found!")
+            .errorKey(CedarErrorKey.CATEGORY_NOT_FOUND));
+    userMustHaveCategoryCapability(c, root.getResourceId(), CategoryCapability.READ_CATEGORY);
+
     List<FolderServerCategory> categories = categorySession.getAllCategories(limit, offset);
     long total = categorySession.getCategoryCount();
 
@@ -162,7 +168,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.CATEGORY_CREATE);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
 
@@ -184,7 +189,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .errorKey(CedarErrorKey.PARENT_CATEGORY_NOT_FOUND)
     );
 
-    userMustHaveWriteAccessToCategory(c, ccParentId);
+    userMustHaveCategoryCapability(c, ccParentId, CategoryCapability.CREATE_CHILD_CATEGORY);
 
     FolderServerCategory newCategory;
     FolderServerCategory existingCategory = categorySession.getCategoryByParentAndName(ccParentId, categoryName.stringValue());
@@ -204,13 +209,16 @@ public class CategoriesResource extends AbstractResourceServerResource {
               .message("There was an error while creating the category!")
               .operation(CedarOperations.create(FolderServerCategory.class, NodeProperty.NAME.getValue(), categoryName))
       );
-      ProvenanceNameUtil.addProvenanceDisplayName(newCategory);
     }
+
+    FolderServerCategoryCurrentUserReport newCategoryReport = userMustHaveCategoryCapability(
+        c, newCategory.getResourceId(), CategoryCapability.READ_CATEGORY);
+    ProvenanceNameUtil.addProvenanceDisplayName(newCategoryReport);
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
     URI uri = builder.path(CedarUrlUtil.urlEncode(newCategory.getId())).build();
     return Response.created(uri).header(HttpHeaders.ETAG, RevisionPreconditionParser.format(1L))
-        .entity(newCategory).build();
+        .entity(newCategoryReport).build();
   }
 
   @GET
@@ -229,7 +237,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
@@ -239,8 +246,10 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .message("The root category can not be found!")
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", CATEGORY_ID_ROOT))
     );
-    ProvenanceNameUtil.addProvenanceDisplayName(category);
-    return Response.ok().entity(category).build();
+    FolderServerCategoryCurrentUserReport report = userMustHaveCategoryCapability(
+        c, category.getResourceId(), CategoryCapability.READ_CATEGORY);
+    ProvenanceNameUtil.addProvenanceDisplayName(report);
+    return Response.ok().entity(report).build();
   }
 
   @GET
@@ -263,7 +272,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
@@ -276,9 +284,11 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    ProvenanceNameUtil.addProvenanceDisplayName(snapshot.resource());
+    FolderServerCategoryCurrentUserReport report = userMustHaveCategoryCapability(
+        c, ccid, CategoryCapability.READ_CATEGORY);
+    ProvenanceNameUtil.addProvenanceDisplayName(report);
     return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(snapshot.revision()))
-        .entity(snapshot.resource()).build();
+        .entity(report).build();
   }
 
   @GET
@@ -300,9 +310,14 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
+
+    FolderServerCategory root = categorySession.getRootCategory();
+    c.should(root).be(NonNull).otherwiseNotFound(
+        new CedarErrorPack().message("The root category can not be found!")
+            .errorKey(CedarErrorKey.CATEGORY_NOT_FOUND));
+    userMustHaveCategoryCapability(c, root.getResourceId(), CategoryCapability.READ_CATEGORY);
 
     FolderServerCategoryExtractWithChildren category = categorySession.getCategoryTree();
 
@@ -334,16 +349,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.CATEGORY_UPDATE);
     CedarCategoryId ccid = CedarCategoryId.build(id);
-
-    String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
-          .errorMessage("Updating a category requires the ETag returned by GET in If-Match")
-          .build();
-    }
-    RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
 
     CedarRequestBody requestBody = c.request().getRequestBody();
 
@@ -353,6 +359,16 @@ public class CategoriesResource extends AbstractResourceServerResource {
     if (existingCategory == null) {
       return categoryUpdateTargetDeleted();
     }
+
+    userMustHaveCategoryCapability(c, ccid, CategoryCapability.UPDATE_CATEGORY);
+
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .errorMessage("Updating a category requires the ETag returned by GET in If-Match")
+          .build();
+    }
+    RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
 
     CedarParameter categoryName = requestBody.get(NodeProperty.NAME.getValue());
     CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
@@ -370,12 +386,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
           .parameter("name", categoryName.stringValue())
           .parameter("conflictingCategoryId", sameNameCategory.getId())
           .build();
-    }
-
-    try {
-      userMustHaveWriteAccessToCategory(c, ccid);
-    } catch (CedarObjectNotFoundException e) {
-      return categoryUpdateTargetDeleted();
     }
 
     Map<NodeProperty, String> updateFields = new HashMap<>();
@@ -399,10 +409,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
       return categoryUpdateTargetDeleted();
     }
 
-    ProvenanceNameUtil.addProvenanceDisplayName(updatedCategory.resource());
+    FolderServerCategoryCurrentUserReport updatedCategoryReport = userMustHaveCategoryCapability(
+        c, ccid, CategoryCapability.UPDATE_CATEGORY);
+    ProvenanceNameUtil.addProvenanceDisplayName(updatedCategoryReport);
 
     return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updatedCategory.revision()))
-        .entity(updatedCategory.resource()).build();
+        .entity(updatedCategoryReport).build();
   }
 
   private static Response categoryUpdateTargetDeleted() {
@@ -434,7 +446,6 @@ public class CategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.CATEGORY_DELETE);
     CedarCategoryId ccid = CedarCategoryId.build(id);
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
@@ -446,7 +457,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
             .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
     );
 
-    FolderServerCategory categoryWritable = userMustHaveWriteAccessToCategory(c, ccid);
+    FolderServerCategory categoryWritable = userMustHaveCategoryCapability(
+        c, ccid, CategoryCapability.DELETE_CATEGORY);
 
     if (categoryWritable.getParentCategoryId() == null) {
       CedarErrorPack cedarErrorPack = new CedarErrorPack();
@@ -498,9 +510,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{category_id}/permissions")
-  @Operation(summary = "Get permissions of a category", description = "Get permissions of a category.", tags = {"Categories", "Permissions"})
+  @Operation(summary = "Get category permissions",
+      description = "Get the category owner, direct user grants and direct group grants. Any user with the readCategory capability may read this response.",
+      tags = {"Categories", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "Category permissions",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryPermissions")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -514,13 +529,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.CATEGORY_READ);
 
     CategoryPermissionServiceSession categoryPermissionSession =
         dataServices.getCategoryPermissionServiceSession(c);
 
     CedarCategoryId categoryId = CedarCategoryId.build(id);
-    userMustHaveWriteAccessToCategory(c, categoryId);
+    userMustHaveCategoryCapability(c, categoryId, CategoryCapability.READ_CATEGORY);
 
     VersionedCategoryPermissions permissions =
         categoryPermissionSession.getVersionedCategoryPermissions(categoryId);
@@ -533,10 +547,15 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{category_id}/permissions")
-  @Operation(summary = "Update permissions of a category", description = "Update permissions of a category.", tags = {"Categories", "Permissions"},
+  @Operation(summary = "Replace category grants",
+      description = "Atomically replace the direct user and group role grants. This operation does not change ownership or inherited roles. The caller must have the manageGrants capability.",
+      tags = {"Categories", "Permissions"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
+  @RequestBody(description = "Complete replacement for the category's direct grants.", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryAclUpdateRequest")))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "Updated category permissions",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryPermissions")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -552,13 +571,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
-    c.must(c.user()).have(CedarPermission.CATEGORY_UPDATE);
 
     c.must(c.request().getRequestBody()).be(NonEmpty);
     JsonNode permissionUpdateRequest = c.request().getRequestBody().asJson();
 
     CedarCategoryId categoryId = CedarCategoryId.build(id);
-    userMustHaveWriteAccessToCategory(c, categoryId);
+    userMustHaveCategoryCapability(c, categoryId, CategoryCapability.MANAGE_GRANTS);
 
     CategoryPermissionServiceSession categoryPermissionSession =
         dataServices.getCategoryPermissionServiceSession(c);

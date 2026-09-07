@@ -84,11 +84,9 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
  * the content routes.
  *
  * <p>Categories have no such gap, since every category endpoint is answered from the graph. Their
- * contract turns out to differ from folders in two ways worth stating, both established by running
- * this table rather than by reading the code: a category is <em>readable</em> by any authenticated
- * user holding the CATEGORY_READ role, because it is a shared classification vocabulary rather than
- * private data; and its ACL requires <em>write</em> access to read, which is stricter than folders.
- * Writes are owner-only as expected.
+ * contract differs from artifact access: every authenticated user receives the Viewer role through
+ * the Everyone grant on the root category, while category changes require the applicable inherited
+ * or direct role. Any Viewer may also read the category ACL. Only a Manager or owner may change it.
  */
 public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
@@ -115,6 +113,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   private static String siblingCategoryName;
   private static String adminAuthHeader;
   private static String user1Id;
+  private static String user2Id;
   private static CedarCategoryId categoryId;
   private static CedarCategoryId rootCategoryId;
   private static CedarCategoryId inaccessibleCategoryId;
@@ -155,6 +154,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
     user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     user1Id = TestAuthUtil.getTestUser1(cedarConfig).getId();
+    user2Id = TestAuthUtil.getTestUser2(cedarConfig).getId();
 
     // One node per artifact type in the workspace graph, under user 1's home folder. Created through
     // the graph session rather than the REST API on purpose: a POST would proxy the content to the
@@ -319,12 +319,8 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
         + " \"parentCategoryId\": null}";
     PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
 
-    // Reading a category is open to any authenticated user holding the CATEGORY_READ role: the
-    // endpoint gates on the role and does no per-category check. That is the design rather than a
-    // gap — categories are a shared classification vocabulary, and a tree only its owner could read
-    // would be useless for classifying anything. This row records that contract so a later change
-    // that quietly makes reads private, breaking the picker for everyone else, fails here. Asserted
-    // for both a private category and the root below.
+    // Everyone receives Viewer on the root category. The role is inherited by every descendant, so
+    // any authenticated user can browse both the root and the category created below it.
     matrix.when("GET", categoryPath)
         .expect(ANONYMOUS, 401)
         .expect(OWNER, 200)
@@ -335,14 +331,11 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
         .expect(OWNER, 200)
         .expect(OTHER_USER, 200);
 
-    // The ACL is not open, and it is stricter than the folder equivalent: reading a category's
-    // permissions requires WRITE access to it (userMustHaveWriteAccessToCategory), not merely read.
-    // Defensible — who may change a category is only of use to someone who may change it — but worth
-    // pinning, since it differs from how folders treat their own ACL.
+    // A Viewer may inspect the ACL. Reading it does not authorize changing it.
     matrix.when("GET", categoryPath + "/permissions")
         .expect(ANONYMOUS, 401)
         .expect(OWNER, 200)
-        .expect(OTHER_USER, 403);
+        .expect(OTHER_USER, 200);
 
     // Renaming and deleting someone else's category would corrupt how their artifacts are classified
     // without touching the artifacts themselves, which makes it a quiet kind of damage.
@@ -358,11 +351,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     matrix.when("POST", "/categories", createBody)
         .expect(ANONYMOUS, 401);
 
-    // 403, which is correct — and was the reference behaviour the folder and artifact rows were
-    // brought into line with. Categories reach it two ways over: gating on userMustHaveWriteAccessTo-
-    // Category, which raises an exception carrying an explicit 403 status before the validator runs;
-    // and, for the owner-change path that does reach the call-result validator, the same
-    // CedarErrorType.PERMISSION (403) the resource path now uses. The whole write-denial family is 403.
+    // Viewer does not include manageGrants. ACL replacement therefore remains forbidden.
     matrix.when("PUT", categoryPath + "/permissions", permissionsBody)
         .header("If-Match", "*")
         .expect(ANONYMOUS, 401)
@@ -510,6 +499,73 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   }
 
   @Test
+  public void categoryAclRequiresRoleVocabulary() throws Exception {
+    FolderServerCategory category = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
+        .createCategory(rootCategoryId, "REST Category Roles " + UUID.randomUUID(),
+            "Category used to verify the role-based ACL contract", null);
+    Assertions.assertNotNull(category);
+    String categoryRoute = "/categories/" + URLEncoder.encode(category.getId(), StandardCharsets.UTF_8);
+    String aclRoute = categoryRoute + "/permissions";
+
+    HttpResponse<String> initial = request("GET", aclRoute, null, adminAuthHeader);
+    Assertions.assertEquals(200, initial.statusCode(), initial.body());
+    String legacyBody = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2Id
+        + "\"},\"permission\":\"attach\"}],\"groupPermissions\":[]}";
+    HttpResponse<String> legacyUpdate = request("PUT", aclRoute, legacyBody, adminAuthHeader,
+        initial.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(400, legacyUpdate.statusCode(), legacyUpdate.body());
+
+    String legacyValueBody = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2Id
+        + "\"},\"role\":\"attach\"}],\"groupPermissions\":[]}";
+    HttpResponse<String> legacyValueUpdate = request("PUT", aclRoute, legacyValueBody,
+        adminAuthHeader, initial.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(400, legacyValueUpdate.statusCode(), legacyValueUpdate.body());
+
+    String roleBody = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2Id
+        + "\"},\"role\":\"editor\"}],\"groupPermissions\":[]}";
+    HttpResponse<String> roleUpdate = request("PUT", aclRoute, roleBody, adminAuthHeader,
+        initial.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(200, roleUpdate.statusCode(), roleUpdate.body());
+
+    HttpResponse<String> categoryAsUser2 = request("GET", categoryRoute, null, actors.get(OTHER_USER));
+    Assertions.assertEquals(200, categoryAsUser2.statusCode(), categoryAsUser2.body());
+    JsonNode currentUser = JsonMapper.MAPPER.readTree(categoryAsUser2.body()).path("currentUserPermissions");
+    Assertions.assertEquals("editor", currentUser.path("role").asText());
+    Assertions.assertTrue(containsText(currentUser.path("capabilities"), "updateCategory"));
+    Assertions.assertFalse(containsText(currentUser.path("capabilities"), "manageGrants"));
+  }
+
+  @Test
+  public void categoryOwnershipTransferIsSeparateFromAclReplacement() throws Exception {
+    FolderServerCategory category = CedarDataServices.getInstance().getCategoryServiceSession(user1Context)
+        .createCategory(rootCategoryId, "REST Category Transfer " + UUID.randomUUID(),
+            "Category used to verify ownership transfer", null);
+    Assertions.assertNotNull(category);
+    String categoryRoute = "/categories/" + URLEncoder.encode(category.getId(), StandardCharsets.UTF_8);
+    String aclRoute = categoryRoute + "/permissions";
+
+    HttpResponse<String> initial = request("GET", aclRoute, null, actors.get(OWNER));
+    String grantBody = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2Id
+        + "\"},\"role\":\"manager\"}],\"groupPermissions\":[]}";
+    HttpResponse<String> granted = request("PUT", aclRoute, grantBody, actors.get(OWNER),
+        initial.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(200, granted.statusCode(), granted.body());
+
+    String transferBody = "{\"@id\":\"" + category.getId() + "\",\"newOwnerId\":\"" + user2Id + "\"}";
+    HttpResponse<String> adminAttempt = request("POST", "/command/transfer-category-ownership",
+        transferBody, adminAuthHeader, granted.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(403, adminAttempt.statusCode(), adminAttempt.body());
+
+    HttpResponse<String> transferred = request("POST", "/command/transfer-category-ownership",
+        transferBody, actors.get(OWNER), granted.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(200, transferred.statusCode(), transferred.body());
+    JsonNode response = JsonMapper.MAPPER.readTree(transferred.body());
+    Assertions.assertEquals(user2Id, response.path("owner").path("@id").asText());
+    Assertions.assertEquals(0, response.path("userPermissions").size(),
+        "The new owner's direct Manager grant must be removed during transfer");
+  }
+
+  @Test
   public void batchCategoryAttachValidatesEveryCategoryBeforeMutating() throws Exception {
     Artifact artifact = artifacts.get(0);
     String body = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryIds\":[\""
@@ -526,6 +582,15 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
   private HttpResponse<String> request(String method, String path, String body, String authHeader) throws Exception {
     return request(method, path, body, authHeader, null);
+  }
+
+  private static boolean containsText(JsonNode array, String expected) {
+    for (JsonNode value : array) {
+      if (expected.equals(value.asText())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private HttpResponse<String> request(String method, String path, String body, String authHeader,

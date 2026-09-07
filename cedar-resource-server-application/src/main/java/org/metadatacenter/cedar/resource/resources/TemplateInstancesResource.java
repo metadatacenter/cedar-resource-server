@@ -74,8 +74,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response createTemplateInstance(
-      @Parameter(description = "Folder identifier. The artifact will be created in this folder. The user must have write "
-          + "access to the folder. If not provided, the artifact will be created in the user's home folder.")
+      @Parameter(description = "Folder identifier. The artifact will be created in this folder. The user must have the "
+          + "createInFolder capability on the folder. If not provided, the artifact will be created in the user's home folder.")
       @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
       @Parameter(description = "Not supported on write operations; write responses always render the full form.")
       @QueryParam("compact") Optional<Boolean> compactParam,
@@ -118,7 +118,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, tiid);
+    userMustHaveCapabilityOnArtifact(c, tiid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
     if (format.isEmpty()) {
       return executeArtifactGetNegotiated(c, CedarResourceType.INSTANCE, tiid, compactParam);
     }
@@ -175,7 +175,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, tiid);
+    userMustHaveCapabilityOnArtifact(c, tiid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.INSTANCE, tiid);
     ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);

@@ -53,19 +53,8 @@ import java.util.Map;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CommandFileSystemResourceTest {
 
-  private static final int ARTIFACT_PORT = 19317;
   private static final String SOURCE_NAME = "Named source artifact";
   private static final String COPIED_NAME = "Copy of " + SOURCE_NAME;
-
-  static {
-    EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "0",
-        "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
-        "CEDAR_REDIS_PERSISTENT_PORT", "1",
-        "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
-        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(ARTIFACT_PORT)));
-  }
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
       new DropwizardTestSupport<>(ResourceServerApplication.class,
@@ -89,9 +78,17 @@ public class CommandFileSystemResourceTest {
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
-    artifactServer = HttpServer.create(new InetSocketAddress("127.0.0.1", ARTIFACT_PORT), 0);
+    artifactServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     artifactServer.createContext("/", CommandFileSystemResourceTest::handleArtifactRequest);
     artifactServer.start();
+
+    EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
+        "CEDAR_RESOURCE_HTTP_PORT", "0",
+        "CEDAR_RESOURCE_ADMIN_PORT", "0",
+        "CEDAR_RESOURCE_STOP_PORT", "0",
+        "CEDAR_REDIS_PERSISTENT_PORT", "1",
+        "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
+        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort())));
 
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);

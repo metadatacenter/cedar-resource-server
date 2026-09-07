@@ -84,7 +84,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     }
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, aid);
+    userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     InclusionSubgraphServiceSession inclusionSubgraphSession = dataServices.getInclusionSubgraphServiceSession(c);
 
@@ -99,9 +99,9 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
   @Timed
   @Path("/inclusions-subgraph-update")
   @Operation(summary = "Update the inclusion subgraph of an artifact", description = "Propagate a change to the given artifact across the tree of affected artifacts, updating each "
-          + "referencing artifact on the artifact server. The caller needs read access to the artifact "
-          + "that changed and write access to every artifact selected for update; if any one of them is "
-          + "not writable the whole request is refused and nothing is written. The response reports what "
+          + "referencing artifact on the artifact server. The caller needs the readResource capability on the artifact "
+          + "that changed and the updateResource capability on every artifact selected for update. If the caller lacks "
+          + "either capability, the whole request is refused and nothing is written. The response reports what "
           + "became of each target.")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Successful operation"),
@@ -127,7 +127,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     }
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
 
-    userMustHaveReadAccessToArtifact(c, aid);
+    userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     InclusionSubgraphServiceSession inclusionSubgraphSession = dataServices.getInclusionSubgraphServiceSession(c);
 
@@ -146,7 +146,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
             .errorMessage("The target is not an artifact id: " + todo.getTargetId())
             .build();
       }
-      userMustHaveWriteAccessToArtifact(c, targetArtifactId);
+      userMustHaveCapabilityOnArtifact(c, targetArtifactId, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
     }
 
     List<InclusionSubgraphUpdateOutcome> outcomes = new ArrayList<>();
