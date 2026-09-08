@@ -57,7 +57,8 @@ public class CommandOpenResource extends AbstractResourceServerResource {
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Id of the artifact to make open", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "The artifact, with its new OpenView state",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -79,7 +80,8 @@ public class CommandOpenResource extends AbstractResourceServerResource {
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Id of the artifact to make not open", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "The artifact, with its new OpenView state",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -101,7 +103,8 @@ public class CommandOpenResource extends AbstractResourceServerResource {
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Id of the folder to make open", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "The folder, with its new OpenView state",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/Folder")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -123,7 +126,8 @@ public class CommandOpenResource extends AbstractResourceServerResource {
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Id of the folder to make not open", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.IdRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "The folder, with its new OpenView state",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/Folder")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),

@@ -75,8 +75,9 @@ public class TemplateRecommendationResponse {
     @Schema(name = "targetFieldsCount", description = "total number of fields in the recommended template")
     private Integer targetFieldsCount;
 
-    @Schema(name = "resourceExtract")
-    private Template resourceExtract;
+    @Schema(name = "resourceExtract", ref = "#/components/schemas/ResourceSummary",
+        description = "Summary of the recommended template.")
+    private Object resourceExtract;
 
     public Double getRecommendationScore() {
       return recommendationScore;
@@ -102,11 +103,11 @@ public class TemplateRecommendationResponse {
       this.targetFieldsCount = targetFieldsCount;
     }
 
-    public Template getResourceExtract() {
+    public Object getResourceExtract() {
       return resourceExtract;
     }
 
-    public void setResourceExtract(Template resourceExtract) {
+    public void setResourceExtract(Object resourceExtract) {
       this.resourceExtract = resourceExtract;
     }
   }

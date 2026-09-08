@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import org.metadatacenter.util.artifact.SchemaArtifactDocument;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -105,7 +107,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           + "'bibo:published'. The 'pav:version' will be also set.", tags = {"Validation", "Command", "Versioning"})
   @RequestBody(description = "Info about the publishing process", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.PublishArtifactRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The published artifact",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -335,7 +338,13 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           + "The sharing settings of the old artifact can be copied over to the new artifact..", tags = {"Validation", "Command", "Versioning"})
   @RequestBody(description = "Info about the creation process", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CreateDraftArtifactRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "201", description = "The draft artifact",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord")),
+          headers = @Header(name = "Location", description = "Where the draft artifact can be read.",
+              schema = @Schema(type = "string"))),
+      @ApiResponse(responseCode = "200",
+          description = "Reached only when the artifact server returns no entity for the draft, which leaves nothing "
+              + "to return. The response carries no body."),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -570,8 +579,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   @Operation(summary = "Check whether a template can be updated", description = "Check whether an existing template can be updated with the supplied template definition. The "
           + "destructive and non-destructive changes between the stored template and the supplied template are "
           + "computed, and the number of affected instances is reported.", tags = {"Command", "Versioning"})
+  @RequestBody(description = "The template definition the stored template would be replaced by", required = true,
+      content = @Content(schema = @Schema(implementation = SchemaArtifactDocument.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Whether the template can be updated, and what updating it would cost",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/TemplateUpdateCheck"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -655,8 +667,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   @Path("/publish-create-draft-template/{template_id}")
   @Operation(summary = "Publish a template and create a new draft", description = "Publish the given template, then create a new draft version from it and apply the supplied template "
           + "definition. Instances of the source template can be copied into a new folder.", tags = {"Command", "Versioning"})
+  @RequestBody(description = "The template definition to apply to the new draft", required = true,
+      content = @Content(schema = @Schema(implementation = SchemaArtifactDocument.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The new draft template",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),

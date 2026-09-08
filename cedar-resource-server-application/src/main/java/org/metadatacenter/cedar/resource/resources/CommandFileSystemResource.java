@@ -19,6 +19,7 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.util.http.CedarError;
+import org.metadatacenter.util.artifact.ArtifactDocument;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.LinkedData;
@@ -45,6 +46,7 @@ import org.metadatacenter.server.VersionedResource;
 import org.metadatacenter.server.VersionedResourcePermissions;
 import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.result.BackendCallResult;
+import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.permission.resource.ResourceCapability;
 import org.metadatacenter.util.ModelUtil;
@@ -91,7 +93,13 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
           + "with a new name Only artifacts (fields, elements, templates, instances) can be copied.", tags = {"Command", "File Operations"})
   @RequestBody(description = "Parameters of the copy operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CopyRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "201", description = "The copy, as the artifact server stored it",
+          content = @Content(schema = @Schema(implementation = ArtifactDocument.class)),
+          headers = @io.swagger.v3.oas.annotations.headers.Header(name = "Location",
+              description = "Where the copy can be read.", schema = @Schema(type = "string"))),
+      @ApiResponse(responseCode = "200",
+          description = "Reached only when the artifact server returns no entity for the copy, which leaves nothing "
+              + "to return. The response carries no body."),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -283,6 +291,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @RequestBody(description = "Parameters of the move operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.MoveRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "201", description = "Resource moved",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/FolderOrArtifactRecord")),
           headers = @io.swagger.v3.oas.annotations.headers.Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -452,7 +461,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Parameters of the rename operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.RenameRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The renamed folder or artifact",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/FolderOrArtifactRecord"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -610,6 +620,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
           implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TransferOwnershipRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "Ownership transferred",
+          content = @Content(schema = @Schema(implementation = CedarNodePermissionsWithExtract.class)),
           headers = @io.swagger.v3.oas.annotations.headers.Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),

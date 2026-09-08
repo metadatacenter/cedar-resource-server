@@ -84,6 +84,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           + "by caDSR CDEs." + QUEUED_DESCRIPTION)
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "The import was queued",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ValueSetsImportJob")),
           headers = @Header(name = "Location", description = "Where to poll this import.",
               schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
@@ -120,7 +121,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       description = "Get the current status of the latest value sets ontology import, whichever import that is. "
           + "To follow one import in particular, poll it by the identifier its command returned.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The latest import and its current state",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ValueSetsImportJob"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -143,7 +145,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           + "of whichever import ran last. Imports are held in memory, so an identifier from before the last "
           + "restart, or one that twenty later imports have pushed out, is no longer known.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The import and its current state"),
+      @ApiResponse(responseCode = "200", description = "The import and its current state",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ValueSetsImportJob"))),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "No import answers to this identifier"),
@@ -241,7 +244,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           + "where its outcome is reported. To follow one rebuild in particular, poll it by the identifier its "
           + "command returned.", tags = {"Command", "Administration"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The state of each index",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatusByIndex"))),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
@@ -262,7 +266,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           + "Jobs are held in memory, so an identifier from before the last restart, or one that twenty later "
           + "jobs have pushed out, is no longer known.", tags = {"Command", "Administration"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The job and its current state"),
+      @ApiResponse(responseCode = "200", description = "The job and its current state",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus"))),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "No job answers to this identifier"),
@@ -304,7 +309,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   @Operation(summary = "Take back a search index rebuild that passed its deadline.", description = RESET_DESCRIPTION,
       tags = {"Command", "Administration"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The claim was reset, and the index is free"),
+      @ApiResponse(responseCode = "200", description = "The claim was reset, and the index is free",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus"))),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Nothing is running, or the running job is within its deadline"),
@@ -323,7 +329,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   @Operation(summary = "Take back a rules index rebuild that passed its deadline.", description = RESET_DESCRIPTION,
       tags = {"Command", "Administration"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The claim was reset, and the index is free"),
+      @ApiResponse(responseCode = "200", description = "The claim was reset, and the index is free",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus"))),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Nothing is running, or the running job is within its deadline"),
@@ -358,7 +365,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   @Operation(summary = "Take back a value sets ontology import that passed its deadline.",
       description = RESET_DESCRIPTION, tags = {"Command", "Administration"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The claim was reset, and the import is free"),
+      @ApiResponse(responseCode = "200", description = "The claim was reset, and the import is free",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ValueSetsImportJob"))),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Nothing is running, or the running import is within its deadline"),
@@ -394,6 +402,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   @RequestBody(description = "Force or not", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.ForceRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "The rebuild was queued",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus")),
           headers = @Header(name = "Location", description = "Where to poll this job's status.",
               schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
@@ -460,6 +469,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           + "results, since the index will be empty." + QUEUED_DESCRIPTION, tags = {"Command", "Administration"})
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "The rebuild was queued",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus")),
           headers = @Header(name = "Location", description = "Where to poll this job's status.",
               schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
@@ -503,6 +513,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   @RequestBody(description = "Force or not", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.ForceRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "The rebuild was queued",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus")),
           headers = @Header(name = "Location", description = "Where to poll this job's status.",
               schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
@@ -548,6 +559,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       tags = {"Command", "Administration"})
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "The rebuild was queued",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus")),
           headers = @Header(name = "Location", description = "Where to poll this job's status.",
               schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),

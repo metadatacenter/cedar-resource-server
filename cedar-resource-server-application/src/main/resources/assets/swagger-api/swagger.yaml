@@ -46,8 +46,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Category"
-          description: A category
+                $ref: "#/components/schemas/CategoryListResponse"
+          description: One page of categories
         "400":
           content:
             application/json:
@@ -98,8 +98,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Category"
-          description: A category
+                $ref: "#/components/schemas/CategoryDetails"
+          description: A category and what the current user may do with it
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -154,8 +154,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Category"
-          description: A category
+                $ref: "#/components/schemas/CategoryDetails"
+          description: The root category and what the current user may do with it
         "400":
           content:
             application/json:
@@ -207,8 +207,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Category"
-          description: A category
+                $ref: "#/components/schemas/CategoryTree"
+          description: "The root category, with every category beneath it"
         "400":
           content:
             application/json:
@@ -319,8 +319,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Category"
-          description: A category
+                $ref: "#/components/schemas/CategoryDetails"
+          description: A category and what the current user may do with it
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -383,8 +383,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Category"
-          description: A category
+                $ref: "#/components/schemas/CategoryDetails"
+          description: The updated category and what the current user may do with
+            it
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -570,9 +571,20 @@ paths:
         \ updateResource capability on the artifact. The resource type must support\
         \ DOIs, and an existing DOI can not be altered."
       operationId: setDOI
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/SetDoiRequest"
+        description: The artifact and the DOI to record
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: "The artifact, carrying its DOI"
         "400":
           content:
             application/json:
@@ -624,7 +636,12 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDetails"
+          description: "The artifact's details, as they stood before the categories\
+            \ were attached"
         "400":
           content:
             application/json:
@@ -677,7 +694,12 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDetails"
+          description: "The artifact's details, as they stood before the category\
+            \ was attached"
         "400":
           content:
             application/json:
@@ -722,9 +744,17 @@ paths:
         \ The caller must hold the user administration permission, since the user\
         \ to provision is named in the request body."
       operationId: authUserCallback
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/AuthUserCallbackRequest"
+        description: The authentication event and the user it concerns
+        required: true
       responses:
         "201":
-          description: Successful operation
+          description: The user's objects were provisioned. The response carries no
+            body.
         "400":
           content:
             application/json:
@@ -774,9 +804,22 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/SchemaArtifactDocument"
+        description: The template definition the stored template would be replaced
+          by
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateUpdateCheck"
+          description: "Whether the template can be updated, and what updating it\
+            \ would cost"
         "400":
           content:
             application/json:
@@ -825,9 +868,24 @@ paths:
         name: format
         schema:
           type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/ArtifactDocument"
+        description: The artifact to convert
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDocument"
+            application/n-quads:
+              schema:
+                type: string
+                description: "The artifact as RDF N-Quads, one statement per line."
+          description: "The converted artifact, in the requested format"
         "400":
           content:
             application/json:
@@ -878,7 +936,20 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          description: "Reached only when the artifact server returns no entity for\
+            \ the copy, which leaves nothing to return. The response carries no body."
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDocument"
+          description: "The copy, as the artifact server stored it"
+          headers:
+            Location:
+              description: Where the copy can be read.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -937,7 +1008,20 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          description: "Reached only when the artifact server returns no entity for\
+            \ the draft, which leaves nothing to return. The response carries no body."
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: The draft artifact
+          headers:
+            Location:
+              description: Where the draft artifact can be read.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -990,7 +1074,12 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDetails"
+          description: "The artifact's details, as they stood before the category\
+            \ was detached"
         "400":
           content:
             application/json:
@@ -1040,6 +1129,10 @@ paths:
       operationId: generateEmptyRulesIndex
       responses:
         "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexJobStatus"
           description: The rebuild was queued
           headers:
             Location:
@@ -1107,6 +1200,10 @@ paths:
       operationId: generateEmptySearchIndex
       responses:
         "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexJobStatus"
           description: The rebuild was queued
           headers:
             Location:
@@ -1167,9 +1264,21 @@ paths:
       description: "Build a preview of the tree of artifacts affected by a change\
         \ to the given artifact, without applying any update."
       operationId: previewInclusionSubgraph
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/InclusionSubgraphRequest"
+        description: "The artifact that changed, and the elements and templates to\
+          \ consider"
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InclusionSubgraphResponse"
+          description: The tree of affected artifacts
         "400":
           content:
             application/json:
@@ -1214,9 +1323,21 @@ paths:
         \ the caller lacks either capability, the whole request is refused and nothing\
         \ is written. The response reports what became of each target."
       operationId: updateInclusionSubgraph
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/InclusionSubgraphRequest"
+        description: "The artifact that changed, and the elements and templates to\
+          \ consider"
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InclusionSubgraphUpdateReport"
+          description: Every target was written
         "400":
           content:
             application/json:
@@ -1248,6 +1369,10 @@ paths:
                 $ref: "#/components/schemas/CedarError"
           description: Internal server error
         "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InclusionSubgraphUpdateReport"
           description: The artifact server refused at least one of the writes; the
             body is the update report
       security:
@@ -1264,7 +1389,11 @@ paths:
       operationId: indexJobStatus
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexJobStatusByIndex"
+          description: The state of each index
         "401":
           content:
             application/json:
@@ -1307,6 +1436,10 @@ paths:
           type: string
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexJobStatus"
           description: The job and its current state
         "401":
           content:
@@ -1350,6 +1483,10 @@ paths:
       operationId: loadValueSetsOntology
       responses:
         "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValueSetsImportJob"
           description: The import was queued
           headers:
             Location:
@@ -1412,7 +1549,11 @@ paths:
       operationId: loadValueSetsOntologyStatus
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValueSetsImportJob"
+          description: The latest import and its current state
         "400":
           content:
             application/json:
@@ -1464,6 +1605,10 @@ paths:
           type: string
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValueSetsImportJob"
           description: The import and its current state
         "401":
           content:
@@ -1510,7 +1655,11 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: "The artifact, with its new OpenView state"
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -1571,7 +1720,11 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: "The artifact, with its new OpenView state"
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -1631,7 +1784,11 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+          description: "The folder, with its new OpenView state"
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -1692,7 +1849,11 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+          description: "The folder, with its new OpenView state"
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -1755,6 +1916,10 @@ paths:
         required: true
       responses:
         "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderOrArtifactRecord"
           description: Resource moved
           headers:
             ETag:
@@ -1814,7 +1979,11 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: The published artifact
         "400":
           content:
             application/json:
@@ -1870,9 +2039,20 @@ paths:
         name: folder_name
         schema:
           type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/SchemaArtifactDocument"
+        description: The template definition to apply to the new draft
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: The new draft template
         "400":
           content:
             application/json:
@@ -1934,6 +2114,10 @@ paths:
         required: true
       responses:
         "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexJobStatus"
           description: The rebuild was queued
           headers:
             Location:
@@ -2012,6 +2196,10 @@ paths:
         required: true
       responses:
         "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexJobStatus"
           description: The rebuild was queued
           headers:
             Location:
@@ -2083,7 +2271,11 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderOrArtifactRecord"
+          description: The renamed folder or artifact
         "400":
           content:
             application/json:
@@ -2137,6 +2329,10 @@ paths:
       operationId: resetRulesIndexJob
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexJobStatus"
           description: "The claim was reset, and the index is free"
         "401":
           content:
@@ -2181,6 +2377,10 @@ paths:
       operationId: resetSearchIndexJob
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexJobStatus"
           description: "The claim was reset, and the index is free"
         "401":
           content:
@@ -2225,6 +2425,10 @@ paths:
       operationId: resetValueSetsImport
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValueSetsImportJob"
           description: "The claim was reset, and the import is free"
         "401":
           content:
@@ -2334,6 +2538,10 @@ paths:
         required: true
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
           description: Ownership transferred
           headers:
             ETag:
@@ -2396,16 +2604,23 @@ paths:
         content:
           application/json:
             schema:
-              type: string
+              $ref: "#/components/schemas/ValidationRequest"
           application/x-yaml:
             schema:
-              type: string
+              $ref: "#/components/schemas/ValidationRequest"
           application/yaml:
             schema:
-              type: string
+              $ref: "#/components/schemas/ValidationRequest"
+        description: "The artifact to validate, as JSON or YAML selected via the Content-Type\
+          \ header"
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationReport"
+          description: The validation report
         "400":
           content:
             application/json:
@@ -2450,7 +2665,7 @@ paths:
         content:
           '*/*':
             schema:
-              $ref: "#/components/schemas/Folder"
+              $ref: "#/components/schemas/FolderCreateRequest"
         description: The folder to be created
         required: true
       responses:
@@ -2568,8 +2783,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Folder"
-          description: A folder
+                $ref: "#/components/schemas/FolderDetails"
+          description: A folder and what the current user may do with it
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -2620,6 +2835,14 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/FolderReplaceRequest"
+        description: "The new name and description of the folder, or the folder to\
+          \ create under the supplied identifier."
+        required: true
       responses:
         "200":
           content:
@@ -2831,7 +3054,12 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceListResponse"
+          description: "A page of resources in the folder, each carrying only the\
+            \ enumerated fields alongside its identifier and resource type"
         "400":
           content:
             application/json:
@@ -2882,7 +3110,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderDetails"
+          description: A folder and what the current user may do with it
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -2935,7 +3167,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The folder's permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -2987,9 +3223,20 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/ResourceAclUpdateRequest"
+        description: Complete replacement for the folder's direct grants.
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The folder's updated permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -3339,13 +3586,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TemplateElement"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/x-yaml:
             schema:
-              $ref: "#/components/schemas/TemplateElement"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/yaml:
             schema:
-              $ref: "#/components/schemas/TemplateElement"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
         description: The template element to be created
         required: true
       responses:
@@ -3353,13 +3600,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: A template element
           headers:
             ETag:
@@ -3447,7 +3694,8 @@ paths:
           type: string
       responses:
         "202":
-          description: Content deleted; durable downstream cleanup is pending
+          description: "Content deleted; durable downstream cleanup is pending. The\
+            \ response carries no body, so no content is declared."
         "204":
           description: Deletion completed across content and downstream stores
         "400":
@@ -3510,13 +3758,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: A template element
           headers:
             ETag:
@@ -3622,13 +3870,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TemplateElement"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/x-yaml:
             schema:
-              $ref: "#/components/schemas/TemplateElement"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/yaml:
             schema:
-              $ref: "#/components/schemas/TemplateElement"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
         description: The template element to be updated
         required: true
       responses:
@@ -3636,13 +3884,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
-            application/x-yaml:
-              schema:
-                $ref: "#/components/schemas/TemplateElement"
-            application/yaml:
-              schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/ArtifactRecord"
           description: A template element
           headers:
             ETag:
@@ -3652,13 +3894,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/TemplateElement"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: A template element created with the supplied identifier
           headers:
             ETag:
@@ -3746,7 +3988,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDetails"
+          description: The template element's details
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -3813,7 +4059,24 @@ paths:
           type: boolean
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: The template element content as an attachment
+          headers:
+            Content-Disposition:
+              description: The response is an attachment named after the template
+                element's identifier.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -3902,7 +4165,24 @@ paths:
           type: boolean
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: The template element content as an attachment
+          headers:
+            Content-Disposition:
+              description: The response is an attachment named after the template
+                element's identifier.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -3981,7 +4261,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The template element's permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -4033,9 +4317,20 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/ResourceAclUpdateRequest"
+        description: Complete replacement for the template element's direct grants.
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The template element's updated permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -4093,7 +4388,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactReport"
+          description: The template element's report
         "400":
           content:
             application/json:
@@ -4144,7 +4443,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceListResponse"
+          description: "The template element's versions, newest first"
         "400":
           content:
             application/json:
@@ -4206,13 +4509,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TemplateField"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/x-yaml:
             schema:
-              $ref: "#/components/schemas/TemplateField"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/yaml:
             schema:
-              $ref: "#/components/schemas/TemplateField"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
         description: The template field to be created
         required: true
       responses:
@@ -4220,13 +4523,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: A template field
           headers:
             ETag:
@@ -4314,7 +4617,8 @@ paths:
           type: string
       responses:
         "202":
-          description: Content deleted; durable downstream cleanup is pending
+          description: "Content deleted; durable downstream cleanup is pending. The\
+            \ response carries no body, so no content is declared."
         "204":
           description: Deletion completed across content and downstream stores
         "400":
@@ -4377,13 +4681,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: A template field
           headers:
             ETag:
@@ -4489,13 +4793,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TemplateField"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/x-yaml:
             schema:
-              $ref: "#/components/schemas/TemplateField"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/yaml:
             schema:
-              $ref: "#/components/schemas/TemplateField"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
         description: The template field to be updated
         required: true
       responses:
@@ -4503,13 +4807,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateField"
-            application/x-yaml:
-              schema:
-                $ref: "#/components/schemas/TemplateField"
-            application/yaml:
-              schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/ArtifactRecord"
           description: A template field
           headers:
             ETag:
@@ -4519,13 +4817,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/TemplateField"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: A template field created with the supplied identifier
           headers:
             ETag:
@@ -4613,7 +4911,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDetails"
+          description: The template field's details
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -4680,7 +4982,24 @@ paths:
           type: boolean
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: The template field content as an attachment
+          headers:
+            Content-Disposition:
+              description: The response is an attachment named after the template
+                field's identifier.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -4769,7 +5088,24 @@ paths:
           type: boolean
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: The template field content as an attachment
+          headers:
+            Content-Disposition:
+              description: The response is an attachment named after the template
+                field's identifier.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -4848,7 +5184,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The template field's permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -4900,9 +5240,20 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/ResourceAclUpdateRequest"
+        description: Complete replacement for the template field's direct grants.
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The template field's updated permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -4960,7 +5311,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactReport"
+          description: The template field's report
         "400":
           content:
             application/json:
@@ -5011,7 +5366,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceListResponse"
+          description: "The template field's versions, newest first"
         "400":
           content:
             application/json:
@@ -5073,13 +5432,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TemplateInstance"
+              $ref: "#/components/schemas/InstanceArtifactDocument"
           application/x-yaml:
             schema:
-              $ref: "#/components/schemas/TemplateInstance"
+              $ref: "#/components/schemas/InstanceArtifactDocument"
           application/yaml:
             schema:
-              $ref: "#/components/schemas/TemplateInstance"
+              $ref: "#/components/schemas/InstanceArtifactDocument"
         description: The template instance to be created
         required: true
       responses:
@@ -5087,13 +5446,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/InstanceArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/InstanceArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/InstanceArtifactDocument"
           description: A template instance
           headers:
             ETag:
@@ -5181,7 +5540,8 @@ paths:
           type: string
       responses:
         "202":
-          description: Content deleted; durable downstream cleanup is pending
+          description: "Content deleted; durable downstream cleanup is pending. The\
+            \ response carries no body, so no content is declared."
         "204":
           description: Deletion completed across content and downstream stores
         "400":
@@ -5250,13 +5610,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/InstanceArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/InstanceArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/InstanceArtifactDocument"
           description: A template instance
           headers:
             ETag:
@@ -5362,13 +5722,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TemplateInstance"
+              $ref: "#/components/schemas/InstanceArtifactDocument"
           application/x-yaml:
             schema:
-              $ref: "#/components/schemas/TemplateInstance"
+              $ref: "#/components/schemas/InstanceArtifactDocument"
           application/yaml:
             schema:
-              $ref: "#/components/schemas/TemplateInstance"
+              $ref: "#/components/schemas/InstanceArtifactDocument"
         description: The template instance to be updated
         required: true
       responses:
@@ -5376,13 +5736,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
-            application/x-yaml:
-              schema:
-                $ref: "#/components/schemas/TemplateInstance"
-            application/yaml:
-              schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/ArtifactRecord"
           description: A template instance
           headers:
             ETag:
@@ -5392,13 +5746,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/InstanceArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/InstanceArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/TemplateInstance"
+                $ref: "#/components/schemas/InstanceArtifactDocument"
           description: A template instance created with the supplied identifier
           headers:
             ETag:
@@ -5486,7 +5840,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDetails"
+          description: The template instance's details
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -5553,7 +5911,24 @@ paths:
           type: boolean
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstanceArtifactDocument"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/InstanceArtifactDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/InstanceArtifactDocument"
           description: The template instance content as an attachment
+          headers:
+            Content-Disposition:
+              description: The response is an attachment named after the template
+                instance's identifier.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -5642,7 +6017,24 @@ paths:
           type: boolean
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstanceArtifactDocument"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/InstanceArtifactDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/InstanceArtifactDocument"
           description: The template instance content as an attachment
+          headers:
+            Content-Disposition:
+              description: The response is an attachment named after the template
+                instance's identifier.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -5721,7 +6113,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The template instance's permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -5773,9 +6169,20 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/ResourceAclUpdateRequest"
+        description: Complete replacement for the template instance's direct grants.
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The template instance's updated permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -5833,7 +6240,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactReport"
+          description: The template instance's report
         "400":
           content:
             application/json:
@@ -5894,13 +6305,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Template"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/x-yaml:
             schema:
-              $ref: "#/components/schemas/Template"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/yaml:
             schema:
-              $ref: "#/components/schemas/Template"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
         description: The template to be created
         required: true
       responses:
@@ -5908,13 +6319,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: A template
           headers:
             ETag:
@@ -6057,7 +6468,8 @@ paths:
           type: string
       responses:
         "202":
-          description: Content deleted; durable downstream cleanup is pending
+          description: "Content deleted; durable downstream cleanup is pending. The\
+            \ response carries no body, so no content is declared."
         "204":
           description: Deletion completed across content and downstream stores
         "400":
@@ -6119,13 +6531,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: A template
           headers:
             ETag:
@@ -6231,13 +6643,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Template"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/x-yaml:
             schema:
-              $ref: "#/components/schemas/Template"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
           application/yaml:
             schema:
-              $ref: "#/components/schemas/Template"
+              $ref: "#/components/schemas/SchemaArtifactDocument"
         description: The template to be updated
         required: true
       responses:
@@ -6245,13 +6657,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Template"
-            application/x-yaml:
-              schema:
-                $ref: "#/components/schemas/Template"
-            application/yaml:
-              schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/ArtifactRecord"
           description: A template
           headers:
             ETag:
@@ -6261,13 +6667,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/x-yaml:
               schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
             application/yaml:
               schema:
-                $ref: "#/components/schemas/Template"
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: A template created with the supplied identifier
           headers:
             ETag:
@@ -6355,7 +6761,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDetails"
+          description: The template's details
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -6422,7 +6832,24 @@ paths:
           type: boolean
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: The template content as an attachment
+          headers:
+            Content-Disposition:
+              description: The response is an attachment named after the template's
+                identifier.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -6510,7 +6937,24 @@ paths:
           type: boolean
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SchemaArtifactDocument"
           description: The template content as an attachment
+          headers:
+            Content-Disposition:
+              description: The response is an attachment named after the template's
+                identifier.
+              schema:
+                type: string
+              style: simple
         "400":
           content:
             application/json:
@@ -6589,7 +7033,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The template's permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -6641,9 +7089,20 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/ResourceAclUpdateRequest"
+        description: Complete replacement for the template's direct grants.
+        required: true
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: The template's updated permissions
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
@@ -6701,7 +7160,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactReport"
+          description: The template's report
         "400":
           content:
             application/json:
@@ -6752,7 +7215,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceListResponse"
+          description: "The template's versions, newest first"
         "400":
           content:
             application/json:
@@ -6799,8 +7266,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
-          description: An array of users
+                $ref: "#/components/schemas/UserListResponse"
+          description: Every user of the system
         "400":
           content:
             application/json:
@@ -6884,6 +7351,175 @@ components:
             $ref: "#/components/schemas/CedarError"
       description: This operation requires the current resource ETag in If-Match.
   schemas:
+    ArtifactDetails:
+      allOf:
+      - $ref: "#/components/schemas/ArtifactRecord"
+      - type: object
+        properties:
+          currentUserPermissions:
+            $ref: "#/components/schemas/CurrentUserResourcePermissions"
+          isBasedOn:
+            allOf:
+            - $ref: "#/components/schemas/ResourceSummary"
+            description: Summary of the template an instance was filled in against.
+            nullable: true
+        required:
+        - currentUserPermissions
+      description: An artifact together with what the current user may do with it.
+    ArtifactDocument:
+      type: object
+      additionalProperties: true
+      description: "An open CEDAR JSON-LD artifact: the identity and provenance keys\
+        \ that templates, elements, fields and instances all carry. Kind-specific\
+        \ keys are described by SchemaArtifactDocument and InstanceArtifactDocument;\
+        \ the authoritative definition of each kind is the CEDAR model's JSON Schema."
+      externalDocs:
+        description: The CEDAR template model
+        url: https://more.metadatacenter.org/tools-training/outreach/cedar-template-model
+      properties:
+        '@context':
+          type: object
+          additionalProperties: true
+          description: JSON-LD context for the keys the artifact uses.
+        '@id':
+          type: string
+          format: uri
+          description: "The artifact's IRI. The server mints it on a POST, so a body\
+            \ sent to POST carries none; a body sent to PUT carries the IRI of the\
+            \ path."
+        oslc:modifiedBy:
+          type: string
+          format: uri
+          description: IRI of the user who last changed it.
+        pav:createdBy:
+          type: string
+          format: uri
+          description: IRI of the user who created it.
+        pav:createdOn:
+          type: string
+          format: date-time
+          description: When the artifact was created.
+        pav:lastUpdatedOn:
+          type: string
+          format: date-time
+          description: When the artifact was last changed.
+        schema:description:
+          type: string
+          description: Description shown with the name.
+        schema:name:
+          type: string
+          description: Display name.
+    ArtifactRecord:
+      allOf:
+      - $ref: "#/components/schemas/FilesystemResourceRecord"
+      - type: object
+        properties:
+          bibo:status:
+            type: string
+            enum:
+            - bibo:draft
+            - bibo:published
+            nullable: true
+          doi:
+            type: string
+            description: |
+              The artifact's DOI, once one has been set. The graph record and the report carry
+              it. The details response does not.
+            nullable: true
+          isLatestDraftVersion:
+            type: boolean
+            nullable: true
+          isLatestPublishedVersion:
+            type: boolean
+            nullable: true
+          isLatestVersion:
+            type: boolean
+            nullable: true
+          pav:derivedFrom:
+            type: string
+            format: uri
+            nullable: true
+          pav:previousVersion:
+            type: string
+            format: uri
+            nullable: true
+          pav:version:
+            type: string
+            nullable: true
+          schema:isBasedOn:
+            type: string
+            format: uri
+            description: IRI of the template an instance was filled in against.
+            nullable: true
+      description: |
+        An artifact as the workspace graph holds it. Templates, elements and fields carry the
+        versioning keys; an instance carries the template it is based on instead.
+    ArtifactReport:
+      allOf:
+      - $ref: "#/components/schemas/ArtifactDetails"
+      - type: object
+        properties:
+          categories:
+            type: array
+            description: "One entry per attached category, each the path from the\
+              \ root category to it."
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/CategoryExtract"
+            nullable: true
+          derivedFrom:
+            allOf:
+            - $ref: "#/components/schemas/ResourceSummary"
+            description: Summary of the artifact this one was copied from.
+            nullable: true
+          trustedBy:
+            type: string
+            description: "The trusted folder the artifact sits under, when it sits\
+              \ under one."
+            nullable: true
+          versions:
+            type: array
+            description: "The artifact's version history, newest first. Present for\
+              \ versioned artifacts."
+            items:
+              $ref: "#/components/schemas/ResourceSummary"
+            nullable: true
+      description: |
+        An artifact's details together with what surrounds it: where it sits, what it was derived
+        from, its other versions, and the categories it is filed under.
+    AuthUserCallbackRequest:
+      type: object
+      description: |
+        The Keycloak authentication event and the user it concerns. Provisioning runs only when the
+        event's client identifier names CEDAR's own Keycloak client.
+      properties:
+        event:
+          type: object
+          additionalProperties: true
+          description: The event as the Keycloak event listener serializes it. Only
+            `clientId` is read.
+          properties:
+            clientId:
+              type: string
+        eventUser:
+          type: object
+          description: The user to provision.
+          properties:
+            '@id':
+              type: string
+              format: uri
+            email:
+              type: string
+            firstName:
+              type: string
+            lastName:
+              type: string
+          required:
+          - '@id'
+      required:
+      - event
+      - eventUser
     Category:
       type: object
       description: A CEDAR category.
@@ -6961,6 +7597,43 @@ components:
       - manageGrants
       - moveCategory
       - transferOwnership
+    CategoryDetails:
+      allOf:
+      - $ref: "#/components/schemas/CategoryRecord"
+      - type: object
+        properties:
+          currentUserPermissions:
+            $ref: "#/components/schemas/CurrentUserCategoryPermissions"
+          isRoot:
+            type: boolean
+        required:
+        - currentUserPermissions
+      description: A category together with what the current user may do with it.
+    CategoryExtract:
+      type: object
+      description: A category as it appears inside a report.
+      properties:
+        '@id':
+          type: string
+          format: uri
+        parentCategoryId:
+          type: string
+          format: uri
+          nullable: true
+        resourceType:
+          type: string
+          enum:
+          - category
+        schema:description:
+          type: string
+          nullable: true
+        schema:identifier:
+          type: string
+          nullable: true
+        schema:name:
+          type: string
+      required:
+      - '@id'
     CategoryGroupGrant:
       type: object
       properties:
@@ -6981,6 +7654,43 @@ components:
           type: string
       required:
       - '@id'
+    CategoryListResponse:
+      type: object
+      additionalProperties: true
+      description: "One page of categories, in the order the workspace graph returns\
+        \ them."
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryRecord"
+        currentOffset:
+          type: integer
+          format: int64
+        paging:
+          type: object
+          additionalProperties:
+            type: string
+            format: uri
+          nullable: true
+        request:
+          type: object
+          additionalProperties: false
+          description: The paging criteria used for this response.
+          properties:
+            limit:
+              type: integer
+              format: int64
+            offset:
+              type: integer
+              format: int64
+        totalCount:
+          type: integer
+          format: int64
+      required:
+      - categories
+      - currentOffset
+      - totalCount
     CategoryPermissions:
       type: object
       properties:
@@ -6998,6 +7708,76 @@ components:
       - groupPermissions
       - owner
       - userPermissions
+    CategoryRecord:
+      type: object
+      additionalProperties: true
+      description: A category as the workspace graph holds it.
+      properties:
+        '@context':
+          type: object
+          additionalProperties:
+            type: string
+        '@id':
+          type: string
+          format: uri
+        createdByUserName:
+          type: string
+          nullable: true
+        createdOnTS:
+          type: integer
+          format: int64
+        lastUpdatedByUserName:
+          type: string
+          nullable: true
+        lastUpdatedOnTS:
+          type: integer
+          format: int64
+        oslc:modifiedBy:
+          type: string
+          format: uri
+          nullable: true
+        ownedBy:
+          type: string
+          format: uri
+          nullable: true
+        ownedByUserName:
+          type: string
+          nullable: true
+        parentCategoryId:
+          type: string
+          format: uri
+          description: The category this one sits under. The root category has none.
+          nullable: true
+        pav:createdBy:
+          type: string
+          format: uri
+          nullable: true
+        pav:createdOn:
+          type: string
+          format: date-time
+          nullable: true
+        pav:lastUpdatedOn:
+          type: string
+          format: date-time
+          nullable: true
+        resourceType:
+          type: string
+          enum:
+          - category
+        schema:description:
+          type: string
+          nullable: true
+        schema:identifier:
+          type: string
+          nullable: true
+        schema:name:
+          type: string
+        sourceHash:
+          type: string
+          nullable: true
+      required:
+      - '@id'
+      - resourceType
     CategoryRole:
       type: string
       description: "The strongest Viewer, Classifier, Editor or Manager role granted\
@@ -7007,6 +7787,20 @@ components:
       - classifier
       - editor
       - manager
+    CategoryTree:
+      allOf:
+      - $ref: "#/components/schemas/CategoryExtract"
+      - type: object
+        properties:
+          children:
+            type: array
+            items:
+              $ref: "#/components/schemas/CategoryTree"
+        required:
+        - children
+      description: |
+        A category and the categories beneath it, nested to the full depth of the tree. A leaf
+        carries an empty `children` array.
     CategoryUserGrant:
       type: object
       properties:
@@ -7142,6 +7936,7 @@ components:
           - groupAlreadyPresent
           - groupCanBeModifiedOnlyByGroupAdmin
           - groupCanBeDeletedOnlyByGroupAdmin
+          - groupMembersCanBeReadOnlyByGroupAdmin
           - groupRequiresAdministrator
           - groupUsersNotUpdated
           - specialGroupCanNotBeDeleted
@@ -7271,6 +8066,50 @@ components:
       required:
       - status
       - statusCode
+    CedarFilesystemResourceId:
+      type: object
+      properties:
+        id:
+          type: string
+    CedarGroupReference:
+      type: object
+      description: "A reference to a group. It appears wherever a group is named beside\
+        \ something else, as the holder of a grant or as a group a user belongs to.\
+        \ The name accompanies the identifier so a caller need not fetch the group\
+        \ record to display it."
+      properties:
+        '@id':
+          type: string
+          format: uri
+          description: Identifier of the group.
+        schema:name:
+          type: string
+          description: Display name of the group.
+      required:
+      - '@id'
+    CedarUserReference:
+      type: object
+      description: "A reference to a user. It appears wherever a user is named beside\
+        \ something else, as the owner of a resource, the holder of a grant, or a\
+        \ member of a group. The name and email accompany the identifier so a caller\
+        \ need not fetch the user record to display them."
+      properties:
+        '@id':
+          type: string
+          format: uri
+          description: Identifier of the user.
+        email:
+          type: string
+          format: email
+          description: Email address of the user.
+        firstName:
+          type: string
+          description: Given name of the user.
+        lastName:
+          type: string
+          description: Family name of the user.
+      required:
+      - '@id'
     CopyRequest:
       type: object
       description: Parameters of the copy operation.
@@ -7349,13 +8188,205 @@ components:
       - availableActions
       - capabilities
       - owner
-    Folder:
+    ErrorItem:
       type: object
-      description: A CEDAR folder.
+      description: "Everything that makes the artifact invalid, in the order found."
       properties:
-        id:
+        additionalInfo:
+          type: object
+          additionalProperties:
+            type: object
+        location:
           type: string
-          description: Unique URL identifier representing a specific folder.
+        message:
+          type: string
+    FilesystemResourceRecord:
+      type: object
+      additionalProperties: true
+      description: |
+        The workspace record of a folder or artifact: the identity, provenance, location and
+        visibility the workspace graph holds for it. An artifact's record is not its stored
+        JSON-LD document, which the artifact routes serve instead.
+      properties:
+        '@context':
+          type: object
+          additionalProperties:
+            type: string
+        '@id':
+          type: string
+          format: uri
+        createdByUserName:
+          type: string
+          nullable: true
+        createdOnTS:
+          type: integer
+          format: int64
+        everybodyPermission:
+          type: string
+          enum:
+          - read
+          - write
+          nullable: true
+        isOpen:
+          type: boolean
+          description: Whether the resource is served to everyone through OpenView.
+        lastUpdatedByUserName:
+          type: string
+          nullable: true
+        lastUpdatedOnTS:
+          type: integer
+          format: int64
+        oslc:modifiedBy:
+          type: string
+          format: uri
+          nullable: true
+        ownedBy:
+          type: string
+          format: uri
+          nullable: true
+        ownedByUserName:
+          type: string
+          nullable: true
+        parentPath:
+          type: string
+          nullable: true
+        path:
+          type: string
+          nullable: true
+        pathInfo:
+          type: array
+          description: "The folders above the resource, outermost first, with the\
+            \ resource itself last."
+          items:
+            $ref: "#/components/schemas/ResourceSummary"
+          nullable: true
+        pav:createdBy:
+          type: string
+          format: uri
+          nullable: true
+        pav:createdOn:
+          type: string
+          format: date-time
+          nullable: true
+        pav:lastUpdatedOn:
+          type: string
+          format: date-time
+          nullable: true
+        resourceType:
+          type: string
+          enum:
+          - folder
+          - field
+          - element
+          - template
+          - instance
+        schema:description:
+          type: string
+          nullable: true
+        schema:identifier:
+          type: string
+          nullable: true
+        schema:name:
+          type: string
+          nullable: true
+        sourceHash:
+          type: string
+          description: "Digest of the document the caller wrote, recorded when the\
+            \ caller supplies one."
+          nullable: true
+      required:
+      - '@id'
+      - resourceType
+    Folder:
+      allOf:
+      - $ref: "#/components/schemas/FilesystemResourceRecord"
+      - type: object
+        properties:
+          homeOf:
+            type: string
+            format: uri
+            description: The user whose home this folder is. Only the folder record
+              carries it.
+            nullable: true
+          isRoot:
+            type: boolean
+          isSystem:
+            type: boolean
+          isUserHome:
+            type: boolean
+      description: A folder as the workspace graph holds it.
+    FolderCreateRequest:
+      type: object
+      description: |
+        The parent folder, and the name and description of the folder to create. Name the parent
+        either by identifier or by path, not both.
+      properties:
+        description:
+          type: string
+        folderId:
+          type: string
+          format: uri
+          description: Identifier of the parent folder. The caller needs the createInFolder
+            capability on it.
+        name:
+          type: string
+        path:
+          type: string
+          description: "Normalized path of the parent folder, as an alternative to\
+            \ folderId."
+      required:
+      - description
+      - name
+    FolderDetails:
+      allOf:
+      - $ref: "#/components/schemas/Folder"
+      - type: object
+        properties:
+          currentUserPermissions:
+            $ref: "#/components/schemas/CurrentUserResourcePermissions"
+        required:
+        - currentUserPermissions
+      description: A folder together with what the current user may do with it.
+    FolderOrArtifactRecord:
+      description: |
+        A folder or artifact record, for the operations that accept either. `resourceType` says
+        which of the two the response carries.
+      discriminator:
+        mapping:
+          element: "#/components/schemas/ArtifactRecord"
+          field: "#/components/schemas/ArtifactRecord"
+          folder: "#/components/schemas/Folder"
+          instance: "#/components/schemas/ArtifactRecord"
+          template: "#/components/schemas/ArtifactRecord"
+        propertyName: resourceType
+      oneOf:
+      - $ref: "#/components/schemas/Folder"
+      - $ref: "#/components/schemas/ArtifactRecord"
+    FolderReplaceRequest:
+      type: object
+      description: |
+        The keys a PUT reads, which differ by whether the folder already exists. Replacing an
+        existing folder reads `schema:name` and `schema:description`, and at least one of the two
+        must be present. Creating a folder under a caller-supplied identifier reads `@id`, which
+        must equal the identifier in the path, together with the parent folder and the `name` and
+        `description` a POST would read.
+      properties:
+        '@id':
+          type: string
+          format: uri
+        description:
+          type: string
+        folderId:
+          type: string
+          format: uri
+        name:
+          type: string
+        path:
+          type: string
+        schema:description:
+          type: string
+        schema:name:
+          type: string
     ForceRequest:
       type: object
       description: Force or not.
@@ -7370,6 +8401,281 @@ components:
         '@id':
           type: string
           description: Unique URL identifier representing an artifact.
+    InclusionSubgraphElement:
+      type: object
+      properties:
+        '@context':
+          type: object
+          additionalProperties:
+            type: string
+        '@id':
+          type: string
+        createdByUserName:
+          type: string
+        createdOnTS:
+          type: integer
+          format: int64
+        elements:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/InclusionSubgraphElement"
+        lastUpdatedByUserName:
+          type: string
+        lastUpdatedOnTS:
+          type: integer
+          format: int64
+        operation:
+          type: string
+          enum:
+          - update
+          - do-not-update
+        oslc:modifiedBy:
+          type: string
+        ownedBy:
+          type: string
+        ownedByUserName:
+          type: string
+        pav:createdBy:
+          type: string
+        pav:createdOn:
+          type: string
+        pav:lastUpdatedOn:
+          type: string
+        resourceId:
+          $ref: "#/components/schemas/CedarFilesystemResourceId"
+        resourceType:
+          type: string
+          enum:
+          - folder
+          - field
+          - element
+          - template
+          - element-instance
+          - instance
+          - user
+          - group
+          - category
+          - message
+          - user-message
+          - process-type
+        schema:description:
+          type: string
+        schema:identifier:
+          type: string
+        schema:name:
+          type: string
+        sourceHash:
+          type: string
+        templates:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/InclusionSubgraphTemplate"
+    InclusionSubgraphRequest:
+      type: object
+      properties:
+        '@id':
+          type: string
+        elements:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/InclusionSubgraphElement"
+        templates:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/InclusionSubgraphTemplate"
+    InclusionSubgraphResponse:
+      type: object
+      properties:
+        '@id':
+          type: string
+        elements:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/InclusionSubgraphElement"
+        templates:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/InclusionSubgraphTemplate"
+    InclusionSubgraphTemplate:
+      type: object
+      properties:
+        '@context':
+          type: object
+          additionalProperties:
+            type: string
+        '@id':
+          type: string
+        createdByUserName:
+          type: string
+        createdOnTS:
+          type: integer
+          format: int64
+        lastUpdatedByUserName:
+          type: string
+        lastUpdatedOnTS:
+          type: integer
+          format: int64
+        operation:
+          type: string
+          enum:
+          - update
+          - do-not-update
+        oslc:modifiedBy:
+          type: string
+        ownedBy:
+          type: string
+        ownedByUserName:
+          type: string
+        pav:createdBy:
+          type: string
+        pav:createdOn:
+          type: string
+        pav:lastUpdatedOn:
+          type: string
+        resourceId:
+          $ref: "#/components/schemas/CedarFilesystemResourceId"
+        resourceType:
+          type: string
+          enum:
+          - folder
+          - field
+          - element
+          - template
+          - element-instance
+          - instance
+          - user
+          - group
+          - category
+          - message
+          - user-message
+          - process-type
+        schema:description:
+          type: string
+        schema:identifier:
+          type: string
+        schema:name:
+          type: string
+        sourceHash:
+          type: string
+    InclusionSubgraphUpdateOutcome:
+      type: object
+      properties:
+        artifactServerStatus:
+          type: integer
+          format: int32
+        sourceId:
+          type: string
+        status:
+          type: string
+          enum:
+          - UPDATED
+          - UNCHANGED
+          - FAILED
+        targetId:
+          type: string
+    InclusionSubgraphUpdateReport:
+      type: object
+      properties:
+        complete:
+          type: boolean
+        outcomes:
+          type: array
+          items:
+            $ref: "#/components/schemas/InclusionSubgraphUpdateOutcome"
+        tree:
+          $ref: "#/components/schemas/InclusionSubgraphResponse"
+    IndexJobStatus:
+      type: object
+      additionalProperties: false
+      description: |
+        What became of the most recent rebuild of one index, or that none has run since this server
+        started. `deadlineAt` and `overdue` describe a running job and are empty otherwise.
+      properties:
+        command:
+          type: string
+          description: The command that started the job.
+          nullable: true
+        deadlineAt:
+          type: string
+          format: date-time
+          nullable: true
+        failure:
+          type: string
+          description: "What went wrong, when the state is FAILED."
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        jobId:
+          type: string
+          nullable: true
+        overdue:
+          type: boolean
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        state:
+          type: string
+          enum:
+          - IDLE
+          - RUNNING
+          - COMPLETE
+          - FAILED
+          - ABANDONED
+      required:
+      - overdue
+      - state
+    IndexJobStatusByIndex:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/IndexJobStatus"
+      description: "The state of each index a rebuild can contend over, keyed by the\
+        \ index name."
+    InstanceArtifactDocument:
+      type: object
+      additionalProperties: true
+      description: "A template instance. Its value keys are the names of the template's\
+        \ fields and elements, so the only fixed key beyond the common artifact keys\
+        \ is the template it is based on."
+      properties:
+        '@context':
+          type: object
+          additionalProperties: true
+          description: JSON-LD context for the keys the artifact uses.
+        '@id':
+          type: string
+          format: uri
+          description: "The artifact's IRI. The server mints it on a POST, so a body\
+            \ sent to POST carries none; a body sent to PUT carries the IRI of the\
+            \ path."
+        oslc:modifiedBy:
+          type: string
+          format: uri
+          description: IRI of the user who last changed it.
+        pav:createdBy:
+          type: string
+          format: uri
+          description: IRI of the user who created it.
+        pav:createdOn:
+          type: string
+          format: date-time
+          description: When the artifact was created.
+        pav:lastUpdatedOn:
+          type: string
+          format: date-time
+          description: When the artifact was last changed.
+        schema:description:
+          type: string
+          description: Description shown with the name.
+        schema:isBasedOn:
+          type: string
+          format: uri
+          description: IRI of the template the instance was filled in against.
+        schema:name:
+          type: string
+          description: Display name.
     MoveRequest:
       type: object
       description: Parameters of the move operation.
@@ -7449,6 +8755,30 @@ components:
         schema:name:
           type: string
           description: New name of the resource.
+    ResourceAclUpdateRequest:
+      type: object
+      description: |
+        Complete replacement for a resource's direct grants. Only the `@id` of each user and group
+        is read. Any other property of a reference is ignored, so a document returned by the
+        permissions endpoint can be sent back with its grants changed.
+      properties:
+        groupPermissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceGroupGrant"
+        owner:
+          allOf:
+          - $ref: "#/components/schemas/CedarUserReference"
+          deprecated: true
+          description: Accepted for compatibility when it names the current owner.
+            Ownership is changed through the separate transfer operation.
+        userPermissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceUserGrant"
+      required:
+      - groupPermissions
+      - userPermissions
     ResourceAction:
       type: string
       description: An operation currently available after capabilities and resource
@@ -7477,6 +8807,17 @@ components:
       - moveResource
       - manageOpenView
       - transferOwnership
+    ResourceGroupGrant:
+      type: object
+      description: One role granted to one group on a folder or artifact.
+      properties:
+        group:
+          $ref: "#/components/schemas/CedarGroupReference"
+        role:
+          $ref: "#/components/schemas/ResourceRole"
+      required:
+      - group
+      - role
     ResourceListResponse:
       type: object
       additionalProperties: true
@@ -7530,10 +8871,32 @@ components:
       - nodeListQueryType
       - resources
       - totalCount
+    ResourcePermissions:
+      type: object
+      description: "The owner of a folder or artifact, together with the user and\
+        \ group grants recorded directly on it. A role that reaches the resource through\
+        \ a folder above it is not listed here."
+      properties:
+        groupPermissions:
+          type: array
+          description: Every role granted directly to a group.
+          items:
+            $ref: "#/components/schemas/ResourceGroupGrant"
+        owner:
+          $ref: "#/components/schemas/CedarUserReference"
+        userPermissions:
+          type: array
+          description: Every role granted directly to a user.
+          items:
+            $ref: "#/components/schemas/ResourceUserGrant"
+      required:
+      - groupPermissions
+      - owner
+      - userPermissions
     ResourceRole:
       type: string
-      description: "The strongest Viewer, Editor or Manager role granted to the current\
-        \ user."
+      description: A role granted to a user or a group on an artifact or a folder.
+        Each role includes everything the weaker roles allow.
       enum:
       - viewer
       - editor
@@ -7573,34 +8936,137 @@ components:
       required:
       - '@id'
       - resourceType
-    Template:
+    ResourceUserGrant:
       type: object
-      description: A CEDAR template (open JSON-LD document).
+      description: One role granted to one user on a folder or artifact.
+      properties:
+        role:
+          $ref: "#/components/schemas/ResourceRole"
+        user:
+          $ref: "#/components/schemas/CedarUserReference"
+      required:
+      - role
+      - user
+    SchemaArtifactDocument:
+      type: object
+      additionalProperties: true
+      description: "A template, template element or template field. Beyond the common\
+        \ artifact keys it carries the model's versioning keys and the JSON Schema\
+        \ keys that declare the properties an instance may hold. The entries under\
+        \ `properties` depend on the artifact."
+      properties:
+        $schema:
+          type: string
+          format: uri
+          description: The JSON Schema dialect IRI.
+        '@context':
+          type: object
+          additionalProperties: true
+          description: JSON-LD context for the keys the artifact uses.
+        '@id':
+          type: string
+          format: uri
+          description: "The artifact's IRI. The server mints it on a POST, so a body\
+            \ sent to POST carries none; a body sent to PUT carries the IRI of the\
+            \ path."
+        '@type':
+          type: string
+          format: uri
+          description: IRI of the artifact kind.
+          enum:
+          - https://schema.metadatacenter.org/core/Template
+          - https://schema.metadatacenter.org/core/TemplateElement
+          - https://schema.metadatacenter.org/core/TemplateField
+          - https://schema.metadatacenter.org/core/StaticTemplateField
+        _ui:
+          type: object
+          additionalProperties: true
+          description: "Editor rendering directives: child order, labels, descriptions\
+            \ and, for a field, its input type."
+        bibo:status:
+          type: string
+          description: Publication status. A published artifact can no longer be changed.
+          enum:
+          - bibo:draft
+          - bibo:published
+        description:
+          type: string
+          description: "JSON Schema description, derived from the name."
+        oslc:modifiedBy:
+          type: string
+          format: uri
+          description: IRI of the user who last changed it.
+        pav:createdBy:
+          type: string
+          format: uri
+          description: IRI of the user who created it.
+        pav:createdOn:
+          type: string
+          format: date-time
+          description: When the artifact was created.
+        pav:derivedFrom:
+          type: string
+          format: uri
+          description: "IRI of the artifact this one was copied from, when there is\
+            \ one."
+          nullable: true
+        pav:lastUpdatedOn:
+          type: string
+          format: date-time
+          description: When the artifact was last changed.
+        pav:previousVersion:
+          type: string
+          format: uri
+          description: "IRI of the version this one was drafted from, when there is\
+            \ one."
+          nullable: true
+        pav:version:
+          type: string
+          description: The artifact's own version.
+        properties:
+          type: object
+          additionalProperties: true
+          description: "One entry per child field or element, keyed by its name, plus\
+            \ the JSON-LD keys an instance must carry."
+        required:
+          type: array
+          description: Names of the properties an instance must carry.
+          items:
+            type: string
+            description: Names of the properties an instance must carry.
+        schema:description:
+          type: string
+          description: Description shown with the name.
+        schema:identifier:
+          type: string
+          description: Caller-assigned identifier.
+          nullable: true
+        schema:name:
+          type: string
+          description: Display name.
+        schema:schemaVersion:
+          type: string
+          description: Version of the CEDAR model the artifact conforms to.
+        title:
+          type: string
+          description: "JSON Schema title, derived from the name."
+        type:
+          type: string
+          description: Always `object`.
+    SetDoiRequest:
+      type: object
+      description: The artifact and the DOI to annotate it with.
       properties:
         '@id':
           type: string
-          description: Unique URL identifier representing a specific template.
-    TemplateElement:
-      type: object
-      description: A CEDAR template element (open JSON-LD document).
-      properties:
-        '@id':
+          description: Identifier of the artifact.
+        doi:
           type: string
-          description: Unique URL identifier representing a specific template element.
-    TemplateField:
-      type: object
-      description: A CEDAR template field (open JSON-LD document).
-      properties:
-        '@id':
-          type: string
-          description: Unique URL identifier representing a specific template field.
-    TemplateInstance:
-      type: object
-      description: A CEDAR template instance (open JSON-LD document).
-      properties:
-        '@id':
-          type: string
-          description: Unique URL identifier representing a specific template instance.
+          description: The DOI to record. An artifact that already carries a different
+            DOI is refused.
+      required:
+      - '@id'
+      - doi
     TemplateRecommendation:
       type: object
       properties:
@@ -7609,7 +9075,7 @@ components:
           format: double
           description: recommendation score
         resourceExtract:
-          $ref: "#/components/schemas/Template"
+          $ref: "#/components/schemas/ResourceSummary"
         sourceFieldsMatched:
           type: integer
           format: int32
@@ -7653,6 +9119,37 @@ components:
           type: integer
           format: int32
           description: number of fields in the input metadata record
+    TemplateUpdateCheck:
+      type: object
+      additionalProperties: false
+      description: |
+        Whether a stored template can be replaced by the submitted one, and what replacing it would
+        cost. A template with no instances answers `canBeUpdated` alone. For every other template
+        the changes between the two documents are counted and the versions are reported.
+      properties:
+        canBeUpdated:
+          type: boolean
+        destructiveChanges:
+          type: integer
+          format: int32
+          description: Changes that would invalidate existing instances.
+        nonDestructiveChanges:
+          type: integer
+          format: int32
+        numberOfInstances:
+          type: integer
+          format: int64
+        oldVersion:
+          type: string
+          description: The stored template's version.
+        pav:version:
+          type: string
+          description: The version publishing the stored template would produce.
+        schema:name:
+          type: string
+          description: The stored template's name.
+      required:
+      - canBeUpdated
     TransferOwnershipRequest:
       type: object
       description: The resource or category and user involved in an ownership transfer.
@@ -7709,6 +9206,109 @@ components:
         sourceHash:
           type: string
           description: Reserved for further use. Currently null.
+    UserListResponse:
+      type: object
+      description: "Every user of the system, under a single key."
+      properties:
+        users:
+          type: array
+          description: "The users, in the order the workspace graph returns them."
+          items:
+            $ref: "#/components/schemas/User"
+    ValidationReport:
+      type: object
+      description: "What validating an artifact against the CEDAR model found. Returned\
+        \ with 200 whether or not the artifact is valid: an invalid artifact is an\
+        \ answer, not a failed request. The artifact server produces it, and the resource\
+        \ server hands the same document back unchanged."
+      properties:
+        errors:
+          type: array
+          description: "Everything that makes the artifact invalid, in the order found."
+          items:
+            $ref: "#/components/schemas/ErrorItem"
+          uniqueItems: true
+        validates:
+          type: string
+          description: "Whether the artifact validates, as a string. One error makes\
+            \ it false; warnings alone still validate."
+          enum:
+          - "true"
+          - "false"
+        warnings:
+          type: array
+          description: "Everything the artifact should change but need not, in the\
+            \ order found."
+          items:
+            $ref: "#/components/schemas/WarningItem"
+          uniqueItems: true
+      required:
+      - errors
+      - validates
+      - warnings
+    ValidationRequest:
+      type: object
+      additionalProperties: true
+      description: |
+        The artifact to validate. A template, element, field or instance is sent as itself, so its
+        own keys are the top-level keys. An instance can instead be paired with the template to
+        validate it against, as `schema` and `instance` together.
+      properties:
+        instance:
+          $ref: "#/components/schemas/InstanceArtifactDocument"
+        schema:
+          $ref: "#/components/schemas/SchemaArtifactDocument"
+    ValueSetsImportJob:
+      type: object
+      additionalProperties: false
+      description: |
+        What became of one value sets ontology import, or that none has run since this server
+        started. `deadlineAt` and `overdue` describe a running import and are empty otherwise.
+      properties:
+        deadlineAt:
+          type: string
+          format: date-time
+          nullable: true
+        failure:
+          type: string
+          description: "What went wrong, when the status is ERROR."
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        importStatus:
+          type: string
+          enum:
+          - NOT_YET_INITIATED
+          - IN_PROGRESS
+          - COMPLETE
+          - ERROR
+        jobId:
+          type: string
+          nullable: true
+        overdue:
+          type: boolean
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - importStatus
+      - overdue
+    WarningItem:
+      type: object
+      description: "Everything the artifact should change but need not, in the order\
+        \ found."
+      properties:
+        additionalInfo:
+          type: object
+          additionalProperties:
+            type: object
+        location:
+          type: string
+        message:
+          type: string
   securitySchemes:
     api_key:
       description: "Your CEDAR API key, using the format 'apiKey <yourApiKey>'"

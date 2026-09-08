@@ -6,6 +6,7 @@ import com.github.jsonldjava.core.JsonLdError;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -14,7 +15,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.keycloak.events.Event;
+import org.metadatacenter.model.validation.report.CedarValidationReport;
 import org.metadatacenter.util.http.CedarError;
+import org.metadatacenter.util.artifact.ArtifactDocument;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.security.AdminCommand;
 import org.metadatacenter.config.CedarConfig;
@@ -110,8 +113,11 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   @Operation(summary = "Authentication user callback", description = "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home "
           + "folder, group membership) upon authentication. The caller must hold the user administration "
           + "permission, since the user to provision is named in the request body.")
+  @RequestBody(description = "The authentication event and the user it concerns", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/AuthUserCallbackRequest")))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "Successful operation"),
+      @ApiResponse(responseCode = "201",
+          description = "The user's objects were provisioned. The response carries no body."),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -186,8 +192,15 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   @Timed
   @Path("/convert")
   @Operation(summary = "Convert a resource", description = "Convert the resource supplied in the request body to the requested output format.")
+  @RequestBody(description = "The artifact to convert", required = true,
+      content = @Content(schema = @Schema(implementation = ArtifactDocument.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The converted artifact, in the requested format",
+          content = {
+              @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ArtifactDocument.class)),
+              @Content(mediaType = "application/n-quads", schema = @Schema(type = "string",
+                  description = "The artifact as RDF N-Quads, one statement per line."))
+          }),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -218,7 +231,9 @@ public class CommandGenericResource extends AbstractResourceServerResource {
           + "<instance text> }. The validation service will return a report in JSON format as follows: { "
           + "\"validates\": \"\", \"warnings\": [], \"errors\": [] }", tags = {"Validation", "Command"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The validation report",
+          content = @Content(mediaType = MediaType.APPLICATION_JSON,
+              schema = @Schema(implementation = CedarValidationReport.class))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -226,10 +241,13 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @RequestBody(description = "The artifact to validate, as JSON or YAML selected via the Content-Type header",
+      required = true, content = @Content(schema = @Schema(ref = "#/components/schemas/ValidationRequest")))
   public Response validateResource(
       @Parameter(description = "The type of CEDAR resource. The allowed values are: 'field', 'element', 'template', "
           + "'instance'", required = true)
-      @QueryParam(QP_RESOURCE_TYPE) String resourceType, String requestBody) throws CedarException {
+      @QueryParam(QP_RESOURCE_TYPE) String resourceType,
+      @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     //c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_CREATE); // XXX Permission for validation?

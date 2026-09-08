@@ -75,7 +75,8 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
           + "artifact and the attachCategory capability on the category.", tags = {"Command", "Categories", "Category Operations"})
   @RequestBody(description = "Parameters of the attach operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The artifact's details, as they stood before the category was attached",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactDetails"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -130,7 +131,8 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
           + "artifact and the detachCategory capability on the category.", tags = {"Command", "Categories", "Category Operations"})
   @RequestBody(description = "Parameters of the detach operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The artifact's details, as they stood before the category was detached",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactDetails"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -186,7 +188,8 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
       tags = {"Command", "Categories", "Category Operations"})
   @RequestBody(description = "Parameters of the attach operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachListRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The artifact's details, as they stood before the categories were attached",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactDetails"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),

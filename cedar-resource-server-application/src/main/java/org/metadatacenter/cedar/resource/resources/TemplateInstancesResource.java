@@ -18,7 +18,7 @@ import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.util.http.CedarError;
-import org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance;
+import org.metadatacenter.util.artifact.InstanceArtifactDocument;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
 import org.metadatacenter.error.CedarErrorKey;
@@ -27,6 +27,7 @@ import org.metadatacenter.id.CedarTemplateInstanceId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.proxy.ArtifactProxy;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.http.CedarResponse;
@@ -63,9 +64,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Operation(summary = "Create a template instance", description = "Create a template instance. The body can be JSON or "
       + "YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: "
       + "the compact form is a lossy read-time convenience and is rejected.")
-  @RequestBody(description = "The template instance to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance.class)))
+  @RequestBody(description = "The template instance to be created", required = true, content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A template instance", content = @Content(schema = @Schema(implementation = TemplateInstance.class)),
+      @ApiResponse(responseCode = "201", description = "A template instance", content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -96,7 +97,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Operation(summary = "Get a template instance", description = "Get a template instance. YAML can be requested via the "
       + "Accept header; the format query parameter takes precedence.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A template instance", content = @Content(schema = @Schema(implementation = TemplateInstance.class)),
+      @ApiResponse(responseCode = "200", description = "A template instance", content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -134,7 +135,10 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       + "header. This reads and returns the template instance and changes nothing, which is what GET is for; the POST on "
       + "the same path does the same thing and remains for existing callers.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The template instance content as an attachment"),
+      @ApiResponse(responseCode = "200", description = "The template instance content as an attachment",
+          content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)),
+          headers = @Header(name = "Content-Disposition", description = "The response is an attachment named after the template instance's identifier.",
+              schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -157,7 +161,10 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Operation(summary = "Download a template instance", description = "Download a template instance as JSON or YAML, selected "
       + "via the Accept header.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The template instance content as an attachment"),
+      @ApiResponse(responseCode = "200", description = "The template instance content as an attachment",
+          content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)),
+          headers = @Header(name = "Content-Disposition", description = "The response is an attachment named after the template instance's identifier.",
+              schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -229,7 +236,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Path("/{template_instance_id}/details")
   @Operation(summary = "Get details of a template instance", description = "Get details of a template instance.", tags = {"Template Instances", "Resource Details"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "The template instance's details",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactDetails")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -256,12 +264,13 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       + "YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: "
       + "the compact form is a lossy read-time convenience and is rejected.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatchForCreateOrReplace"))
-  @RequestBody(description = "The template instance to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TemplateInstance.class)))
+  @RequestBody(description = "The template instance to be updated", required = true, content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A template instance", content = @Content(schema = @Schema(implementation = TemplateInstance.class)),
+      @ApiResponse(responseCode = "200", description = "A template instance",
+          content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(ref = "#/components/schemas/ArtifactRecord")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "201", description = "A template instance created with the supplied identifier",
-          content = @Content(schema = @Schema(implementation = TemplateInstance.class)),
+          content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -302,7 +311,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       + "workspace-graph, search-index, or value-recommender cleanup.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "202", description = "Content deleted; durable downstream cleanup is pending"),
+      @ApiResponse(responseCode = "202", description = "Content deleted; durable downstream cleanup is pending. "
+              + "The response carries no body, so no content is declared."),
       @ApiResponse(responseCode = "204", description = "Deletion completed across content and downstream stores"),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -327,7 +337,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Path("/{template_instance_id}/permissions")
   @Operation(summary = "Get permissions of a template instance", description = "Get permissions of a template instance.", tags = {"Template Instances", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "The template instance's permissions",
+          content = @Content(schema = @Schema(implementation = CedarNodePermissionsWithExtract.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -350,8 +361,11 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Path("/{template_instance_id}/permissions")
   @Operation(summary = "Update permissions of a template instance", description = "Update permissions of a template instance.", tags = {"Template Instances", "Permissions"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
+  @RequestBody(description = "Complete replacement for the template instance's direct grants.", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/ResourceAclUpdateRequest")))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "The template instance's updated permissions",
+          content = @Content(schema = @Schema(implementation = CedarNodePermissionsWithExtract.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -376,7 +390,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Path("/{template_instance_id}/report")
   @Operation(summary = "Get report of a template instance", description = "Get report of a template instance.", tags = {"Template Instances", "Resource Report"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The template instance's report",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactReport"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),

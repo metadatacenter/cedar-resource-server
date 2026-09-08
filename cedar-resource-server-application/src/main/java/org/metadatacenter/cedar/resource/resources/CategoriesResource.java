@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.bridge.CedarDataServices;
-import org.metadatacenter.cedar.resource.resources.swaggermodel.Category;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
@@ -90,7 +89,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Timed
   @Operation(summary = "Get all categories", description = "Get the list of all categories.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class))),
+      @ApiResponse(responseCode = "200", description = "One page of categories",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryListResponse"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -155,7 +155,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Operation(summary = "Create a category", description = "Create a category.")
   @RequestBody(description = "The category to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Category.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A category", content = @Content(schema = @Schema(implementation = Category.class)),
+      @ApiResponse(responseCode = "201", description = "A category and what the current user may do with it",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryDetails")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -226,7 +227,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Path("/root")
   @Operation(summary = "Get root category", description = "Get root category.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class))),
+      @ApiResponse(responseCode = "200", description = "The root category and what the current user may do with it",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryDetails"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -257,7 +259,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Path("/{category_id}")
   @Operation(summary = "Get a category", description = "Get a category.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class)),
+      @ApiResponse(responseCode = "200", description = "A category and what the current user may do with it",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryDetails")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -296,7 +299,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Path("/tree")
   @Operation(summary = "Get category tree", description = "Get category tree.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class))),
+      @ApiResponse(responseCode = "200", description = "The root category, with every category beneath it",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryTree"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -331,7 +335,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "The category to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Category.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A category", content = @Content(schema = @Schema(implementation = Category.class)),
+      @ApiResponse(responseCode = "200", description = "The updated category and what the current user may do with it",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryDetails")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),

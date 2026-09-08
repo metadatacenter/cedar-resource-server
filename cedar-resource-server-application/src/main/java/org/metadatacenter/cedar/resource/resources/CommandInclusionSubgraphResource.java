@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -61,8 +62,11 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
   @Path("/inclusions-subgraph-preview")
   @Operation(summary = "Preview the inclusion subgraph of an artifact", description = "Build a preview of the tree of artifacts affected by a change to the given artifact, without "
           + "applying any update.")
+  @RequestBody(description = "The artifact that changed, and the elements and templates to consider", required = true,
+      content = @Content(schema = @Schema(implementation = InclusionSubgraphRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "The tree of affected artifacts",
+          content = @Content(schema = @Schema(implementation = InclusionSubgraphResponse.class))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
@@ -103,14 +107,18 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
           + "that changed and the updateResource capability on every artifact selected for update. If the caller lacks "
           + "either capability, the whole request is refused and nothing is written. The response reports what "
           + "became of each target.")
+  @RequestBody(description = "The artifact that changed, and the elements and templates to consider", required = true,
+      content = @Content(schema = @Schema(implementation = InclusionSubgraphRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation"),
+      @ApiResponse(responseCode = "200", description = "Every target was written",
+          content = @Content(schema = @Schema(implementation = InclusionSubgraphUpdateReport.class))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error"),
-      @ApiResponse(responseCode = "502", description = "The artifact server refused at least one of the writes; the body is the update report")
+      @ApiResponse(responseCode = "502", description = "The artifact server refused at least one of the writes; the body is the update report",
+          content = @Content(schema = @Schema(implementation = InclusionSubgraphUpdateReport.class)))
   })
   public Response updateInclusionSubgraph() throws CedarException, IOException {
     CedarRequestContext c = buildRequestContext();
