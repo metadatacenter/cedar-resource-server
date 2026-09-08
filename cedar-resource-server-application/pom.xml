@@ -245,6 +245,7 @@
         <configuration>
           <resourcePackages>
             <package>org.metadatacenter.cedar.resource.resources</package>
+            <package>org.metadatacenter.cedar.util.dw</package>
           </resourcePackages>
         </configuration>
       </plugin>
