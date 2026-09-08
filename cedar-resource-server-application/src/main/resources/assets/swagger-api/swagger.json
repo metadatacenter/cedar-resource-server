@@ -5893,7 +5893,7 @@
             "type" : "boolean"
           }
         }, {
-          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON. A published artifact may be replaced this way, since a verbatim write states the whole document rather than editing it.",
           "in" : "query",
           "name" : "verbatim",
           "schema" : {
@@ -7292,7 +7292,7 @@
             "type" : "boolean"
           }
         }, {
-          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON. A published artifact may be replaced this way, since a verbatim write states the whole document rather than editing it.",
           "in" : "query",
           "name" : "verbatim",
           "schema" : {
@@ -8698,7 +8698,7 @@
             "type" : "boolean"
           }
         }, {
-          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON. A published artifact may be replaced this way, since a verbatim write states the whole document rather than editing it.",
           "in" : "query",
           "name" : "verbatim",
           "schema" : {
@@ -10099,7 +10099,7 @@
             "type" : "boolean"
           }
         }, {
-          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON.",
+          "description" : "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON. A published artifact may be replaced this way, since a verbatim write states the whole document rather than editing it.",
           "in" : "query",
           "name" : "verbatim",
           "schema" : {

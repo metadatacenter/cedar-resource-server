@@ -691,8 +691,14 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           .build();
     }
 
+    // Publication makes an artifact immutable to ordinary editing, which is what the status is for.
+    // A verbatim write is not editing: it stores a document a privileged caller has already stated in
+    // full, stamping no provenance and minting no identifier, and it is how a defect that lives in the
+    // stored representation is corrected. A published artifact carrying such a defect would otherwise
+    // keep it permanently, since the only other route mints a new version to record a change nobody
+    // authored. The verbatim permission is the gate, and the caller has been checked for it already.
     if (folderServerOldResource instanceof FolderServerSchemaArtifact artifact) {
-      if (artifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
+      if (artifact.getPublicationStatus() == BiboStatus.PUBLISHED && !verbatim) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
             .errorMessage("The artifact can not be changed since it is published!")
