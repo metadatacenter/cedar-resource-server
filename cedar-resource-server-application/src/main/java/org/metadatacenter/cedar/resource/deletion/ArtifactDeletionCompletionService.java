@@ -120,7 +120,8 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
 
   private void finishProjections(ArtifactDeletionJob job, CedarRequestContext context) throws Exception {
     CedarArtifactId id = CedarArtifactId.build(job.resourceId(), job.resourceType());
-    FolderServerArtifact deleted = JsonMapper.MAPPER.readValue(job.graphSnapshotJson(), FolderServerArtifact.class);
+    FolderServerArtifact deleted = JsonMapper.TOLERANT_MAPPER.readValue(
+        job.graphSnapshotJson(), FolderServerArtifact.class);
     nodeIndexingService.removeDocumentFromIndex(id);
     if (!ArtifactCopyOperations.enqueueValuerecommenderUpdateWithResult(valuerecommenderQueueService, deleted,
         ValuerecommenderReindexMessageActionType.DELETED)) {

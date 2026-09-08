@@ -135,7 +135,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     T resource = null;
     try {
       String responseString = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
-      resource = JsonMapper.MAPPER.readValue(responseString, klazz);
+      resource = JsonMapper.TOLERANT_MAPPER.readValue(responseString, klazz);
     } catch (IOException | ParseException e) {
       throw new CedarProcessingException(e);
     }

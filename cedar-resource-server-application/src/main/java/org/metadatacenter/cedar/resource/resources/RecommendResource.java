@@ -92,7 +92,8 @@ public class RecommendResource extends AbstractSearchResource {
     for (SearchHit hit : searchResponse.getHits().subList(0, totalCount)) {
       // For each template returned by ElasticSearch, measure the similarity between the input metadata fields and the
       // template fields, and calculate a recommendation score based on the Jaccard Index
-      IndexedDocumentDocument indexedDoc = JsonMapper.MAPPER.readValue(hit.getSourceAsString(), IndexedDocumentDocument.class);
+      IndexedDocumentDocument indexedDoc = JsonMapper.TOLERANT_MAPPER.readValue(
+          hit.getSourceAsString(), IndexedDocumentDocument.class);
       int sourceFieldsMatched = 0;
       for (String fieldName : fieldNames) {
         for (InfoField targetField : indexedDoc.getInfoFields()) {
@@ -107,7 +108,7 @@ public class RecommendResource extends AbstractSearchResource {
       // Score calculated using the Jaccard Index
       double recommendationScore =
           (double) sourceFieldsMatched / (double) (sourceFieldsCount + targetFieldsCount - sourceFieldsMatched);
-        IndexedDocumentDocument indexedDocument = JsonMapper.MAPPER.readValue(hit.getSourceAsString(),
+        IndexedDocumentDocument indexedDocument = JsonMapper.TOLERANT_MAPPER.readValue(hit.getSourceAsString(),
             IndexedDocumentDocument.class);
         FolderServerResourceExtract resourceExtract = FolderServerResourceExtract.fromNodeInfo(indexedDocument.getInfo());
         ResourceRecommendation recommendation = new ResourceRecommendation(recommendationScore, sourceFieldsMatched,
@@ -175,4 +176,3 @@ public class RecommendResource extends AbstractSearchResource {
 
 
 }
-
