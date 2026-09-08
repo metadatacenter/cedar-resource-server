@@ -76,22 +76,13 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   }
 
   private static Response doConvert(JsonNode resourceNode, OutputFormatType formatType) throws CedarException {
-    Object responseObject = null;
-    String mediaType = null;
-    if (formatType == OutputFormatType.JSONLD) {
-      responseObject = resourceNode;
-      mediaType = MediaType.APPLICATION_JSON;
-    } else if (formatType == OutputFormatType.JSON) {
-      responseObject = getJsonString(resourceNode);
-      mediaType = MediaType.APPLICATION_JSON;
-    } else if (formatType == OutputFormatType.RDF_NQUAD) {
-      responseObject = getRdfString(resourceNode);
-      mediaType = "application/n-quads";
-    } else {
-      throw new CedarException("Programming error: no handler is programmed for format type: " + formatType) {
-      };
-    }
-    return Response.ok(responseObject, mediaType).build();
+    // A switch expression over the enum, with no default: a format this cannot render is a compile
+    // error, not a runtime 500 with no decided status.
+    return switch (formatType) {
+      case JSONLD -> Response.ok(resourceNode, MediaType.APPLICATION_JSON).build();
+      case JSON -> Response.ok(getJsonString(resourceNode), MediaType.APPLICATION_JSON).build();
+      case RDF_NQUAD -> Response.ok(getRdfString(resourceNode), "application/n-quads").build();
+    };
   }
 
   private static JsonNode getJsonString(JsonNode resourceNode) {
