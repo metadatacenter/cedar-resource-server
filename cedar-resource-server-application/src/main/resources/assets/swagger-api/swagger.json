@@ -5118,6 +5118,238 @@
         "tags" : [ "Service diagnostics" ]
       }
     },
+    "/open/template-elements/{id}" : {
+      "get" : {
+        "description" : "User credentials never broaden access.",
+        "operationId" : "element",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchemaArtifactDocument"
+                }
+              }
+            },
+            "description" : "The open artifact as JSON"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact and its ancestors are private"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact does not exist"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A required backend is unavailable"
+          }
+        },
+        "summary" : "Read an open element anonymously",
+        "tags" : [ "Open artifacts" ]
+      }
+    },
+    "/open/template-fields/{id}" : {
+      "get" : {
+        "description" : "User credentials never broaden access.",
+        "operationId" : "field",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchemaArtifactDocument"
+                }
+              }
+            },
+            "description" : "The open artifact as JSON"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact and its ancestors are private"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact does not exist"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A required backend is unavailable"
+          }
+        },
+        "summary" : "Read an open field anonymously",
+        "tags" : [ "Open artifacts" ]
+      }
+    },
+    "/open/template-instances/{id}" : {
+      "get" : {
+        "description" : "User credentials never broaden access.",
+        "operationId" : "instance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstanceArtifactDocument"
+                }
+              }
+            },
+            "description" : "The open artifact as JSON"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact and its ancestors are private"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact does not exist"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A required backend is unavailable"
+          }
+        },
+        "summary" : "Read an open instance anonymously",
+        "tags" : [ "Open artifacts" ]
+      }
+    },
+    "/open/templates/{id}" : {
+      "get" : {
+        "description" : "User credentials never broaden access.",
+        "operationId" : "template",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchemaArtifactDocument"
+                }
+              }
+            },
+            "description" : "The open artifact as JSON"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact and its ancestors are private"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact does not exist"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A required backend is unavailable"
+          }
+        },
+        "summary" : "Read an open template anonymously",
+        "tags" : [ "Open artifacts" ]
+      }
+    },
     "/search" : {
       "get" : {
         "description" : "Search resources using different criteria. All of the parameters are optional, but you need to provide at least one search criteria. The parameters can be combined, but not all of the combinations will work. You can see the type of the executed search in the response body.",
