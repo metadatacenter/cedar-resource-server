@@ -85,6 +85,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final CedarMicroserviceIndexResource index =
         new CedarMicroserviceIndexResource(cedarConfig, getServerName());
     environment.jersey().register(index);
+    environment.jersey().register(new ArtifactCountsResource(cedarConfig));
 
     final FoldersResource folders = new FoldersResource(cedarConfig);
     environment.jersey().register(folders);
