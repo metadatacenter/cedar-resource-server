@@ -53,6 +53,7 @@ import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
@@ -184,7 +185,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     String originalDocument;
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, sourceArtifactId);
-      ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
+      ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, c);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       int statusCode = proxyResponse.getCode();
       if (statusCode != HttpStatus.SC_OK) {
@@ -238,7 +239,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
-      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, c, originalDocument);
+      ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).post(url, c, originalDocument);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
       int statusCode = templateProxyResponse.getCode();
@@ -551,7 +552,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     } else {
       String artifactServerUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, (CedarArtifactId) fsResourceId);
 
-      ClassicHttpResponse templateCurrentProxyResponse = ProxyUtil.proxyGet(artifactServerUrl, c);
+      ClassicHttpResponse templateCurrentProxyResponse = new ArtifactServiceClient(cedarConfig).get(artifactServerUrl, c);
       int currentStatusCode = templateCurrentProxyResponse.getCode();
       if (currentStatusCode != HttpStatus.SC_OK) {
         // artifact was not created

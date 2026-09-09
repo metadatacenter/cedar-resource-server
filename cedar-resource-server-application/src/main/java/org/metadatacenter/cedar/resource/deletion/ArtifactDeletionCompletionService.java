@@ -17,7 +17,7 @@ import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingServic
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
-import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,7 +158,7 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
           if (!job.artifactDeleted()) {
             String url = cedarConfig.getMicroserviceUrlUtil().getArtifact().getArtifactTypeWithId(
                 job.resourceType(), CedarArtifactId.build(job.resourceId(), job.resourceType()));
-            try (ClassicHttpResponse response = ProxyUtil.proxyDelete(url, admin, job.artifactEtag())) {
+            try (ClassicHttpResponse response = new ArtifactServiceClient(cedarConfig).delete(url, admin, job.artifactEtag())) {
               int status = response.getCode();
               EntityUtils.consume(response.getEntity());
               if (status == HttpStatus.SC_PRECONDITION_FAILED) {

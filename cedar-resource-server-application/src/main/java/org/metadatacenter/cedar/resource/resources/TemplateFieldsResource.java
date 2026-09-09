@@ -30,7 +30,7 @@ import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExt
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.http.CedarResponse;
-import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.json.JsonMapper;
 
 import jakarta.ws.rs.*;
@@ -177,7 +177,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnArtifact(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.FIELD, fid);
-    ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
+    ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, c);
     // If error while retrieving artifact, re-run and return proxy call directly
     if (proxyResponse.getCode() != Response.Status.OK.getStatusCode()) {
       return executeResourceGetByProxyFromArtifactServer(CedarResourceType.FIELD, id, c);

@@ -171,7 +171,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     c.must(c.user()).have(updatePermission);
 
     var artifactContent = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(resourceType, aid, c,
-        microserviceUrlUtil, response);
+        cedarConfig, response);
     String getResponse = artifactContent.content();
     if (getResponse != null) {
       JsonNode getJsonNode = null;
@@ -232,7 +232,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           String content = JsonMapper.STRICT_MAPPER.writeValueAsString(getJsonNode);
           Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, aid, c, content,
-              microserviceUrlUtil, artifactContent.etag());
+              cedarConfig, artifactContent.etag());
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
@@ -311,7 +311,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     }
     try {
       Response rollback = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, artifactId, context,
-          preImage, microserviceUrlUtil, publishedEtag);
+          preImage, cedarConfig, publishedEtag);
       if (rollback.getStatus() != HttpStatus.SC_OK) {
         log.error("Failed publish left {} changed on the artifact server: conditional rollback answered {}",
             artifactId, rollback.getStatus());
@@ -423,7 +423,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(artifactType, aid, c,
-        microserviceUrlUtil, response);
+        cedarConfig, response);
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
@@ -610,7 +610,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     }
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(CedarResourceType.TEMPLATE, tid, c,
-        microserviceUrlUtil, response);
+        cedarConfig, response);
     if (getResponse == null || getResponse.isBlank()) {
       throw new CedarObjectNotFoundException(tid.getId());
     }
@@ -690,7 +690,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnArtifact(c, tid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(CedarResourceType.TEMPLATE, tid, c,
-        microserviceUrlUtil, response);
+        cedarConfig, response);
     if (getResponse != null) {
       JsonNode oldTemplateJsonNode;
       JsonNode newTemplateJsonNode;
@@ -742,7 +742,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           ((ObjectNode) newTemplateJsonNode).put(JSON_LD_ID, newTemplateIdString);
           ((ObjectNode) newTemplateJsonNode).put(PAV_VERSION, newVersion.getValue());
           String newDraftEtag = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
-              CedarResourceType.TEMPLATE, newTemplateId, c, microserviceUrlUtil, null).etag();
+              CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null).etag();
           return executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
               JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, newDraftEtag);
         }

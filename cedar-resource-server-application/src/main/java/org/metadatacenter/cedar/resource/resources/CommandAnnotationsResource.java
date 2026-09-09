@@ -33,6 +33,7 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.ModelUtil;
 
@@ -119,7 +120,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     }
 
     String artifactGetUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId.getId(), Optional.empty());
-    ClassicHttpResponse artifactGetResponse = ProxyUtil.proxyGet(artifactGetUrl, c);
+    ClassicHttpResponse artifactGetResponse = new ArtifactServiceClient(cedarConfig).get(artifactGetUrl, c);
     if (Response.Status.Family.familyOf(artifactGetResponse.getCode()) != Response.Status.Family.SUCCESSFUL) {
       return generateStatusResponse(artifactGetResponse);
     }
@@ -167,7 +168,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     String replacementEtag = null;
     ArtifactPreImage artifactPreImage = new ArtifactPreImage(oldArtifactContentJson, expectedEtag);
     try {
-      var artifactPutResponse = ProxyUtil.proxyPut(artifactGetUrl, c,
+      var artifactPutResponse = new ArtifactServiceClient(cedarConfig).put(artifactGetUrl, c,
           JsonMapper.STRICT_MAPPER.writeValueAsString(objectNode), expectedEtag);
       ProxyUtil.proxyResponseHeaders(artifactPutResponse, response);
       if (Response.Status.Family.familyOf(artifactPutResponse.getCode()) != Response.Status.Family.SUCCESSFUL) {

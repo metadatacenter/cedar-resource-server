@@ -64,6 +64,7 @@ import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
@@ -154,7 +155,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
-      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
+      ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).post(url, context, content);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
       int statusCode = templateProxyResponse.getCode();
@@ -225,11 +226,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       if (artifactId.isEmpty()) {
         // Create by POST, empty @id
         url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
-        templateProxyResponse = ProxyUtil.proxyPost(url, context, content);
+        templateProxyResponse = new ArtifactServiceClient(cedarConfig).post(url, context, content);
       } else {
         // Create by PUT, filled @id
         url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId.get(), Optional.empty());
-        templateProxyResponse = ProxyUtil.proxyPut(url, context, content);
+        templateProxyResponse = new ArtifactServiceClient(cedarConfig).put(url, context, content);
       }
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
@@ -369,7 +370,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
                                                   CedarArtifactId artifactId) {
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
-      ClassicHttpResponse discardResponse = ProxyUtil.proxyDelete(url, context, "\"1\"");
+      ClassicHttpResponse discardResponse = new ArtifactServiceClient(cedarConfig).delete(url, context, "\"1\"");
       int status = discardResponse.getCode();
       if (status != HttpStatus.SC_NO_CONTENT && status != HttpStatus.SC_OK && status != HttpStatus.SC_NOT_FOUND) {
         log.error("Refused create left {} on the artifact server: discard answered {}", artifactId, status);
@@ -402,7 +403,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   }
 
   protected Response executeResourceGetByProxyFromArtifactServer(CedarResourceType resourceType, String id, CedarRequestContext context) throws CedarProcessingException {
-    return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(microserviceUrlUtil, response, resourceType, id, Optional.empty(), context);
+    return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(cedarConfig, response, resourceType, id, Optional.empty(), context);
   }
 
   // YAML content negotiation
@@ -425,7 +426,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       return executeResourceGetByProxyFromArtifactServer(resourceType, id.getId(), context);
     }
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-    ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
+    ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, context);
     int statusCode = proxyResponse.getCode();
     if (statusCode != HttpStatus.SC_OK) {
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
@@ -575,7 +576,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       String url = microserviceUrlUtil.getArtifact()
           .getArtifactTypeWithId(CedarResourceType.TEMPLATE, templateIri, Optional.empty());
       try {
-        ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
+        ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, context);
         if (proxyResponse.getCode() != HttpStatus.SC_OK) {
           return null;
         }
@@ -744,7 +745,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         url += (url.contains("?") ? "&" : "?") + QP_VERBATIM + "=true";
       }
 
-      ClassicHttpResponse currentArtifactResponse = ProxyUtil.proxyGet(url, context);
+      ClassicHttpResponse currentArtifactResponse = new ArtifactServiceClient(cedarConfig).get(url, context);
       if (currentArtifactResponse.getCode() != HttpStatus.SC_OK) {
         ProxyUtil.proxyResponseHeaders(currentArtifactResponse, response);
         return generateStatusResponse(currentArtifactResponse);
@@ -753,7 +754,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           EntityUtils.toString(currentArtifactResponse.getEntity(), StandardCharsets.UTF_8),
           headerValue(currentArtifactResponse, HttpHeaders.ETAG));
 
-      ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content, expectedEtag);
+      ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).put(url, context, content, expectedEtag);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
       int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpConstants.CREATED && statusCode != HttpConstants.OK) {
@@ -858,7 +859,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         url += (url.contains("?") ? "&" : "?") + QP_VERBATIM + "=true";
       }
       ClassicHttpResponse rollbackResponse =
-          ProxyUtil.proxyPut(url, context, preImage.content(), replacementEtag);
+          new ArtifactServiceClient(cedarConfig).put(url, context, preImage.content(), replacementEtag);
       int status = rollbackResponse.getCode();
       if (status != HttpConstants.CREATED && status != HttpConstants.OK) {
         log.error("Failed graph update left {} changed on the artifact server: conditional rollback answered {}",
@@ -1006,7 +1007,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     String artifactEtag = null;
     boolean artifactAlreadyDeleted = false;
     try {
-      try (ClassicHttpResponse current = ProxyUtil.proxyGet(url, c)) {
+      try (ClassicHttpResponse current = new ArtifactServiceClient(cedarConfig).get(url, c)) {
         int status = current.getCode();
         if (status == HttpStatus.SC_OK) {
           artifactEtag = headerValue(current, HttpHeaders.ETAG);
@@ -1050,7 +1051,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     if (!artifactAlreadyDeleted) {
       try {
-        try (ClassicHttpResponse proxyResponse = ProxyUtil.proxyDelete(url, c, deletion.artifactEtag())) {
+        try (ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).delete(url, c, deletion.artifactEtag())) {
           ProxyUtil.proxyResponseHeaders(proxyResponse, response);
           int statusCode = proxyResponse.getCode();
           if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {

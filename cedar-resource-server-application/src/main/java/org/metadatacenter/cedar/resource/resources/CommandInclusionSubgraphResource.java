@@ -162,9 +162,9 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       CedarTypedSchemaArtifactId sourceArtifactId = CedarResourceTypeUtil.buildTypedArtifactId(todo.getSourceId());
       CedarTypedSchemaArtifactId targetArtifactId = CedarResourceTypeUtil.buildTypedArtifactId(todo.getTargetId());
 
-      String sourceArtifact = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(sourceArtifactId.getType(), sourceArtifactId, c, microserviceUrlUtil, null);
+      String sourceArtifact = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(sourceArtifactId.getType(), sourceArtifactId, c, cedarConfig, null);
       var targetArtifactContent = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
-          targetArtifactId.getType(), targetArtifactId, c, microserviceUrlUtil, null);
+          targetArtifactId.getType(), targetArtifactId, c, cedarConfig, null);
       String targetArtifact = targetArtifactContent.content();
       JsonNode sourceJsonNode = JsonMapper.STRICT_MAPPER.readTree(sourceArtifact);
       JsonNode targetJsonNode = JsonMapper.STRICT_MAPPER.readTree(targetArtifact);
@@ -180,7 +180,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       String newTargetContent = JsonMapper.STRICT_MAPPER.writeValueAsString(targetJsonNode);
 
       Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(targetArtifactId.getType(),
-          targetArtifactId, c, newTargetContent, microserviceUrlUtil, targetArtifactContent.etag());
+          targetArtifactId, c, newTargetContent, cedarConfig, targetArtifactContent.etag());
       int putStatus = putResponse.getStatus();
       if (putStatus >= 400) {
         log.error("The artifact server refused the propagation of {} into {} with status {}",

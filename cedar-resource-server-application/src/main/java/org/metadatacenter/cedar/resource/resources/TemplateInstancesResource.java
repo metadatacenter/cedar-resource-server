@@ -31,7 +31,7 @@ import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExt
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.http.CedarResponse;
-import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.json.JsonMapper;
 
 import jakarta.ws.rs.*;
@@ -123,7 +123,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     if (format.isEmpty()) {
       return executeArtifactGetNegotiated(c, CedarResourceType.INSTANCE, tiid, compactParam);
     }
-    return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(microserviceUrlUtil, response, CedarResourceType.INSTANCE, id, format, c);
+    return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(cedarConfig, response, CedarResourceType.INSTANCE, id, format, c);
   }
 
 
@@ -185,7 +185,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnArtifact(c, tiid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.INSTANCE, tiid);
-    ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
+    ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, c);
     // If error while retrieving artifact, re-run and return proxy call directly
     if (proxyResponse.getCode() != Response.Status.OK.getStatusCode()) {
       return executeResourceGetByProxyFromArtifactServer(CedarResourceType.INSTANCE, id, c);
