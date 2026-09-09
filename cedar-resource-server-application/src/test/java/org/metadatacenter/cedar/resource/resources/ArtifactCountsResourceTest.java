@@ -8,10 +8,10 @@ import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ArtifactServiceConfig;
-import org.metadatacenter.config.environment.CedarEnvironmentSource;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.util.test.TestAuthUtil;
+import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
@@ -40,11 +40,13 @@ class ArtifactCountsResourceTest {
         exchange.close();
       });
       artifact.start();
-      var env = new HashMap<>(CedarEnvironmentSource.getAll());
-      env.putAll(Map.of("CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0",
+      // Application startup installs the deletion-outbox constraint before any request arrives.
+      // Own that graph fixture even though the count endpoint itself only calls HTTP.
+      EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
+          "CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0",
           "CEDAR_RESOURCE_STOP_PORT", "0", "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
-          "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifact.getAddress().getPort())));
-      CedarEnvironmentSource.setOverride(env);
+          "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifact.getAddress().getPort()),
+          "CEDAR_REDIS_PERSISTENT_PORT", "1"));
     } catch (Exception e) { throw new ExceptionInInitializerError(e); }
   }
   private static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
