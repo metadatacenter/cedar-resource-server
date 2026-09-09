@@ -138,7 +138,7 @@ public class QueuedAdminJobTest {
     HttpResponse<String> response = post("/command/load-valuesets-ontology", adminAuthHeader);
 
     assertEquals(202, response.statusCode(), "the import was queued, not performed");
-    JsonNode queued = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode queued = JsonMapper.STRICT_MAPPER.readTree(response.body());
     String jobId = queued.get("jobId").asText();
     assertNotNull(jobId);
     assertTrue(location(response).endsWith("/command/load-valuesets-ontology-status/" + jobId),
@@ -154,12 +154,12 @@ public class QueuedAdminJobTest {
     HttpResponse<String> queued = post("/command/load-valuesets-ontology", adminAuthHeader);
     assertEquals(202, queued.statusCode(),
         "the import was refused rather than queued, so it names no job: " + queued.body());
-    String jobId = JsonMapper.MAPPER.readTree(queued.body()).get("jobId").asText();
+    String jobId = JsonMapper.STRICT_MAPPER.readTree(queued.body()).get("jobId").asText();
 
     HttpResponse<String> polled = get("/command/load-valuesets-ontology-status/" + jobId, userAuthHeader);
 
     assertEquals(200, polled.statusCode());
-    JsonNode job = JsonMapper.MAPPER.readTree(polled.body());
+    JsonNode job = JsonMapper.STRICT_MAPPER.readTree(polled.body());
     assertEquals(jobId, job.get("jobId").asText());
     assertNotNull(job.get("importStatus").asText());
   }
@@ -175,7 +175,7 @@ public class QueuedAdminJobTest {
     HttpResponse<String> response = post("/command/regenerate-search-index", adminAuthHeader, "{\"force\": true}");
 
     assertEquals(409, response.statusCode());
-    JsonNode refusal = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode refusal = JsonMapper.STRICT_MAPPER.readTree(response.body());
     assertEquals(running.id(), refusal.get("parameters").get("jobId").asText());
     assertTrue(location(response).endsWith("/command/index-job-status/" + running.id()), location(response));
   }
@@ -187,7 +187,7 @@ public class QueuedAdminJobTest {
     HttpResponse<String> polled = get("/command/index-job-status/" + running.id(), userAuthHeader);
 
     assertEquals(200, polled.statusCode());
-    JsonNode job = JsonMapper.MAPPER.readTree(polled.body());
+    JsonNode job = JsonMapper.STRICT_MAPPER.readTree(polled.body());
     assertEquals(running.id(), job.get("jobId").asText());
     assertEquals("RUNNING", job.get("state").asText());
     assertEquals("regenerate-search-index", job.get("command").asText());
@@ -198,7 +198,7 @@ public class QueuedAdminJobTest {
   public void theStatusOfAnIndexNamesTheJobItReports() throws Exception {
     JobClaim running = claimIndex(IndexJobGuard.Index.SEARCH, "generate-empty-search-index");
 
-    JsonNode statuses = JsonMapper.MAPPER.readTree(get("/command/index-job-status", userAuthHeader).body());
+    JsonNode statuses = JsonMapper.STRICT_MAPPER.readTree(get("/command/index-job-status", userAuthHeader).body());
 
     assertEquals(running.id(), statuses.get("SEARCH").get("jobId").asText());
   }

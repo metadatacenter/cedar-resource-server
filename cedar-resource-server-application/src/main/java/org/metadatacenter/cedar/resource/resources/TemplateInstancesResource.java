@@ -195,7 +195,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
     try {
       String instanceSource = EntityUtils.toString(entity, CharEncoding.UTF_8);
-      instanceNode = JsonMapper.MAPPER.readTree(instanceSource);
+      instanceNode = JsonMapper.STRICT_MAPPER.readTree(instanceSource);
     } catch (IOException | ParseException e) {
       throw new RuntimeException(e);
     }

@@ -337,7 +337,7 @@ public class CommandVersionResourceTest {
     HttpResponse<String> response = checkUpdateTemplate(storedTemplate.toString());
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
-    Assertions.assertTrue(JsonMapper.MAPPER.readTree(response.body()).get("canBeUpdated").asBoolean());
+    Assertions.assertTrue(JsonMapper.STRICT_MAPPER.readTree(response.body()).get("canBeUpdated").asBoolean());
   }
 
   @Test
@@ -596,13 +596,13 @@ public class CommandVersionResourceTest {
       return;
     }
     if (retryingVersionCommands && "PUT".equals(exchange.getRequestMethod())) {
-      currentVersionRetryArtifact = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      currentVersionRetryArtifact = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       VERSION_RETRY_PUBLISH_WRITES.incrementAndGet();
       sendArtifactResponse(exchange, currentVersionRetryArtifact, "\"version-retry-published-etag\"");
       return;
     }
     if (retryingVersionCommands && "POST".equals(exchange.getRequestMethod())) {
-      ObjectNode draft = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      ObjectNode draft = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       draft.put("@id", versionRetryDraftId.getId());
       VERSION_RETRY_DRAFT_WRITES.incrementAndGet();
       byte[] response = draft.toString().getBytes(StandardCharsets.UTF_8);
@@ -630,7 +630,7 @@ public class CommandVersionResourceTest {
     if (failingDraft && "POST".equals(exchange.getRequestMethod())) {
       failedDraftArtifactPresent = true;
       folderSession.deleteFolderById(failedDraftFolderId);
-      ObjectNode draft = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      ObjectNode draft = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       draft.put("@id", failedDraftTemplateId.getId());
       byte[] response = draft.toString().getBytes(StandardCharsets.UTF_8);
       exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -653,7 +653,7 @@ public class CommandVersionResourceTest {
     }
     if (failingPublish && "PUT".equals(exchange.getRequestMethod())) {
       String ifMatch = exchange.getRequestHeaders().getFirst("If-Match");
-      ObjectNode submitted = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      ObjectNode submitted = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       if ("\"fixture-etag\"".equals(ifMatch)) {
         currentFailedPublishArtifact = submitted;
         folderSession.deleteResourceById(failedPublishTemplateId);
@@ -672,7 +672,7 @@ public class CommandVersionResourceTest {
     }
     if (updatingArtifact && "PUT".equals(exchange.getRequestMethod())) {
       String ifMatch = exchange.getRequestHeaders().getFirst("If-Match");
-      ObjectNode submitted = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      ObjectNode submitted = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       if ("\"fixture-etag\"".equals(ifMatch)) {
         currentUpdateArtifact = submitted;
         folderSession.deleteResourceById(templateId);
@@ -714,7 +714,7 @@ public class CommandVersionResourceTest {
 
     ObjectNode responseDocument;
     if ("PUT".equals(exchange.getRequestMethod())) {
-      lastPublishedTemplate = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      lastPublishedTemplate = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       responseDocument = lastPublishedTemplate;
     } else {
       responseDocument = publishingArtifact ? publishTemplateDocument : storedTemplate;

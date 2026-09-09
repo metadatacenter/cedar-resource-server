@@ -205,7 +205,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     CedarResourceBatchAttachCategoryRequest categoryRequest = null;
     try {
-      categoryRequest = JsonMapper.MAPPER.treeToValue(categoryAttachmentRequest, CedarResourceBatchAttachCategoryRequest.class);
+      categoryRequest = JsonMapper.STRICT_MAPPER.treeToValue(categoryAttachmentRequest, CedarResourceBatchAttachCategoryRequest.class);
     } catch (JsonProcessingException e) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.MALFORMED_JSON_REQUEST_BODY)

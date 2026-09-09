@@ -206,7 +206,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
             .id(sourceArtifactId)
             .build();
       }
-      JsonNode jsonNode = JsonMapper.MAPPER.readTree(originalDocument);
+      JsonNode jsonNode = JsonMapper.STRICT_MAPPER.readTree(originalDocument);
       // Null rather than removed: the artifact server assigns the identifier, and the key carrying
       // null is how anything asks for one — an absent key cannot be told from a forgotten one.
       ((ObjectNode) jsonNode).putNull("@id");
@@ -250,7 +250,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         HttpEntity entity = templateProxyResponse.getEntity();
         Header locationHeader = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION);
         String entityContent = EntityUtils.toString(entity, StandardCharsets.UTF_8);
-        JsonNode jsonNode = JsonMapper.MAPPER.readTree(entityContent);
+        JsonNode jsonNode = JsonMapper.STRICT_MAPPER.readTree(entityContent);
         String createdId = jsonNode.get("@id").asText();
         CedarArtifactId newId = CedarArtifactId.build(createdId, resourceType);
 
@@ -561,7 +561,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         if (currentTemplateEntity != null) {
           try {
             String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
-            JsonNode currentTemplateJsonNode = JsonMapper.MAPPER.readTree(currentTemplateEntityContent);
+            JsonNode currentTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(currentTemplateEntityContent);
             String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
             String currentDescription = ModelUtil.extractDescriptionFromResource(resourceType, currentTemplateJsonNode).getValue();
             String publicationStatusString = ModelUtil.extractPublicationStatusFromResource(resourceType, currentTemplateJsonNode).getValue();
@@ -589,7 +589,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
                 updateDescriptionInObject(currentTemplateJsonNode, description);
               }
               return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId,
-                  Optional.empty(), JsonMapper.MAPPER.writeValueAsString(currentTemplateJsonNode), false,
+                  Optional.empty(), JsonMapper.STRICT_MAPPER.writeValueAsString(currentTemplateJsonNode), false,
                   expectedEtag);
             } else {
               return CedarResponse.badRequest()

@@ -588,7 +588,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     CategoryPermissionRequest permissionsRequest = null;
     try {
-      permissionsRequest = JsonMapper.MAPPER.treeToValue(permissionUpdateRequest, CategoryPermissionRequest.class);
+      permissionsRequest = JsonMapper.STRICT_MAPPER.treeToValue(permissionUpdateRequest, CategoryPermissionRequest.class);
     } catch (JsonProcessingException e) {
       log.error("Error while reading permission update request", e);
       return CedarResponse.badRequest()

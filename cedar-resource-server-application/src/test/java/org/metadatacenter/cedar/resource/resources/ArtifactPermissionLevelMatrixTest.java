@@ -286,7 +286,7 @@ public class ArtifactPermissionLevelMatrixTest {
   private static String resharePermissionsBody() throws Exception {
     ResourcePermissionsRequest request = new ResourcePermissionsRequest();
     request.setOwner(new ResourcePermissionUser(user1.getId()));
-    return JsonMapper.MAPPER.writeValueAsString(request);
+    return JsonMapper.STRICT_MAPPER.writeValueAsString(request);
   }
 
   private static ResourcePermissionServiceSession user2Permissions() {
@@ -301,7 +301,7 @@ public class ArtifactPermissionLevelMatrixTest {
         .build();
     HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
     Assertions.assertEquals(200, response.statusCode(), fixture.label() + ": " + response.body());
-    return JsonMapper.MAPPER.readTree(response.body());
+    return JsonMapper.STRICT_MAPPER.readTree(response.body());
   }
 
 }

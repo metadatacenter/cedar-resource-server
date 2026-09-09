@@ -123,8 +123,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
 
     if (jsonBody != null) {
       try {
-        Event event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), Event.class);
-        CedarUserExtract targetUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
+        Event event = JsonMapper.STRICT_MAPPER.treeToValue(jsonBody.get("event"), Event.class);
+        CedarUserExtract targetUser = JsonMapper.STRICT_MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
 
         String clientId = event.getClientId();
         if (cedarConfig.getKeycloakConfig().getResource().equals(clientId)) {

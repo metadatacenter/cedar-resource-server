@@ -186,7 +186,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
     try {
       String elementSource = EntityUtils.toString(entity, CharEncoding.UTF_8);
-      elementNode = JsonMapper.MAPPER.readTree(elementSource);
+      elementNode = JsonMapper.STRICT_MAPPER.readTree(elementSource);
     } catch (IOException | ParseException e) {
       throw new RuntimeException(e);
     }

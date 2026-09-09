@@ -113,7 +113,7 @@ public class CommandAnnotationsResourceTest {
     Assertions.assertNotNull(created);
     artifactId = CedarUntypedArtifactId.build(created.getId());
     synchronized (ARTIFACT_LOCK) {
-      currentArtifact = JsonMapper.MAPPER.createObjectNode();
+      currentArtifact = JsonMapper.STRICT_MAPPER.createObjectNode();
       currentArtifact.put("@id", artifactId.getId());
       currentRevision = 1;
       rejectPut = false;
@@ -287,7 +287,7 @@ public class CommandAnnotationsResourceTest {
           status = 412;
           response = "{\"status\":412}".getBytes(StandardCharsets.UTF_8);
         } else {
-          currentArtifact = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+          currentArtifact = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
           currentRevision++;
           status = 200;
           response = currentArtifact.toString().getBytes(StandardCharsets.UTF_8);

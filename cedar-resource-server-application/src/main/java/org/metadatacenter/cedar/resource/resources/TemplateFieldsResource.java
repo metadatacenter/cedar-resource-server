@@ -187,7 +187,7 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
 
     try {
       String fieldSource = EntityUtils.toString(entity, CharEncoding.UTF_8);
-      fieldNode = JsonMapper.MAPPER.readTree(fieldSource);
+      fieldNode = JsonMapper.STRICT_MAPPER.readTree(fieldSource);
     } catch (IOException | ParseException e) {
       throw new RuntimeException(e);
     }

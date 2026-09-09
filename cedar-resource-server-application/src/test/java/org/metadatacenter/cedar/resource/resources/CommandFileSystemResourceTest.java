@@ -183,7 +183,7 @@ public class CommandFileSystemResourceTest {
     Assertions.assertNotNull(postedArtifact, "the copy should be posted to the artifact service");
     Assertions.assertEquals(COPIED_NAME, postedArtifact.get("schema:name").asText());
     Assertions.assertEquals(COPIED_NAME,
-        JsonMapper.MAPPER.readTree(response.body()).get("schema:name").asText());
+        JsonMapper.STRICT_MAPPER.readTree(response.body()).get("schema:name").asText());
   }
 
   @Test
@@ -216,7 +216,7 @@ public class CommandFileSystemResourceTest {
       HttpResponse<String> response = postCommand("copy-artifact-to-folder", copyBody());
 
       Assertions.assertEquals(502, response.statusCode(), response.body());
-      JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+      JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
       Assertions.assertEquals("BAD_GATEWAY", error.path("status").asText(), response.body());
       Assertions.assertEquals("Artifact service returned an empty source artifact",
           error.path("errorMessage").asText(), response.body());
@@ -249,7 +249,7 @@ public class CommandFileSystemResourceTest {
 
     HttpResponse<String> stale = postCommand("move-resource-to-folder", body, "\"0\"");
     Assertions.assertEquals(412, stale.statusCode(), stale.body());
-    Assertions.assertEquals("\"1\"", JsonMapper.MAPPER.readTree(stale.body())
+    Assertions.assertEquals("\"1\"", JsonMapper.STRICT_MAPPER.readTree(stale.body())
         .path("parameters").path("currentETag").asText());
 
     HttpResponse<String> moved = postCommand("move-resource-to-folder", body, "\"1\"");
@@ -316,7 +316,7 @@ public class CommandFileSystemResourceTest {
           HttpResponse.BodyHandlers.ofString());
 
       Assertions.assertEquals(201, response.statusCode(), artifact.getKey() + ": " + response.body());
-      JsonNode created = JsonMapper.MAPPER.readTree(response.body());
+      JsonNode created = JsonMapper.STRICT_MAPPER.readTree(response.body());
       String createdId = created.path("@id").asText();
       Assertions.assertFalse(createdId.isBlank(), response.body());
       Assertions.assertNotNull(folderSession.findArtifactById(
@@ -355,7 +355,7 @@ public class CommandFileSystemResourceTest {
 
   private static void assertServiceUnavailable(HttpResponse<String> response) throws IOException {
     Assertions.assertEquals(503, response.statusCode(), response.body());
-    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
   }
@@ -395,7 +395,7 @@ public class CommandFileSystemResourceTest {
         response = ("{\"status\":" + status + "}").getBytes(StandardCharsets.UTF_8);
       }
     } else if ("POST".equals(exchange.getRequestMethod())) {
-      postedArtifact = JsonMapper.MAPPER.readTree(exchange.getRequestBody());
+      postedArtifact = JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody());
       ObjectNode created = ((ObjectNode) postedArtifact).deepCopy();
       CedarResourceType resourceType = resourceTypeForPath(exchange.getRequestURI().getPath());
       String createdArtifactId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(resourceType);

@@ -77,7 +77,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    InclusionSubgraphRequest treeRequest = JsonMapper.MAPPER.readValue(c.request().getRequestBody().asJsonString(), InclusionSubgraphRequest.class);
+    InclusionSubgraphRequest treeRequest = JsonMapper.STRICT_MAPPER.readValue(c.request().getRequestBody().asJsonString(), InclusionSubgraphRequest.class);
 
     String id = treeRequest.getId();
     if (id == null) {
@@ -124,7 +124,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    InclusionSubgraphRequest treeRequest = JsonMapper.MAPPER.readValue(c.request().getRequestBody().asJsonString(), InclusionSubgraphRequest.class);
+    InclusionSubgraphRequest treeRequest = JsonMapper.STRICT_MAPPER.readValue(c.request().getRequestBody().asJsonString(), InclusionSubgraphRequest.class);
 
     String id = treeRequest.getId();
     if (id == null) {
@@ -166,8 +166,8 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       var targetArtifactContent = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
           targetArtifactId.getType(), targetArtifactId, c, microserviceUrlUtil, null);
       String targetArtifact = targetArtifactContent.content();
-      JsonNode sourceJsonNode = JsonMapper.MAPPER.readTree(sourceArtifact);
-      JsonNode targetJsonNode = JsonMapper.MAPPER.readTree(targetArtifact);
+      JsonNode sourceJsonNode = JsonMapper.STRICT_MAPPER.readTree(sourceArtifact);
+      JsonNode targetJsonNode = JsonMapper.STRICT_MAPPER.readTree(targetArtifact);
 
       // The graph said the target includes the source, but the content is what gets written. When the
       // two disagree, writing the target back unchanged would bump its provenance for no change at all.
@@ -177,7 +177,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         outcomes.add(InclusionSubgraphUpdateOutcome.unchanged(todo.getSourceId(), todo.getTargetId()));
         continue;
       }
-      String newTargetContent = JsonMapper.MAPPER.writeValueAsString(targetJsonNode);
+      String newTargetContent = JsonMapper.STRICT_MAPPER.writeValueAsString(targetJsonNode);
 
       Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(targetArtifactId.getType(),
           targetArtifactId, c, newTargetContent, microserviceUrlUtil, targetArtifactContent.etag());

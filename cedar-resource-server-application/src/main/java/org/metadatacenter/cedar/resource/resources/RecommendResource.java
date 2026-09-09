@@ -73,7 +73,7 @@ public class RecommendResource extends AbstractSearchResource {
     c.must(c.request().getRequestBody()).be(NonEmpty);
 
     TemplateRecommendationRequest recommendationRequest =
-        JsonMapper.MAPPER.readValue(c.request().getRequestBody().asJsonString(), TemplateRecommendationRequest.class);
+        JsonMapper.STRICT_MAPPER.readValue(c.request().getRequestBody().asJsonString(), TemplateRecommendationRequest.class);
 
     Iterator<String> itFieldNames = recommendationRequest.getMetadataRecord().fieldNames();
     List<String> fieldNames = new ArrayList<>();

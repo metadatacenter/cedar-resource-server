@@ -71,7 +71,7 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
                                      boolean artifactDeleted) throws CedarProcessingException {
     try {
       return outbox.prepare(id.getId(), artifact.getType(), artifactEtag,
-          JsonMapper.MAPPER.writeValueAsString(artifact), previousVersionId, artifactDeleted);
+          JsonMapper.STRICT_MAPPER.writeValueAsString(artifact), previousVersionId, artifactDeleted);
     } catch (Exception e) {
       throw new CedarProcessingException("The artifact deletion could not be recorded durably", e);
     }

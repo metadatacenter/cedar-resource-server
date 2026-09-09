@@ -176,7 +176,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
-        getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+        getJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
         if (getJsonNode != null) {
 
           ResourceVersion oldVersion = null;
@@ -230,7 +230,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 aid.getId(), freezeSkipped.toString());
           }
 
-          String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);
+          String content = JsonMapper.STRICT_MAPPER.writeValueAsString(getJsonNode);
           Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, aid, c, content,
               microserviceUrlUtil, artifactContent.etag());
           int putStatus = putResponse.getStatus();
@@ -427,7 +427,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
-        getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+        getJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
         if (getJsonNode != null) {
 
           // Only a published artifact may be the source of a draft. As with publishing above, the
@@ -477,14 +477,14 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
 
-          String artifactServerPostRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(newDocument);
+          String artifactServerPostRequestBodyAsString = JsonMapper.STRICT_MAPPER.writeValueAsString(newDocument);
 
           Response artifactServerPostResponse = executeResourcePostToArtifactServer(c, artifactType,
               artifactServerPostRequestBodyAsString);
 
           int artifactServerPostStatus = artifactServerPostResponse.getStatus();
           InputStream is = (InputStream) artifactServerPostResponse.getEntity();
-          JsonNode artifactServerPostResponseNode = JsonMapper.MAPPER.readTree(is);
+          JsonNode artifactServerPostResponseNode = JsonMapper.STRICT_MAPPER.readTree(is);
           if (artifactServerPostStatus == CedarResponseStatus.CREATED.getStatusCode()) {
             JsonNode atId = artifactServerPostResponseNode.at(AT_ID);
             String newIdString = atId.asText();
@@ -618,8 +618,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     try {
       JsonNode oldTemplateJsonNode;
       JsonNode newTemplateJsonNode;
-      oldTemplateJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-      newTemplateJsonNode = JsonMapper.MAPPER.readTree(c.request().getRequestBody().asJsonString());
+      oldTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
+      newTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(c.request().getRequestBody().asJsonString());
       if (!(oldTemplateJsonNode instanceof ObjectNode oldTemplateObjectNode)
           || !(newTemplateJsonNode instanceof ObjectNode newTemplateObjectNode)) {
         throw new IllegalArgumentException("Both stored and submitted templates must be JSON objects");
@@ -695,8 +695,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       JsonNode oldTemplateJsonNode;
       JsonNode newTemplateJsonNode;
       try {
-        oldTemplateJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-        newTemplateJsonNode = JsonMapper.MAPPER.readTree(c.request().getRequestBody().asJsonString());
+        oldTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
+        newTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(c.request().getRequestBody().asJsonString());
         if (oldTemplateJsonNode != null && newTemplateJsonNode != null) {
           JsonArtifactReader reader = new JsonArtifactReader();
           TemplateSchemaArtifact oldModelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) oldTemplateJsonNode);
@@ -744,7 +744,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           String newDraftEtag = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
               CedarResourceType.TEMPLATE, newTemplateId, c, microserviceUrlUtil, null).etag();
           return executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
-              JsonMapper.MAPPER.writeValueAsString(newTemplateJsonNode), false, newDraftEtag);
+              JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, newDraftEtag);
         }
       } catch (CedarException e) {
         throw e;

@@ -37,7 +37,7 @@ class ArtifactServerUtilTest {
     Response response = ArtifactServerUtil.buildPutResponse(artifactServerResponse);
 
     assertEquals(200, response.getStatus());
-    assertEquals(JsonMapper.MAPPER.readTree("{\"status\":\"ok\"}"), (JsonNode) response.getEntity());
+    assertEquals(JsonMapper.STRICT_MAPPER.readTree("{\"status\":\"ok\"}"), (JsonNode) response.getEntity());
     assertEquals("upstream-etag", response.getHeaderString(HttpHeaders.ETAG));
   }
 }

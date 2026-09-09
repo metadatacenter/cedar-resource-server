@@ -133,7 +133,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    JsonNode output = JsonMapper.MAPPER.valueToTree(ValueSetsImportStatusManager.getInstance());
+    JsonNode output = JsonMapper.STRICT_MAPPER.valueToTree(ValueSetsImportStatusManager.getInstance());
     return Response.ok().entity(output).build();
   }
 
@@ -159,7 +159,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     return ValueSetsImportStatusManager.getInstance().find(jobId)
-        .map(job -> Response.ok().entity(JsonMapper.MAPPER.valueToTree(job)).build())
+        .map(job -> Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(job)).build())
         .orElseGet(() -> noSuchJob("value sets ontology import", jobId));
   }
 
@@ -180,14 +180,14 @@ public class CommandSearchResource extends AbstractResourceServerResource {
    */
   private static Response queued(IndexJobGuard.Index index, JobClaim claim) {
     IndexJobGuard.Status job = IndexJobGuard.find(claim.id()).orElseGet(() -> IndexJobGuard.status(index));
-    return Response.accepted(JsonMapper.MAPPER.valueToTree(job)).location(indexJobUri(claim.id())).build();
+    return Response.accepted(JsonMapper.STRICT_MAPPER.valueToTree(job)).location(indexJobUri(claim.id())).build();
   }
 
   /** An import that has been queued rather than performed, reported the way a queued rebuild is. */
   private static Response importQueued(JobClaim claim) {
     ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
     ValueSetsImportStatusManager.ImportJob job = imports.find(claim.id()).orElseGet(imports::snapshot);
-    return Response.accepted(JsonMapper.MAPPER.valueToTree(job)).location(importJobUri(claim.id())).build();
+    return Response.accepted(JsonMapper.STRICT_MAPPER.valueToTree(job)).location(importJobUri(claim.id())).build();
   }
 
   /**
@@ -254,7 +254,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    return Response.ok().entity(JsonMapper.MAPPER.valueToTree(IndexJobGuard.statuses())).build();
+    return Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(IndexJobGuard.statuses())).build();
   }
 
   @GET
@@ -280,7 +280,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     return IndexJobGuard.find(jobId)
-        .map(status -> Response.ok().entity(JsonMapper.MAPPER.valueToTree(status)).build())
+        .map(status -> Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(status)).build())
         .orElseGet(() -> noSuchJob("index rebuild", jobId));
   }
 
@@ -356,7 +356,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           .parameter("deadlineAt", status.deadlineAt())
           .build();
     }
-    return Response.ok().entity(JsonMapper.MAPPER.valueToTree(IndexJobGuard.status(index))).build();
+    return Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(IndexJobGuard.status(index))).build();
   }
 
   @POST
@@ -387,7 +387,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           .parameter("deadlineAt", imports.getDeadlineAt())
           .build();
     }
-    return Response.ok().entity(JsonMapper.MAPPER.valueToTree(imports)).build();
+    return Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(imports)).build();
   }
 
   @POST

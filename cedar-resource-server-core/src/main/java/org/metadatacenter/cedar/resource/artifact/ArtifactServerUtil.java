@@ -70,7 +70,7 @@ public class ArtifactServerUtil {
       JsonNode responseNode = null;
       try {
         String responseString = EntityUtils.toString(entity, StandardCharsets.UTF_8);
-        responseNode = JsonMapper.MAPPER.readTree(responseString);
+        responseNode = JsonMapper.STRICT_MAPPER.readTree(responseString);
       } catch (Exception e) {
         return Response.status(statusCode).build();
       }

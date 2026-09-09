@@ -140,7 +140,7 @@ public class InclusionSubgraphAuthorizationTest {
     HttpResponse<String> response = post("/command/inclusions-subgraph-preview", requestBody(null));
 
     Assertions.assertEquals(200, response.statusCode(), "user 2 may read the source element");
-    JsonNode templates = JsonMapper.MAPPER.readTree(response.body()).get("templates");
+    JsonNode templates = JsonMapper.STRICT_MAPPER.readTree(response.body()).get("templates");
     Assertions.assertTrue(templates.has(readableTemplate.getId()),
         "the template user 2 may read should be in the affected tree");
     Assertions.assertFalse(templates.has(invisibleTemplate.getId()),
@@ -170,7 +170,7 @@ public class InclusionSubgraphAuthorizationTest {
     HttpResponse<String> response = post("/command/inclusions-subgraph-update", requestBody(invisibleTemplate.getId()));
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
-    JsonNode outcomes = JsonMapper.MAPPER.readTree(response.body()).get("outcomes");
+    JsonNode outcomes = JsonMapper.STRICT_MAPPER.readTree(response.body()).get("outcomes");
     Assertions.assertTrue(outcomes.isEmpty(),
         "nothing should have been planned for a template user 2 cannot even see, but the response reported "
             + outcomes);

@@ -242,7 +242,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         HttpEntity templateProxyResponseEntity = templateProxyResponse.getEntity();
         if (templateProxyResponseEntity != null) {
           String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity, StandardCharsets.UTF_8);
-          JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
+          JsonNode templateJsonNode = JsonMapper.STRICT_MAPPER.readTree(templateEntityContent);
           String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
           createdArtifactId = aid;
@@ -433,7 +433,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     }
     try {
       String artifactSource = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
-      JsonNode artifactNode = JsonMapper.MAPPER.readTree(artifactSource);
+      JsonNode artifactNode = JsonMapper.STRICT_MAPPER.readTree(artifactSource);
       boolean compactRepresentation = compact.isPresent() && compact.get();
       String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compactRepresentation);
       String canonicalEtag = headerValue(proxyResponse, HttpHeaders.ETAG);
@@ -505,7 +505,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       return "{}";
     }
     try {
-      return JsonMapper.MAPPER.writeValueAsString(JsonMapper.MAPPER.readTree(requestBody));
+      return JsonMapper.STRICT_MAPPER.writeValueAsString(JsonMapper.STRICT_MAPPER.readTree(requestBody));
     } catch (JsonProcessingException e) {
       throw new CedarBadRequestException("There was an error deserializing the request body", e);
     }
@@ -579,7 +579,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         if (proxyResponse.getCode() != HttpStatus.SC_OK) {
           return null;
         }
-        return JsonMapper.MAPPER.readTree(
+        return JsonMapper.STRICT_MAPPER.readTree(
             EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8));
       } catch (ParseException | CedarProcessingException e) {
         throw new IOException(e);
@@ -767,7 +767,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       HttpEntity templateEntity = templateProxyResponse.getEntity();
       if (templateEntity != null) {
         String templateEntityContent = EntityUtils.toString(templateEntity, StandardCharsets.UTF_8);
-        JsonNode templateJsonNode = JsonMapper.MAPPER.readTree(templateEntityContent);
+        JsonNode templateJsonNode = JsonMapper.STRICT_MAPPER.readTree(templateEntityContent);
 
         String newName = ModelUtil.extractNameFromResource(resourceType, templateJsonNode).getValue().trim();
         String newDescription = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode).getValue().trim();
@@ -915,7 +915,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   /** The oslc:modifiedBy the request states, which on a verbatim write is what gets stored. */
   private static String statedModifiedBy(String content) {
     try {
-      JsonNode stated = JsonMapper.MAPPER.readTree(content).get(ModelNodeNames.OSLC_MODIFIED_BY);
+      JsonNode stated = JsonMapper.STRICT_MAPPER.readTree(content).get(ModelNodeNames.OSLC_MODIFIED_BY);
       return stated == null || !stated.isTextual() ? "nothing" : stated.textValue();
     } catch (Exception e) {
       return "unreadable";
@@ -1181,7 +1181,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     ResourcePermissionsRequest permissionsRequest = null;
     try {
-      permissionsRequest = JsonMapper.MAPPER.treeToValue(permissionUpdateRequest, ResourcePermissionsRequest.class);
+      permissionsRequest = JsonMapper.STRICT_MAPPER.treeToValue(permissionUpdateRequest, ResourcePermissionsRequest.class);
     } catch (JsonProcessingException e) {
       log.error("Error while reading permission update request", e);
     }

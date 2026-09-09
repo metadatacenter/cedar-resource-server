@@ -127,7 +127,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     String expectedEtag = revisionHeader == null ? null : revisionHeader.getValue();
     JsonNode oldArtifactContent;
     try {
-      oldArtifactContent = JsonMapper.MAPPER.readTree(
+      oldArtifactContent = JsonMapper.STRICT_MAPPER.readTree(
           EntityUtils.toString(artifactGetResponse.getEntity(), StandardCharsets.UTF_8));
     } catch (IOException | ParseException e) {
       throw new CedarProcessingException(e);
@@ -158,7 +158,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     } else {
       annotationsNode = objectNode.putObject(ModelNodeNames.ANNOTATIONS);
     }
-    ObjectNode doiNode = JsonMapper.MAPPER.createObjectNode();
+    ObjectNode doiNode = JsonMapper.STRICT_MAPPER.createObjectNode();
     doiNode.put(ModelNodeNames.JSON_LD_ID, doiInRequest);
     annotationsNode.set(ModelNodeNames.DATACITE_DOI_URI, doiNode);
 
@@ -168,7 +168,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     ArtifactPreImage artifactPreImage = new ArtifactPreImage(oldArtifactContentJson, expectedEtag);
     try {
       var artifactPutResponse = ProxyUtil.proxyPut(artifactGetUrl, c,
-          JsonMapper.MAPPER.writeValueAsString(objectNode), expectedEtag);
+          JsonMapper.STRICT_MAPPER.writeValueAsString(objectNode), expectedEtag);
       ProxyUtil.proxyResponseHeaders(artifactPutResponse, response);
       if (Response.Status.Family.familyOf(artifactPutResponse.getCode()) != Response.Status.Family.SUCCESSFUL) {
         return generateStatusResponse(artifactPutResponse);
