@@ -10,11 +10,20 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
+import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.model.BiboStatus;
+import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
+import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.user.CedarUser;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -251,6 +260,61 @@ public class TemplatesResourceWriteRejectionTest {
     Assertions.assertTrue(error.path("sourceException").isMissingNode()
         || error.path("sourceException").isNull(), response.body());
     Assertions.assertFalse(response.body().contains("127.0.0.1"), response.body());
+  }
+
+  /**
+   * A published template in the graph, so the publication guard has something real to refuse. The
+   * artifact server is on a dead port throughout this class, so a write that gets past the guard
+   * fails downstream instead: that difference is exactly what these tests read.
+   */
+  private String publishedTemplateId() throws Exception {
+    CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+    FolderServiceSession folders = CedarDataServices.getInstance().getFolderServiceSession(user1Context);
+    CedarFolderId home = folders.findHomeFolderOf().getResourceId();
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName("Published by TemplatesResourceWriteRejectionTest");
+    template.setDescription("Published, so it may not be edited");
+    template.setVersion("1.0.0");
+    template.setPublicationStatus(BiboStatus.PUBLISHED.getValue());
+    template.setLatestVersion(true);
+    template.setLatestPublishedVersion(true);
+    FolderServerArtifact created = folders.createResourceAsChildOfId(template, home);
+    Assertions.assertNotNull(created, "the published template should be created");
+    return created.getId();
+  }
+
+  @Test
+  public void publishedTemplateRefusesAnOrdinaryUpdate() throws Exception {
+    // If-Match is required of any update and is checked first, so the conditional header has to be
+    // satisfied before the publication guard is what answers.
+    HttpResponse<String> response = putTemplate(publishedTemplateId(), "", "{}", "application/json",
+        authHeaderAdmin, "*");
+
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    Assertions.assertTrue(response.body().contains("publishedArtifactCanNotBeChanged"), response.body());
+  }
+
+  @Test
+  public void publishedTemplateAcceptsAVerbatimWrite() throws Exception {
+    // Publication stops editing, not stating the document in full. The write proceeds to the artifact
+    // server, which is unreachable here, so the proof is that the publication guard is no longer what
+    // stops it.
+    HttpResponse<String> response = putTemplate(publishedTemplateId(), "?verbatim=true", "{}",
+        "application/json", authHeaderAdmin, "*");
+
+    Assertions.assertFalse(response.body().contains("publishedArtifactCanNotBeChanged"), response.body());
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+  }
+
+  @Test
+  public void publishedTemplateStillRefusesAVerbatimWriteWithoutThePermission() throws Exception {
+    // The verbatim permission is the whole gate, so a caller without it must not reach the artifact.
+    HttpResponse<String> response = putTemplate(publishedTemplateId(), "?verbatim=true", "{}",
+        "application/json", authHeaderUser1);
+
+    Assertions.assertEquals(403, response.statusCode(), response.body());
+    Assertions.assertTrue(response.body().contains("permissionMissing"), response.body());
   }
 
   @Test

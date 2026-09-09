@@ -160,7 +160,7 @@ public class CommandFileSystemResourceTest {
     Assertions.assertEquals(200, json.statusCode(), json.body());
     Assertions.assertEquals("\"1\"", json.headers().firstValue("ETag").orElse(null));
     Assertions.assertEquals("\"1-yaml\"", yaml.headers().firstValue("ETag").orElse(null));
-    Assertions.assertEquals("\"1-yaml-compact\"", compact.headers().firstValue("ETag").orElse(null));
+    Assertions.assertEquals("\"1-yaml-compact-v2\"", compact.headers().firstValue("ETag").orElse(null));
     Assertions.assertTrue(yaml.headers().firstValue("Vary").orElse("").contains("Accept"));
   }
 

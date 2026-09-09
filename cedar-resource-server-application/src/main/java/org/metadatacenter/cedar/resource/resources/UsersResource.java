@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.bridge.CedarDataServices;
-import org.metadatacenter.cedar.resource.resources.swaggermodel.User;
+import org.metadatacenter.cedar.resource.resources.swaggermodel.UserListResponse;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.model.folderserver.basic.FolderServerUser;
@@ -45,7 +45,8 @@ public class UsersResource extends AbstractResourceServerResource {
   @Timed
   @Operation(summary = "Users", description = "The Users endpoint returns information about the users of the system.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "An array of users", content = @Content(schema = @Schema(implementation = User.class))),
+      @ApiResponse(responseCode = "200", description = "Every user of the system",
+          content = @Content(schema = @Schema(implementation = UserListResponse.class))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),

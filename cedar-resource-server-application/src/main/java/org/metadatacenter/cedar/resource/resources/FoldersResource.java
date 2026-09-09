@@ -14,7 +14,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
-import org.metadatacenter.cedar.resource.resources.swaggermodel.Folder;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.LinkedData;
 import org.metadatacenter.error.CedarErrorKey;
@@ -33,6 +32,7 @@ import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.RevisionConflictException;
 import org.metadatacenter.server.VersionedResource;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
+import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
@@ -59,9 +59,11 @@ public class FoldersResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Operation(summary = "Create a folder", description = "Create a folder.")
-  @RequestBody(description = "The folder to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Folder.class)))
+  @RequestBody(description = "The folder to be created", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/FolderCreateRequest")))
   @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class)),
+      @ApiResponse(responseCode = "201", description = "A folder",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/Folder")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -80,7 +82,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}")
   @Operation(summary = "Get a folder", description = "Get a folder.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class)),
+      @ApiResponse(responseCode = "200", description = "A folder and what the current user may do with it",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/FolderDetails")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -117,7 +120,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}/details")
   @Operation(summary = "Get the details of a folder", description = "Get the details of a folder.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "A folder and what the current user may do with it",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/FolderDetails")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -137,11 +141,14 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}")
   @Operation(summary = "Update a folder", description = "Update a folder.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatchForCreateOrReplace"))
+  @RequestBody(description = "The new name and description of the folder, or the folder to create under the supplied identifier.",
+      required = true, content = @Content(schema = @Schema(ref = "#/components/schemas/FolderReplaceRequest")))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A folder", content = @Content(schema = @Schema(implementation = Folder.class)),
+      @ApiResponse(responseCode = "200", description = "A folder",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/Folder")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "201", description = "A folder created with the supplied identifier",
-          content = @Content(schema = @Schema(implementation = Folder.class)),
+          content = @Content(schema = @Schema(ref = "#/components/schemas/Folder")),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -292,7 +299,8 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}/permissions")
   @Operation(summary = "Get permissions of a folder", description = "Get permissions of a folder.", tags = {"Folders", "Permissions"})
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "The folder's permissions",
+          content = @Content(schema = @Schema(implementation = CedarNodePermissionsWithExtract.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -317,8 +325,11 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{folder_id}/permissions")
   @Operation(summary = "Update permissions of a folder", description = "Update permissions of a folder.", tags = {"Folders", "Permissions"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
+  @RequestBody(description = "Complete replacement for the folder's direct grants.", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/ResourceAclUpdateRequest")))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Successful operation",
+      @ApiResponse(responseCode = "200", description = "The folder's updated permissions",
+          content = @Content(schema = @Schema(implementation = CedarNodePermissionsWithExtract.class)),
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),

@@ -158,13 +158,6 @@ components:
           additionalProperties:
             type: string
       additionalProperties: true
-    ResourceRole:
-      type: string
-      description: The strongest Viewer, Editor or Manager role granted to the current user.
-      enum:
-        - viewer
-        - editor
-        - manager
     ResourceCapability:
       type: string
       description: An operation authorized by the current user's effective access to the resource.
@@ -334,6 +327,603 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CategoryGroupGrant'
+    # ResourceRole, ResourceUserGrant, ResourceGroupGrant, ResourcePermissions, CedarUserReference
+    # and CedarGroupReference are not written here. They are generated from the annotated types in
+    # cedar-core-library that the permissions operations name with `implementation`, so this
+    # service and the monitor server publish one description of the same payload.
+    ResourceAclUpdateRequest:
+      type: object
+      description: |
+        Complete replacement for a resource's direct grants. Only the `@id` of each user and group
+        is read. Any other property of a reference is ignored, so a document returned by the
+        permissions endpoint can be sent back with its grants changed.
+      required:
+        - userPermissions
+        - groupPermissions
+      properties:
+        owner:
+          allOf:
+            - $ref: '#/components/schemas/CedarUserReference'
+          deprecated: true
+          description: Accepted for compatibility when it names the current owner. Ownership is changed through the separate transfer operation.
+        userPermissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceUserGrant'
+        groupPermissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceGroupGrant'
+    FilesystemResourceRecord:
+      type: object
+      description: |
+        The workspace record of a folder or artifact: the identity, provenance, location and
+        visibility the workspace graph holds for it. An artifact's record is not its stored
+        JSON-LD document, which the artifact routes serve instead.
+      required:
+        - '@id'
+        - resourceType
+      properties:
+        '@id':
+          type: string
+          format: uri
+        resourceType:
+          type: string
+          enum: [folder, field, element, template, instance]
+        'schema:name':
+          type: string
+          nullable: true
+        'schema:description':
+          type: string
+          nullable: true
+        'schema:identifier':
+          type: string
+          nullable: true
+        sourceHash:
+          type: string
+          nullable: true
+          description: Digest of the document the caller wrote, recorded when the caller supplies one.
+        'pav:createdOn':
+          type: string
+          format: date-time
+          nullable: true
+        'pav:lastUpdatedOn':
+          type: string
+          format: date-time
+          nullable: true
+        createdOnTS:
+          type: integer
+          format: int64
+        lastUpdatedOnTS:
+          type: integer
+          format: int64
+        'pav:createdBy':
+          type: string
+          format: uri
+          nullable: true
+        'oslc:modifiedBy':
+          type: string
+          format: uri
+          nullable: true
+        ownedBy:
+          type: string
+          format: uri
+          nullable: true
+        createdByUserName:
+          type: string
+          nullable: true
+        lastUpdatedByUserName:
+          type: string
+          nullable: true
+        ownedByUserName:
+          type: string
+          nullable: true
+        path:
+          type: string
+          nullable: true
+        parentPath:
+          type: string
+          nullable: true
+        pathInfo:
+          type: array
+          nullable: true
+          description: The folders above the resource, outermost first, with the resource itself last.
+          items:
+            $ref: '#/components/schemas/ResourceSummary'
+        isOpen:
+          type: boolean
+          description: Whether the resource is served to everyone through OpenView.
+        everybodyPermission:
+          type: string
+          enum: [read, write]
+          nullable: true
+        '@context':
+          type: object
+          additionalProperties:
+            type: string
+      additionalProperties: true
+    Folder:
+      description: A folder as the workspace graph holds it.
+      allOf:
+        - $ref: '#/components/schemas/FilesystemResourceRecord'
+        - type: object
+          properties:
+            isRoot:
+              type: boolean
+            isSystem:
+              type: boolean
+            isUserHome:
+              type: boolean
+            homeOf:
+              type: string
+              format: uri
+              nullable: true
+              description: The user whose home this folder is. Only the folder record carries it.
+    FolderDetails:
+      description: A folder together with what the current user may do with it.
+      allOf:
+        - $ref: '#/components/schemas/Folder'
+        - type: object
+          required:
+            - currentUserPermissions
+          properties:
+            currentUserPermissions:
+              $ref: '#/components/schemas/CurrentUserResourcePermissions'
+    FolderCreateRequest:
+      type: object
+      description: |
+        The parent folder, and the name and description of the folder to create. Name the parent
+        either by identifier or by path, not both.
+      required:
+        - name
+        - description
+      properties:
+        folderId:
+          type: string
+          format: uri
+          description: Identifier of the parent folder. The caller needs the createInFolder capability on it.
+        path:
+          type: string
+          description: Normalized path of the parent folder, as an alternative to folderId.
+        name:
+          type: string
+        description:
+          type: string
+    FolderReplaceRequest:
+      type: object
+      description: |
+        The keys a PUT reads, which differ by whether the folder already exists. Replacing an
+        existing folder reads `schema:name` and `schema:description`, and at least one of the two
+        must be present. Creating a folder under a caller-supplied identifier reads `@id`, which
+        must equal the identifier in the path, together with the parent folder and the `name` and
+        `description` a POST would read.
+      properties:
+        'schema:name':
+          type: string
+        'schema:description':
+          type: string
+        '@id':
+          type: string
+          format: uri
+        folderId:
+          type: string
+          format: uri
+        path:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+    ArtifactRecord:
+      description: |
+        An artifact as the workspace graph holds it. Templates, elements and fields carry the
+        versioning keys; an instance carries the template it is based on instead.
+      allOf:
+        - $ref: '#/components/schemas/FilesystemResourceRecord'
+        - type: object
+          properties:
+            'pav:derivedFrom':
+              type: string
+              format: uri
+              nullable: true
+            doi:
+              type: string
+              nullable: true
+              description: |
+                The artifact's DOI, once one has been set. The graph record and the report carry
+                it. The details response does not.
+            'pav:version':
+              type: string
+              nullable: true
+            'bibo:status':
+              type: string
+              enum: ['bibo:draft', 'bibo:published']
+              nullable: true
+            'pav:previousVersion':
+              type: string
+              format: uri
+              nullable: true
+            isLatestVersion:
+              type: boolean
+              nullable: true
+            isLatestDraftVersion:
+              type: boolean
+              nullable: true
+            isLatestPublishedVersion:
+              type: boolean
+              nullable: true
+            'schema:isBasedOn':
+              type: string
+              format: uri
+              nullable: true
+              description: IRI of the template an instance was filled in against.
+    FolderOrArtifactRecord:
+      description: |
+        A folder or artifact record, for the operations that accept either. `resourceType` says
+        which of the two the response carries.
+      oneOf:
+        - $ref: '#/components/schemas/Folder'
+        - $ref: '#/components/schemas/ArtifactRecord'
+      discriminator:
+        propertyName: resourceType
+        mapping:
+          folder: '#/components/schemas/Folder'
+          field: '#/components/schemas/ArtifactRecord'
+          element: '#/components/schemas/ArtifactRecord'
+          template: '#/components/schemas/ArtifactRecord'
+          instance: '#/components/schemas/ArtifactRecord'
+    ArtifactDetails:
+      description: An artifact together with what the current user may do with it.
+      allOf:
+        - $ref: '#/components/schemas/ArtifactRecord'
+        - type: object
+          required:
+            - currentUserPermissions
+          properties:
+            currentUserPermissions:
+              $ref: '#/components/schemas/CurrentUserResourcePermissions'
+            isBasedOn:
+              allOf:
+                - $ref: '#/components/schemas/ResourceSummary'
+              nullable: true
+              description: Summary of the template an instance was filled in against.
+    ArtifactReport:
+      description: |
+        An artifact's details together with what surrounds it: where it sits, what it was derived
+        from, its other versions, and the categories it is filed under.
+      allOf:
+        - $ref: '#/components/schemas/ArtifactDetails'
+        - type: object
+          properties:
+            derivedFrom:
+              allOf:
+                - $ref: '#/components/schemas/ResourceSummary'
+              nullable: true
+              description: Summary of the artifact this one was copied from.
+            versions:
+              type: array
+              nullable: true
+              description: The artifact's version history, newest first. Present for versioned artifacts.
+              items:
+                $ref: '#/components/schemas/ResourceSummary'
+            categories:
+              type: array
+              nullable: true
+              description: One entry per attached category, each the path from the root category to it.
+              items:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryExtract'
+            trustedBy:
+              type: string
+              nullable: true
+              description: The trusted folder the artifact sits under, when it sits under one.
+    CategoryRecord:
+      type: object
+      description: A category as the workspace graph holds it.
+      required:
+        - '@id'
+        - resourceType
+      properties:
+        '@id':
+          type: string
+          format: uri
+        resourceType:
+          type: string
+          enum: [category]
+        'schema:name':
+          type: string
+        'schema:description':
+          type: string
+          nullable: true
+        'schema:identifier':
+          type: string
+          nullable: true
+        parentCategoryId:
+          type: string
+          format: uri
+          nullable: true
+          description: The category this one sits under. The root category has none.
+        sourceHash:
+          type: string
+          nullable: true
+        'pav:createdOn':
+          type: string
+          format: date-time
+          nullable: true
+        'pav:lastUpdatedOn':
+          type: string
+          format: date-time
+          nullable: true
+        createdOnTS:
+          type: integer
+          format: int64
+        lastUpdatedOnTS:
+          type: integer
+          format: int64
+        'pav:createdBy':
+          type: string
+          format: uri
+          nullable: true
+        'oslc:modifiedBy':
+          type: string
+          format: uri
+          nullable: true
+        ownedBy:
+          type: string
+          format: uri
+          nullable: true
+        createdByUserName:
+          type: string
+          nullable: true
+        lastUpdatedByUserName:
+          type: string
+          nullable: true
+        ownedByUserName:
+          type: string
+          nullable: true
+        '@context':
+          type: object
+          additionalProperties:
+            type: string
+      additionalProperties: true
+    CategoryDetails:
+      description: A category together with what the current user may do with it.
+      allOf:
+        - $ref: '#/components/schemas/CategoryRecord'
+        - type: object
+          required:
+            - currentUserPermissions
+          properties:
+            currentUserPermissions:
+              $ref: '#/components/schemas/CurrentUserCategoryPermissions'
+            isRoot:
+              type: boolean
+    CategoryListResponse:
+      type: object
+      description: One page of categories, in the order the workspace graph returns them.
+      required:
+        - categories
+        - totalCount
+        - currentOffset
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryRecord'
+        totalCount:
+          type: integer
+          format: int64
+        currentOffset:
+          type: integer
+          format: int64
+        paging:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: string
+            format: uri
+        request:
+          type: object
+          description: The paging criteria used for this response.
+          properties:
+            limit:
+              type: integer
+              format: int64
+            offset:
+              type: integer
+              format: int64
+          additionalProperties: false
+      additionalProperties: true
+    CategoryTree:
+      description: |
+        A category and the categories beneath it, nested to the full depth of the tree. A leaf
+        carries an empty `children` array.
+      allOf:
+        - $ref: '#/components/schemas/CategoryExtract'
+        - type: object
+          required:
+            - children
+          properties:
+            children:
+              type: array
+              items:
+                $ref: '#/components/schemas/CategoryTree'
+    CategoryExtract:
+      type: object
+      description: A category as it appears inside a report.
+      required:
+        - '@id'
+      properties:
+        '@id':
+          type: string
+          format: uri
+        resourceType:
+          type: string
+          enum: [category]
+        'schema:name':
+          type: string
+        'schema:description':
+          type: string
+          nullable: true
+        'schema:identifier':
+          type: string
+          nullable: true
+        parentCategoryId:
+          type: string
+          format: uri
+          nullable: true
+    IndexJobStatus:
+      type: object
+      description: |
+        What became of the most recent rebuild of one index, or that none has run since this server
+        started. `deadlineAt` and `overdue` describe a running job and are empty otherwise.
+      required:
+        - state
+        - overdue
+      properties:
+        jobId:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum: [IDLE, RUNNING, COMPLETE, FAILED, ABANDONED]
+        command:
+          type: string
+          nullable: true
+          description: The command that started the job.
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deadlineAt:
+          type: string
+          format: date-time
+          nullable: true
+        overdue:
+          type: boolean
+        failure:
+          type: string
+          nullable: true
+          description: What went wrong, when the state is FAILED.
+      additionalProperties: false
+    IndexJobStatusByIndex:
+      type: object
+      description: The state of each index a rebuild can contend over, keyed by the index name.
+      additionalProperties:
+        $ref: '#/components/schemas/IndexJobStatus'
+    ValueSetsImportJob:
+      type: object
+      description: |
+        What became of one value sets ontology import, or that none has run since this server
+        started. `deadlineAt` and `overdue` describe a running import and are empty otherwise.
+      required:
+        - importStatus
+        - overdue
+      properties:
+        jobId:
+          type: string
+          nullable: true
+        importStatus:
+          type: string
+          enum: [NOT_YET_INITIATED, IN_PROGRESS, COMPLETE, ERROR]
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deadlineAt:
+          type: string
+          format: date-time
+          nullable: true
+        overdue:
+          type: boolean
+        failure:
+          type: string
+          nullable: true
+          description: What went wrong, when the status is ERROR.
+      additionalProperties: false
+    TemplateUpdateCheck:
+      type: object
+      description: |
+        Whether a stored template can be replaced by the submitted one, and what replacing it would
+        cost. A template with no instances answers `canBeUpdated` alone. For every other template
+        the changes between the two documents are counted and the versions are reported.
+      required:
+        - canBeUpdated
+      properties:
+        canBeUpdated:
+          type: boolean
+        destructiveChanges:
+          type: integer
+          format: int32
+          description: Changes that would invalidate existing instances.
+        nonDestructiveChanges:
+          type: integer
+          format: int32
+        numberOfInstances:
+          type: integer
+          format: int64
+        oldVersion:
+          type: string
+          description: The stored template's version.
+        'pav:version':
+          type: string
+          description: The version publishing the stored template would produce.
+        'schema:name':
+          type: string
+          description: The stored template's name.
+      additionalProperties: false
+    AuthUserCallbackRequest:
+      type: object
+      description: |
+        The Keycloak authentication event and the user it concerns. Provisioning runs only when the
+        event's client identifier names CEDAR's own Keycloak client.
+      required:
+        - event
+        - eventUser
+      properties:
+        event:
+          type: object
+          description: The event as the Keycloak event listener serializes it. Only `clientId` is read.
+          properties:
+            clientId:
+              type: string
+          additionalProperties: true
+        eventUser:
+          type: object
+          description: The user to provision.
+          required:
+            - '@id'
+          properties:
+            '@id':
+              type: string
+              format: uri
+            firstName:
+              type: string
+            lastName:
+              type: string
+            email:
+              type: string
+    ValidationRequest:
+      type: object
+      description: |
+        The artifact to validate. A template, element, field or instance is sent as itself, so its
+        own keys are the top-level keys. An instance can instead be paired with the template to
+        validate it against, as `schema` and `instance` together.
+      properties:
+        schema:
+          $ref: '#/components/schemas/SchemaArtifactDocument'
+        instance:
+          $ref: '#/components/schemas/InstanceArtifactDocument'
+      additionalProperties: true
   headers:
     ETag:
       description: Strong validator for the returned representation and its stored revision.
