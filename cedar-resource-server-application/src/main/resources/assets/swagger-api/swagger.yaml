@@ -103,7 +103,7 @@ paths:
         content:
           '*/*':
             schema:
-              $ref: "#/components/schemas/Category"
+              $ref: "#/components/schemas/CategoryCreateRequest"
         description: The category to be created
         required: true
       responses:
@@ -388,7 +388,7 @@ paths:
         content:
           '*/*':
             schema:
-              $ref: "#/components/schemas/Category"
+              $ref: "#/components/schemas/CategoryUpdateRequest"
         description: The category to be updated
         required: true
       responses:
@@ -7904,6 +7904,7 @@ components:
         from, its other versions, and the categories it is filed under.
     AuthUserCallbackRequest:
       type: object
+      additionalProperties: false
       description: |
         The Keycloak authentication event and the user it concerns. Provisioning runs only when the
         event's client identifier names CEDAR's own Keycloak client.
@@ -7934,28 +7935,9 @@ components:
       required:
       - event
       - eventUser
-    Category:
-      type: object
-      description: A CEDAR category.
-      properties:
-        '@id':
-          type: string
-          description: Unique URL identifier representing a specific category.
-        parentCategoryId:
-          type: string
-          description: Unique URL identifier representing a specific parent category.
-        schema:description:
-          type: string
-          description: Description of the category.
-        schema:identifier:
-          type: string
-          description: "Identifier, used for identifying this object in outside-to-CEDAR\
-            \ systems."
-        schema:name:
-          type: string
-          description: Name of the category.
     CategoryAclUpdateRequest:
       type: object
+      additionalProperties: false
       properties:
         groupPermissions:
           type: array
@@ -7976,6 +7958,7 @@ components:
       - userPermissions
     CategoryAttachListRequest:
       type: object
+      additionalProperties: false
       description: Parameters of the attach operation.
       properties:
         artifactId:
@@ -7989,6 +7972,7 @@ components:
             description: Unique URL identifier list representing the categories.
     CategoryAttachRequest:
       type: object
+      additionalProperties: false
       description: Parameters of the attach/detach operation.
       properties:
         artifactId:
@@ -8011,6 +7995,28 @@ components:
       - manageGrants
       - moveCategory
       - transferOwnership
+    CategoryCreateRequest:
+      type: object
+      additionalProperties: false
+      description: The category to create.
+      properties:
+        parentCategoryId:
+          type: string
+          description: Unique URL identifier representing a specific parent category.
+        schema:description:
+          type: string
+          description: Description of the category.
+        schema:identifier:
+          type: string
+          description: "Identifier, used for identifying this object in outside-to-CEDAR\
+            \ systems."
+        schema:name:
+          type: string
+          description: Name of the category.
+      required:
+      - parentCategoryId
+      - schema:description
+      - schema:name
     CategoryDetails:
       allOf:
       - $ref: "#/components/schemas/CategoryRecord"
@@ -8215,6 +8221,21 @@ components:
       description: |
         A category and the categories beneath it, nested to the full depth of the tree. A leaf
         carries an empty `children` array.
+    CategoryUpdateRequest:
+      type: object
+      additionalProperties: false
+      description: The category properties to change.
+      properties:
+        schema:description:
+          type: string
+          description: Description of the category.
+        schema:identifier:
+          type: string
+          description: "Identifier, used for identifying this object in outside-to-CEDAR\
+            \ systems."
+        schema:name:
+          type: string
+          description: Name of the category.
     CategoryUserGrant:
       type: object
       properties:
@@ -8518,6 +8539,7 @@ components:
       - '@id'
     CopyRequest:
       type: object
+      additionalProperties: false
       description: Parameters of the copy operation.
       properties:
         '@id':
@@ -8535,6 +8557,7 @@ components:
             new artifact will be created in.
     CreateDraftArtifactRequest:
       type: object
+      additionalProperties: false
       description: Info about the creation process.
       properties:
         '@id':
@@ -8723,6 +8746,7 @@ components:
       description: A folder as the workspace graph holds it.
     FolderCreateRequest:
       type: object
+      additionalProperties: false
       description: |
         The parent folder, and the name and description of the folder to create. Name the parent
         either by identifier or by path, not both.
@@ -8770,6 +8794,7 @@ components:
       - $ref: "#/components/schemas/ArtifactRecord"
     FolderReplaceRequest:
       type: object
+      additionalProperties: false
       description: |
         The keys a PUT reads, which differ by whether the folder already exists. Replacing an
         existing folder reads `schema:name` and `schema:description`, and at least one of the two
@@ -8795,6 +8820,7 @@ components:
           type: string
     ForceRequest:
       type: object
+      additionalProperties: false
       description: Force or not.
       properties:
         force:
@@ -8802,6 +8828,7 @@ components:
           description: "Force the regeneration, or not"
     IdRequest:
       type: object
+      additionalProperties: false
       description: Id of the artifact.
       properties:
         '@id':
@@ -8878,6 +8905,7 @@ components:
             $ref: "#/components/schemas/InclusionSubgraphTemplate"
     InclusionSubgraphRequest:
       type: object
+      additionalProperties: false
       properties:
         '@id':
           type: string
@@ -9084,6 +9112,7 @@ components:
           description: Display name.
     MoveRequest:
       type: object
+      additionalProperties: false
       description: Parameters of the move operation.
       properties:
         '@id':
@@ -9139,6 +9168,7 @@ components:
           nullable: true
     PublishArtifactRequest:
       type: object
+      additionalProperties: false
       description: Info about the publishing process.
       properties:
         '@id':
@@ -9150,6 +9180,7 @@ components:
             \ separated by period."
     RenameRequest:
       type: object
+      additionalProperties: false
       description: Parameters of the rename operation.
       properties:
         '@id':
@@ -9163,10 +9194,12 @@ components:
           description: New name of the resource.
     ResourceAclUpdateRequest:
       type: object
+      additionalProperties: false
       description: |
-        Complete replacement for a resource's direct grants. Only the `@id` of each user and group
-        is read. Any other property of a reference is ignored, so a document returned by the
-        permissions endpoint can be sent back with its grants changed.
+        Complete replacement for a resource's direct grants. A user or group is named by its `@id`
+        alone. The report this replaces is wider — a grant comes back carrying the user's name and
+        email — so that document is refused rather than narrowed, and a client sends what this
+        schema declares.
       properties:
         groupPermissions:
           type: array
@@ -9461,6 +9494,7 @@ components:
           description: Always `object`.
     SetDoiRequest:
       type: object
+      additionalProperties: false
       description: The artifact and the DOI to annotate it with.
       properties:
         '@id':
@@ -9493,6 +9527,7 @@ components:
           description: total number of fields in the recommended template
     TemplateRecommendationRequest:
       type: object
+      additionalProperties: false
       description: The metadata record to get recommendations for.
       properties:
         metadataRecord:
@@ -9558,6 +9593,7 @@ components:
       - canBeUpdated
     TransferOwnershipRequest:
       type: object
+      additionalProperties: false
       description: The resource or category and user involved in an ownership transfer.
       properties:
         '@id':

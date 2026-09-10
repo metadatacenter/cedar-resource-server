@@ -77,7 +77,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    InclusionSubgraphRequest treeRequest = JsonMapper.STRICT_MAPPER.readValue(c.request().getRequestBody().asJsonString(), InclusionSubgraphRequest.class);
+    InclusionSubgraphRequest treeRequest = c.request().getRequestBody().convert(InclusionSubgraphRequest.class);
 
     String id = treeRequest.getId();
     if (id == null) {
@@ -124,7 +124,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    InclusionSubgraphRequest treeRequest = JsonMapper.STRICT_MAPPER.readValue(c.request().getRequestBody().asJsonString(), InclusionSubgraphRequest.class);
+    InclusionSubgraphRequest treeRequest = c.request().getRequestBody().convert(InclusionSubgraphRequest.class);
 
     String id = treeRequest.getId();
     if (id == null) {

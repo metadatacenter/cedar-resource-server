@@ -120,7 +120,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     CedarRequestContext adminContext = buildRequestContext();
     AdminCommand.AUTH_USER_CALLBACK.enforce(adminContext);
 
-    JsonNode jsonBody = adminContext.request().getRequestBody().asJson();
+    JsonNode jsonBody = adminContext.request().getRequestBody().mustHaveOnly("event", "eventUser").asJson();
 
     if (jsonBody != null) {
       try {

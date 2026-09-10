@@ -114,6 +114,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
 
     // Read through CedarParameter rather than straight off the JsonNode: a missing field used to be a
     // null dereference, which reached the caller as 500 for what is plainly a bad request.
+    c.request().getRequestBody().mustHaveOnly(LinkedData.ID, "targetFolderId", "nameTemplate");
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter targetFolderParam = c.request().getRequestBody().get("targetFolderId");
     CedarParameter nameTemplateParam = c.request().getRequestBody().get("nameTemplate");
@@ -308,6 +309,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     // As above: a missing field is a bad request, not a server fault.
+    c.request().getRequestBody().mustHaveOnly(LinkedData.ID, "targetFolderId");
     CedarParameter sourceParam = c.request().getRequestBody().get(LinkedData.ID);
     CedarParameter targetParam = c.request().getRequestBody().get("targetFolderId");
     c.must(sourceParam).be(NonEmpty);
@@ -477,6 +479,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
+    c.request().getRequestBody().mustHaveOnly(LinkedData.ID, SCHEMA_ORG_NAME, SCHEMA_ORG_DESCRIPTION);
     CedarParameter nameParam = c.request().getRequestBody().get(SCHEMA_ORG_NAME);
     CedarParameter descriptionParam = c.request().getRequestBody().get(SCHEMA_ORG_DESCRIPTION);
     CedarParameter idParam = c.request().getRequestBody().get(LinkedData.ID);
@@ -634,6 +637,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   public Response transferResourceOwnership() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    c.request().getRequestBody().mustHaveOnly(LinkedData.ID, "newOwnerId");
     CedarParameter idParam = c.request().getRequestBody().get(LinkedData.ID);
     CedarParameter newOwnerIdParam = c.request().getRequestBody().get("newOwnerId");
     c.must(idParam).be(NonEmpty);

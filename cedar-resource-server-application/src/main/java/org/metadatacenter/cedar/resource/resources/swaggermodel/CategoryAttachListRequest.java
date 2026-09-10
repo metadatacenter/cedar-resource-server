@@ -11,7 +11,8 @@ import java.util.List;
  * this thin bean exists purely to reproduce the {@code CategoryAttachListRequest} schema that the
  * hand-authored spec exposed. It mirrors that schema exactly.</p>
  */
-@Schema(name = "CategoryAttachListRequest", description = "Parameters of the attach operation.")
+@Schema(name = "CategoryAttachListRequest", description = "Parameters of the attach operation.",
+    additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class CategoryAttachListRequest {
 
   @Schema(name = "artifactId", description = "Unique URL identifier representing the artifact.")

@@ -133,6 +133,19 @@ public class CommandOpenResourceTest {
     Assertions.assertEquals("\"4\"", etag(wildcard));
   }
 
+  /**
+   * A visibility command names the artifact or folder it changes and nothing else. A body carrying
+   * anything more was read past in silence, so a caller could not tell a property the endpoint
+   * ignores from one it acts on.
+   */
+  @Test
+  void aVisibilityCommandRefusesPropertiesItDoesNotAccept() throws Exception {
+    String withTheResourceType = "{\"@id\":\"" + artifactId + "\",\"resourceType\":\"template\"}";
+    HttpResponse<String> refused = request("POST", "/command/make-artifact-open", withTheResourceType, "*");
+    Assertions.assertEquals(400, refused.statusCode(), refused.body());
+    Assertions.assertTrue(refused.body().contains("resourceType"), refused.body());
+  }
+
   @Test
   void folderVisibilityRequiresItsFolderEtagAndRejectsOneOfTwoConcurrentWriters() throws Exception {
     String folderPath = "/folders/" + enc(folderId);

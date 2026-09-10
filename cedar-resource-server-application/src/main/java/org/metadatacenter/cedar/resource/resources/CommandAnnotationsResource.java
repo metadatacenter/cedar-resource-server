@@ -81,7 +81,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("@id", "doi");
     c.must(requestBody).be(NonEmpty);
     CedarParameter idParameter = requestBody.get("@id");
     CedarParameter doiParameter = requestBody.get("doi");

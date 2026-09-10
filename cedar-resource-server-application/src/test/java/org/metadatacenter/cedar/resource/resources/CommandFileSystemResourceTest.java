@@ -382,6 +382,31 @@ public class CommandFileSystemResourceTest {
     assertServiceUnavailable(deleteResponse);
   }
 
+  /**
+   * A command accepts the properties it declares. The Workspace sent the resource type alongside the
+   * move, where nothing read it, and a caller who misspelled targetFolderId was answered as though
+   * the parent folder were missing rather than told which property the endpoint does not accept.
+   *
+   * <p>The refusal happens before any call to the artifact server, so this holds whether or not the
+   * fixture's artifact server is still up.
+   */
+  @Test
+  @Order(11)
+  public void aCommandRefusesPropertiesItDoesNotAccept() throws Exception {
+    String withTheResourceType = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"resourceType\":\"template\","
+        + "\"targetFolderId\":\"" + moveDestinationId.getId() + "\"}";
+    HttpResponse<String> moved = postCommand("move-resource-to-folder", withTheResourceType, "*");
+    Assertions.assertEquals(400, moved.statusCode(), moved.body());
+    Assertions.assertTrue(moved.body().contains("resourceType"), moved.body());
+
+    String withAMisspelling = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"targetFolderid\":\"" + moveDestinationId.getId() + "\"}";
+    HttpResponse<String> misspelled = postCommand("move-resource-to-folder", withAMisspelling, "*");
+    Assertions.assertEquals(400, misspelled.statusCode(), misspelled.body());
+    Assertions.assertTrue(misspelled.body().contains("targetFolderid"), misspelled.body());
+  }
+
   private static void assertServiceUnavailable(HttpResponse<String> response) throws IOException {
     Assertions.assertEquals(503, response.statusCode(), response.body());
     JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());

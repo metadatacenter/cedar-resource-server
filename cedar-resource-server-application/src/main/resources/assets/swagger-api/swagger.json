@@ -136,7 +136,7 @@
           "content" : {
             "*/*" : {
               "schema" : {
-                "$ref" : "#/components/schemas/Category"
+                "$ref" : "#/components/schemas/CategoryCreateRequest"
               }
             }
           },
@@ -579,7 +579,7 @@
           "content" : {
             "*/*" : {
               "schema" : {
-                "$ref" : "#/components/schemas/Category"
+                "$ref" : "#/components/schemas/CategoryUpdateRequest"
               }
             }
           },
@@ -11657,6 +11657,7 @@
       },
       "AuthUserCallbackRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The Keycloak authentication event and the user it concerns. Provisioning runs only when the\nevent's client identifier names CEDAR's own Keycloak client.\n",
         "properties" : {
           "event" : {
@@ -11692,34 +11693,9 @@
         },
         "required" : [ "event", "eventUser" ]
       },
-      "Category" : {
-        "type" : "object",
-        "description" : "A CEDAR category.",
-        "properties" : {
-          "@id" : {
-            "type" : "string",
-            "description" : "Unique URL identifier representing a specific category."
-          },
-          "parentCategoryId" : {
-            "type" : "string",
-            "description" : "Unique URL identifier representing a specific parent category."
-          },
-          "schema:description" : {
-            "type" : "string",
-            "description" : "Description of the category."
-          },
-          "schema:identifier" : {
-            "type" : "string",
-            "description" : "Identifier, used for identifying this object in outside-to-CEDAR systems."
-          },
-          "schema:name" : {
-            "type" : "string",
-            "description" : "Name of the category."
-          }
-        }
-      },
       "CategoryAclUpdateRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "properties" : {
           "groupPermissions" : {
             "type" : "array",
@@ -11745,6 +11721,7 @@
       },
       "CategoryAttachListRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the attach operation.",
         "properties" : {
           "artifactId" : {
@@ -11763,6 +11740,7 @@
       },
       "CategoryAttachRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the attach/detach operation.",
         "properties" : {
           "artifactId" : {
@@ -11779,6 +11757,30 @@
         "type" : "string",
         "description" : "An operation authorized by the current user's effective access to the category.",
         "enum" : [ "readCategory", "attachCategory", "detachCategory", "updateCategory", "createChildCategory", "deleteCategory", "manageGrants", "moveCategory", "transferOwnership" ]
+      },
+      "CategoryCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "The category to create.",
+        "properties" : {
+          "parentCategoryId" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific parent category."
+          },
+          "schema:description" : {
+            "type" : "string",
+            "description" : "Description of the category."
+          },
+          "schema:identifier" : {
+            "type" : "string",
+            "description" : "Identifier, used for identifying this object in outside-to-CEDAR systems."
+          },
+          "schema:name" : {
+            "type" : "string",
+            "description" : "Name of the category."
+          }
+        },
+        "required" : [ "parentCategoryId", "schema:description", "schema:name" ]
       },
       "CategoryDetails" : {
         "allOf" : [ {
@@ -12029,6 +12031,25 @@
         } ],
         "description" : "A category and the categories beneath it, nested to the full depth of the tree. A leaf\ncarries an empty `children` array.\n"
       },
+      "CategoryUpdateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "The category properties to change.",
+        "properties" : {
+          "schema:description" : {
+            "type" : "string",
+            "description" : "Description of the category."
+          },
+          "schema:identifier" : {
+            "type" : "string",
+            "description" : "Identifier, used for identifying this object in outside-to-CEDAR systems."
+          },
+          "schema:name" : {
+            "type" : "string",
+            "description" : "Name of the category."
+          }
+        }
+      },
       "CategoryUserGrant" : {
         "type" : "object",
         "properties" : {
@@ -12197,6 +12218,7 @@
       },
       "CopyRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the copy operation.",
         "properties" : {
           "@id" : {
@@ -12215,6 +12237,7 @@
       },
       "CreateDraftArtifactRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Info about the creation process.",
         "properties" : {
           "@id" : {
@@ -12442,6 +12465,7 @@
       },
       "FolderCreateRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The parent folder, and the name and description of the folder to create. Name the parent\neither by identifier or by path, not both.\n",
         "properties" : {
           "description" : {
@@ -12496,6 +12520,7 @@
       },
       "FolderReplaceRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The keys a PUT reads, which differ by whether the folder already exists. Replacing an\nexisting folder reads `schema:name` and `schema:description`, and at least one of the two\nmust be present. Creating a folder under a caller-supplied identifier reads `@id`, which\nmust equal the identifier in the path, together with the parent folder and the `name` and\n`description` a POST would read.\n",
         "properties" : {
           "@id" : {
@@ -12525,6 +12550,7 @@
       },
       "ForceRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Force or not.",
         "properties" : {
           "force" : {
@@ -12535,6 +12561,7 @@
       },
       "IdRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Id of the artifact.",
         "properties" : {
           "@id" : {
@@ -12626,6 +12653,7 @@
       },
       "InclusionSubgraphRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "properties" : {
           "@id" : {
             "type" : "string"
@@ -12872,6 +12900,7 @@
       },
       "MoveRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the move operation.",
         "properties" : {
           "@id" : {
@@ -12945,6 +12974,7 @@
       },
       "PublishArtifactRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Info about the publishing process.",
         "properties" : {
           "@id" : {
@@ -12959,6 +12989,7 @@
       },
       "RenameRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the rename operation.",
         "properties" : {
           "@id" : {
@@ -12977,7 +13008,8 @@
       },
       "ResourceAclUpdateRequest" : {
         "type" : "object",
-        "description" : "Complete replacement for a resource's direct grants. Only the `@id` of each user and group\nis read. Any other property of a reference is ignored, so a document returned by the\npermissions endpoint can be sent back with its grants changed.\n",
+        "additionalProperties" : false,
+        "description" : "Complete replacement for a resource's direct grants. A user or group is named by its `@id`\nalone. The report this replaces is wider — a grant comes back carrying the user's name and\nemail — so that document is refused rather than narrowed, and a client sends what this\nschema declares.\n",
         "properties" : {
           "groupPermissions" : {
             "type" : "array",
@@ -13283,6 +13315,7 @@
       },
       "SetDoiRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The artifact and the DOI to annotate it with.",
         "properties" : {
           "@id" : {
@@ -13321,6 +13354,7 @@
       },
       "TemplateRecommendationRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The metadata record to get recommendations for.",
         "properties" : {
           "metadataRecord" : {
@@ -13402,6 +13436,7 @@
       },
       "TransferOwnershipRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The resource or category and user involved in an ownership transfer.",
         "properties" : {
           "@id" : {

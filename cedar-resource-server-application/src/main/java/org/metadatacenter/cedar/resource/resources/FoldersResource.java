@@ -45,6 +45,8 @@ import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_FOLDER_ID;
+import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_DESCRIPTION;
+import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
 import static org.metadatacenter.rest.assertion.GenericAssertions.*;
 
 @Path("/folders")
@@ -73,6 +75,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   })
   public Response createFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
+    c.request().getRequestBody().mustHaveOnly("folderId", "path", "name", "description");
     CedarFolderId newFolderId = linkedDataUtil.buildNewLinkedDataIdObject(CedarFolderId.class);
     return createFolderWithId(c, newFolderId);
   }
@@ -172,6 +175,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(folderId);
     if (folder != null) {
+      c.request().getRequestBody().mustHaveOnly(SCHEMA_ORG_NAME, SCHEMA_ORG_DESCRIPTION);
       return updateFolderNameAndDescriptionInGraphDb(c, folderId);
     } else {
       if (c.getIfMatchHeader() != null && !c.getIfMatchHeader().isBlank()) {
@@ -180,6 +184,8 @@ public class FoldersResource extends AbstractResourceServerResource {
             .message("The folder no longer exists")
             .build();
       }
+      c.request().getRequestBody()
+          .mustHaveOnly(LinkedData.ID, "folderId", "path", "name", "description");
       CedarParameter atIdParameter = c.request().getRequestBody().get(LinkedData.ID);
       if (atIdParameter.isEmpty()) {
         return CedarResponse.badRequest()

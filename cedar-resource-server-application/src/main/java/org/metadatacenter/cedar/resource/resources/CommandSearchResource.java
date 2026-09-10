@@ -418,7 +418,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     AdminCommand.REGENERATE_SEARCH_INDEX.enforce(c);
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("force");
     CedarParameter forceParam = requestBody.get("force");
     final boolean force = forceParam.booleanValue();
 
@@ -533,7 +533,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     log.warn("/command/regenerate-rules-index is deprecated: it empties the rules index instead of rebuilding it. "
         + "Rules must be regenerated through the value recommender.");
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("force");
     CedarParameter forceParam = requestBody.get("force");
     final boolean force = forceParam.booleanValue();
     Optional<JobClaim> claim = IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "regenerate-rules-index");

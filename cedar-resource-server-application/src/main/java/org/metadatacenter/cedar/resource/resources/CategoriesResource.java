@@ -153,7 +153,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Operation(summary = "Create a category", description = "Create a category.")
-  @RequestBody(description = "The category to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Category.class)))
+  @RequestBody(description = "The category to be created", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryCreateRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "201", description = "A category and what the current user may do with it",
           content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryDetails")),
@@ -170,7 +170,9 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     c.must(c.user()).be(LoggedIn);
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarRequestBody requestBody = c.request().getRequestBody()
+        .mustHaveOnly(NodeProperty.NAME.getValue(), NodeProperty.DESCRIPTION.getValue(),
+            NodeProperty.PARENT_CATEGORY_ID.getValue(), NodeProperty.IDENTIFIER.getValue());
 
     CedarParameter categoryName = requestBody.get(NodeProperty.NAME.getValue());
     CedarParameter categoryDescription = requestBody.get(NodeProperty.DESCRIPTION.getValue());
@@ -333,7 +335,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
   @Path("/{category_id}")
   @Operation(summary = "Update a category", description = "Update a category.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
-  @RequestBody(description = "The category to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.Category.class)))
+  @RequestBody(description = "The category to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryUpdateRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The updated category and what the current user may do with it",
           content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryDetails")),
@@ -356,7 +358,9 @@ public class CategoriesResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
     CedarCategoryId ccid = CedarCategoryId.build(id);
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarRequestBody requestBody = c.request().getRequestBody()
+        .mustHaveOnly(NodeProperty.NAME.getValue(), NodeProperty.DESCRIPTION.getValue(),
+            NodeProperty.IDENTIFIER.getValue());
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 

@@ -1185,17 +1185,14 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected Response updateResourcePermissions(CedarRequestContext c, CedarFilesystemResourceId resourceId) throws CedarException {
 
     c.must(c.request().getRequestBody()).be(NonEmpty);
-    JsonNode permissionUpdateRequest = c.request().getRequestBody().asJson();
+
+    // A body the endpoint cannot read as the permissions request is the caller's to fix. Reading it
+    // here logged the failure and carried on with a null request, which reached the update.
+    ResourcePermissionsRequest permissionsRequest =
+        c.request().getRequestBody().convert(ResourcePermissionsRequest.class);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
-
-    ResourcePermissionsRequest permissionsRequest = null;
-    try {
-      permissionsRequest = JsonMapper.STRICT_MAPPER.treeToValue(permissionUpdateRequest, ResourcePermissionsRequest.class);
-    } catch (JsonProcessingException e) {
-      log.error("Error while reading permission update request", e);
-    }
 
     FileSystemResource node = folderSession.findResourceById(resourceId);
     if (node == null) {

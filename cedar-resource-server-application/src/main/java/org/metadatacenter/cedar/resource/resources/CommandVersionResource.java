@@ -120,6 +120,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
+    c.request().getRequestBody().mustHaveOnly("@id", "newVersion");
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
 
@@ -356,6 +357,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
+    c.request().getRequestBody()
+        .mustHaveOnly("@id", "newVersion", "folderId", "propagateSharing", "newFolderName");
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
     CedarParameter folderIdParam = c.request().getRequestBody().get("folderId");

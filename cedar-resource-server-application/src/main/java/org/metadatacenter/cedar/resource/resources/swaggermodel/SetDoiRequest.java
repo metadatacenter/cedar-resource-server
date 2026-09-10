@@ -3,7 +3,8 @@ package org.metadatacenter.cedar.resource.resources.swaggermodel;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /** Documentation model for the body of the DOI annotation command. */
-@Schema(name = "SetDoiRequest", description = "The artifact and the DOI to annotate it with.")
+@Schema(name = "SetDoiRequest", description = "The artifact and the DOI to annotate it with.",
+    additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class SetDoiRequest {
 
   @Schema(name = "@id", description = "Identifier of the artifact.", requiredMode = Schema.RequiredMode.REQUIRED)

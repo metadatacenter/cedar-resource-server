@@ -327,6 +327,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CategoryGroupGrant'
+      additionalProperties: false
     # ResourceRole, ResourceUserGrant, ResourceGroupGrant, ResourcePermissions, CedarUserReference
     # and CedarGroupReference are not written here. They are generated from the annotated types in
     # cedar-core-library that the permissions operations name with `implementation`, so this
@@ -334,9 +335,10 @@ components:
     ResourceAclUpdateRequest:
       type: object
       description: |
-        Complete replacement for a resource's direct grants. Only the `@id` of each user and group
-        is read. Any other property of a reference is ignored, so a document returned by the
-        permissions endpoint can be sent back with its grants changed.
+        Complete replacement for a resource's direct grants. A user or group is named by its `@id`
+        alone. The report this replaces is wider — a grant comes back carrying the user's name and
+        email — so that document is refused rather than narrowed, and a client sends what this
+        schema declares.
       required:
         - userPermissions
         - groupPermissions
@@ -354,6 +356,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ResourceGroupGrant'
+      additionalProperties: false
     FilesystemResourceRecord:
       type: object
       description: |
@@ -489,6 +492,7 @@ components:
           type: string
         description:
           type: string
+      additionalProperties: false
     FolderReplaceRequest:
       type: object
       description: |
@@ -514,6 +518,7 @@ components:
           type: string
         description:
           type: string
+      additionalProperties: false
     ArtifactRecord:
       description: |
         An artifact as the workspace graph holds it. Templates, elements and fields carry the
@@ -883,6 +888,7 @@ components:
       additionalProperties: false
     AuthUserCallbackRequest:
       type: object
+      additionalProperties: false
       description: |
         The Keycloak authentication event and the user it concerns. Provisioning runs only when the
         event's client identifier names CEDAR's own Keycloak client.

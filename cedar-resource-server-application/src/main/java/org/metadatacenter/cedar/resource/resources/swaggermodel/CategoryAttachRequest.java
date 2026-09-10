@@ -9,7 +9,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * wire, so this thin bean exists purely to reproduce the {@code CategoryAttachRequest} schema that
  * the hand-authored spec exposed. It mirrors that schema exactly.</p>
  */
-@Schema(name = "CategoryAttachRequest", description = "Parameters of the attach/detach operation.")
+@Schema(name = "CategoryAttachRequest", description = "Parameters of the attach/detach operation.",
+    additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class CategoryAttachRequest {
 
   @Schema(name = "artifactId", description = "Unique URL identifier representing the artifact.")

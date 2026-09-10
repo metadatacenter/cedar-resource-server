@@ -145,7 +145,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("@id");
     CedarParameter idParam = requestBody.get("@id");
     c.must(idParam).be(NonEmpty);
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(idParam.stringValue());
@@ -174,7 +174,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    CedarParameter idParam = c.request().getRequestBody().get("@id");
+    CedarParameter idParam = c.request().getRequestBody().mustHaveOnly("@id").get("@id");
     c.must(idParam).be(NonEmpty);
     CedarFolderId folderId = CedarFolderId.build(idParam.stringValue());
 

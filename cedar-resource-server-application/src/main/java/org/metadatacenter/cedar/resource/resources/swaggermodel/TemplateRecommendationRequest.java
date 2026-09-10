@@ -12,7 +12,8 @@ import java.util.Map;
  * hand-authored spec exposed. It mirrors that schema exactly: a single free-form
  * {@code metadataRecord} object (e.g. {@code {"tissue": "lung", "disease": "influenza"}}).</p>
  */
-@Schema(name = "TemplateRecommendationRequest", description = "The metadata record to get recommendations for.")
+@Schema(name = "TemplateRecommendationRequest", description = "The metadata record to get recommendations for.",
+    additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class TemplateRecommendationRequest {
 
   @Schema(name = "metadataRecord", description = "The input metadata record. Example: {\"tissue\": \"lung\", \"disease\": \"influenza\"}")

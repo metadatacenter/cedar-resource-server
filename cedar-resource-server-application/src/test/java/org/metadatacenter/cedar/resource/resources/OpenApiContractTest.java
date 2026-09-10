@@ -6,8 +6,11 @@ import org.metadatacenter.util.json.JsonMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,6 +30,43 @@ class OpenApiContractTest {
     for (String property : new String[]{"resources", "pathInfo", "totalCount", "currentOffset", "paging",
         "continuation", "nodeListQueryType", "categoryName", "categoryPath", "request", "@context"}) {
       assertTrue(envelope.path("properties").has(property), "missing response property " + property);
+    }
+  }
+
+  /**
+   * Every request body says whether it is closed or open, so a client can tell a property the
+   * endpoint refuses from one it accepts, and a new endpoint cannot leave the question unanswered.
+   * A command or options body is closed. An artifact document is open, because the properties of a
+   * template or instance are the model's and the artifact server is what validates them.
+   */
+  @Test
+  void everyRequestBodyDeclaresWhetherItIsClosed() throws IOException {
+    JsonNode spec = readSpec();
+    JsonNode schemas = spec.at("/components/schemas");
+    Set<String> openByDesign = Set.of("ArtifactDocument", "SchemaArtifactDocument",
+        "InstanceArtifactDocument", "ValidationRequest");
+
+    Set<String> requestSchemas = new TreeSet<>();
+    spec.at("/paths").forEach(path -> path.forEach(operation -> {
+      JsonNode content = operation.at("/requestBody/content");
+      content.forEach(mediaType -> {
+        String ref = mediaType.at("/schema/$ref").asText("");
+        if (!ref.isEmpty()) {
+          requestSchemas.add(ref.substring(ref.lastIndexOf('/') + 1));
+        }
+      });
+    }));
+    assertFalse(requestSchemas.isEmpty(), "the spec should declare request schemas");
+
+    for (String name : requestSchemas) {
+      JsonNode declaration = schemas.path(name).path("additionalProperties");
+      assertFalse(declaration.isMissingNode(),
+          name + " must state whether it accepts properties it does not declare");
+      if (openByDesign.contains(name)) {
+        assertTrue(declaration.asBoolean(), name + " carries model-defined properties and stays open");
+      } else {
+        assertFalse(declaration.asBoolean(true), name + " is a command or options body and must be closed");
+      }
     }
   }
 

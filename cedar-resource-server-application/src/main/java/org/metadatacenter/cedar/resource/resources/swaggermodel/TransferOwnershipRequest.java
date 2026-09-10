@@ -4,7 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 /** Documentation model for an ownership-transfer command body. */
 @Schema(name = "TransferOwnershipRequest",
-    description = "The resource or category and user involved in an ownership transfer.")
+    description = "The resource or category and user involved in an ownership transfer.",
+    additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class TransferOwnershipRequest {
 
   @Schema(name = "@id", description = "Identifier of the artifact, folder or category.", requiredMode = Schema.RequiredMode.REQUIRED)

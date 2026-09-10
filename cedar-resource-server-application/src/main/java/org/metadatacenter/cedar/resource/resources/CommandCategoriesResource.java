@@ -87,6 +87,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
+    c.request().getRequestBody().mustHaveOnly("artifactId", "categoryId");
     CedarParameter artifactIdParam = c.request().getRequestBody().get("artifactId");
     CedarParameter categoryIdParam = c.request().getRequestBody().get("categoryId");
 
@@ -143,6 +144,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
+    c.request().getRequestBody().mustHaveOnly("artifactId", "categoryId");
     CedarParameter artifactIdParam = c.request().getRequestBody().get("artifactId");
     CedarParameter categoryIdParam = c.request().getRequestBody().get("categoryId");
 
@@ -278,6 +280,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
   public Response transferCategoryOwnership() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    c.request().getRequestBody().mustHaveOnly(LinkedData.ID, "newOwnerId");
     CedarParameter idParam = c.request().getRequestBody().get(LinkedData.ID);
     CedarParameter newOwnerIdParam = c.request().getRequestBody().get("newOwnerId");
     c.must(idParam).be(NonEmpty);

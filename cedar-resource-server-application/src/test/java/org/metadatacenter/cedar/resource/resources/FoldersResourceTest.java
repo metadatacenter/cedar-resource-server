@@ -255,6 +255,44 @@ public class FoldersResourceTest {
     };
   }
 
+  /**
+   * A folder write accepts the properties its command declares: the parent, the name and the
+   * description on create, and the schema.org name and description on update. Anything else was
+   * read past in silence, so a create naming "parentFolderId" was answered as though no parent had
+   * been given, and an update carrying the folder document it had just read renamed the folder and
+   * dropped the rest.
+   */
+  @Test
+  public void aFolderWriteRefusesPropertiesItDoesNotAccept() throws Exception {
+    HttpResponse<String> misspelledParent = request("POST", "/folders",
+        "{\"parentFolderId\": \"" + homeFolderId + "\", \"name\": \"Closed Contract Folder\", "
+            + "\"description\": \"a folder for the closed body test\"}",
+        authHeaderUser1);
+    Assertions.assertEquals(400, misspelledParent.statusCode(), misspelledParent.body());
+    Assertions.assertTrue(misspelledParent.body().contains("parentFolderId"), misspelledParent.body());
+
+    HttpResponse<String> created = request("POST", "/folders",
+        "{\"folderId\": \"" + homeFolderId + "\", \"name\": \"Closed Contract Folder\", "
+            + "\"description\": \"a folder for the closed body test\"}",
+        authHeaderUser1);
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    String folderId = JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText();
+
+    HttpResponse<String> read = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
+    Assertions.assertEquals(200, read.statusCode(), read.body());
+
+    HttpResponse<String> echoed = request("PUT", "/folders/" + encode(folderId), read.body(),
+        authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(400, echoed.statusCode(), "PUT of the folder document: " + echoed.body());
+
+    HttpResponse<String> after = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
+    Assertions.assertEquals("Closed Contract Folder",
+        JsonMapper.STRICT_MAPPER.readTree(after.body()).get("schema:name").asText(),
+        "a refused write must leave the folder alone");
+
+    request("DELETE", "/folders/" + encode(folderId), null, authHeaderUser1, "\"1\"");
+  }
+
   @Test
   public void folderLifecycleCreateReadUpdateDelete() throws Exception {
     HttpResponse<String> created = request("POST", "/folders",
