@@ -103,7 +103,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected Response siblingNameConflictResponse(String name) {
     return CedarResponse.conflict()
         .errorKey(CedarErrorKey.UNIQUE_CONSTRAINT_COLLISION)
-        .errorMessage("A sibling with the same name already exists")
+        .message("A sibling with the same name already exists")
         .parameter("name", name)
         .build();
   }
@@ -201,13 +201,13 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (doiInRequest != null) {
       if (!resourceType.supportsDOI()) {
         return CedarResponse.badRequest()
-            .errorMessage("The doi is not supported by the given resource type")
+            .message("The doi is not supported by the given resource type")
             .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
             .parameter("resourceType", resourceType)
             .build();
       } else {
         return CedarResponse.badRequest()
-            .errorMessage("The doi can not be set with this call")
+            .message("The doi can not be set with this call")
             .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_SET)
             .build();
       }
@@ -272,7 +272,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
           if (CedarResourceTypeUtil.isNotValidForRestCall(resourceType)) {
             return CedarResponse.badRequest()
-                .errorMessage("You passed an illegal resourceType:'" + resourceType + "'. The allowed values are:" + CedarResourceTypeUtil.getValidResourceTypesForRestCalls())
+                .message("You passed an illegal resourceType:'" + resourceType + "'. The allowed values are:" + CedarResourceTypeUtil.getValidResourceTypesForRestCalls())
                 .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
                 .parameter("invalidResourceTypes", resourceType)
                 .parameter("allowedResourceTypes", CedarResourceTypeUtil.getValidResourceTypeValuesForRestCalls())
@@ -324,7 +324,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
                 .parameter("parentId", fid.getId())
                 .parameter("resourceType", resourceType.getValue())
                 .errorKey(CedarErrorKey.RESOURCE_NOT_CREATED)
-                .errorMessage("The artifact was not created!")
+                .message("The artifact was not created!")
                 .build();
           }
           // Both stores now hold it, so the create stands. A failure in the indexing and propagation
@@ -590,7 +590,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
   protected Response notAcceptableArtifactFormatResponse() {
     return CedarResponse.notAcceptable()
-        .errorMessage("None of the media types in the Accept header can be produced")
+        .message("None of the media types in the Accept header can be produced")
         .parameter("allowed media types", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML}))
         .build();
   }
@@ -602,7 +602,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     VersionedResource<FolderServerArtifact> snapshot = folderSession.findVersionedArtifactById(id);
     if (snapshot == null) {
       return CedarResponse.notFound().id(id).errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
-          .errorMessage("The artifact details can not be found by id").build();
+          .message("The artifact details can not be found by id").build();
     }
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     FolderServerArtifactCurrentUserReport resource = GraphDbPermissionReader.getArtifactCurrentUserReport(
@@ -638,7 +638,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
             .id(id)
             .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
-            .errorMessage("Updating an existing artifact requires the ETag returned by GET in If-Match")
+            .message("Updating an existing artifact requires the ETag returned by GET in If-Match")
             .build();
       }
       userMustHaveCapabilityOnArtifact(context, id, ResourceCapability.UPDATE_RESOURCE);
@@ -650,7 +650,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
             .id(id)
             .errorKey(CedarErrorKey.ARTIFACT_HAS_MOVED_ON)
-            .errorMessage("The artifact no longer exists")
+            .message("The artifact no longer exists")
             .build();
       }
       // A verbatim write replaces a document this server already holds. Routing it to creation instead
@@ -660,7 +660,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         return CedarResponse.notFound()
             .id(id)
             .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
-            .errorMessage("A verbatim write replaces an existing artifact; this one does not exist")
+            .message("A verbatim write replaces an existing artifact; this one does not exist")
             .build();
       }
       return executeResourceCreationOnArtifactServerAndGraphDb(context, resourceType, Optional.of(id.getId()), folderId, content);
@@ -687,7 +687,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (folderServerOldResource == null) {
       return CedarResponse.notFound()
           .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
-          .errorMessage("The artifact can not be found by @id!")
+          .message("The artifact can not be found by @id!")
           .parameter("@id", id)
           .build();
     }
@@ -702,7 +702,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       if (artifact.getPublicationStatus() == BiboStatus.PUBLISHED && !verbatim) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
-            .errorMessage("The artifact can not be changed since it is published!")
+            .message("The artifact can not be changed since it is published!")
             .parameter("name", folderServerOldResource.getName())
             .build();
       }
@@ -712,7 +712,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     if (doiInRequest != null && !resourceType.supportsDOI()) {
       return CedarResponse.badRequest()
-          .errorMessage("The doi is not supported by the given resource type")
+          .message("The doi is not supported by the given resource type")
           .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
           .parameter("resourceType", resourceType)
           .build();
@@ -727,7 +727,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       String storedDoi = folderServerOldResource.getDOI();
       if (!Objects.equals(emptyToNull(doiInRequest), emptyToNull(storedDoi))) {
         return CedarResponse.badRequest()
-            .errorMessage("The doi can not be altered with this call")
+            .message("The doi can not be altered with this call")
             .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_ALTERED)
             .parameter("doiInRequest", doiInRequest)
             .parameter("storedDoi", storedDoi)
@@ -781,7 +781,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           return CedarResponse.notFound()
               .id(id)
               .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
-              .errorMessage("The artifact can not be found by id")
+              .message("The artifact can not be found by id")
               .build();
         }
         Map<NodeProperty, String> updateFields = new HashMap<>();
@@ -978,7 +978,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
           .id(id.getId())
           .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
-          .errorMessage("Deleting an artifact requires the ETag returned by GET in If-Match")
+          .message("Deleting an artifact requires the ETag returned by GET in If-Match")
           .build();
     }
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -1000,7 +1000,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     // if (isSchemaArtifact && schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
     //   return CedarResponse.badRequest()
     //       .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
-    //       .errorMessage("Published artifacts can not be deleted!")
+    //       .message("Published artifacts can not be deleted!")
     //       .parameter("id", id)
     //       .parameter("name", schemaArtifact.getName())
     //       .build();
@@ -1024,13 +1024,13 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           EntityUtils.consume(current.getEntity());
           if (artifactEtag == null || artifactEtag.isBlank()) {
             return CedarResponse.badGateway().id(id)
-                .errorMessage("Artifact service returned an artifact without an ETag before deletion")
+                .message("Artifact service returned an artifact without an ETag before deletion")
                 .build();
           }
           RevisionPrecondition currentRevision = RevisionPreconditionParser.parse(artifactEtag);
           if (currentRevision.revisions().size() != 1) {
             return CedarResponse.badGateway().id(id)
-                .errorMessage("Artifact service returned an invalid ETag before deletion")
+                .message("Artifact service returned an invalid ETag before deletion")
                 .build();
           }
           long revision = currentRevision.revisions().iterator().next();
@@ -1038,7 +1038,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
             return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
                 .id(id)
                 .errorKey(CedarErrorKey.ARTIFACT_HAS_MOVED_ON)
-                .errorMessage("The artifact has been updated since it was read")
+                .message("The artifact has been updated since it was read")
                 .parameter("currentETag", artifactEtag)
                 .build();
           }
@@ -1167,7 +1167,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (node == null) {
       return CedarResponse.notFound()
           .errorKey(CedarErrorKey.NODE_NOT_FOUND)
-          .errorMessage("Node not found")
+          .message("Node not found")
           .parameter("id", resourceId)
           .build();
     }
@@ -1202,7 +1202,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       return CedarResponse.notFound()
           .id(resourceId)
           .errorKey(CedarErrorKey.NODE_NOT_FOUND)
-          .errorMessage("The resource can not be found by id")
+          .message("The resource can not be found by id")
           .build();
     } else {
       // Evaluate authority before the HTTP precondition. A caller who cannot change this ACL must
@@ -1217,7 +1217,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       if (ifMatch == null || ifMatch.isBlank()) {
         return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
             .id(resourceId)
-            .errorMessage("Replacing resource permissions requires the ETag returned by GET in If-Match")
+            .message("Replacing resource permissions requires the ETag returned by GET in If-Match")
             .build();
       }
 
@@ -1228,7 +1228,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       } catch (RevisionConflictException e) {
         return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
             .id(resourceId)
-            .errorMessage("The resource permissions have been updated since they were read")
+            .message("The resource permissions have been updated since they were read")
             .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
             .build();
       }
@@ -1303,7 +1303,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     String ifMatch = c.getIfMatchHeader();
     if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
-          .errorMessage("Updating a folder requires the ETag returned by GET in If-Match")
+          .message("Updating a folder requires the ETag returned by GET in If-Match")
           .build();
     }
     RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
@@ -1324,7 +1324,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       if (!normalizedName.equals(nameV)) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.UPDATE_INVALID_FOLDER_NAME)
-            .errorMessage("The folder name contains invalid characters!")
+            .message("The folder name contains invalid characters!")
             .operation(CedarOperations.update(FolderServerFolder.class, "id", folderId.getId()))
             .parameter("name", name.stringValue())
             .build();
@@ -1338,7 +1338,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
             .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_CHANGED)
             .errorReasonKey(folderServerFolder.isUserHome()
                 ? CedarErrorReasonKey.USER_HOME_FOLDER : CedarErrorReasonKey.SYSTEM_FOLDER)
-            .errorMessage("Home and system folders can not be renamed")
+            .message("Home and system folders can not be renamed")
             .parameter("name", nameV)
             .build();
       }
@@ -1355,7 +1355,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (name.isEmpty() && description.isEmpty()) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.MISSING_NAME_AND_DESCRIPTION)
-          .errorMessage("You must supply the new description or the new name of the folder!")
+          .message("You must supply the new description or the new name of the folder!")
           .parameter(SCHEMA_ORG_NAME, nameV)
           .parameter(SCHEMA_ORG_DESCRIPTION, descriptionV)
           .operation(CedarOperations.update(FolderServerFolder.class, "id", folderId.getId()))
@@ -1367,7 +1367,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       return CedarResponse.notFound()
           .id(folderId)
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
-          .errorMessage("The folder can not be found by id")
+          .message("The folder can not be found by id")
           .operation(CedarOperations.update(FolderServerFolder.class, "id", folderId.getId()))
           .build();
     } else {
@@ -1387,12 +1387,12 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       } catch (RevisionConflictException e) {
         return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
             .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
-            .errorMessage("The folder has been updated since it was read")
+            .message("The folder has been updated since it was read")
             .build();
       }
       if (updatedSnapshot == null) {
         return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
-            .errorMessage("The folder was deleted before the update could be applied")
+            .message("The folder was deleted before the update could be applied")
             .build();
       }
       FolderServerFolder folderServerFolderUpdated = updatedSnapshot.resource();
@@ -1419,7 +1419,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (artifact == null) {
       return CedarResponse.notFound()
           .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
-          .errorMessage("Artifact not found")
+          .message("Artifact not found")
           .parameter("id", artifactId)
           .build();
     }
@@ -1431,7 +1431,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (!artifact.getType().isVersioned()) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_DATA)
-          .errorMessage("Invalid artifact type")
+          .message("Invalid artifact type")
           .parameter("artifactType", artifact.getType().getValue())
           .build();
     }
@@ -1477,7 +1477,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (artifact == null) {
       return CedarResponse.notFound()
           .errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
-          .errorMessage("Resource not found")
+          .message("Resource not found")
           .parameter("id", artifactId)
           .build();
     }

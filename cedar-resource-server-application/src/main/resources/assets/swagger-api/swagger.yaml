@@ -8241,7 +8241,7 @@ components:
       - '@id'
     CedarError:
       type: object
-      additionalProperties: true
+      additionalProperties: false
       description: A CEDAR error response. Diagnostic fields are populated only when
         they are relevant to the failure.
       properties:
@@ -8385,12 +8385,9 @@ components:
           - doiCanNotBeSet
           - doiAlreadyExists
           - dataCiteDOIDisabled
+          - pinnedVersionUnavailable
           - resourceNotFound
           - internalError
-          nullable: true
-        errorMessage:
-          type: string
-          description: Alias of message retained for compatibility.
           nullable: true
         errorReasonKey:
           type: string

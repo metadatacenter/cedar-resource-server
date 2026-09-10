@@ -248,7 +248,7 @@ public class CommandFileSystemResourceTest {
       JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
       Assertions.assertEquals("BAD_GATEWAY", error.path("status").asText(), response.body());
       Assertions.assertEquals("Artifact service returned an empty source artifact",
-          error.path("errorMessage").asText(), response.body());
+          error.path("message").asText(), response.body());
       Assertions.assertNull(postedArtifact,
           "an empty source response must not be posted to the artifact service");
     } finally {

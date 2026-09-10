@@ -161,7 +161,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
           ? folderSession.setOpen(artifactId, precondition)
           : folderSession.setNotOpen(artifactId, precondition);
       if (updated == null) {
-        return CedarResponse.notFound().id(artifactId).errorMessage("The artifact can not be found by id").build();
+        return CedarResponse.notFound().id(artifactId).message("The artifact can not be found by id").build();
       }
       return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updated.revision()))
           .entity(updated.resource()).build();
@@ -190,7 +190,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
           ? folderSession.setOpen(folderId, precondition)
           : folderSession.setNotOpen(folderId, precondition);
       if (updated == null) {
-        return CedarResponse.notFound().id(folderId).errorMessage("The folder can not be found by id").build();
+        return CedarResponse.notFound().id(folderId).message("The folder can not be found by id").build();
       }
       return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updated.revision()))
           .entity(updated.resource()).build();
@@ -207,14 +207,14 @@ public class CommandOpenResource extends AbstractResourceServerResource {
   private Response preconditionRequired(String id) {
     return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
         .id(id)
-        .errorMessage("Changing OpenView visibility requires the details ETag in If-Match")
+        .message("Changing OpenView visibility requires the details ETag in If-Match")
         .build();
   }
 
   private Response preconditionFailed(RevisionConflictException e) {
     return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
         .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
-        .errorMessage("The resource's OpenView state has changed since it was read")
+        .message("The resource's OpenView state has changed since it was read")
         .build();
   }
 

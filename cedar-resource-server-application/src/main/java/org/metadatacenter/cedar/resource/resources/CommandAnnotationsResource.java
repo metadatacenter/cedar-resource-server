@@ -101,7 +101,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
     if (!resourceType.supportsDOI()) {
       return CedarResponse.badRequest()
-          .errorMessage("The doi is not supported by the given resource type")
+          .message("The doi is not supported by the given resource type")
           .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
           .parameter("resourceType", resourceType)
           .build();
@@ -111,7 +111,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     if (existingDOI != null) {
       if (!existingDOI.equals(doiInRequest)) {
         return CedarResponse.badRequest()
-            .errorMessage("The doi can not be altered")
+            .message("The doi can not be altered")
             .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_ALTERED)
             .parameter("existingDOI", existingDOI)
             .parameter("doi", doiInRequest)
@@ -195,7 +195,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
   private Response doiCanNotBeAltered(String existingDOI, String requestedDOI) {
     return CedarResponse.badRequest()
-        .errorMessage("The doi can not be altered")
+        .message("The doi can not be altered")
         .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_ALTERED)
         .parameter("existingDOI", existingDOI)
         .parameter("doi", requestedDOI)

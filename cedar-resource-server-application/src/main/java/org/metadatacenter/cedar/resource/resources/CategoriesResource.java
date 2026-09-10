@@ -370,7 +370,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     String ifMatch = c.getIfMatchHeader();
     if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
-          .errorMessage("Updating a category requires the ETag returned by GET in If-Match")
+          .message("Updating a category requires the ETag returned by GET in If-Match")
           .build();
     }
     RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
@@ -387,7 +387,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     if (sameNameCategory != null && !sameNameCategory.getId().equals(ccid.getId())) {
       return CedarResponse.conflict()
           .errorKey(CedarErrorKey.CATEGORY_ALREADY_PRESENT)
-          .errorMessage("There is already a category with the same name under the parent category")
+          .message("There is already a category with the same name under the parent category")
           .parameter("name", categoryName.stringValue())
           .parameter("conflictingCategoryId", sameNameCategory.getId())
           .build();
@@ -406,7 +406,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     } catch (RevisionConflictException e) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
           .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
-          .errorMessage("The category has been updated since it was read")
+          .message("The category has been updated since it was read")
           .build();
     }
 
@@ -424,7 +424,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   private static Response categoryUpdateTargetDeleted() {
     return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
-        .errorMessage("The category no longer exists, so the conditional update can not be applied")
+        .message("The category no longer exists, so the conditional update can not be applied")
         .build();
   }
 
@@ -478,7 +478,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     String ifMatch = c.getIfMatchHeader();
     if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
-          .errorMessage("Deleting a category requires the ETag returned by GET in If-Match")
+          .message("Deleting a category requires the ETag returned by GET in If-Match")
           .build();
     }
     boolean deleted;
@@ -491,17 +491,17 @@ public class CategoriesResource extends AbstractResourceServerResource {
           .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_CATEGORY)
           .parameter("childCategoryCount", e.getChildCategoryCount())
           .parameter("artifactCount", e.getArtifactCount())
-          .errorMessage("Categories with children or attached artifacts can not be deleted")
+          .message("Categories with children or attached artifacts can not be deleted")
           .build();
     } catch (RevisionConflictException e) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
           .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
-          .errorMessage("The category has been updated since it was read")
+          .message("The category has been updated since it was read")
           .build();
     }
     if (!deleted) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
-          .errorMessage("The category was deleted before this deletion could be applied")
+          .message("The category was deleted before this deletion could be applied")
           .build();
     }
 
@@ -592,7 +592,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     } catch (JsonProcessingException e) {
       log.error("Error while reading permission update request", e);
       return CedarResponse.badRequest()
-          .errorMessage("Error while reading permission update request!")
+          .message("Error while reading permission update request!")
           .errorKey(CedarErrorKey.MALFORMED_JSON_REQUEST_BODY)
           .exception(e)
           .build();
@@ -602,7 +602,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
           .id(categoryId)
-          .errorMessage("Replacing category permissions requires the ETag returned by GET in If-Match")
+          .message("Replacing category permissions requires the ETag returned by GET in If-Match")
           .build();
     }
 
@@ -613,7 +613,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     } catch (RevisionConflictException e) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
           .id(categoryId)
-          .errorMessage("The category permissions have been updated since they were read")
+          .message("The category permissions have been updated since they were read")
           .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
           .build();
     }

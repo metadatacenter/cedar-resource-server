@@ -213,7 +213,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
     }
     // Unknown accept header
     return CedarResponse.badRequest()
-        .errorMessage("You passed an invalid Accept header: '" + acceptHeader + "'")
+        .message("You passed an invalid Accept header: '" + acceptHeader + "'")
         .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
         .parameter(HttpConstants.HTTP_HEADER_ACCEPT, acceptHeader)
         .parameter("allowed Accept headers", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML}))

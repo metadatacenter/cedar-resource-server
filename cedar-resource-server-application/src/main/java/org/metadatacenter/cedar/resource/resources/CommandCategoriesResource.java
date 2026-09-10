@@ -117,7 +117,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     } else {
       return CedarResponse.internalServerError()
           .errorKey(CedarErrorKey.UNABLE_TO_ATTACH_CATEGORY)
-          .errorMessage("The category was not attached to the artifact")
+          .message("The category was not attached to the artifact")
           .parameter("categoryId", categoryId)
           .parameter("artifactId", artifactId)
           .build();
@@ -173,7 +173,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     } else {
       return CedarResponse.internalServerError()
           .errorKey(CedarErrorKey.UNABLE_TO_DETACH_CATEGORY)
-          .errorMessage("The category was not detached from the artifact")
+          .message("The category was not detached from the artifact")
           .parameter("categoryId", categoryId)
           .parameter("artifactId", artifactId)
           .build();
@@ -209,7 +209,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     } catch (JsonProcessingException e) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.MALFORMED_JSON_REQUEST_BODY)
-          .errorMessage("Malformed batch category attachment request")
+          .message("Malformed batch category attachment request")
           .exception(e)
           .build();
     }
@@ -246,7 +246,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     } else {
       return CedarResponse.internalServerError()
           .errorKey(CedarErrorKey.NO_CATEGORIES_WERE_ATTACHED)
-          .errorMessage("No categories were attached")
+          .message("No categories were attached")
           .parameter("categoryIds", categoryRequest.getCategoryIds())
           .parameter("artifactId", artifactId)
           .build();
@@ -290,7 +290,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
           .id(categoryId)
-          .errorMessage("Transferring category ownership requires the permissions ETag in If-Match")
+          .message("Transferring category ownership requires the permissions ETag in If-Match")
           .build();
     }
 
@@ -302,7 +302,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     } catch (RevisionConflictException e) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
           .id(categoryId)
-          .errorMessage("The category permissions have changed since they were read")
+          .message("The category permissions have changed since they were read")
           .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
           .build();
     }

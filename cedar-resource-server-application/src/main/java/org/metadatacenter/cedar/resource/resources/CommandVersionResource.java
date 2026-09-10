@@ -160,7 +160,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     if (updatePermission == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
-          .errorMessage("You passed an illegal artifact type for versioning:'" + resourceType.getValue() + "'. The " +
+          .message("You passed an illegal artifact type for versioning:'" + resourceType.getValue() + "'. The " +
               "allowed values are:" +
               CedarResourceTypeUtil.getValidResourceTypeValuesForVersioning())
           .parameter("invalidResourceType", resourceType.getValue())
@@ -189,7 +189,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           if (newVersion.isBefore(oldVersion)) {
             return CedarResponse.badRequest()
                 .errorKey(CedarErrorKey.INVALID_DATA)
-                .errorMessage("The new version should be greater than or equal to the old version")
+                .message("The new version should be greater than or equal to the old version")
                 .parameter("oldVersion", oldVersion.getValue())
                 .parameter("newVersion", newVersion.getValue())
                 .build();
@@ -204,7 +204,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           if (oldStatusNode != null && BiboStatus.PUBLISHED.getValue().equals(oldStatusNode.textValue())) {
             return CedarResponse.badRequest()
                 .errorKey(CedarErrorKey.PUBLISH_ONLY_DRAFT)
-                .errorMessage("Only a draft artifact can be published; this artifact is already published.")
+                .message("Only a draft artifact can be published; this artifact is already published.")
                 .parameter("id", aid.getId())
                 .build();
           }
@@ -296,7 +296,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       }
     }
     return CedarResponse.internalServerError()
-        .errorMessage("There was an error while publishing the artifact")
+        .message("There was an error while publishing the artifact")
         .parameter("id", aid)
         .build();
   }
@@ -407,7 +407,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     if (updatePermission == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_ARTIFACT_TYPE)
-          .errorMessage("You passed an illegal artifact type for versioning:'" + artifactType.getValue() + "'. The " +
+          .message("You passed an illegal artifact type for versioning:'" + artifactType.getValue() + "'. The " +
               "allowed values are:" +
               CedarResourceTypeUtil.getValidResourceTypeValuesForVersioning())
           .parameter("invalidResourceType", artifactType.getValue())
@@ -440,7 +440,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               || !BiboStatus.PUBLISHED.getValue().equals(oldStatusNode.textValue())) {
             return CedarResponse.badRequest()
                 .errorKey(CedarErrorKey.CREATE_DRAFT_ONLY_FROM_PUBLISHED)
-                .errorMessage("A draft can only be created from a published artifact.")
+                .message("A draft can only be created from a published artifact.")
                 .parameter("id", aid.getId())
                 .build();
           }
@@ -454,7 +454,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           if (!oldVersion.isBefore(newVersion)) {
             return CedarResponse.badRequest()
                 .errorKey(CedarErrorKey.INVALID_DATA)
-                .errorMessage("The new version should be greater than the old version")
+                .message("The new version should be greater than the old version")
                 .parameter("oldVersion", oldVersion.getValue())
                 .parameter("newVersion", newVersion.getValue())
                 .build();
@@ -552,7 +552,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             /// this is the end of Neo4j creation
           } else {
             return CedarResponse.internalServerError()
-                .errorMessage("There was an error while creating the artifact on the artifact server")
+                .message("There was an error while creating the artifact on the artifact server")
                 .parameter("responseCode", artifactServerPostStatus)
                 .parameter("responseDocument", artifactServerPostResponseNode)
                 .build();
@@ -563,7 +563,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       }
     }
     return CedarResponse.internalServerError()
-        .errorMessage("There was an error while creating the draft version of the artifact")
+        .message("There was an error while creating the draft version of the artifact")
         .parameter("id", aid)
         .build();
   }
@@ -727,7 +727,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           if (!(createResponse.getEntity() instanceof FolderServerTemplate entity)) {
             log.error("Draft creation for template {} returned a successful response without a template entity", tid);
             return CedarResponse.internalServerError()
-                .errorMessage("Draft creation returned an invalid response")
+                .message("Draft creation returned an invalid response")
                 .parameter("id", tid)
                 .build();
           }
@@ -747,13 +747,13 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       } catch (Exception e) {
         log.error("Error while publishing template {} and creating its draft", tid, e);
         return CedarResponse.internalServerError()
-            .errorMessage("There was an error while publishing the template and creating its draft")
+            .message("There was an error while publishing the template and creating its draft")
             .parameter("id", tid)
             .build();
       }
     }
     return CedarResponse.internalServerError()
-        .errorMessage("There was an error while publishing the template and creating its draft")
+        .message("There was an error while publishing the template and creating its draft")
         .parameter("id", tid)
         .build();
   }

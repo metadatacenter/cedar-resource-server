@@ -140,7 +140,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     if (resourceType == CedarResourceType.FOLDER) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.FOLDER_COPY_NOT_ALLOWED)
-          .errorMessage("Folder copy is not allowed")
+          .message("Folder copy is not allowed")
           .build();
     }
 
@@ -168,7 +168,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     if (permission1 == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.UNKNOWN_RESOURCE_TYPE)
-          .errorMessage("Unknown resource type:" + resourceType.getValue())
+          .message("Unknown resource type:" + resourceType.getValue())
           .parameter("resourceType", resourceType.getValue())
           .build();
     }
@@ -195,7 +195,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       HttpEntity entity = proxyResponse.getEntity();
       if (entity == null) {
         return CedarResponse.badGateway()
-            .errorMessage("Artifact service returned an empty source artifact")
+            .message("Artifact service returned an empty source artifact")
             .id(sourceArtifactId)
             .build();
       }
@@ -203,7 +203,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       originalDocument = EntityUtils.toString(entity, StandardCharsets.UTF_8);
       if (originalDocument.isBlank()) {
         return CedarResponse.badGateway()
-            .errorMessage("Artifact service returned an empty source artifact")
+            .message("Artifact service returned an empty source artifact")
             .id(sourceArtifactId)
             .build();
       }
@@ -360,7 +360,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     if (permissionCreate == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.UNKNOWN_RESOURCE_TYPE)
-          .errorMessage("Unknown resource type:" + sourceResourceType.getValue())
+          .message("Unknown resource type:" + sourceResourceType.getValue())
           .parameter("resourceType", sourceResourceType.getValue())
           .build();
     }
@@ -379,7 +379,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       if (sourceFolder == null) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.SOURCE_FOLDER_NOT_FOUND)
-            .errorMessage("The source folder can not be found:" + sourceId)
+            .message("The source folder can not be found:" + sourceId)
             .parameter("@id", sourceId)
             .build();
       }
@@ -388,7 +388,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       if (sourceResource == null) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.SOURCE_RESOURCE_NOT_FOUND)
-            .errorMessage("The source artifact can not be found:" + sourceId)
+            .message("The source artifact can not be found:" + sourceId)
             .parameter("@id", sourceId)
             .build();
       }
@@ -399,7 +399,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     if (targetFolder == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.TARGET_FOLDER_NOT_FOUND)
-          .errorMessage("The target folder can not be found:" + targetFolderId)
+          .message("The target folder can not be found:" + targetFolderId)
           .parameter("targetFolderId", targetFolderId)
           .build();
     }
@@ -411,7 +411,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
           .id(sourceId)
-          .errorMessage("Moving a resource requires the source resource ETag in If-Match")
+          .message("Moving a resource requires the source resource ETag in If-Match")
           .build();
     }
     RevisionPrecondition precondition = RevisionPreconditionParser.parse(ifMatch);
@@ -432,7 +432,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
           .id(sourceId)
           .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
-          .errorMessage("The resource has changed since it was read")
+          .message("The resource has changed since it was read")
           .build();
     }
     if (moved == null) {
@@ -533,7 +533,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     if (permission == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.UNKNOWN_RESOURCE_TYPE)
-          .errorMessage("Unknown resource type:" + resourceType.getValue())
+          .message("Unknown resource type:" + resourceType.getValue())
           .parameter("resourceType", resourceType.getValue())
           .build();
     }
@@ -544,7 +544,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     String expectedEtag = c.getIfMatchHeader();
     if (expectedEtag == null || expectedEtag.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
-          .errorMessage("Renaming a resource requires the ETag returned by GET in If-Match")
+          .message("Renaming a resource requires the ETag returned by GET in If-Match")
           .build();
     }
 
@@ -571,7 +571,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
             if (biboStatus == BiboStatus.PUBLISHED) {
               return CedarResponse.badRequest()
                   .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
-                  .errorMessage("The artifact can not be changed since it is published!")
+                  .message("The artifact can not be changed since it is published!")
                   .parameter("name", currentName)
                   .build();
             }
@@ -596,7 +596,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
             } else {
               return CedarResponse.badRequest()
                   .errorKey(CedarErrorKey.NOTHING_TO_DO)
-                  .errorMessage("The name and the description are unchanged. There is nothing to do!")
+                  .message("The name and the description are unchanged. There is nothing to do!")
                   .parameter(SCHEMA_ORG_NAME, name)
                   .parameter(SCHEMA_ORG_DESCRIPTION, description)
                   .build();
@@ -658,7 +658,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
           .id(resourceId)
-          .errorMessage("Transferring ownership requires the permissions ETag in If-Match")
+          .message("Transferring ownership requires the permissions ETag in If-Match")
           .build();
     }
 
@@ -670,7 +670,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     } catch (RevisionConflictException e) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
           .id(resourceId)
-          .errorMessage("The resource permissions have changed since they were read")
+          .message("The resource permissions have changed since they were read")
           .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
           .build();
     }

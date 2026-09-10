@@ -204,7 +204,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     IndexJobGuard.Status status = IndexJobGuard.status(index);
     return CedarResponse.conflict()
         .header(HttpHeaders.LOCATION, indexJobUri(status.jobId()))
-        .errorMessage("A " + status.command() + " job started at " + status.startedAt()
+        .message("A " + status.command() + " job started at " + status.startedAt()
             + " is still running over the " + index.name().toLowerCase() + " index"
             + (status.overdue()
                ? ", and it passed its deadline at " + status.deadlineAt()
@@ -224,7 +224,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
     return CedarResponse.conflict()
         .header(HttpHeaders.LOCATION, importJobUri(imports.getJobId()))
-        .errorMessage("A value sets ontology import started at " + imports.getStartedAt() + " is still running"
+        .message("A value sets ontology import started at " + imports.getStartedAt() + " is still running"
             + (imports.isOverdue()
                ? ", and it passed its deadline at " + imports.getDeadlineAt()
                  + ". Reset it with POST /command/reset-valuesets-import if it has stopped making progress"
@@ -291,7 +291,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
    */
   private static Response noSuchJob(String kind, String jobId) {
     return CedarResponse.notFound()
-        .errorMessage("No " + kind + " answers to " + jobId
+        .message("No " + kind + " answers to " + jobId
             + ". Jobs are held in memory, so an identifier from before the last restart, or one that later "
             + "jobs have pushed out, is no longer known")
         .parameter("jobId", jobId)
@@ -347,7 +347,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     if (!IndexJobGuard.reset(index)) {
       IndexJobGuard.Status status = IndexJobGuard.status(index);
       return CedarResponse.conflict()
-          .errorMessage("Nothing to reset on the " + index.name().toLowerCase() + " index: it is "
+          .message("Nothing to reset on the " + index.name().toLowerCase() + " index: it is "
               + status.state().name().toLowerCase()
               + (status.state() == IndexJobGuard.State.RUNNING
                  ? " and within its deadline, which expires at " + status.deadlineAt() : ""))
@@ -379,7 +379,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
     if (!imports.reset()) {
       return CedarResponse.conflict()
-          .errorMessage("Nothing to reset: the value sets ontology import is "
+          .message("Nothing to reset: the value sets ontology import is "
               + imports.getImportStatus().name().toLowerCase()
               + (imports.getImportStatus() == ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS
                  ? " and within its deadline, which expires at " + imports.getDeadlineAt() : ""))

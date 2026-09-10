@@ -83,7 +83,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     if (id == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_DATA)
-          .errorMessage("@id not provided for the inclusion subgraph request")
+          .message("@id not provided for the inclusion subgraph request")
           .build();
     }
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
@@ -130,7 +130,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     if (id == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_DATA)
-          .errorMessage("@id not provided for the inclusion subgraph request")
+          .message("@id not provided for the inclusion subgraph request")
           .build();
     }
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
@@ -151,7 +151,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       if (targetArtifactId == null) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.INVALID_DATA)
-            .errorMessage("The target is not an artifact id: " + todo.getTargetId())
+            .message("The target is not an artifact id: " + todo.getTargetId())
             .build();
       }
       userMustHaveCapabilityOnArtifact(c, targetArtifactId, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
