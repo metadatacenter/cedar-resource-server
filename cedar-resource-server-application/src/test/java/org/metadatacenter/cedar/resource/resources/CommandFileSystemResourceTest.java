@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.metadatacenter.artifacts.model.core.Annotations;
 import org.metadatacenter.artifacts.model.core.ElementSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateInstanceArtifact;
@@ -26,6 +27,7 @@ import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
@@ -55,6 +57,7 @@ public class CommandFileSystemResourceTest {
 
   private static final String SOURCE_NAME = "Named source artifact";
   private static final String COPIED_NAME = "Copy of " + SOURCE_NAME;
+  private static final String SOURCE_DOI = "10.5072/FK2-source-artifact";
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
       new DropwizardTestSupport<>(ResourceServerApplication.class,
@@ -125,6 +128,7 @@ public class CommandFileSystemResourceTest {
     template.setLatestVersion(true);
     template.setLatestDraftVersion(true);
     template.setLatestPublishedVersion(false);
+    template.setDOI(SOURCE_DOI);
     sourceArtifact = folderSession.createResourceAsChildOfId(template, homeFolderId);
     Assertions.assertNotNull(sourceArtifact);
   }
@@ -186,8 +190,33 @@ public class CommandFileSystemResourceTest {
         JsonMapper.STRICT_MAPPER.readTree(response.body()).get("schema:name").asText());
   }
 
+  /**
+   * A DOI identifies the artifact it was minted for. The copy is a different artifact, and its graph
+   * node records no DOI, so a copy that kept the annotation would misidentify itself and fail the
+   * consistency check on its first ordinary edit.
+   */
   @Test
   @Order(2)
+  public void copyDropsTheSourceDoi() throws Exception {
+    postedArtifact = null;
+
+    HttpResponse<String> response = postCommand("copy-artifact-to-folder", copyBody());
+
+    Assertions.assertEquals(201, response.statusCode(), response.body());
+    Assertions.assertNotNull(postedArtifact, "the copy should be posted to the artifact service");
+    Assertions.assertFalse(
+        postedArtifact.path(ModelNodeNames.ANNOTATIONS).has(ModelNodeNames.DATACITE_DOI_URI),
+        "the copy carries the source artifact's DOI: " + postedArtifact);
+
+    String copyId = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("@id").asText();
+    FolderServerArtifact copy = folderSession.findArtifactById(
+        CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE));
+    Assertions.assertNotNull(copy, response.body());
+    Assertions.assertNull(copy.getDOI(), "the copy's graph record was given a DOI");
+  }
+
+  @Test
+  @Order(3)
   public void sourceFetchErrorsAreReturnedWithoutPostingACopy() throws Exception {
     try {
       for (int status : new int[]{404, 500}) {
@@ -207,7 +236,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(3)
+  @Order(4)
   public void emptySourceFetchReturnsBadGatewayWithoutPostingACopy() throws Exception {
     try {
       omitSourceGetBody = true;
@@ -228,7 +257,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(4)
+  @Order(5)
   public void moveMissingResourceReturnsNotFound() throws Exception {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"targetFolderId\":\"" + homeFolderId.getId() + "\"}";
@@ -239,7 +268,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(5)
+  @Order(6)
   public void moveRequiresCurrentSourceEtagAndReturnsTheReplacement() throws Exception {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"targetFolderId\":\"" + moveDestinationId.getId() + "\"}";
@@ -265,7 +294,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(6)
+  @Order(7)
   public void renameMissingResourceReturnsNotFound() throws Exception {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
@@ -276,7 +305,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(7)
+  @Order(8)
   public void renameArtifactRequiresAndForwardsTheCallersIfMatch() throws Exception {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
@@ -292,7 +321,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(8)
+  @Order(9)
   public void authenticatedCreatesReachArtifactGraphAndIndexServices() throws Exception {
     JsonArtifactRenderer renderer = new JsonArtifactRenderer();
     URI templateId = URI.create("https://repo.metadatacenter.org/templates/write-path-fixture");
@@ -331,7 +360,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(9)
+  @Order(10)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
     artifactServer.stop(0);
     artifactServer = null;
@@ -447,6 +476,9 @@ public class CommandFileSystemResourceTest {
         TemplateSchemaArtifact.builder()
             .withName(SOURCE_NAME)
             .withJsonLdId(URI.create(sourceArtifact.getId()))
+            .withAnnotations(Annotations.builder()
+                .withIriAnnotation(ModelNodeNames.DATACITE_DOI_URI, URI.create(SOURCE_DOI))
+                .build())
             .build());
   }
 }
