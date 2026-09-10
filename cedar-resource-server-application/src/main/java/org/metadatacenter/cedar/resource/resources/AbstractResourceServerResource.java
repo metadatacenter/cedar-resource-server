@@ -789,6 +789,16 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         updateFields.put(NodeProperty.NAME, newName);
         updateFields.put(NodeProperty.NAME_LOWER, newName.toLowerCase());
         updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
+        if (resourceType == CedarResourceType.INSTANCE) {
+          // The template an instance is based on is graph state, not merely something the document
+          // says: instance counts, the template's instance listing and the value recommender all read
+          // it from the node. A write that moves an instance to another template and leaves the node
+          // naming the old one puts every one of those at odds with the stored document.
+          CedarParameter isBasedOn = new CedarInPlaceParameter("isBasedOn",
+              ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
+          context.must(isBasedOn).be(NonEmpty);
+          updateFields.put(NodeProperty.IS_BASED_ON, isBasedOn.stringValue());
+        }
         String sourceHash = context.getSourceHashHeader();
         if (sourceHash != null) {
           updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
