@@ -59,6 +59,7 @@ import org.metadatacenter.server.security.model.auth.CurrentUserResourcePermissi
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.util.CedarResourceTypeUtil;
+import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
@@ -467,13 +468,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           // about to create, and the key carrying null is how anything asks for one.
           newDocument.putNull(ModelNodeNames.JSON_LD_ID);
 
-          if (newDocument.has(ModelNodeNames.ANNOTATIONS) && newDocument.get(ModelNodeNames.ANNOTATIONS).isObject()) {
-            ObjectNode annotationsNode = (ObjectNode) newDocument.get(ModelNodeNames.ANNOTATIONS);
-            annotationsNode.remove(ModelNodeNames.DATACITE_DOI_URI);
-            if (annotationsNode.isEmpty()) {
-              newDocument.remove(ModelNodeNames.ANNOTATIONS);
-            }
-          }
+          ModelUtil.removeDOIFromResource(newDocument);
 
           userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
 
@@ -739,12 +734,13 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           String newTemplateIdString = entity.getId();
           CedarTemplateId newTemplateId = CedarTemplateId.build(newTemplateIdString);
 
-          ((ObjectNode) newTemplateJsonNode).put(JSON_LD_ID, newTemplateIdString);
-          ((ObjectNode) newTemplateJsonNode).put(PAV_VERSION, newVersion.getValue());
-          String newDraftEtag = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
-              CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null).etag();
+          ArtifactServerUtil.ArtifactContent storedDraft =
+              ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
+                  CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null);
+          applyDefinitionToDraft((ObjectNode) newTemplateJsonNode,
+              JsonMapper.STRICT_MAPPER.readTree(storedDraft.content()));
           return executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
-              JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, newDraftEtag);
+              JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, storedDraft.etag());
         }
       } catch (CedarException e) {
         throw e;
@@ -760,5 +756,28 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         .errorMessage("There was an error while publishing the template and creating its draft")
         .parameter("id", tid)
         .build();
+  }
+
+  /**
+   * Applies the submitted template definition to the draft that has just been created, without undoing
+   * what creating it established.
+   *
+   * <p>The submitted document describes a template, not this draft. Its identifier, version, status and
+   * predecessor are whatever the client last read, or absent altogether, so all four are read back from
+   * the draft that was stored. The predecessor matters most. A successor that loses it loses the version
+   * it was drawn from, and a client sending a document it had drafted earlier would name that earlier
+   * draft's predecessor instead. The DOI belongs to the published artifact rather than to its successor,
+   * and creating the draft dropped it.
+   */
+  private static void applyDefinitionToDraft(ObjectNode submitted, JsonNode storedDraft) {
+    for (String key : List.of(JSON_LD_ID, PAV_VERSION, BIBO_STATUS, PAV_PREVIOUS_VERSION)) {
+      JsonNode value = storedDraft.get(key);
+      if (value == null) {
+        submitted.remove(key);
+      } else {
+        submitted.set(key, value);
+      }
+    }
+    ModelUtil.removeDOIFromResource(submitted);
   }
 }
