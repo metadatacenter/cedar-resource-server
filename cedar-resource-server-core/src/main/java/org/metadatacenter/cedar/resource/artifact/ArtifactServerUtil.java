@@ -8,7 +8,8 @@ import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.CedarSchemaArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.rest.context.CedarRequestContext;
-import org.metadatacenter.server.url.MicroserviceUrlUtil;
+import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.json.JsonMapper;
 
@@ -22,20 +23,20 @@ public class ArtifactServerUtil {
   public record ArtifactContent(String content, String etag) {
   }
 
-  public static String getSchemaArtifactFromArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, MicroserviceUrlUtil microserviceUrlUtil,
+  public static String getSchemaArtifactFromArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, CedarConfig cedarConfig,
                                                            HttpServletResponse response) throws CedarProcessingException {
-    return getSchemaArtifactWithEtagFromArtifactServer(resourceType, id, context, microserviceUrlUtil, response).content();
+    return getSchemaArtifactWithEtagFromArtifactServer(resourceType, id, context, cedarConfig, response).content();
   }
 
   public static ArtifactContent getSchemaArtifactWithEtagFromArtifactServer(CedarResourceType resourceType,
                                                                               CedarSchemaArtifactId id,
                                                                               CedarRequestContext context,
-                                                                              MicroserviceUrlUtil microserviceUrlUtil,
+                                                                              CedarConfig cedarConfig,
                                                                               HttpServletResponse response)
       throws CedarProcessingException {
     try {
-      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-      ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, context);
+      String url = cedarConfig.getMicroserviceUrlUtil().getArtifact().getArtifactTypeWithId(resourceType, id);
+      ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, context);
       if (response != null) {
         ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       }
@@ -49,17 +50,17 @@ public class ArtifactServerUtil {
   }
 
   public static Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, String content,
-                                                           MicroserviceUrlUtil microserviceUrlUtil) throws CedarProcessingException {
-    return putSchemaArtifactToArtifactServer(resourceType, id, context, content, microserviceUrlUtil,
+                                                           CedarConfig cedarConfig) throws CedarProcessingException {
+    return putSchemaArtifactToArtifactServer(resourceType, id, context, content, cedarConfig,
         context.getIfMatchHeader());
   }
 
   public static Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id,
                                                            CedarRequestContext context, String content,
-                                                           MicroserviceUrlUtil microserviceUrlUtil, String expectedEtag)
+                                                           CedarConfig cedarConfig, String expectedEtag)
       throws CedarProcessingException {
-    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
-    ClassicHttpResponse templateProxyResponse = ProxyUtil.proxyPut(url, context, content, expectedEtag);
+    String url = cedarConfig.getMicroserviceUrlUtil().getArtifact().getArtifactTypeWithId(resourceType, id);
+    ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).put(url, context, content, expectedEtag);
     return buildPutResponse(templateProxyResponse);
   }
 
@@ -70,7 +71,7 @@ public class ArtifactServerUtil {
       JsonNode responseNode = null;
       try {
         String responseString = EntityUtils.toString(entity, StandardCharsets.UTF_8);
-        responseNode = JsonMapper.MAPPER.readTree(responseString);
+        responseNode = JsonMapper.STRICT_MAPPER.readTree(responseString);
       } catch (Exception e) {
         return Response.status(statusCode).build();
       }

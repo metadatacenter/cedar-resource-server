@@ -155,7 +155,7 @@ public class SharingRoundTripTest {
         new ResourcePermissionGroup(group.getId()), ResourceRole.VIEWER));
 
     HttpResponse<String> shared = send("PUT", permissionsPath(folder),
-        JsonMapper.MAPPER.writeValueAsString(request), user1Header);
+        JsonMapper.STRICT_MAPPER.writeValueAsString(request), user1Header);
     Assertions.assertEquals(200, shared.statusCode(), "sharing with a group should succeed: " + shared.body());
 
     // Read back through the typed model, which also stands as the regression test for the fix that
@@ -191,13 +191,13 @@ public class SharingRoundTripTest {
         new ResourcePermissionUser(user2.getId()), ResourceRole.VIEWER));
     duplicate.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
         new ResourcePermissionUser(user2.getId()), ResourceRole.MANAGER));
-    expectRefusal(folder, JsonMapper.MAPPER.writeValueAsString(duplicate), "a request naming one user twice");
+    expectRefusal(folder, JsonMapper.STRICT_MAPPER.writeValueAsString(duplicate), "a request naming one user twice");
 
     // The owner also listed as a grantee, which would say two things about the same person.
     ResourcePermissionsRequest collision = ownedByUser1();
     collision.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
         new ResourcePermissionUser(user1.getId()), ResourceRole.VIEWER));
-    expectRefusal(folder, JsonMapper.MAPPER.writeValueAsString(collision),
+    expectRefusal(folder, JsonMapper.STRICT_MAPPER.writeValueAsString(collision),
         "a request listing the owner as a grantee");
 
     String legacyProperty = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2.getId()
@@ -231,7 +231,7 @@ public class SharingRoundTripTest {
         new ResourcePermissionUser(user2.getId()), level));
 
     HttpResponse<String> shared = send("PUT", permissionsPath(folder),
-        JsonMapper.MAPPER.writeValueAsString(request), user1Header);
+        JsonMapper.STRICT_MAPPER.writeValueAsString(request), user1Header);
     Assertions.assertEquals(200, shared.statusCode(),
         "sharing at " + level + " should succeed: " + shared.body());
 
@@ -394,7 +394,7 @@ public class SharingRoundTripTest {
     Assertions.assertEquals(200, asNewOwner.statusCode(),
         "the new owner should be able to read the ACL: " + asNewOwner.body());
     CedarNodePermissionsWithExtract acl =
-        JsonMapper.MAPPER.readValue(asNewOwner.body(), CedarNodePermissionsWithExtract.class);
+        JsonMapper.STRICT_MAPPER.readValue(asNewOwner.body(), CedarNodePermissionsWithExtract.class);
     Assertions.assertEquals(user2.getId(), acl.getOwner().getId(),
         "the ACL should name the new owner");
     Assertions.assertTrue(acl.getUserPermissions().stream()
@@ -484,7 +484,7 @@ public class SharingRoundTripTest {
     HttpResponse<String> response = send("GET", permissionsPath(folder), null, user1Header);
     Assertions.assertEquals(200, response.statusCode(),
         "the owner should be able to read the ACL back: " + response.body());
-    return JsonMapper.MAPPER.readValue(response.body(), CedarNodePermissionsWithExtract.class);
+    return JsonMapper.STRICT_MAPPER.readValue(response.body(), CedarNodePermissionsWithExtract.class);
   }
 
   private static FolderServerFolder folder(String name) {
@@ -522,7 +522,7 @@ public class SharingRoundTripTest {
 
   private static HttpResponse<String> transfer(Target target, String newOwnerId, String authHeader,
                                                String ifMatch) throws Exception {
-    String body = JsonMapper.MAPPER.writeValueAsString(Map.of(
+    String body = JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of(
         "@id", target.id().getId(),
         "newOwnerId", newOwnerId));
     HttpRequest.Builder builder = HttpRequest.newBuilder()

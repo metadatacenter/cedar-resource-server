@@ -11,7 +11,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * identifiers (e.g. {@code @id}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@Schema(name = "PublishArtifactRequest", description = "Info about the publishing process.")
+@Schema(name = "PublishArtifactRequest", description = "Info about the publishing process.",
+    additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class PublishArtifactRequest {
 
   @Schema(name = "@id", description = "Unique URL identifier of the artifact.")

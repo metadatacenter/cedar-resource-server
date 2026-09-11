@@ -45,6 +45,8 @@ import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_FOLDER_ID;
+import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_DESCRIPTION;
+import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
 import static org.metadatacenter.rest.assertion.GenericAssertions.*;
 
 @Path("/folders")
@@ -73,6 +75,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   })
   public Response createFolder() throws CedarException {
     CedarRequestContext c = buildRequestContext();
+    c.request().getRequestBody().mustHaveOnly("folderId", "path", "name", "description");
     CedarFolderId newFolderId = linkedDataUtil.buildNewLinkedDataIdObject(CedarFolderId.class);
     return createFolderWithId(c, newFolderId);
   }
@@ -105,7 +108,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     VersionedResource<FolderServerFolder> snapshot = folderSession.findVersionedFolderById(fid);
     if (snapshot == null) {
       return CedarResponse.notFound().id(id).errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
-          .errorMessage("The folder can not be found by id").build();
+          .message("The folder can not be found by id").build();
     }
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
     FolderServerFolderCurrentUserReport folderServerFolder = GraphDbPermissionReader.getFolderCurrentUserReport(
@@ -172,26 +175,29 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(folderId);
     if (folder != null) {
+      c.request().getRequestBody().mustHaveOnly(SCHEMA_ORG_NAME, SCHEMA_ORG_DESCRIPTION);
       return updateFolderNameAndDescriptionInGraphDb(c, folderId);
     } else {
       if (c.getIfMatchHeader() != null && !c.getIfMatchHeader().isBlank()) {
         return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_FAILED)
             .id(folderId)
-            .errorMessage("The folder no longer exists")
+            .message("The folder no longer exists")
             .build();
       }
+      c.request().getRequestBody()
+          .mustHaveOnly(LinkedData.ID, "folderId", "path", "name", "description");
       CedarParameter atIdParameter = c.request().getRequestBody().get(LinkedData.ID);
       if (atIdParameter.isEmpty()) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.MISSING_DATA)
-            .errorMessage("For 'create-with-id' the new folder @id should be present in the body as well!")
+            .message("For 'create-with-id' the new folder @id should be present in the body as well!")
             .parameter("@id", id)
             .operation(CedarOperations.createWithId(FolderServerFolder.class, "id", id))
             .build();
       } else if (!atIdParameter.stringValue().equals(id)) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.INVALID_DATA)
-            .errorMessage("For 'create-with-id' the same folder @id should be present in the URL and the body.")
+            .message("For 'create-with-id' the same folder @id should be present in the URL and the body.")
             .parameter("@idURL", id)
             .parameter("@idBody", atIdParameter.stringValue())
             .operation(CedarOperations.createWithId(FolderServerFolder.class, "id", id))
@@ -234,7 +240,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       return CedarResponse.notFound()
           .id(id)
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
-          .errorMessage("The folder can not be found by id")
+          .message("The folder can not be found by id")
           .build();
     } else {
       long contentCount = folderSession.findFolderContentsUnfilteredCount(fid);
@@ -243,27 +249,27 @@ public class FoldersResource extends AbstractResourceServerResource {
             .id(id)
             .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
             .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_FOLDER)
-            .errorMessage("Non-empty folders can not be deleted")
+            .message("Non-empty folders can not be deleted")
             .build();
       } else if (folder.isUserHome()) {
         return CedarResponse.badRequest()
             .id(id)
             .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
             .errorReasonKey(CedarErrorReasonKey.USER_HOME_FOLDER)
-            .errorMessage("User home folders can not be deleted")
+            .message("User home folders can not be deleted")
             .build();
       } else if (folder.isSystem()) {
         return CedarResponse.badRequest()
             .id(id)
             .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
             .errorReasonKey(CedarErrorReasonKey.SYSTEM_FOLDER)
-            .errorMessage("System folders can not be deleted")
+            .message("System folders can not be deleted")
             .build();
       } else {
         String ifMatch = c.getIfMatchHeader();
         if (ifMatch == null || ifMatch.isBlank()) {
           return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_REQUIRED)
-              .errorMessage("Deleting a folder requires the ETag returned by GET in If-Match")
+              .message("Deleting a folder requires the ETag returned by GET in If-Match")
               .build();
         }
         boolean deleted;
@@ -272,7 +278,7 @@ public class FoldersResource extends AbstractResourceServerResource {
         } catch (RevisionConflictException e) {
           return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_FAILED)
               .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
-              .errorMessage("The folder has been updated since it was read")
+              .message("The folder has been updated since it was read")
               .build();
         }
         if (deleted) {
@@ -281,14 +287,14 @@ public class FoldersResource extends AbstractResourceServerResource {
         }
         if (folderSession.findFolderById(fid) == null) {
           return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_FAILED)
-              .errorMessage("The folder was deleted before this deletion could be applied")
+              .message("The folder was deleted before this deletion could be applied")
               .build();
         }
         return CedarResponse.badRequest()
             .id(id)
             .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
             .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_FOLDER)
-            .errorMessage("The folder became non-empty before it could be deleted")
+            .message("The folder became non-empty before it could be deleted")
             .build();
       }
     }
@@ -363,14 +369,14 @@ public class FoldersResource extends AbstractResourceServerResource {
     if (folderIdP.isEmpty() && path.isEmpty()) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.PARENT_FOLDER_NOT_SPECIFIED)
-          .errorMessage("You need to supply either path or folderId parameter identifying the parent folder")
+          .message("You need to supply either path or folderId parameter identifying the parent folder")
           .build();
     }
 
     if (!folderIdP.isEmpty() && !path.isEmpty()) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.PARENT_FOLDER_SPECIFIED_TWICE)
-          .errorMessage("You need to supply either path or folderId parameter (not both) identifying the parent folder")
+          .message("You need to supply either path or folderId parameter (not both) identifying the parent folder")
           .build();
     }
 
@@ -387,7 +393,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       if (!normalizedPath.equals(pathV)) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.PATH_NOT_NORMALIZED)
-            .errorMessage("You must supply the path of the new folder in normalized form!")
+            .message("You must supply the path of the new folder in normalized form!")
             .build();
       }
       parentFolder = folderSession.findFolderByPath(pathV);
@@ -405,7 +411,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           .parameter("path", path)
           .parameter("folderId", folderIdV)
           .errorKey(CedarErrorKey.PARENT_FOLDER_NOT_FOUND)
-          .errorMessage("The parent folder is not present!")
+          .message("The parent folder is not present!")
           .build();
     }
 
@@ -426,7 +432,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     if (!normalizedName.equals(nameV)) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.CREATE_INVALID_FOLDER_NAME)
-          .errorMessage("The new folder name contains invalid characters!")
+          .message("The new folder name contains invalid characters!")
           .parameter("name", name.stringValue())
           .build();
     }
@@ -443,7 +449,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           .parameter("parentFolderId", parentFolder.getId())
           .parameter("name", name)
           .errorKey(CedarErrorKey.NODE_ALREADY_PRESENT)
-          .errorMessage("There is already a resource with the same name at the requested location!")
+          .message("There is already a resource with the same name at the requested location!")
           .parameter("conflictingResourceType", newFolderCandidate.getType().getValue())
           .parameter("conflictingResourceId", newFolderCandidate.getId())
           .build();
@@ -466,7 +472,7 @@ public class FoldersResource extends AbstractResourceServerResource {
           .parameter("parentFolderId", parentFolder.getId())
           .parameter("name", nameV)
           .errorKey(CedarErrorKey.FOLDER_NOT_CREATED)
-          .errorMessage("The folder was not created!")
+          .message("The folder was not created!")
           .build();
     }
 

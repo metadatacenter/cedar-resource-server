@@ -130,7 +130,7 @@ public class TemplatesResourceWriteSuccessTest {
 
     if ("POST".equals(method)) {
       ARTIFACT_POSTS.incrementAndGet();
-      ObjectNode created = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      ObjectNode created = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       created.put("@id", "https://repo.metadatacenter.orgx/templates/" + java.util.UUID.randomUUID());
       storedArtifact = created;
       send(exchange, 201, created, created.get("@id").asText());
@@ -138,7 +138,7 @@ public class TemplatesResourceWriteSuccessTest {
     }
     if ("PUT".equals(method)) {
       ARTIFACT_PUTS.incrementAndGet();
-      storedArtifact = (ObjectNode) JsonMapper.MAPPER.readTree(requestBody);
+      storedArtifact = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       send(exchange, 200, storedArtifact, null);
       return;
     }
@@ -198,7 +198,7 @@ public class TemplatesResourceWriteSuccessTest {
     createdEtag = response.headers().firstValue("ETag").orElse(null);
     Assertions.assertNotNull(createdEtag, "a create must answer with an ETag");
 
-    JsonNode body = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode body = JsonMapper.STRICT_MAPPER.readTree(response.body());
     createdId = body.path("@id").asText();
     Assertions.assertFalse(createdId.isEmpty(), response.body());
     Assertions.assertEquals("Write success fixture", body.path("schema:name").asText(), response.body());
@@ -221,7 +221,7 @@ public class TemplatesResourceWriteSuccessTest {
     HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
-    Assertions.assertEquals(createdId, JsonMapper.MAPPER.readTree(response.body()).path("@id").asText());
+    Assertions.assertEquals(createdId, JsonMapper.STRICT_MAPPER.readTree(response.body()).path("@id").asText());
   }
 
   @Test
@@ -241,6 +241,6 @@ public class TemplatesResourceWriteSuccessTest {
     Assertions.assertEquals(200, response.statusCode(), response.body());
     Assertions.assertEquals(1, ARTIFACT_PUTS.get(), "the update must reach the artifact server exactly once");
     Assertions.assertEquals("Write success fixture, renamed",
-        JsonMapper.MAPPER.readTree(response.body()).path("schema:name").asText(), response.body());
+        JsonMapper.STRICT_MAPPER.readTree(response.body()).path("schema:name").asText(), response.body());
   }
 }

@@ -133,7 +133,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    JsonNode output = JsonMapper.MAPPER.valueToTree(ValueSetsImportStatusManager.getInstance());
+    JsonNode output = JsonMapper.STRICT_MAPPER.valueToTree(ValueSetsImportStatusManager.getInstance());
     return Response.ok().entity(output).build();
   }
 
@@ -159,7 +159,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     return ValueSetsImportStatusManager.getInstance().find(jobId)
-        .map(job -> Response.ok().entity(JsonMapper.MAPPER.valueToTree(job)).build())
+        .map(job -> Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(job)).build())
         .orElseGet(() -> noSuchJob("value sets ontology import", jobId));
   }
 
@@ -180,14 +180,14 @@ public class CommandSearchResource extends AbstractResourceServerResource {
    */
   private static Response queued(IndexJobGuard.Index index, JobClaim claim) {
     IndexJobGuard.Status job = IndexJobGuard.find(claim.id()).orElseGet(() -> IndexJobGuard.status(index));
-    return Response.accepted(JsonMapper.MAPPER.valueToTree(job)).location(indexJobUri(claim.id())).build();
+    return Response.accepted(JsonMapper.STRICT_MAPPER.valueToTree(job)).location(indexJobUri(claim.id())).build();
   }
 
   /** An import that has been queued rather than performed, reported the way a queued rebuild is. */
   private static Response importQueued(JobClaim claim) {
     ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
     ValueSetsImportStatusManager.ImportJob job = imports.find(claim.id()).orElseGet(imports::snapshot);
-    return Response.accepted(JsonMapper.MAPPER.valueToTree(job)).location(importJobUri(claim.id())).build();
+    return Response.accepted(JsonMapper.STRICT_MAPPER.valueToTree(job)).location(importJobUri(claim.id())).build();
   }
 
   /**
@@ -204,7 +204,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     IndexJobGuard.Status status = IndexJobGuard.status(index);
     return CedarResponse.conflict()
         .header(HttpHeaders.LOCATION, indexJobUri(status.jobId()))
-        .errorMessage("A " + status.command() + " job started at " + status.startedAt()
+        .message("A " + status.command() + " job started at " + status.startedAt()
             + " is still running over the " + index.name().toLowerCase() + " index"
             + (status.overdue()
                ? ", and it passed its deadline at " + status.deadlineAt()
@@ -224,7 +224,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
     return CedarResponse.conflict()
         .header(HttpHeaders.LOCATION, importJobUri(imports.getJobId()))
-        .errorMessage("A value sets ontology import started at " + imports.getStartedAt() + " is still running"
+        .message("A value sets ontology import started at " + imports.getStartedAt() + " is still running"
             + (imports.isOverdue()
                ? ", and it passed its deadline at " + imports.getDeadlineAt()
                  + ". Reset it with POST /command/reset-valuesets-import if it has stopped making progress"
@@ -254,7 +254,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    return Response.ok().entity(JsonMapper.MAPPER.valueToTree(IndexJobGuard.statuses())).build();
+    return Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(IndexJobGuard.statuses())).build();
   }
 
   @GET
@@ -280,7 +280,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     return IndexJobGuard.find(jobId)
-        .map(status -> Response.ok().entity(JsonMapper.MAPPER.valueToTree(status)).build())
+        .map(status -> Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(status)).build())
         .orElseGet(() -> noSuchJob("index rebuild", jobId));
   }
 
@@ -291,7 +291,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
    */
   private static Response noSuchJob(String kind, String jobId) {
     return CedarResponse.notFound()
-        .errorMessage("No " + kind + " answers to " + jobId
+        .message("No " + kind + " answers to " + jobId
             + ". Jobs are held in memory, so an identifier from before the last restart, or one that later "
             + "jobs have pushed out, is no longer known")
         .parameter("jobId", jobId)
@@ -347,7 +347,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     if (!IndexJobGuard.reset(index)) {
       IndexJobGuard.Status status = IndexJobGuard.status(index);
       return CedarResponse.conflict()
-          .errorMessage("Nothing to reset on the " + index.name().toLowerCase() + " index: it is "
+          .message("Nothing to reset on the " + index.name().toLowerCase() + " index: it is "
               + status.state().name().toLowerCase()
               + (status.state() == IndexJobGuard.State.RUNNING
                  ? " and within its deadline, which expires at " + status.deadlineAt() : ""))
@@ -356,7 +356,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           .parameter("deadlineAt", status.deadlineAt())
           .build();
     }
-    return Response.ok().entity(JsonMapper.MAPPER.valueToTree(IndexJobGuard.status(index))).build();
+    return Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(IndexJobGuard.status(index))).build();
   }
 
   @POST
@@ -379,7 +379,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
     if (!imports.reset()) {
       return CedarResponse.conflict()
-          .errorMessage("Nothing to reset: the value sets ontology import is "
+          .message("Nothing to reset: the value sets ontology import is "
               + imports.getImportStatus().name().toLowerCase()
               + (imports.getImportStatus() == ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS
                  ? " and within its deadline, which expires at " + imports.getDeadlineAt() : ""))
@@ -387,7 +387,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           .parameter("deadlineAt", imports.getDeadlineAt())
           .build();
     }
-    return Response.ok().entity(JsonMapper.MAPPER.valueToTree(imports)).build();
+    return Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(imports)).build();
   }
 
   @POST
@@ -418,7 +418,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     AdminCommand.REGENERATE_SEARCH_INDEX.enforce(c);
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("force");
     CedarParameter forceParam = requestBody.get("force");
     final boolean force = forceParam.booleanValue();
 
@@ -533,7 +533,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     log.warn("/command/regenerate-rules-index is deprecated: it empties the rules index instead of rebuilding it. "
         + "Rules must be regenerated through the value recommender.");
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("force");
     CedarParameter forceParam = requestBody.get("force");
     final boolean force = forceParam.booleanValue();
     Optional<JobClaim> claim = IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "regenerate-rules-index");

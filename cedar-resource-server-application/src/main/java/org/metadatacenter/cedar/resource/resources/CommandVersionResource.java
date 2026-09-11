@@ -51,6 +51,7 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
+import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.resource.CloneInstancesEnqueueService;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
@@ -59,6 +60,7 @@ import org.metadatacenter.server.security.model.auth.CurrentUserResourcePermissi
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.util.CedarResourceTypeUtil;
+import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
@@ -119,6 +121,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
+    c.request().getRequestBody().mustHaveOnly("@id", "newVersion");
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
 
@@ -159,7 +162,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     if (updatePermission == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
-          .errorMessage("You passed an illegal artifact type for versioning:'" + resourceType.getValue() + "'. The " +
+          .message("You passed an illegal artifact type for versioning:'" + resourceType.getValue() + "'. The " +
               "allowed values are:" +
               CedarResourceTypeUtil.getValidResourceTypeValuesForVersioning())
           .parameter("invalidResourceType", resourceType.getValue())
@@ -171,12 +174,12 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     c.must(c.user()).have(updatePermission);
 
     var artifactContent = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(resourceType, aid, c,
-        microserviceUrlUtil, response);
+        cedarConfig, response);
     String getResponse = artifactContent.content();
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
-        getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+        getJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
         if (getJsonNode != null) {
 
           ResourceVersion oldVersion = null;
@@ -188,7 +191,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           if (newVersion.isBefore(oldVersion)) {
             return CedarResponse.badRequest()
                 .errorKey(CedarErrorKey.INVALID_DATA)
-                .errorMessage("The new version should be greater than or equal to the old version")
+                .message("The new version should be greater than or equal to the old version")
                 .parameter("oldVersion", oldVersion.getValue())
                 .parameter("newVersion", newVersion.getValue())
                 .build();
@@ -203,7 +206,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           if (oldStatusNode != null && BiboStatus.PUBLISHED.getValue().equals(oldStatusNode.textValue())) {
             return CedarResponse.badRequest()
                 .errorKey(CedarErrorKey.PUBLISH_ONLY_DRAFT)
-                .errorMessage("Only a draft artifact can be published; this artifact is already published.")
+                .message("Only a draft artifact can be published; this artifact is already published.")
                 .parameter("id", aid.getId())
                 .build();
           }
@@ -230,9 +233,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 aid.getId(), freezeSkipped.toString());
           }
 
-          String content = JsonMapper.MAPPER.writeValueAsString(getJsonNode);
+          String content = JsonMapper.STRICT_MAPPER.writeValueAsString(getJsonNode);
           Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, aid, c, content,
-              microserviceUrlUtil, artifactContent.etag());
+              cedarConfig, artifactContent.etag());
           int putStatus = putResponse.getStatus();
 
           if (putStatus == HttpStatus.SC_OK) {
@@ -295,7 +298,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       }
     }
     return CedarResponse.internalServerError()
-        .errorMessage("There was an error while publishing the artifact")
+        .message("There was an error while publishing the artifact")
         .parameter("id", aid)
         .build();
   }
@@ -311,7 +314,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     }
     try {
       Response rollback = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, artifactId, context,
-          preImage, microserviceUrlUtil, publishedEtag);
+          preImage, cedarConfig, publishedEtag);
       if (rollback.getStatus() != HttpStatus.SC_OK) {
         log.error("Failed publish left {} changed on the artifact server: conditional rollback answered {}",
             artifactId, rollback.getStatus());
@@ -355,6 +358,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
+    c.request().getRequestBody()
+        .mustHaveOnly("@id", "newVersion", "folderId", "propagateSharing", "newFolderName");
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
     CedarParameter folderIdParam = c.request().getRequestBody().get("folderId");
@@ -406,7 +411,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     if (updatePermission == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_ARTIFACT_TYPE)
-          .errorMessage("You passed an illegal artifact type for versioning:'" + artifactType.getValue() + "'. The " +
+          .message("You passed an illegal artifact type for versioning:'" + artifactType.getValue() + "'. The " +
               "allowed values are:" +
               CedarResourceTypeUtil.getValidResourceTypeValuesForVersioning())
           .parameter("invalidResourceType", artifactType.getValue())
@@ -423,11 +428,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(artifactType, aid, c,
-        microserviceUrlUtil, response);
+        cedarConfig, response);
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
-        getJsonNode = JsonMapper.MAPPER.readTree(getResponse);
+        getJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
         if (getJsonNode != null) {
 
           // Only a published artifact may be the source of a draft. As with publishing above, the
@@ -439,7 +444,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               || !BiboStatus.PUBLISHED.getValue().equals(oldStatusNode.textValue())) {
             return CedarResponse.badRequest()
                 .errorKey(CedarErrorKey.CREATE_DRAFT_ONLY_FROM_PUBLISHED)
-                .errorMessage("A draft can only be created from a published artifact.")
+                .message("A draft can only be created from a published artifact.")
                 .parameter("id", aid.getId())
                 .build();
           }
@@ -453,7 +458,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           if (!oldVersion.isBefore(newVersion)) {
             return CedarResponse.badRequest()
                 .errorKey(CedarErrorKey.INVALID_DATA)
-                .errorMessage("The new version should be greater than the old version")
+                .message("The new version should be greater than the old version")
                 .parameter("oldVersion", oldVersion.getValue())
                 .parameter("newVersion", newVersion.getValue())
                 .build();
@@ -463,28 +468,20 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           newDocument.put(ModelNodeNames.PAV_VERSION, newVersion.getValue());
           newDocument.put(ModelNodeNames.BIBO_STATUS, BiboStatus.DRAFT.getValue());
           newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, aid.getId());
-          // Null rather than removed: the artifact server assigns the identifier of the draft it is
-          // about to create, and the key carrying null is how anything asks for one.
-          newDocument.putNull(ModelNodeNames.JSON_LD_ID);
-
-          if (newDocument.has(ModelNodeNames.ANNOTATIONS) && newDocument.get(ModelNodeNames.ANNOTATIONS).isObject()) {
-            ObjectNode annotationsNode = (ObjectNode) newDocument.get(ModelNodeNames.ANNOTATIONS);
-            annotationsNode.remove(ModelNodeNames.DATACITE_DOI_URI);
-            if (annotationsNode.isEmpty()) {
-              newDocument.remove(ModelNodeNames.ANNOTATIONS);
-            }
-          }
+          // A draft is the same intellectual artifact at a new version, so it keeps schema:identifier
+          // where a copy drops it, but it is a new document to the artifact server all the same.
+          ArtifactCopyOperations.prepareDerivedBody(newDocument);
 
           userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
 
-          String artifactServerPostRequestBodyAsString = JsonMapper.MAPPER.writeValueAsString(newDocument);
+          String artifactServerPostRequestBodyAsString = JsonMapper.STRICT_MAPPER.writeValueAsString(newDocument);
 
           Response artifactServerPostResponse = executeResourcePostToArtifactServer(c, artifactType,
               artifactServerPostRequestBodyAsString);
 
           int artifactServerPostStatus = artifactServerPostResponse.getStatus();
           InputStream is = (InputStream) artifactServerPostResponse.getEntity();
-          JsonNode artifactServerPostResponseNode = JsonMapper.MAPPER.readTree(is);
+          JsonNode artifactServerPostResponseNode = JsonMapper.STRICT_MAPPER.readTree(is);
           if (artifactServerPostStatus == CedarResponseStatus.CREATED.getStatusCode()) {
             JsonNode atId = artifactServerPostResponseNode.at(AT_ID);
             String newIdString = atId.asText();
@@ -557,7 +554,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             /// this is the end of Neo4j creation
           } else {
             return CedarResponse.internalServerError()
-                .errorMessage("There was an error while creating the artifact on the artifact server")
+                .message("There was an error while creating the artifact on the artifact server")
                 .parameter("responseCode", artifactServerPostStatus)
                 .parameter("responseDocument", artifactServerPostResponseNode)
                 .build();
@@ -568,7 +565,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       }
     }
     return CedarResponse.internalServerError()
-        .errorMessage("There was an error while creating the draft version of the artifact")
+        .message("There was an error while creating the draft version of the artifact")
         .parameter("id", aid)
         .build();
   }
@@ -610,7 +607,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     }
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(CedarResourceType.TEMPLATE, tid, c,
-        microserviceUrlUtil, response);
+        cedarConfig, response);
     if (getResponse == null || getResponse.isBlank()) {
       throw new CedarObjectNotFoundException(tid.getId());
     }
@@ -618,8 +615,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     try {
       JsonNode oldTemplateJsonNode;
       JsonNode newTemplateJsonNode;
-      oldTemplateJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-      newTemplateJsonNode = JsonMapper.MAPPER.readTree(c.request().getRequestBody().asJsonString());
+      oldTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
+      newTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(c.request().getRequestBody().asJsonString());
       if (!(oldTemplateJsonNode instanceof ObjectNode oldTemplateObjectNode)
           || !(newTemplateJsonNode instanceof ObjectNode newTemplateObjectNode)) {
         throw new IllegalArgumentException("Both stored and submitted templates must be JSON objects");
@@ -690,13 +687,13 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnArtifact(c, tid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(CedarResourceType.TEMPLATE, tid, c,
-        microserviceUrlUtil, response);
+        cedarConfig, response);
     if (getResponse != null) {
       JsonNode oldTemplateJsonNode;
       JsonNode newTemplateJsonNode;
       try {
-        oldTemplateJsonNode = JsonMapper.MAPPER.readTree(getResponse);
-        newTemplateJsonNode = JsonMapper.MAPPER.readTree(c.request().getRequestBody().asJsonString());
+        oldTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
+        newTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(c.request().getRequestBody().asJsonString());
         if (oldTemplateJsonNode != null && newTemplateJsonNode != null) {
           JsonArtifactReader reader = new JsonArtifactReader();
           TemplateSchemaArtifact oldModelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) oldTemplateJsonNode);
@@ -732,33 +729,57 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           if (!(createResponse.getEntity() instanceof FolderServerTemplate entity)) {
             log.error("Draft creation for template {} returned a successful response without a template entity", tid);
             return CedarResponse.internalServerError()
-                .errorMessage("Draft creation returned an invalid response")
+                .message("Draft creation returned an invalid response")
                 .parameter("id", tid)
                 .build();
           }
           String newTemplateIdString = entity.getId();
           CedarTemplateId newTemplateId = CedarTemplateId.build(newTemplateIdString);
 
-          ((ObjectNode) newTemplateJsonNode).put(JSON_LD_ID, newTemplateIdString);
-          ((ObjectNode) newTemplateJsonNode).put(PAV_VERSION, newVersion.getValue());
-          String newDraftEtag = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
-              CedarResourceType.TEMPLATE, newTemplateId, c, microserviceUrlUtil, null).etag();
+          ArtifactServerUtil.ArtifactContent storedDraft =
+              ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
+                  CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null);
+          applyDefinitionToDraft((ObjectNode) newTemplateJsonNode,
+              JsonMapper.STRICT_MAPPER.readTree(storedDraft.content()));
           return executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
-              JsonMapper.MAPPER.writeValueAsString(newTemplateJsonNode), false, newDraftEtag);
+              JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, storedDraft.etag());
         }
       } catch (CedarException e) {
         throw e;
       } catch (Exception e) {
         log.error("Error while publishing template {} and creating its draft", tid, e);
         return CedarResponse.internalServerError()
-            .errorMessage("There was an error while publishing the template and creating its draft")
+            .message("There was an error while publishing the template and creating its draft")
             .parameter("id", tid)
             .build();
       }
     }
     return CedarResponse.internalServerError()
-        .errorMessage("There was an error while publishing the template and creating its draft")
+        .message("There was an error while publishing the template and creating its draft")
         .parameter("id", tid)
         .build();
+  }
+
+  /**
+   * Applies the submitted template definition to the draft that has just been created, without undoing
+   * what creating it established.
+   *
+   * <p>The submitted document describes a template, not this draft. Its identifier, version, status and
+   * predecessor are whatever the client last read, or absent altogether, so all four are read back from
+   * the draft that was stored. The predecessor matters most. A successor that loses it loses the version
+   * it was drawn from, and a client sending a document it had drafted earlier would name that earlier
+   * draft's predecessor instead. The DOI belongs to the published artifact rather than to its successor,
+   * and creating the draft dropped it.
+   */
+  private static void applyDefinitionToDraft(ObjectNode submitted, JsonNode storedDraft) {
+    for (String key : List.of(JSON_LD_ID, PAV_VERSION, BIBO_STATUS, PAV_PREVIOUS_VERSION)) {
+      JsonNode value = storedDraft.get(key);
+      if (value == null) {
+        submitted.remove(key);
+      } else {
+        submitted.set(key, value);
+      }
+    }
+    ModelUtil.removeDOIFromResource(submitted);
   }
 }

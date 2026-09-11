@@ -115,22 +115,35 @@ public class CommandOpenResourceTest {
     HttpResponse<String> opened = request("POST", "/command/make-artifact-open", body, "\"1\"");
     Assertions.assertEquals(200, opened.statusCode(), opened.body());
     Assertions.assertEquals("\"2\"", etag(opened));
-    Assertions.assertTrue(JsonMapper.MAPPER.readTree(opened.body()).path("isOpen").asBoolean());
+    Assertions.assertTrue(JsonMapper.STRICT_MAPPER.readTree(opened.body()).path("isOpen").asBoolean());
 
     HttpResponse<String> staleClose = request("POST", "/command/make-artifact-not-open", body, "\"1\"");
     Assertions.assertEquals(412, staleClose.statusCode(), staleClose.body());
     Assertions.assertEquals("\"2\"",
-        JsonMapper.MAPPER.readTree(staleClose.body()).path("parameters").path("currentETag").asText(),
+        JsonMapper.STRICT_MAPPER.readTree(staleClose.body()).path("parameters").path("currentETag").asText(),
         staleClose.body());
 
     HttpResponse<String> closed = request("POST", "/command/make-artifact-not-open", body, "\"2\"");
     Assertions.assertEquals(200, closed.statusCode(), closed.body());
     Assertions.assertEquals("\"3\"", etag(closed));
-    Assertions.assertFalse(JsonMapper.MAPPER.readTree(closed.body()).path("isOpen").asBoolean());
+    Assertions.assertFalse(JsonMapper.STRICT_MAPPER.readTree(closed.body()).path("isOpen").asBoolean());
 
     HttpResponse<String> wildcard = request("POST", "/command/make-artifact-open", body, "*");
     Assertions.assertEquals(200, wildcard.statusCode(), wildcard.body());
     Assertions.assertEquals("\"4\"", etag(wildcard));
+  }
+
+  /**
+   * A visibility command names the artifact or folder it changes and nothing else. A body carrying
+   * anything more was read past in silence, so a caller could not tell a property the endpoint
+   * ignores from one it acts on.
+   */
+  @Test
+  void aVisibilityCommandRefusesPropertiesItDoesNotAccept() throws Exception {
+    String withTheResourceType = "{\"@id\":\"" + artifactId + "\",\"resourceType\":\"template\"}";
+    HttpResponse<String> refused = request("POST", "/command/make-artifact-open", withTheResourceType, "*");
+    Assertions.assertEquals(400, refused.statusCode(), refused.body());
+    Assertions.assertTrue(refused.body().contains("resourceType"), refused.body());
   }
 
   @Test

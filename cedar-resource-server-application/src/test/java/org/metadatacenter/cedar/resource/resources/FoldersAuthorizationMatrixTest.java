@@ -162,7 +162,7 @@ public class FoldersAuthorizationMatrixTest {
     // folder is intact: still present, still the user's home, still not renamed.
     HttpResponse<String> after = request("GET", folderPath, null, actors.get(OWNER));
     Assertions.assertEquals(200, after.statusCode(), "the owner's folder should have survived the denied requests");
-    JsonNode folder = JsonMapper.MAPPER.readTree(after.body());
+    JsonNode folder = JsonMapper.STRICT_MAPPER.readTree(after.body());
     Assertions.assertTrue(folder.get("isUserHome").asBoolean(), "the folder is no longer the user's home");
     Assertions.assertNotEquals("Renamed By An Intruder", folder.path("schema:name").asText(),
         "a denied request renamed the folder: " + after.body());

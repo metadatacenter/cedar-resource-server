@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.metadatacenter.artifacts.model.core.Annotations;
 import org.metadatacenter.artifacts.model.core.ElementSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateInstanceArtifact;
@@ -26,6 +27,7 @@ import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
@@ -55,6 +57,7 @@ public class CommandFileSystemResourceTest {
 
   private static final String SOURCE_NAME = "Named source artifact";
   private static final String COPIED_NAME = "Copy of " + SOURCE_NAME;
+  private static final String SOURCE_DOI = "10.5072/FK2-source-artifact";
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
       new DropwizardTestSupport<>(ResourceServerApplication.class,
@@ -125,6 +128,7 @@ public class CommandFileSystemResourceTest {
     template.setLatestVersion(true);
     template.setLatestDraftVersion(true);
     template.setLatestPublishedVersion(false);
+    template.setDOI(SOURCE_DOI);
     sourceArtifact = folderSession.createResourceAsChildOfId(template, homeFolderId);
     Assertions.assertNotNull(sourceArtifact);
   }
@@ -183,11 +187,36 @@ public class CommandFileSystemResourceTest {
     Assertions.assertNotNull(postedArtifact, "the copy should be posted to the artifact service");
     Assertions.assertEquals(COPIED_NAME, postedArtifact.get("schema:name").asText());
     Assertions.assertEquals(COPIED_NAME,
-        JsonMapper.MAPPER.readTree(response.body()).get("schema:name").asText());
+        JsonMapper.STRICT_MAPPER.readTree(response.body()).get("schema:name").asText());
+  }
+
+  /**
+   * A DOI identifies the artifact it was minted for. The copy is a different artifact, and its graph
+   * node records no DOI, so a copy that kept the annotation would misidentify itself and fail the
+   * consistency check on its first ordinary edit.
+   */
+  @Test
+  @Order(2)
+  public void copyDropsTheSourceDoi() throws Exception {
+    postedArtifact = null;
+
+    HttpResponse<String> response = postCommand("copy-artifact-to-folder", copyBody());
+
+    Assertions.assertEquals(201, response.statusCode(), response.body());
+    Assertions.assertNotNull(postedArtifact, "the copy should be posted to the artifact service");
+    Assertions.assertFalse(
+        postedArtifact.path(ModelNodeNames.ANNOTATIONS).has(ModelNodeNames.DATACITE_DOI_URI),
+        "the copy carries the source artifact's DOI: " + postedArtifact);
+
+    String copyId = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("@id").asText();
+    FolderServerArtifact copy = folderSession.findArtifactById(
+        CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE));
+    Assertions.assertNotNull(copy, response.body());
+    Assertions.assertNull(copy.getDOI(), "the copy's graph record was given a DOI");
   }
 
   @Test
-  @Order(2)
+  @Order(3)
   public void sourceFetchErrorsAreReturnedWithoutPostingACopy() throws Exception {
     try {
       for (int status : new int[]{404, 500}) {
@@ -207,7 +236,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(3)
+  @Order(4)
   public void emptySourceFetchReturnsBadGatewayWithoutPostingACopy() throws Exception {
     try {
       omitSourceGetBody = true;
@@ -216,10 +245,10 @@ public class CommandFileSystemResourceTest {
       HttpResponse<String> response = postCommand("copy-artifact-to-folder", copyBody());
 
       Assertions.assertEquals(502, response.statusCode(), response.body());
-      JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+      JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
       Assertions.assertEquals("BAD_GATEWAY", error.path("status").asText(), response.body());
       Assertions.assertEquals("Artifact service returned an empty source artifact",
-          error.path("errorMessage").asText(), response.body());
+          error.path("message").asText(), response.body());
       Assertions.assertNull(postedArtifact,
           "an empty source response must not be posted to the artifact service");
     } finally {
@@ -228,7 +257,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(4)
+  @Order(5)
   public void moveMissingResourceReturnsNotFound() throws Exception {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"targetFolderId\":\"" + homeFolderId.getId() + "\"}";
@@ -239,7 +268,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(5)
+  @Order(6)
   public void moveRequiresCurrentSourceEtagAndReturnsTheReplacement() throws Exception {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"targetFolderId\":\"" + moveDestinationId.getId() + "\"}";
@@ -249,7 +278,7 @@ public class CommandFileSystemResourceTest {
 
     HttpResponse<String> stale = postCommand("move-resource-to-folder", body, "\"0\"");
     Assertions.assertEquals(412, stale.statusCode(), stale.body());
-    Assertions.assertEquals("\"1\"", JsonMapper.MAPPER.readTree(stale.body())
+    Assertions.assertEquals("\"1\"", JsonMapper.STRICT_MAPPER.readTree(stale.body())
         .path("parameters").path("currentETag").asText());
 
     HttpResponse<String> moved = postCommand("move-resource-to-folder", body, "\"1\"");
@@ -265,7 +294,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(6)
+  @Order(7)
   public void renameMissingResourceReturnsNotFound() throws Exception {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
@@ -276,7 +305,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(7)
+  @Order(8)
   public void renameArtifactRequiresAndForwardsTheCallersIfMatch() throws Exception {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
@@ -292,7 +321,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(8)
+  @Order(9)
   public void authenticatedCreatesReachArtifactGraphAndIndexServices() throws Exception {
     JsonArtifactRenderer renderer = new JsonArtifactRenderer();
     URI templateId = URI.create("https://repo.metadatacenter.org/templates/write-path-fixture");
@@ -316,7 +345,7 @@ public class CommandFileSystemResourceTest {
           HttpResponse.BodyHandlers.ofString());
 
       Assertions.assertEquals(201, response.statusCode(), artifact.getKey() + ": " + response.body());
-      JsonNode created = JsonMapper.MAPPER.readTree(response.body());
+      JsonNode created = JsonMapper.STRICT_MAPPER.readTree(response.body());
       String createdId = created.path("@id").asText();
       Assertions.assertFalse(createdId.isBlank(), response.body());
       Assertions.assertNotNull(folderSession.findArtifactById(
@@ -331,7 +360,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(9)
+  @Order(10)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
     artifactServer.stop(0);
     artifactServer = null;
@@ -353,9 +382,34 @@ public class CommandFileSystemResourceTest {
     assertServiceUnavailable(deleteResponse);
   }
 
+  /**
+   * A command accepts the properties it declares. The Workspace sent the resource type alongside the
+   * move, where nothing read it, and a caller who misspelled targetFolderId was answered as though
+   * the parent folder were missing rather than told which property the endpoint does not accept.
+   *
+   * <p>The refusal happens before any call to the artifact server, so this holds whether or not the
+   * fixture's artifact server is still up.
+   */
+  @Test
+  @Order(11)
+  public void aCommandRefusesPropertiesItDoesNotAccept() throws Exception {
+    String withTheResourceType = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"resourceType\":\"template\","
+        + "\"targetFolderId\":\"" + moveDestinationId.getId() + "\"}";
+    HttpResponse<String> moved = postCommand("move-resource-to-folder", withTheResourceType, "*");
+    Assertions.assertEquals(400, moved.statusCode(), moved.body());
+    Assertions.assertTrue(moved.body().contains("resourceType"), moved.body());
+
+    String withAMisspelling = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"targetFolderid\":\"" + moveDestinationId.getId() + "\"}";
+    HttpResponse<String> misspelled = postCommand("move-resource-to-folder", withAMisspelling, "*");
+    Assertions.assertEquals(400, misspelled.statusCode(), misspelled.body());
+    Assertions.assertTrue(misspelled.body().contains("targetFolderid"), misspelled.body());
+  }
+
   private static void assertServiceUnavailable(HttpResponse<String> response) throws IOException {
     Assertions.assertEquals(503, response.statusCode(), response.body());
-    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
   }
@@ -395,7 +449,7 @@ public class CommandFileSystemResourceTest {
         response = ("{\"status\":" + status + "}").getBytes(StandardCharsets.UTF_8);
       }
     } else if ("POST".equals(exchange.getRequestMethod())) {
-      postedArtifact = JsonMapper.MAPPER.readTree(exchange.getRequestBody());
+      postedArtifact = JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody());
       ObjectNode created = ((ObjectNode) postedArtifact).deepCopy();
       CedarResourceType resourceType = resourceTypeForPath(exchange.getRequestURI().getPath());
       String createdArtifactId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(resourceType);
@@ -447,6 +501,9 @@ public class CommandFileSystemResourceTest {
         TemplateSchemaArtifact.builder()
             .withName(SOURCE_NAME)
             .withJsonLdId(URI.create(sourceArtifact.getId()))
+            .withAnnotations(Annotations.builder()
+                .withIriAnnotation(ModelNodeNames.DATACITE_DOI_URI, URI.create(SOURCE_DOI))
+                .build())
             .build());
   }
 }

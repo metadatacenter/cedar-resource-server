@@ -209,7 +209,7 @@ public class SearchByIdPermissionTest {
   /** The one row the lookup answers with, after asserting that there is exactly one. */
   private static JsonNode singleRow(HttpResponse<String> response) throws Exception {
     Assertions.assertEquals(200, response.statusCode(), response.body());
-    JsonNode body = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode body = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertEquals(1, body.path("resources").size(), response.body());
     return body.path("resources").get(0);
   }

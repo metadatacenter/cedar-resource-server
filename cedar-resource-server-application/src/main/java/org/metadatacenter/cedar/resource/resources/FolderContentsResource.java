@@ -122,7 +122,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
       return CedarResponse.notFound()
           .id(id)
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
-          .errorMessage("The folder can not be found by id")
+          .message("The folder can not be found by id")
           .build();
     }
 
@@ -133,7 +133,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
       return CedarResponse.forbidden()
           .id(id)
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have read access to the folder")
+          .message("You do not have read access to the folder")
           .build();
     }
 
@@ -227,7 +227,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
       return CedarResponse.notFound()
           .id(id)
           .errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
-          .errorMessage("The folder can not be found by id")
+          .message("The folder can not be found by id")
           .build();
     }
 
@@ -238,7 +238,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
       return CedarResponse.forbidden()
           .id(id)
           .errorKey(CedarErrorKey.NO_READ_ACCESS_TO_FOLDER)
-          .errorMessage("You do not have read access to the folder")
+          .message("You do not have read access to the folder")
           .build();
     }
 

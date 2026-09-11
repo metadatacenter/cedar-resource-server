@@ -9,7 +9,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * this thin bean exists purely to reproduce the {@code ForceRequest} schema that the hand-authored
  * spec exposed. It mirrors that schema exactly.</p>
  */
-@Schema(name = "ForceRequest", description = "Force or not.")
+@Schema(name = "ForceRequest", description = "Force or not.",
+    additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class ForceRequest {
 
   @Schema(name = "force", description = "Force the regeneration, or not")

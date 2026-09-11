@@ -18,12 +18,12 @@ class InterServiceResponseCompatibilityTest {
     FolderServerFolder produced = new FolderServerFolder();
     produced.setId("https://repo.example/folders/one");
     produced.setName("Examples");
-    ObjectNode json = (ObjectNode) JsonMapper.MAPPER.valueToTree(produced);
+    ObjectNode json = (ObjectNode) JsonMapper.STRICT_MAPPER.valueToTree(produced);
     json.put("futureResponseProperty", true);
 
     BasicClassicHttpResponse response = new BasicClassicHttpResponse(HttpStatus.SC_OK);
     response.setEntity(new StringEntity(
-        JsonMapper.MAPPER.writeValueAsString(json), ContentType.APPLICATION_JSON));
+        JsonMapper.STRICT_MAPPER.writeValueAsString(json), ContentType.APPLICATION_JSON));
 
     FolderServerFolder consumed = AbstractResourceServerResource.deserializeResource(
         response, FolderServerFolder.class);

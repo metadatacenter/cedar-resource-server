@@ -37,6 +37,7 @@ import org.metadatacenter.server.security.model.user.CedarUserExtract;
 import org.metadatacenter.server.security.util.CedarUserUtil;
 import org.metadatacenter.server.service.UserService;
 import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -119,12 +120,12 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     CedarRequestContext adminContext = buildRequestContext();
     AdminCommand.AUTH_USER_CALLBACK.enforce(adminContext);
 
-    JsonNode jsonBody = adminContext.request().getRequestBody().asJson();
+    JsonNode jsonBody = adminContext.request().getRequestBody().mustHaveOnly("event", "eventUser").asJson();
 
     if (jsonBody != null) {
       try {
-        Event event = JsonMapper.MAPPER.treeToValue(jsonBody.get("event"), Event.class);
-        CedarUserExtract targetUser = JsonMapper.MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
+        Event event = JsonMapper.STRICT_MAPPER.treeToValue(jsonBody.get("event"), Event.class);
+        CedarUserExtract targetUser = JsonMapper.STRICT_MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
 
         String clientId = event.getClientId();
         if (cedarConfig.getKeycloakConfig().getResource().equals(clientId)) {
@@ -261,7 +262,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     String bodyForArtifactServer = artifactRequestBodyAsJson(requestBody, validatedResourceType(resourceType));
 
     try {
-      ClassicHttpResponse proxyResponse = ProxyUtil.proxyPost(url, c, bodyForArtifactServer);
+      ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).post(url, c, bodyForArtifactServer);
       ProxyUtil.proxyResponseHeaders(proxyResponse, response);
       return createServiceResponse(proxyResponse);
     } catch (CedarException e) {

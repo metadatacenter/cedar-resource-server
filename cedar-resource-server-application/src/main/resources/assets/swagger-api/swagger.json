@@ -3,7 +3,7 @@
   "info" : {
     "description" : "Better Metadata - Better Science\n\nMutable resources use strong ETags for optimistic concurrency. Read the resource (or its\npermissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing\nrequired precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`\naccepts whichever revision currently exists and therefore deliberately gives up lost-update\nprotection. Comma-separated strong validators are also accepted. Representation suffixes such\nas `\"7-json\"`, `\"7-yaml\"`, and `\"7-resource-record\"` identify different bytes of the same\nstored revision and are valid write preconditions.\n\nSee the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)\nfor authentication, request examples, and complete ETag guidance.\n",
     "title" : "CEDAR Resource Server API",
-    "version" : "2.9.10"
+    "version" : "2.9.11"
   },
   "tags" : [ {
     "name" : "Templates"
@@ -136,7 +136,7 @@
           "content" : {
             "*/*" : {
               "schema" : {
-                "$ref" : "#/components/schemas/Category"
+                "$ref" : "#/components/schemas/CategoryCreateRequest"
               }
             }
           },
@@ -579,7 +579,7 @@
           "content" : {
             "*/*" : {
               "schema" : {
-                "$ref" : "#/components/schemas/Category"
+                "$ref" : "#/components/schemas/CategoryUpdateRequest"
               }
             }
           },
@@ -5116,6 +5116,291 @@
         } ],
         "summary" : "Report JVM thread counts",
         "tags" : [ "Service diagnostics" ]
+      }
+    },
+    "/monitor/artifact-counts" : {
+      "get" : {
+        "description" : "Requires MONITOR_READ. Counts stored documents, including any absent from the workspace graph.",
+        "operationId" : "counts",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactCounts"
+                }
+              }
+            },
+            "description" : "Actual artifact document-store counts"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Authentication required"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The caller lacks monitor read permission"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Artifact counts are unavailable"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Count artifact documents",
+        "tags" : [ "Monitoring" ]
+      }
+    },
+    "/open/template-elements/{id}" : {
+      "get" : {
+        "description" : "User credentials never broaden access.",
+        "operationId" : "element",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchemaArtifactDocument"
+                }
+              }
+            },
+            "description" : "The open artifact as JSON"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact and its ancestors are private"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact does not exist"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A required backend is unavailable"
+          }
+        },
+        "summary" : "Read an open element anonymously",
+        "tags" : [ "Open artifacts" ]
+      }
+    },
+    "/open/template-fields/{id}" : {
+      "get" : {
+        "description" : "User credentials never broaden access.",
+        "operationId" : "field",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchemaArtifactDocument"
+                }
+              }
+            },
+            "description" : "The open artifact as JSON"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact and its ancestors are private"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact does not exist"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A required backend is unavailable"
+          }
+        },
+        "summary" : "Read an open field anonymously",
+        "tags" : [ "Open artifacts" ]
+      }
+    },
+    "/open/template-instances/{id}" : {
+      "get" : {
+        "description" : "User credentials never broaden access.",
+        "operationId" : "instance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstanceArtifactDocument"
+                }
+              }
+            },
+            "description" : "The open artifact as JSON"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact and its ancestors are private"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact does not exist"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A required backend is unavailable"
+          }
+        },
+        "summary" : "Read an open instance anonymously",
+        "tags" : [ "Open artifacts" ]
+      }
+    },
+    "/open/templates/{id}" : {
+      "get" : {
+        "description" : "User credentials never broaden access.",
+        "operationId" : "template",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchemaArtifactDocument"
+                }
+              }
+            },
+            "description" : "The open artifact as JSON"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact and its ancestors are private"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact does not exist"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A required backend is unavailable"
+          }
+        },
+        "summary" : "Read an open template anonymously",
+        "tags" : [ "Open artifacts" ]
       }
     },
     "/search" : {
@@ -11186,6 +11471,27 @@
       }
     },
     "schemas" : {
+      "ArtifactCounts" : {
+        "type" : "object",
+        "properties" : {
+          "element" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "field" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "instance" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "template" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
       "ArtifactDetails" : {
         "allOf" : [ {
           "$ref" : "#/components/schemas/ArtifactRecord"
@@ -11351,6 +11657,7 @@
       },
       "AuthUserCallbackRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The Keycloak authentication event and the user it concerns. Provisioning runs only when the\nevent's client identifier names CEDAR's own Keycloak client.\n",
         "properties" : {
           "event" : {
@@ -11386,34 +11693,9 @@
         },
         "required" : [ "event", "eventUser" ]
       },
-      "Category" : {
-        "type" : "object",
-        "description" : "A CEDAR category.",
-        "properties" : {
-          "@id" : {
-            "type" : "string",
-            "description" : "Unique URL identifier representing a specific category."
-          },
-          "parentCategoryId" : {
-            "type" : "string",
-            "description" : "Unique URL identifier representing a specific parent category."
-          },
-          "schema:description" : {
-            "type" : "string",
-            "description" : "Description of the category."
-          },
-          "schema:identifier" : {
-            "type" : "string",
-            "description" : "Identifier, used for identifying this object in outside-to-CEDAR systems."
-          },
-          "schema:name" : {
-            "type" : "string",
-            "description" : "Name of the category."
-          }
-        }
-      },
       "CategoryAclUpdateRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "properties" : {
           "groupPermissions" : {
             "type" : "array",
@@ -11439,6 +11721,7 @@
       },
       "CategoryAttachListRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the attach operation.",
         "properties" : {
           "artifactId" : {
@@ -11457,6 +11740,7 @@
       },
       "CategoryAttachRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the attach/detach operation.",
         "properties" : {
           "artifactId" : {
@@ -11473,6 +11757,30 @@
         "type" : "string",
         "description" : "An operation authorized by the current user's effective access to the category.",
         "enum" : [ "readCategory", "attachCategory", "detachCategory", "updateCategory", "createChildCategory", "deleteCategory", "manageGrants", "moveCategory", "transferOwnership" ]
+      },
+      "CategoryCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "The category to create.",
+        "properties" : {
+          "parentCategoryId" : {
+            "type" : "string",
+            "description" : "Unique URL identifier representing a specific parent category."
+          },
+          "schema:description" : {
+            "type" : "string",
+            "description" : "Description of the category."
+          },
+          "schema:identifier" : {
+            "type" : "string",
+            "description" : "Identifier, used for identifying this object in outside-to-CEDAR systems."
+          },
+          "schema:name" : {
+            "type" : "string",
+            "description" : "Name of the category."
+          }
+        },
+        "required" : [ "parentCategoryId", "schema:description", "schema:name" ]
       },
       "CategoryDetails" : {
         "allOf" : [ {
@@ -11723,6 +12031,25 @@
         } ],
         "description" : "A category and the categories beneath it, nested to the full depth of the tree. A leaf\ncarries an empty `children` array.\n"
       },
+      "CategoryUpdateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "The category properties to change.",
+        "properties" : {
+          "schema:description" : {
+            "type" : "string",
+            "description" : "Description of the category."
+          },
+          "schema:identifier" : {
+            "type" : "string",
+            "description" : "Identifier, used for identifying this object in outside-to-CEDAR systems."
+          },
+          "schema:name" : {
+            "type" : "string",
+            "description" : "Name of the category."
+          }
+        }
+      },
       "CategoryUserGrant" : {
         "type" : "object",
         "properties" : {
@@ -11756,7 +12083,7 @@
       },
       "CedarError" : {
         "type" : "object",
-        "additionalProperties" : true,
+        "additionalProperties" : false,
         "description" : "A CEDAR error response. Diagnostic fields are populated only when they are relevant to the failure.",
         "properties" : {
           "entities" : {
@@ -11778,12 +12105,7 @@
           "errorKey" : {
             "type" : "string",
             "description" : "Stable machine-readable error identifier.",
-            "enum" : [ "templateElementNotCreated", "templateElementNotFound", "templateElementNotDeleted", "templateElementNotUpdated", "templateElementsNotListed", "templateFieldNotCreated", "templateFieldNotFound", "templateFieldNotDeleted", "templateFieldNotUpdated", "templateFieldsNotListed", "templateNotCreated", "templateNotFound", "templateNotDeleted", "templateNotUpdated", "templatesNotListed", "templateInstanceNotCreated", "templateInstanceNotFound", "templateInstanceNotDeleted", "templateInstanceNotUpdated", "templateInstancesNotListed", "noReadAccessToResource", "noWriteAccessToResource", "noReadAccessToFolder", "noWriteAccessToFolder", "noReadAccessToTemplate", "noWriteAccessToTemplate", "noReadAccessToTemplateElement", "noWriteAccessToTemplateElement", "noReadAccessToTemplateField", "noWriteAccessToTemplateField", "noReadAccessToTemplateInstance", "noWriteAccessToTemplateInstance", "noReadAccessToArtifact", "noWriteAccessToArtifact", "noReadAccessToCategory", "noWriteAccessToCategory", "folderNotFound", "artifactNotFound", "artifactPreconditionRequired", "artifactHasMovedOn", "verbatimWriteRefused", "nodeNotFound", "unknownResourceType", "missingParameter", "invalidInput", "sourceFolderNotFound", "sourceResourceNotFound", "targetFolderNotFound", "nodeNotMoved", "groupNotFound", "userNotFound", "uniqueConstraintCollision", "invalidData", "notAuthorized", "permissionMissing", "tokenInvalid", "userInfoLoadByTokenFailed", "userInfoLoadByApiKeyFailed", "cedarUserNotFound", "authorizationNotFound", "permissionNotOwned", "authorizationTypeUnknown", "apiKeyNotFound", "tokenMissing", "tokenExpired", "parentFolderNotSpecified", "parentFolderSpecifiedTwice", "pathNotNormalized", "parentFolderNotFound", "updateInvalidFolderName", "createInvalidFolderName", "nodeAlreadyPresent", "folderNotCreated", "missingNameAndDescription", "missingData", "folderNotDeleted", "artifactNotDeleted", "resourceNotCreated", "invalidResourceType", "invalidArtifactType", "readOtherProfileForbidden", "updateOtherProfileForbidden", "folderCanNotBeDeleted", "folderCanNotBeChanged", "groupAlreadyPresent", "groupCanBeModifiedOnlyByGroupAdmin", "groupCanBeDeletedOnlyByGroupAdmin", "groupMembersCanBeReadOnlyByGroupAdmin", "groupRequiresAdministrator", "groupUsersNotUpdated", "specialGroupCanNotBeDeleted", "folderPermissionsCanNotBeChanged", "unknownInstanceOutputFormat", "folderCopyNotAllowed", "methodNotImplemented", "upstreamServerError", "nothingToDo", "parentCategoryNotFound", "categoryAlreadyPresent", "categoryNotFound", "categoryCanNotBeDeleted", "rootCategoryCanNotBeDeleted", "unableToAttachCategory", "unableToDetachCategory", "noCategoriesWereAttached", "malformedJsonRequestBody", "malformedSearchTerm", "publishedArtifactCanNotBeChanged", "publishedArtifactCanNotBeDeleted", "versioningOnlyOnLatest", "versioningOnlyByOwner", "nonVersionedArtifactType", "createDraftOnlyFromPublished", "publishOnlyDraft", "draftNotCreated", "contentNotValid", "doiNotSupportedByResourceType", "doiCanNotBeSetForEmptyAtId", "doiCanNotBeAltered", "doiCanNotBeSet", "doiAlreadyExists", "dataCiteDOIDisabled", "resourceNotFound", "internalError" ],
-            "nullable" : true
-          },
-          "errorMessage" : {
-            "type" : "string",
-            "description" : "Alias of message retained for compatibility.",
+            "enum" : [ "templateElementNotCreated", "templateElementNotFound", "templateElementNotDeleted", "templateElementNotUpdated", "templateElementsNotListed", "templateFieldNotCreated", "templateFieldNotFound", "templateFieldNotDeleted", "templateFieldNotUpdated", "templateFieldsNotListed", "templateNotCreated", "templateNotFound", "templateNotDeleted", "templateNotUpdated", "templatesNotListed", "templateInstanceNotCreated", "templateInstanceNotFound", "templateInstanceNotDeleted", "templateInstanceNotUpdated", "templateInstancesNotListed", "noReadAccessToResource", "noWriteAccessToResource", "noReadAccessToFolder", "noWriteAccessToFolder", "noReadAccessToTemplate", "noWriteAccessToTemplate", "noReadAccessToTemplateElement", "noWriteAccessToTemplateElement", "noReadAccessToTemplateField", "noWriteAccessToTemplateField", "noReadAccessToTemplateInstance", "noWriteAccessToTemplateInstance", "noReadAccessToArtifact", "noWriteAccessToArtifact", "noReadAccessToCategory", "noWriteAccessToCategory", "folderNotFound", "artifactNotFound", "artifactPreconditionRequired", "artifactHasMovedOn", "verbatimWriteRefused", "nodeNotFound", "unknownResourceType", "missingParameter", "invalidInput", "sourceFolderNotFound", "sourceResourceNotFound", "targetFolderNotFound", "nodeNotMoved", "groupNotFound", "userNotFound", "uniqueConstraintCollision", "invalidData", "notAuthorized", "permissionMissing", "tokenInvalid", "userInfoLoadByTokenFailed", "userInfoLoadByApiKeyFailed", "cedarUserNotFound", "authorizationNotFound", "permissionNotOwned", "authorizationTypeUnknown", "apiKeyNotFound", "tokenMissing", "tokenExpired", "parentFolderNotSpecified", "parentFolderSpecifiedTwice", "pathNotNormalized", "parentFolderNotFound", "updateInvalidFolderName", "createInvalidFolderName", "nodeAlreadyPresent", "folderNotCreated", "missingNameAndDescription", "missingData", "folderNotDeleted", "artifactNotDeleted", "resourceNotCreated", "invalidResourceType", "invalidArtifactType", "readOtherProfileForbidden", "updateOtherProfileForbidden", "folderCanNotBeDeleted", "folderCanNotBeChanged", "groupAlreadyPresent", "groupCanBeModifiedOnlyByGroupAdmin", "groupCanBeDeletedOnlyByGroupAdmin", "groupMembersCanBeReadOnlyByGroupAdmin", "groupRequiresAdministrator", "groupUsersNotUpdated", "specialGroupCanNotBeDeleted", "folderPermissionsCanNotBeChanged", "unknownInstanceOutputFormat", "folderCopyNotAllowed", "methodNotImplemented", "upstreamServerError", "nothingToDo", "parentCategoryNotFound", "categoryAlreadyPresent", "categoryNotFound", "categoryCanNotBeDeleted", "rootCategoryCanNotBeDeleted", "unableToAttachCategory", "unableToDetachCategory", "noCategoriesWereAttached", "malformedJsonRequestBody", "malformedSearchTerm", "publishedArtifactCanNotBeChanged", "publishedArtifactCanNotBeDeleted", "versioningOnlyOnLatest", "versioningOnlyByOwner", "nonVersionedArtifactType", "createDraftOnlyFromPublished", "publishOnlyDraft", "draftNotCreated", "contentNotValid", "doiNotSupportedByResourceType", "doiCanNotBeSetForEmptyAtId", "doiCanNotBeAltered", "doiCanNotBeSet", "doiAlreadyExists", "dataCiteDOIDisabled", "pinnedVersionUnavailable", "resourceNotFound", "internalError" ],
             "nullable" : true
           },
           "errorReasonKey" : {
@@ -11896,6 +12218,7 @@
       },
       "CopyRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the copy operation.",
         "properties" : {
           "@id" : {
@@ -11914,6 +12237,7 @@
       },
       "CreateDraftArtifactRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Info about the creation process.",
         "properties" : {
           "@id" : {
@@ -12141,6 +12465,7 @@
       },
       "FolderCreateRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The parent folder, and the name and description of the folder to create. Name the parent\neither by identifier or by path, not both.\n",
         "properties" : {
           "description" : {
@@ -12195,6 +12520,7 @@
       },
       "FolderReplaceRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The keys a PUT reads, which differ by whether the folder already exists. Replacing an\nexisting folder reads `schema:name` and `schema:description`, and at least one of the two\nmust be present. Creating a folder under a caller-supplied identifier reads `@id`, which\nmust equal the identifier in the path, together with the parent folder and the `name` and\n`description` a POST would read.\n",
         "properties" : {
           "@id" : {
@@ -12224,6 +12550,7 @@
       },
       "ForceRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Force or not.",
         "properties" : {
           "force" : {
@@ -12234,6 +12561,7 @@
       },
       "IdRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Id of the artifact.",
         "properties" : {
           "@id" : {
@@ -12325,6 +12653,7 @@
       },
       "InclusionSubgraphRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "properties" : {
           "@id" : {
             "type" : "string"
@@ -12571,6 +12900,7 @@
       },
       "MoveRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the move operation.",
         "properties" : {
           "@id" : {
@@ -12644,6 +12974,7 @@
       },
       "PublishArtifactRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Info about the publishing process.",
         "properties" : {
           "@id" : {
@@ -12658,6 +12989,7 @@
       },
       "RenameRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "Parameters of the rename operation.",
         "properties" : {
           "@id" : {
@@ -12676,7 +13008,8 @@
       },
       "ResourceAclUpdateRequest" : {
         "type" : "object",
-        "description" : "Complete replacement for a resource's direct grants. Only the `@id` of each user and group\nis read. Any other property of a reference is ignored, so a document returned by the\npermissions endpoint can be sent back with its grants changed.\n",
+        "additionalProperties" : false,
+        "description" : "Complete replacement for a resource's direct grants. A user or group is named by its `@id`\nalone. The report this replaces is wider — a grant comes back carrying the user's name and\nemail — so that document is refused rather than narrowed, and a client sends what this\nschema declares.\n",
         "properties" : {
           "groupPermissions" : {
             "type" : "array",
@@ -12982,6 +13315,7 @@
       },
       "SetDoiRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The artifact and the DOI to annotate it with.",
         "properties" : {
           "@id" : {
@@ -13020,6 +13354,7 @@
       },
       "TemplateRecommendationRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The metadata record to get recommendations for.",
         "properties" : {
           "metadataRecord" : {
@@ -13101,6 +13436,7 @@
       },
       "TransferOwnershipRequest" : {
         "type" : "object",
+        "additionalProperties" : false,
         "description" : "The resource or category and user involved in an ownership transfer.",
         "properties" : {
           "@id" : {

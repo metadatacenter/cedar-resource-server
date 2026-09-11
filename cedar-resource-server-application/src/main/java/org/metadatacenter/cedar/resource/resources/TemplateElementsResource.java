@@ -30,7 +30,7 @@ import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExt
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.http.CedarResponse;
-import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.json.JsonMapper;
 
 import jakarta.ws.rs.*;
@@ -176,7 +176,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnArtifact(c, eid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.ELEMENT, eid);
-    ClassicHttpResponse proxyResponse = ProxyUtil.proxyGet(url, c);
+    ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, c);
     // If error while retrieving artifact, re-run and return proxy call directly
     if (proxyResponse.getCode() != Response.Status.OK.getStatusCode()) {
       return executeResourceGetByProxyFromArtifactServer(CedarResourceType.ELEMENT, id, c);
@@ -186,7 +186,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
     try {
       String elementSource = EntityUtils.toString(entity, CharEncoding.UTF_8);
-      elementNode = JsonMapper.MAPPER.readTree(elementSource);
+      elementNode = JsonMapper.STRICT_MAPPER.readTree(elementSource);
     } catch (IOException | ParseException e) {
       throw new RuntimeException(e);
     }
@@ -214,7 +214,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
     }
     // Unknown accept header
     return CedarResponse.badRequest()
-        .errorMessage("You passed an invalid Accept header: '" + acceptHeader + "'")
+        .message("You passed an invalid Accept header: '" + acceptHeader + "'")
         .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
         .parameter(HttpConstants.HTTP_HEADER_ACCEPT, acceptHeader)
         .parameter("allowed Accept headers", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML}))

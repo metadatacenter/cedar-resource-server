@@ -89,7 +89,7 @@ public class FolderPermissionLevelMatrixTest {
   private static String resharePermissionsBody() throws Exception {
     ResourcePermissionsRequest request = new ResourcePermissionsRequest();
     request.setOwner(new ResourcePermissionUser(user1.getId()));
-    return JsonMapper.MAPPER.writeValueAsString(request);
+    return JsonMapper.STRICT_MAPPER.writeValueAsString(request);
   }
 
   private static Map<PermissionMatrix.Actor, String> actors;

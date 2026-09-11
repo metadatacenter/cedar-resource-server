@@ -11,7 +11,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * identifiers (e.g. {@code @id}, {@code schema:name}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@Schema(name = "RenameRequest", description = "Parameters of the rename operation.")
+@Schema(name = "RenameRequest", description = "Parameters of the rename operation.",
+    additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class RenameRequest {
 
   @Schema(name = "@id", description = "Unique URL identifier representing the resource.")

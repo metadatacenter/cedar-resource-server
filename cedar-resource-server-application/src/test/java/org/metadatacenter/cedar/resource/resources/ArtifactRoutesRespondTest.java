@@ -68,6 +68,8 @@ public class ArtifactRoutesRespondTest {
         registeredComponents,
         "org.metadatacenter.cedar.resource.resources").stream()
         .filter(resourceClass -> !CedarMicroserviceIndexResource.class.isAssignableFrom(resourceClass))
+        // Anonymous reads have their own complete openness matrix, including supplied owner credentials.
+        .filter(resourceClass -> resourceClass != OpenArtifactsResource.class)
         .toList();
 
     Assertions.assertTrue(registeredResources.size() > 4,

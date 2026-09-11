@@ -33,6 +33,7 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.ModelUtil;
 
@@ -80,7 +81,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    CedarRequestBody requestBody = c.request().getRequestBody();
+    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("@id", "doi");
     c.must(requestBody).be(NonEmpty);
     CedarParameter idParameter = requestBody.get("@id");
     CedarParameter doiParameter = requestBody.get("doi");
@@ -100,7 +101,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
     if (!resourceType.supportsDOI()) {
       return CedarResponse.badRequest()
-          .errorMessage("The doi is not supported by the given resource type")
+          .message("The doi is not supported by the given resource type")
           .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
           .parameter("resourceType", resourceType)
           .build();
@@ -110,7 +111,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     if (existingDOI != null) {
       if (!existingDOI.equals(doiInRequest)) {
         return CedarResponse.badRequest()
-            .errorMessage("The doi can not be altered")
+            .message("The doi can not be altered")
             .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_ALTERED)
             .parameter("existingDOI", existingDOI)
             .parameter("doi", doiInRequest)
@@ -119,7 +120,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     }
 
     String artifactGetUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId.getId(), Optional.empty());
-    ClassicHttpResponse artifactGetResponse = ProxyUtil.proxyGet(artifactGetUrl, c);
+    ClassicHttpResponse artifactGetResponse = new ArtifactServiceClient(cedarConfig).get(artifactGetUrl, c);
     if (Response.Status.Family.familyOf(artifactGetResponse.getCode()) != Response.Status.Family.SUCCESSFUL) {
       return generateStatusResponse(artifactGetResponse);
     }
@@ -127,7 +128,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     String expectedEtag = revisionHeader == null ? null : revisionHeader.getValue();
     JsonNode oldArtifactContent;
     try {
-      oldArtifactContent = JsonMapper.MAPPER.readTree(
+      oldArtifactContent = JsonMapper.STRICT_MAPPER.readTree(
           EntityUtils.toString(artifactGetResponse.getEntity(), StandardCharsets.UTF_8));
     } catch (IOException | ParseException e) {
       throw new CedarProcessingException(e);
@@ -158,7 +159,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     } else {
       annotationsNode = objectNode.putObject(ModelNodeNames.ANNOTATIONS);
     }
-    ObjectNode doiNode = JsonMapper.MAPPER.createObjectNode();
+    ObjectNode doiNode = JsonMapper.STRICT_MAPPER.createObjectNode();
     doiNode.put(ModelNodeNames.JSON_LD_ID, doiInRequest);
     annotationsNode.set(ModelNodeNames.DATACITE_DOI_URI, doiNode);
 
@@ -167,8 +168,8 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     String replacementEtag = null;
     ArtifactPreImage artifactPreImage = new ArtifactPreImage(oldArtifactContentJson, expectedEtag);
     try {
-      var artifactPutResponse = ProxyUtil.proxyPut(artifactGetUrl, c,
-          JsonMapper.MAPPER.writeValueAsString(objectNode), expectedEtag);
+      var artifactPutResponse = new ArtifactServiceClient(cedarConfig).put(artifactGetUrl, c,
+          JsonMapper.STRICT_MAPPER.writeValueAsString(objectNode), expectedEtag);
       ProxyUtil.proxyResponseHeaders(artifactPutResponse, response);
       if (Response.Status.Family.familyOf(artifactPutResponse.getCode()) != Response.Status.Family.SUCCESSFUL) {
         return generateStatusResponse(artifactPutResponse);
@@ -194,7 +195,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
   private Response doiCanNotBeAltered(String existingDOI, String requestedDOI) {
     return CedarResponse.badRequest()
-        .errorMessage("The doi can not be altered")
+        .message("The doi can not be altered")
         .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_ALTERED)
         .parameter("existingDOI", existingDOI)
         .parameter("doi", requestedDOI)

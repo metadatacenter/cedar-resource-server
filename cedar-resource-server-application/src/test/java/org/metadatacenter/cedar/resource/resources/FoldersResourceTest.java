@@ -159,7 +159,7 @@ public class FoldersResourceTest {
   public void homeFolderIsServedToItsOwner() throws Exception {
     HttpResponse<String> response = request("GET", "/folders/" + encode(homeFolderId), null, authHeaderUser1);
     Assertions.assertEquals(200, response.statusCode());
-    JsonNode folder = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode folder = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertTrue(folder.get("isUserHome").asBoolean());
     // The unresolvable display names are omitted rather than failing the read.
     Assertions.assertTrue(folder.path("ownedByUserName").isMissingNode() || folder.path("ownedByUserName").isNull(),
@@ -255,6 +255,44 @@ public class FoldersResourceTest {
     };
   }
 
+  /**
+   * A folder write accepts the properties its command declares: the parent, the name and the
+   * description on create, and the schema.org name and description on update. Anything else was
+   * read past in silence, so a create naming "parentFolderId" was answered as though no parent had
+   * been given, and an update carrying the folder document it had just read renamed the folder and
+   * dropped the rest.
+   */
+  @Test
+  public void aFolderWriteRefusesPropertiesItDoesNotAccept() throws Exception {
+    HttpResponse<String> misspelledParent = request("POST", "/folders",
+        "{\"parentFolderId\": \"" + homeFolderId + "\", \"name\": \"Closed Contract Folder\", "
+            + "\"description\": \"a folder for the closed body test\"}",
+        authHeaderUser1);
+    Assertions.assertEquals(400, misspelledParent.statusCode(), misspelledParent.body());
+    Assertions.assertTrue(misspelledParent.body().contains("parentFolderId"), misspelledParent.body());
+
+    HttpResponse<String> created = request("POST", "/folders",
+        "{\"folderId\": \"" + homeFolderId + "\", \"name\": \"Closed Contract Folder\", "
+            + "\"description\": \"a folder for the closed body test\"}",
+        authHeaderUser1);
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    String folderId = JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText();
+
+    HttpResponse<String> read = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
+    Assertions.assertEquals(200, read.statusCode(), read.body());
+
+    HttpResponse<String> echoed = request("PUT", "/folders/" + encode(folderId), read.body(),
+        authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(400, echoed.statusCode(), "PUT of the folder document: " + echoed.body());
+
+    HttpResponse<String> after = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
+    Assertions.assertEquals("Closed Contract Folder",
+        JsonMapper.STRICT_MAPPER.readTree(after.body()).get("schema:name").asText(),
+        "a refused write must leave the folder alone");
+
+    request("DELETE", "/folders/" + encode(folderId), null, authHeaderUser1, "\"1\"");
+  }
+
   @Test
   public void folderLifecycleCreateReadUpdateDelete() throws Exception {
     HttpResponse<String> created = request("POST", "/folders",
@@ -263,13 +301,13 @@ public class FoldersResourceTest {
         authHeaderUser1);
     Assertions.assertEquals(201, created.statusCode());
     Assertions.assertEquals("\"1\"", created.headers().firstValue("ETag").orElse(null));
-    String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
+    String folderId = JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText();
 
     HttpResponse<String> found = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
     Assertions.assertEquals(200, found.statusCode());
     Assertions.assertEquals("\"1\"", found.headers().firstValue("ETag").orElse(null));
     Assertions.assertEquals("Integration Test Folder",
-        JsonMapper.MAPPER.readTree(found.body()).get("schema:name").asText());
+        JsonMapper.STRICT_MAPPER.readTree(found.body()).get("schema:name").asText());
 
     // Unlike create, the update endpoint reads the schema:name / schema:description keys
     HttpResponse<String> missingPrecondition = request("PUT", "/folders/" + encode(folderId),
@@ -318,7 +356,7 @@ public class FoldersResourceTest {
             + "\", \"description\": \"A sacrificial folder for repeated DELETE\"}",
         authHeaderUser1);
     Assertions.assertEquals(201, created.statusCode(), created.body());
-    String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
+    String folderId = JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText();
     String path = "/folders/" + encode(folderId);
     String etag = created.headers().firstValue("ETag").orElseThrow();
 
@@ -357,7 +395,7 @@ public class FoldersResourceTest {
         authHeaderUser1);
     Assertions.assertEquals(201, created.statusCode(), created.body());
 
-    String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
+    String folderId = JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText();
     HttpResponse<String> deleted = request("DELETE", "/folders/" + encode(folderId), null,
         authHeaderUser1, "\"1\"");
     Assertions.assertEquals(204, deleted.statusCode(), deleted.body());
@@ -369,7 +407,7 @@ public class FoldersResourceTest {
         "{\"folderId\": \"" + homeFolderId + "\", \"name\": \"Command Rename Folder\", "
             + "\"description\": \"ETag command test\"}", authHeaderUser1);
     Assertions.assertEquals(201, created.statusCode(), created.body());
-    String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
+    String folderId = JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText();
     String commandBody = "{\"@id\":\"" + folderId
         + "\",\"schema:name\":\"Command Renamed Folder\"}";
 
@@ -386,7 +424,7 @@ public class FoldersResourceTest {
 
     HttpResponse<String> after = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
     Assertions.assertEquals("Command Renamed Folder",
-        JsonMapper.MAPPER.readTree(after.body()).get("schema:name").asText());
+        JsonMapper.STRICT_MAPPER.readTree(after.body()).get("schema:name").asText());
     Assertions.assertEquals(204, request("DELETE", "/folders/" + encode(folderId), null,
         authHeaderUser1, "\"2\"").statusCode());
   }
@@ -405,7 +443,7 @@ public class FoldersResourceTest {
         "{\"path\": \"" + homeFolderPath + "\", \"name\": \"Versioned ACL REST Folder\", "
             + "\"description\": \"ETag test\"}", authHeaderUser1);
     Assertions.assertEquals(201, created.statusCode(), created.body());
-    String folderId = JsonMapper.MAPPER.readTree(created.body()).get("@id").asText();
+    String folderId = JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText();
     String permissionsPath = "/folders/" + encode(folderId) + "/permissions";
     String body = "{\"owner\":{\"@id\":\"" + user1Id
         + "\"},\"userPermissions\":[],\"groupPermissions\":[]}";

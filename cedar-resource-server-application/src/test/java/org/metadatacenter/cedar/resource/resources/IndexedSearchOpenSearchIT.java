@@ -183,7 +183,7 @@ public class IndexedSearchOpenSearchIT {
         .build();
     HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
     assertEquals(200, response.statusCode(), response.body());
-    return JsonMapper.MAPPER.readTree(response.body());
+    return JsonMapper.STRICT_MAPPER.readTree(response.body());
   }
 
   private static Set<String> resourceIds(JsonNode response) {

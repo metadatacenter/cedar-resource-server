@@ -11,7 +11,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * legal Java identifiers (e.g. {@code @id}) are mapped via the {@code name} attribute of
  * {@link ApiModelProperty}.</p>
  */
-@Schema(name = "CreateDraftArtifactRequest", description = "Info about the creation process.")
+@Schema(name = "CreateDraftArtifactRequest", description = "Info about the creation process.",
+    additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class CreateDraftArtifactRequest {
 
   @Schema(name = "@id", description = "Unique URL identifier representing the source artifact.")

@@ -305,7 +305,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
       HttpResponse<String> after = request("GET", artifact.path() + "/details", null, actors.get(OWNER));
       Assertions.assertEquals(200, after.statusCode(),
           "the owner's " + artifact.label() + " should have survived the denied requests");
-      JsonNode details = JsonMapper.MAPPER.readTree(after.body());
+      JsonNode details = JsonMapper.STRICT_MAPPER.readTree(after.body());
       Assertions.assertEquals(artifact.name(), details.path("schema:name").asText(),
           "a denied request changed the " + artifact.label() + ": " + after.body());
     }
@@ -361,7 +361,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
     HttpResponse<String> after = request("GET", categoryPath, null, actors.get(OWNER));
     Assertions.assertEquals(200, after.statusCode(), "the owner's category should have survived the denied requests");
-    JsonNode category = JsonMapper.MAPPER.readTree(after.body());
+    JsonNode category = JsonMapper.STRICT_MAPPER.readTree(after.body());
     Assertions.assertEquals(categoryName, category.path("schema:name").asText(),
         "a denied request renamed the category: " + after.body());
   }
@@ -377,7 +377,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
     HttpResponse<String> after = request("GET", categoryPath, null, adminAuthHeader);
     Assertions.assertEquals(200, after.statusCode(), after.body());
-    Assertions.assertEquals(categoryName, JsonMapper.MAPPER.readTree(after.body()).path("schema:name").asText());
+    Assertions.assertEquals(categoryName, JsonMapper.STRICT_MAPPER.readTree(after.body()).path("schema:name").asText());
   }
 
   @Test
@@ -529,7 +529,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
     HttpResponse<String> categoryAsUser2 = request("GET", categoryRoute, null, actors.get(OTHER_USER));
     Assertions.assertEquals(200, categoryAsUser2.statusCode(), categoryAsUser2.body());
-    JsonNode currentUser = JsonMapper.MAPPER.readTree(categoryAsUser2.body()).path("currentUserPermissions");
+    JsonNode currentUser = JsonMapper.STRICT_MAPPER.readTree(categoryAsUser2.body()).path("currentUserPermissions");
     Assertions.assertEquals("editor", currentUser.path("role").asText());
     Assertions.assertTrue(containsText(currentUser.path("capabilities"), "updateCategory"));
     Assertions.assertFalse(containsText(currentUser.path("capabilities"), "manageGrants"));
@@ -559,7 +559,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     HttpResponse<String> transferred = request("POST", "/command/transfer-category-ownership",
         transferBody, actors.get(OWNER), granted.headers().firstValue("ETag").orElseThrow());
     Assertions.assertEquals(200, transferred.statusCode(), transferred.body());
-    JsonNode response = JsonMapper.MAPPER.readTree(transferred.body());
+    JsonNode response = JsonMapper.STRICT_MAPPER.readTree(transferred.body());
     Assertions.assertEquals(user2Id, response.path("owner").path("@id").asText());
     Assertions.assertEquals(0, response.path("userPermissions").size(),
         "The new owner's direct Manager grant must be removed during transfer");

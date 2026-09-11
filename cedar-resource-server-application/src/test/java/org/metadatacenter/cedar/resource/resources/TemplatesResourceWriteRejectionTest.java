@@ -207,7 +207,7 @@ public class TemplatesResourceWriteRejectionTest {
     HttpResponse<String> response = post("", "{}", "application/json");
 
     Assertions.assertEquals(503, response.statusCode(), response.body());
-    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
     Assertions.assertTrue(error.path("originalException").isMissingNode()
@@ -222,7 +222,7 @@ public class TemplatesResourceWriteRejectionTest {
     HttpResponse<String> response = postCommand("validate?resourceType=template", "{}");
 
     Assertions.assertEquals(503, response.statusCode(), response.body());
-    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
   }
@@ -242,7 +242,7 @@ public class TemplatesResourceWriteRejectionTest {
     HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
     Assertions.assertEquals(503, response.statusCode(), response.body());
-    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
   }
@@ -252,7 +252,7 @@ public class TemplatesResourceWriteRejectionTest {
     HttpResponse<String> response = search("?q=outage");
 
     Assertions.assertEquals(503, response.statusCode(), response.body());
-    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("OpenSearch is unavailable", error.path("message").asText(), response.body());
     Assertions.assertTrue(error.path("originalException").isMissingNode()
@@ -327,7 +327,7 @@ public class TemplatesResourceWriteRejectionTest {
     HttpResponse<String> response = search("?mode=special-folders");
 
     Assertions.assertEquals(503, response.statusCode(), response.body());
-    JsonNode error = JsonMapper.MAPPER.readTree(response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("Neo4j is unavailable", error.path("message").asText(), response.body());
     Assertions.assertTrue(error.path("originalException").isMissingNode()

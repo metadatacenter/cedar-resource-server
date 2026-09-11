@@ -77,13 +77,13 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    InclusionSubgraphRequest treeRequest = JsonMapper.MAPPER.readValue(c.request().getRequestBody().asJsonString(), InclusionSubgraphRequest.class);
+    InclusionSubgraphRequest treeRequest = c.request().getRequestBody().convert(InclusionSubgraphRequest.class);
 
     String id = treeRequest.getId();
     if (id == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_DATA)
-          .errorMessage("@id not provided for the inclusion subgraph request")
+          .message("@id not provided for the inclusion subgraph request")
           .build();
     }
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
@@ -124,13 +124,13 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    InclusionSubgraphRequest treeRequest = JsonMapper.MAPPER.readValue(c.request().getRequestBody().asJsonString(), InclusionSubgraphRequest.class);
+    InclusionSubgraphRequest treeRequest = c.request().getRequestBody().convert(InclusionSubgraphRequest.class);
 
     String id = treeRequest.getId();
     if (id == null) {
       return CedarResponse.badRequest()
           .errorKey(CedarErrorKey.INVALID_DATA)
-          .errorMessage("@id not provided for the inclusion subgraph request")
+          .message("@id not provided for the inclusion subgraph request")
           .build();
     }
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
@@ -151,7 +151,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       if (targetArtifactId == null) {
         return CedarResponse.badRequest()
             .errorKey(CedarErrorKey.INVALID_DATA)
-            .errorMessage("The target is not an artifact id: " + todo.getTargetId())
+            .message("The target is not an artifact id: " + todo.getTargetId())
             .build();
       }
       userMustHaveCapabilityOnArtifact(c, targetArtifactId, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
@@ -162,12 +162,12 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       CedarTypedSchemaArtifactId sourceArtifactId = CedarResourceTypeUtil.buildTypedArtifactId(todo.getSourceId());
       CedarTypedSchemaArtifactId targetArtifactId = CedarResourceTypeUtil.buildTypedArtifactId(todo.getTargetId());
 
-      String sourceArtifact = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(sourceArtifactId.getType(), sourceArtifactId, c, microserviceUrlUtil, null);
+      String sourceArtifact = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(sourceArtifactId.getType(), sourceArtifactId, c, cedarConfig, null);
       var targetArtifactContent = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
-          targetArtifactId.getType(), targetArtifactId, c, microserviceUrlUtil, null);
+          targetArtifactId.getType(), targetArtifactId, c, cedarConfig, null);
       String targetArtifact = targetArtifactContent.content();
-      JsonNode sourceJsonNode = JsonMapper.MAPPER.readTree(sourceArtifact);
-      JsonNode targetJsonNode = JsonMapper.MAPPER.readTree(targetArtifact);
+      JsonNode sourceJsonNode = JsonMapper.STRICT_MAPPER.readTree(sourceArtifact);
+      JsonNode targetJsonNode = JsonMapper.STRICT_MAPPER.readTree(targetArtifact);
 
       // The graph said the target includes the source, but the content is what gets written. When the
       // two disagree, writing the target back unchanged would bump its provenance for no change at all.
@@ -177,10 +177,10 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         outcomes.add(InclusionSubgraphUpdateOutcome.unchanged(todo.getSourceId(), todo.getTargetId()));
         continue;
       }
-      String newTargetContent = JsonMapper.MAPPER.writeValueAsString(targetJsonNode);
+      String newTargetContent = JsonMapper.STRICT_MAPPER.writeValueAsString(targetJsonNode);
 
       Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(targetArtifactId.getType(),
-          targetArtifactId, c, newTargetContent, microserviceUrlUtil, targetArtifactContent.etag());
+          targetArtifactId, c, newTargetContent, cedarConfig, targetArtifactContent.etag());
       int putStatus = putResponse.getStatus();
       if (putStatus >= 400) {
         log.error("The artifact server refused the propagation of {} into {} with status {}",
