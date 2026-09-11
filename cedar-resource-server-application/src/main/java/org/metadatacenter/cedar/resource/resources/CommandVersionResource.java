@@ -51,6 +51,7 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.neo4j.cypher.NodeProperty;
+import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.resource.CloneInstancesEnqueueService;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
@@ -467,11 +468,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           newDocument.put(ModelNodeNames.PAV_VERSION, newVersion.getValue());
           newDocument.put(ModelNodeNames.BIBO_STATUS, BiboStatus.DRAFT.getValue());
           newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, aid.getId());
-          // Null rather than removed: the artifact server assigns the identifier of the draft it is
-          // about to create, and the key carrying null is how anything asks for one.
-          newDocument.putNull(ModelNodeNames.JSON_LD_ID);
-
-          ModelUtil.removeDOIFromResource(newDocument);
+          // A draft is the same intellectual artifact at a new version, so it keeps schema:identifier
+          // where a copy drops it, but it is a new document to the artifact server all the same.
+          ArtifactCopyOperations.prepareDerivedBody(newDocument);
 
           userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
 

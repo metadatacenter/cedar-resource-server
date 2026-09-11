@@ -209,10 +209,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
             .build();
       }
       JsonNode jsonNode = JsonMapper.STRICT_MAPPER.readTree(originalDocument);
-      // Null rather than removed: the artifact server assigns the identifier, and the key carrying
-      // null is how anything asks for one — an absent key cannot be told from a forgotten one.
-      ((ObjectNode) jsonNode).putNull("@id");
-      ModelUtil.removeDOIFromResource((ObjectNode) jsonNode);
+      ArtifactCopyOperations.prepareDerivedBody((ObjectNode) jsonNode);
       String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
       if (oldName == null) {
         oldName = "";
