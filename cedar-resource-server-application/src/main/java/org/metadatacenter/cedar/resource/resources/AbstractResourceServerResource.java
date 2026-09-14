@@ -993,10 +993,10 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     // Deliberately NOT blocking deletion of a published artifact. Commit 3f26ee7 (2021, "Allow users
     // to delete published resources") disabled this guard on purpose, and that decision stands: making
-    // published artifacts un-deletable strands them and their folders with no cleanup path. This
-    // contradicts the documentation, which says published artifacts are permanent; that discrepancy is
-    // tracked on the roadmap ("Decide whether a published artifact may be deleted"). The re-publish
-    // guard is separate and IS enforced (see CommandVersionResource).
+    // published artifacts un-deletable strands them and their folders with no cleanup path. The user
+    // guide no longer claims a published artifact is permanent, and the backend runbook records this
+    // under "Artifact write and diagnostic contracts". The re-publish guard is separate and IS
+    // enforced (see CommandVersionResource).
     // if (isSchemaArtifact && schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
     //   return CedarResponse.badRequest()
     //       .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_DELETED)
