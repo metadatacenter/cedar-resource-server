@@ -4,6 +4,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import org.metadatacenter.server.search.util.IndexingPhase;
+import org.metadatacenter.server.search.util.IndexingProgress;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -45,8 +48,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class IndexJobGuardTest {
 
   private static final Instant CLAIMED_AT = Instant.parse("2026-01-01T00:00:00Z");
-  private static final Instant WITHIN_DEADLINE = CLAIMED_AT.plus(JobClaim.DEADLINE).minusSeconds(1);
-  private static final Instant PAST_DEADLINE = CLAIMED_AT.plus(JobClaim.DEADLINE).plusSeconds(1);
+  // A job is now weighed by how long it has been silent, not by how long it has been running, so
+  // these are measured from the claim's own heartbeat rather than from an elapsed-time deadline.
+  private static final Instant WITHIN_DEADLINE = CLAIMED_AT.plus(IndexJobGuard.STALL_AFTER).minusSeconds(1);
+  private static final Instant PAST_DEADLINE = CLAIMED_AT.plus(IndexJobGuard.STALL_AFTER).plusSeconds(1);
 
   /**
    * The guard is process-wide, so a claim left outstanding crosses from one test to the next and
@@ -69,7 +74,7 @@ public class IndexJobGuardTest {
   }
 
   private static void releaseEveryIndex() {
-    Instant afterEveryDeadline = Instant.now().plus(JobClaim.DEADLINE).plus(JobClaim.DEADLINE);
+    Instant afterEveryDeadline = Instant.now().plus(IndexJobGuard.STALL_AFTER).plus(IndexJobGuard.STALL_AFTER);
     for (IndexJobGuard.Index index : IndexJobGuard.Index.values()) {
       IndexJobGuard.reset(index, afterEveryDeadline);
     }
@@ -199,7 +204,7 @@ public class IndexJobGuardTest {
     IndexJobGuard.Status within = IndexJobGuard.status(IndexJobGuard.Index.SEARCH, WITHIN_DEADLINE);
     assertEquals(IndexJobGuard.State.RUNNING, within.state());
     assertFalse(within.overdue());
-    assertEquals(CLAIMED_AT.plus(JobClaim.DEADLINE).toString(), within.deadlineAt());
+    assertEquals(CLAIMED_AT.plus(IndexJobGuard.STALL_AFTER).toString(), within.deadlineAt());
 
     IndexJobGuard.Status past = IndexJobGuard.status(IndexJobGuard.Index.SEARCH, PAST_DEADLINE);
     assertEquals(IndexJobGuard.State.RUNNING, past.state(), "the guard cannot know the job has stopped");
@@ -224,7 +229,7 @@ public class IndexJobGuardTest {
     IndexJobGuard.Status status = IndexJobGuard.status(IndexJobGuard.Index.SEARCH);
     assertEquals(IndexJobGuard.State.ABANDONED, status.state());
     assertEquals("regenerate-search-index", status.command(), "the reset keeps the record of what was abandoned");
-    assertTrue(status.failure().contains("deadline"), status.failure());
+    assertTrue(status.failure().contains("no progress"), status.failure());
     assertTrue(claim(IndexJobGuard.Index.SEARCH, "generate-empty-search-index").isPresent(),
         "the point of the reset is that the next rebuild can run");
   }
@@ -307,7 +312,7 @@ public class IndexJobGuardTest {
 
     IndexJobGuard.Status found = IndexJobGuard.find(abandoned.id()).orElseThrow();
     assertEquals(IndexJobGuard.State.ABANDONED, found.state());
-    assertTrue(found.failure().contains("deadline"), found.failure());
+    assertTrue(found.failure().contains("no progress"), found.failure());
   }
 
   @Test
@@ -341,4 +346,49 @@ public class IndexJobGuardTest {
   private Optional<JobClaim> claim(IndexJobGuard.Index index, String command) {
     return IndexJobGuard.tryStart(index, command, CLAIMED_AT);
   }
+  /**
+   * The bug this rule replaced. The claim is months old — far past any elapsed-time deadline — but the
+   * job reported progress a moment ago, so it is a large repository rather than a stuck rebuild. The
+   * old rule called this overdue and invited an operator to reset it, which would have let a second
+   * rebuild start over the same alias.
+   */
+  @Test
+  public void aRebuildThatStartedLongAgoIsNotOverdueWhileItIsStillWorking() {
+    JobClaim claim = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+    IndexingProgress progress = IndexJobGuard.progressOf(claim).orElseThrow();
+
+    progress.enterPhase(IndexingPhase.INDEXING);
+    Instant now = Instant.now();
+
+    assertTrue(now.isAfter(CLAIMED_AT.plus(IndexJobGuard.STALL_AFTER)),
+        "the claim has to be older than any elapsed-time deadline for this to test anything");
+    assertFalse(IndexJobGuard.status(IndexJobGuard.Index.SEARCH, now).overdue(),
+        "elapsed time is not evidence that a rebuild has stopped");
+    assertFalse(IndexJobGuard.reset(IndexJobGuard.Index.SEARCH, now),
+        "a working rebuild must not be resettable, or a second one starts over the same alias");
+  }
+
+  @Test
+  public void theDeadlineMovesForwardEachTimeTheJobReportsProgress() {
+    JobClaim claim = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+    IndexingProgress progress = IndexJobGuard.progressOf(claim).orElseThrow();
+
+    String before = IndexJobGuard.status(IndexJobGuard.Index.SEARCH).deadlineAt();
+    progress.enterPhase(IndexingPhase.INDEXING);
+    String after = IndexJobGuard.status(IndexJobGuard.Index.SEARCH).deadlineAt();
+
+    assertTrue(Instant.parse(after).isAfter(Instant.parse(before)),
+        "a job that says something has bought itself more time");
+  }
+
+  @Test
+  public void aJobThatHasSaidNothingForLongEnoughIsOverdue() {
+    claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+
+    IndexJobGuard.Status status = IndexJobGuard.status(IndexJobGuard.Index.SEARCH, PAST_DEADLINE);
+
+    assertTrue(status.overdue());
+    assertTrue(IndexJobGuard.reset(IndexJobGuard.Index.SEARCH, PAST_DEADLINE));
+  }
+
 }

@@ -207,8 +207,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         .message("A " + status.command() + " job started at " + status.startedAt()
             + " is still running over the " + index.name().toLowerCase() + " index"
             + (status.overdue()
-               ? ", and it passed its deadline at " + status.deadlineAt()
-                 + ". Reset it with POST " + resetPath(index) + " if it has stopped making progress"
+               ? ", and it has reported no progress for long enough to be believed stopped."
+                 + " Reset it with POST " + resetPath(index)
                : ""))
         .parameter("jobId", status.jobId())
         .parameter("index", index.name())
@@ -350,7 +350,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           .message("Nothing to reset on the " + index.name().toLowerCase() + " index: it is "
               + status.state().name().toLowerCase()
               + (status.state() == IndexJobGuard.State.RUNNING
-                 ? " and within its deadline, which expires at " + status.deadlineAt() : ""))
+                 ? " and still reporting progress; it would be believed stopped at "
+                   + status.deadlineAt() : ""))
           .parameter("index", index.name())
           .parameter("state", status.state().name())
           .parameter("deadlineAt", status.deadlineAt())
@@ -427,6 +428,10 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       return alreadyRunning(IndexJobGuard.Index.SEARCH);
     }
 
+    // The guard created this when it granted the claim, so a poll that arrives before the job's own
+    // thread has started still reads a record rather than nothing.
+    IndexingProgress progress = IndexJobGuard.progressOf(claim.get()).orElseGet(IndexingProgress::new);
+
     submitClaimedIndexJob(IndexJobGuard.Index.SEARCH, claim.get(), "search index regeneration", () -> {
       // 1. LOAD VALUE SETS ONTOLOGY. This step is only required in CEDAR installations that need to load CDEs into the
       // index (e.g., CEDAR Production). In those cases, this task ensures that the CDE values are available to be
@@ -436,6 +441,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       // The import is claimed here as /command/load-valuesets-ontology claims it. This route used to run
       // the same task without claiming, so a regeneration could load the ontology alongside an import
       // already running, and report COMPLETE over the status of the import that was still going.
+      progress.enterPhase(IndexingPhase.LOADING_VALUE_SETS);
       ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
       Optional<JobClaim> importClaim = imports.tryStart();
       if (importClaim.isEmpty()) {
@@ -455,7 +461,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       // 2. REGENERATE SEARCH INDEX
       RegenerateSearchIndexTask regenerateIndexTask = new RegenerateSearchIndexTask(cedarConfig);
       CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-      regenerateIndexTask.regenerateSearchIndex(force, cedarAdminRequestContext);
+      regenerateIndexTask.regenerateSearchIndex(force, cedarAdminRequestContext, progress);
     });
 
     return queued(IndexJobGuard.Index.SEARCH, claim.get());

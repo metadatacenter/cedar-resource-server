@@ -59,7 +59,7 @@ public class ClaimedIndexJobSubmissionTest {
    * a test could have set takes back either, which is what these hooks promise.
    */
   private static void releaseBothClaims() {
-    Instant afterEveryDeadline = Instant.now().plus(JobClaim.DEADLINE).plus(JobClaim.DEADLINE);
+    Instant afterEveryDeadline = Instant.now().plus(IndexJobGuard.STALL_AFTER).plus(IndexJobGuard.STALL_AFTER);
     for (IndexJobGuard.Index index : IndexJobGuard.Index.values()) {
       IndexJobGuard.reset(index, afterEveryDeadline);
     }
