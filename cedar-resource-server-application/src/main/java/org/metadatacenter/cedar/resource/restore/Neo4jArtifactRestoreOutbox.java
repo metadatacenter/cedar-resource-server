@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource.restore;
 
+import org.metadatacenter.server.neo4j.ArtifactRestoreTransaction;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.CedarTestRuntime;
 import org.metadatacenter.model.CedarResourceType;
@@ -33,6 +34,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
 
+  private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Neo4jArtifactRestoreOutbox.class);
   private static final String LABEL = "CedarArtifactRestoreOutbox";
   private static final String JOB_PROJECTION = "e.jobId AS jobId, e.resourceId AS resourceId, "
       + "e.resourceType AS resourceType, e.preImage AS preImage, "
@@ -68,6 +70,8 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
     try (Session session = driver.session()) {
       session.run("CREATE CONSTRAINT cedar_artifact_restore_resource IF NOT EXISTS "
           + "FOR (e:" + LABEL + ") REQUIRE e.resourceId IS UNIQUE").consume();
+      session.run("MATCH (e:" + LABEL + ") WHERE e.protocolVersion IS NULL "
+          + "SET e.parked = true, e.parkedReason = 'Legacy job: graph completion is unknown'").consume();
     }
   }
 
@@ -90,9 +94,9 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
     String query = "MERGE (e:" + LABEL + " {resourceId: $resourceId}) "
         + "ON CREATE SET e.jobId = $jobId, e.resourceType = $resourceType, e.preImage = $preImage, "
         + "e.conditionEtag = $conditionEtag, e.verbatim = $verbatim, e.createdAt = timestamp(), "
-        + "e.nextAttemptAt = timestamp() + $initialDelayMillis "
-        + "ON MATCH SET e.conditionEtag = $conditionEtag, e.verbatim = $verbatim, "
-        + "e.nextAttemptAt = timestamp() + $initialDelayMillis "
+        + "e.protocolVersion = 2, e.nextAttemptAt = timestamp() + $initialDelayMillis "
+        + "ON MATCH SET e.jobId = $jobId, e.restoreStarted = false, e.parked = false, e.attempts = 0, e.conditionEtag = $conditionEtag, e.verbatim = $verbatim, "
+        + "e.protocolVersion = 2, e.nextAttemptAt = timestamp() + $initialDelayMillis "
         + "RETURN " + JOB_PROJECTION;
     Map<String, Object> parameters = new HashMap<>();
     parameters.put("jobId", UUID.randomUUID().toString());
@@ -103,7 +107,15 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
     parameters.put("verbatim", verbatim);
     parameters.put("initialDelayMillis", initialDelayMillis);
     try (Session session = driver.session()) {
-      return session.writeTransaction(tx -> fromRecord(tx.run(query, parameters).single()));
+      return session.writeTransaction(tx -> {
+        var existing = tx.run("MATCH (e:" + LABEL + " {resourceId: $resourceId}) "
+            + "SET e.lockVersion = coalesce(e.lockVersion, 0) + 1 RETURN e.protocolVersion AS version",
+            Map.of("resourceId", resourceId));
+        if (existing.hasNext() && existing.single().get("version").asInt(0) != 2) {
+          throw new IllegalStateException("A legacy restore needs inspection before preparing another: " + resourceId);
+        }
+        return fromRecord(tx.run(query, parameters).single());
+      });
     }
   }
 
@@ -119,7 +131,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
    */
   public List<ArtifactRestoreJob> pending(int limit) {
     String query = "MATCH (e:" + LABEL + ") WHERE coalesce(e.nextAttemptAt, 0) <= timestamp() "
-        + "AND coalesce(e.parked, false) = false "
+        + "AND e.protocolVersion = 2 AND coalesce(e.parked, false) = false "
         + "WITH e ORDER BY e.createdAt, e.jobId LIMIT $limit "
         + "RETURN properties(e) AS job";
     try (Session session = driver.session()) {
@@ -185,6 +197,44 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
       return session.readTransaction(tx -> tx.run(
               "MATCH (e:" + LABEL + ") WHERE e.parked = true RETURN count(e) AS parked")
           .single().get("parked").asLong());
+    }
+  }
+
+  /** Hold the same node lock used by graph completion for the entire conditional HTTP restore. */
+  public void restoreIfPending(ArtifactRestoreJob job, java.util.function.ToIntFunction<ArtifactRestoreJob> restore) {
+    try (Session session = driver.session()) {
+      // Persist the decision before HTTP: even if the later transaction rolls back after an
+      // uncertain response, the original graph write must never commit over a possible restore.
+      boolean started = session.writeTransaction(tx -> {
+        if (!ArtifactRestoreTransaction.lock(tx, job.jobId())) {
+          return false;
+        }
+        tx.run("MATCH (e:CedarArtifactRestoreOutbox {jobId: $jobId}) SET e.restoreStarted = true",
+            Map.of("jobId", job.jobId())).consume();
+        return true;
+      });
+      if (!started) { return; }
+      session.writeTransaction(tx -> {
+        if (!ArtifactRestoreTransaction.lock(tx, job.jobId())) {
+          return null;
+        }
+        int status = restore.applyAsInt(job);
+        if (status == 200 || status == 201 || status == 404 || status == 412) {
+          ArtifactRestoreTransaction.remove(tx, job.jobId());
+          log.info("Finished restore job for {} with status {}", job.resourceId(), status);
+        } else {
+          var result = tx.run("MATCH (e:CedarArtifactRestoreOutbox {jobId: $jobId}) "
+              + "SET e.attempts = coalesce(e.attempts, 0) + 1, e.nextAttemptAt = timestamp() + 5000 "
+              + "SET e.parked = (e.attempts >= 60 OR ($status >= 400 AND $status < 500)), "
+              + "e.parkedReason = $reason RETURN e.parked AS parked, e.attempts AS attempts",
+              Map.of("jobId", job.jobId(), "status", status, "reason", "Restore returned " + status)).single();
+          if (result.get("parked").asBoolean()) {
+            log.error("Parking restore for {} after {} attempts (status {})", job.resourceId(),
+                result.get("attempts").asLong(), status);
+          }
+        }
+        return null;
+      });
     }
   }
 

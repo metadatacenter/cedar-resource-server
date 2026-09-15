@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.restore;
 
 import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.id.CedarArtifactId;
@@ -36,13 +35,6 @@ public final class ArtifactRestoreCompletionService implements AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(ArtifactRestoreCompletionService.class);
   private static final int BATCH_SIZE = 25;
-
-  /**
-   * How many times a restore is tried before it is parked. The relay runs every five seconds, so
-   * this is a few minutes of trying -- long enough to sit out a restart of the artifact server, and
-   * short enough that a restore which will never succeed stops asking and starts being visible.
-   */
-  private static final long MAX_ATTEMPTS = 60;
 
   private final CedarConfig cedarConfig;
   private final UserService userService;
@@ -85,37 +77,6 @@ public final class ArtifactRestoreCompletionService implements AutoCloseable {
     }
   }
 
-  /** The graph update committed, so there is nothing to undo. */
-  public void abandon(ArtifactRestoreJob job) {
-    if (job == null) {
-      return;
-    }
-    try {
-      outbox.remove(job.jobId());
-    } catch (Exception e) {
-      // The relay's first attempt will find the artifact and the graph already agreeing: the
-      // restore's If-Match no longer matches, which answers 412 and removes the job.
-      log.warn("The completed update for {} left its compensation record in place", job.resourceId(), e);
-    }
-  }
-
-  /** The restore succeeded in the request, so the relay has nothing left to do. */
-  public void completed(ArtifactRestoreJob job) {
-    abandon(job);
-  }
-
-  /** The restore did not succeed in the request. It stays recorded, and the relay carries it. */
-  public void deferred(ArtifactRestoreJob job) {
-    if (job == null) {
-      return;
-    }
-    try {
-      outbox.defer(job.jobId());
-    } catch (Exception e) {
-      log.warn("The pending compensation for {} could not be deferred", job.resourceId(), e);
-    }
-  }
-
   public synchronized void start() {
     if (executor != null) {
       return;
@@ -139,48 +100,24 @@ public final class ArtifactRestoreCompletionService implements AutoCloseable {
     }
   }
 
-  private void attempt(ArtifactRestoreJob job, CedarRequestContext admin) {
-    try {
-      int status = restore(job, admin);
-      if (status == HttpStatus.SC_OK || status == HttpStatus.SC_CREATED) {
-        log.info("Restored {} after a graph update that did not commit", job.resourceId());
-        outbox.remove(job.jobId());
-        return;
+  private void attempt(ArtifactRestoreJob job, CedarRequestContext context) {
+    outbox.restoreIfPending(job, pending -> {
+      try {
+        return restore(pending, context);
+      } catch (Exception failure) {
+        log.warn("The restore of {} remains pending", pending.resourceId(), failure);
+        return 503;
       }
-      if (status == HttpStatus.SC_PRECONDITION_FAILED) {
-        // Either this restore already succeeded and the ETag moved with it, or another writer has
-        // replaced the document since. Both mean the stored content is newer than what this job
-        // holds, and overwriting it would be the worse outcome.
-        log.info("Abandoning the restore of {}: the document has moved beyond {}",
-            job.resourceId(), job.conditionEtag());
-        outbox.remove(job.jobId());
-        return;
-      }
-      if (status == HttpStatus.SC_NOT_FOUND) {
-        log.info("Abandoning the restore of {}: the artifact no longer exists", job.resourceId());
-        outbox.remove(job.jobId());
-        return;
-      }
-      if (status >= 400 && status < 500) {
-        // The artifact server refused this restore on its merits. The identical request cannot get
-        // a different answer, so stop asking every five seconds and make it findable instead.
-        log.error("Parking the restore of {}: the artifact server refused it with {}",
-            job.resourceId(), status);
-        outbox.park(job.jobId(), "Artifact server refused the restore with " + status);
-        return;
-      }
-      throw new IllegalStateException("Artifact server returned " + status);
-    } catch (Exception e) {
-      long attempts = outbox.defer(job.jobId());
-      if (attempts >= MAX_ATTEMPTS) {
-        log.error("Parking the restore of {} after {} attempts; the artifact and the graph still"
-            + " disagree and it needs attention rather than another attempt", job.resourceId(), attempts, e);
-        outbox.park(job.jobId(), "No progress after " + attempts + " attempts: " + e);
-      } else {
-        // A retry still within its budget is the mechanism working, not a fault. Logging it as an
-        // error would leave this service with an error count that never returns to zero.
-        log.warn("The restore of {} remains pending and will be retried (attempt {})",
-            job.resourceId(), attempts, e);
+    });
+  }
+
+  /** The request and relay use the same durable job and lock; neither can undo a committed graph. */
+  public void restoreNow(ArtifactRestoreJob job, CedarRequestContext context) {
+    if (job != null) {
+      try {
+        attempt(job, context);
+      } catch (Exception failure) {
+        log.warn("The restore of {} remains recorded for the relay", job.resourceId(), failure);
       }
     }
   }

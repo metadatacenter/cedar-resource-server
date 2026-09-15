@@ -818,7 +818,9 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         if (sourceHash != null) {
           updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
         }
-        FolderServerArtifact updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
+        FolderServerArtifact updatedResource = restoreJob == null
+            ? folderSession.updateArtifactById(id, resource.getType(), updateFields)
+            : folderSession.updateArtifactById(id, resource.getType(), updateFields, restoreJob.jobId());
         if (updatedResource == null) {
           return CedarResponse.internalServerError().build();
         } else {
@@ -844,36 +846,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     } finally {
-      if (artifactUpdated && !graphUpdated) {
-        boolean restored = restoreArtifactAfterFailedGraphUpdate(context, resourceType, id, artifactPreImage,
-            replacementEtag, verbatim);
-        if (restored) {
-          completeRestore(restoreJob);
-        } else {
-          deferRestore(restoreJob);
-        }
-      } else if (restoreJob != null) {
-        abandonRestore(restoreJob);
+      if (artifactUpdated && !graphUpdated && restoreJob != null) {
+        artifactRestoreCompletionService.restoreNow(restoreJob, context);
+      } else if (artifactUpdated && !graphUpdated) {
+        restoreArtifactAfterFailedGraphUpdate(context, resourceType, id, artifactPreImage, replacementEtag, verbatim);
       }
-    }
-  }
-
-  /** The graph update committed, so the recorded compensation is not needed. */
-  private static void abandonRestore(ArtifactRestoreJob job) {
-    if (artifactRestoreCompletionService != null) {
-      artifactRestoreCompletionService.abandon(job);
-    }
-  }
-
-  private static void completeRestore(ArtifactRestoreJob job) {
-    if (artifactRestoreCompletionService != null) {
-      artifactRestoreCompletionService.completed(job);
-    }
-  }
-
-  private static void deferRestore(ArtifactRestoreJob job) {
-    if (artifactRestoreCompletionService != null) {
-      artifactRestoreCompletionService.deferred(job);
     }
   }
 

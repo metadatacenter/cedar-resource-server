@@ -183,7 +183,9 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
           : artifactRestoreCompletionService.prepare(artifactId, resourceType, artifactPreImage.content(),
               replacementEtag, false);
 
-      FolderServerArtifact updatedResource = folderSession.updateArtifactById(artifactId, resourceType, updateFields);
+      FolderServerArtifact updatedResource = restoreJob == null
+          ? folderSession.updateArtifactById(artifactId, resourceType, updateFields)
+          : folderSession.updateArtifactById(artifactId, resourceType, updateFields, restoreJob.jobId());
       if (updatedResource == null) {
         return CedarResponse.internalServerError().build();
       }
@@ -192,18 +194,10 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     } catch (JsonProcessingException e) {
       throw new CedarProcessingException(e);
     } finally {
-      if (artifactUpdated && !graphUpdated) {
-        boolean restored = restoreArtifactAfterFailedGraphUpdate(c, resourceType, artifactId, artifactPreImage,
-            replacementEtag, false);
-        if (artifactRestoreCompletionService != null) {
-          if (restored) {
-            artifactRestoreCompletionService.completed(restoreJob);
-          } else {
-            artifactRestoreCompletionService.deferred(restoreJob);
-          }
-        }
-      } else if (artifactRestoreCompletionService != null) {
-        artifactRestoreCompletionService.abandon(restoreJob);
+      if (artifactUpdated && !graphUpdated && restoreJob != null) {
+        artifactRestoreCompletionService.restoreNow(restoreJob, c);
+      } else if (artifactUpdated && !graphUpdated) {
+        restoreArtifactAfterFailedGraphUpdate(c, resourceType, artifactId, artifactPreImage, replacementEtag, false);
       }
     }
   }
