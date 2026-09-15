@@ -166,6 +166,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     boolean artifactUpdated = false;
     boolean graphUpdated = false;
     String replacementEtag = null;
+    org.metadatacenter.cedar.resource.restore.ArtifactRestoreJob restoreJob = null;
     ArtifactPreImage artifactPreImage = new ArtifactPreImage(oldArtifactContentJson, expectedEtag);
     try {
       var artifactPutResponse = new ArtifactServiceClient(cedarConfig).put(artifactGetUrl, c,
@@ -176,6 +177,11 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
       }
       artifactUpdated = true;
       replacementEtag = headerValue(artifactPutResponse, jakarta.ws.rs.core.HttpHeaders.ETAG);
+      // Recorded before the graph update, for the same reason as on the artifact update path: in
+      // the window between the two writes, the thing that would compensate is what dies.
+      restoreJob = artifactRestoreCompletionService == null ? null
+          : artifactRestoreCompletionService.prepare(artifactId, resourceType, artifactPreImage.content(),
+              replacementEtag, false);
 
       FolderServerArtifact updatedResource = folderSession.updateArtifactById(artifactId, resourceType, updateFields);
       if (updatedResource == null) {
@@ -187,8 +193,17 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
       throw new CedarProcessingException(e);
     } finally {
       if (artifactUpdated && !graphUpdated) {
-        restoreArtifactAfterFailedGraphUpdate(c, resourceType, artifactId, artifactPreImage, replacementEtag,
-            false);
+        boolean restored = restoreArtifactAfterFailedGraphUpdate(c, resourceType, artifactId, artifactPreImage,
+            replacementEtag, false);
+        if (artifactRestoreCompletionService != null) {
+          if (restored) {
+            artifactRestoreCompletionService.completed(restoreJob);
+          } else {
+            artifactRestoreCompletionService.deferred(restoreJob);
+          }
+        }
+      } else if (artifactRestoreCompletionService != null) {
+        artifactRestoreCompletionService.abandon(restoreJob);
       }
     }
   }
