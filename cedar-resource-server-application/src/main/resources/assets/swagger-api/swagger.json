@@ -3,7 +3,7 @@
   "info" : {
     "description" : "Better Metadata - Better Science\n\nMutable resources use strong ETags for optimistic concurrency. Read the resource (or its\npermissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing\nrequired precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`\naccepts whichever revision currently exists and therefore deliberately gives up lost-update\nprotection. Comma-separated strong validators are also accepted. Representation suffixes such\nas `\"7-json\"`, `\"7-yaml\"`, and `\"7-resource-record\"` identify different bytes of the same\nstored revision and are valid write preconditions.\n\nSee the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)\nfor authentication, request examples, and complete ETag guidance.\n",
     "title" : "CEDAR Resource Server API",
-    "version" : "2.9.14"
+    "version" : "2.9.15"
   },
   "tags" : [ {
     "name" : "Templates"
@@ -12814,7 +12814,7 @@
           },
           "failure" : {
             "type" : "string",
-            "description" : "What went wrong, when the state is FAILED.",
+            "description" : "What went wrong, when the state is FAILED or INTERRUPTED.",
             "nullable" : true
           },
           "finishedAt" : {
@@ -12829,6 +12829,13 @@
           "overdue" : {
             "type" : "boolean"
           },
+          "progress" : {
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/IndexingProgress"
+            } ],
+            "description" : "How far this job got. Present for a job that is running and for one that has finished,\nfailed or was interrupted; absent for an index no job has run over.\n",
+            "nullable" : true
+          },
           "startedAt" : {
             "type" : "string",
             "format" : "date-time",
@@ -12836,7 +12843,7 @@
           },
           "state" : {
             "type" : "string",
-            "enum" : [ "IDLE", "RUNNING", "COMPLETE", "FAILED", "ABANDONED" ]
+            "enum" : [ "IDLE", "RUNNING", "COMPLETE", "FAILED", "ABANDONED", "INTERRUPTED" ]
           }
         },
         "required" : [ "overdue", "state" ]
@@ -12847,6 +12854,77 @@
           "$ref" : "#/components/schemas/IndexJobStatus"
         },
         "description" : "The state of each index a rebuild can contend over, keyed by the index name."
+      },
+      "IndexingProgress" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "How far a rebuild has got. Each phase carries its own counter, because what is being counted\nchanges with it: pages of resources while enumerating, resources while indexing, nothing at\nall while promoting. `total` is -1 until the phase's denominator is known, and the rate and\nestimate are absent until enough has been done to measure them.\n",
+        "properties" : {
+          "estimatedFinishAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "lastUpdatedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "When the job last reported anything. This is what tells a slow rebuild from a stopped one,\nand it is what the overdue deadline is measured from.\n"
+          },
+          "percentComplete" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "phase" : {
+            "type" : "string",
+            "enum" : [ "PENDING", "LOADING_VALUE_SETS", "ENUMERATING", "COMPARING", "INDEXING", "VERIFYING", "PROMOTING", "DONE" ]
+          },
+          "phaseDescription" : {
+            "type" : "string",
+            "description" : "The phase in words, so a client need not keep its own table of these names."
+          },
+          "processed" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "processedByType" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "integer",
+              "format" : "int64"
+            },
+            "description" : "How many of each kind have been done."
+          },
+          "secondsRemaining" : {
+            "type" : "integer",
+            "format" : "int64",
+            "nullable" : true
+          },
+          "startedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "The current phase's denominator, or -1 while it is not yet known."
+          },
+          "totalByType" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "integer",
+              "format" : "int64"
+            },
+            "description" : "How many resources of each kind the work list holds."
+          },
+          "unitsPerSecond" : {
+            "type" : "number",
+            "format" : "double",
+            "description" : "The rate over a trailing window rather than the whole run, absent until measurable. Null\nand zero are different answers: only the second means no progress.\n",
+            "nullable" : true
+          }
+        },
+        "required" : [ "phase", "processed", "total" ]
       },
       "InstanceArtifactDocument" : {
         "type" : "object",

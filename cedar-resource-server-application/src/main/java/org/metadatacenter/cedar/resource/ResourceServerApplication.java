@@ -6,6 +6,9 @@ import io.dropwizard.lifecycle.Managed;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
 import org.metadatacenter.cedar.resource.search.IndexCreator;
+import org.metadatacenter.cedar.resource.search.IndexJobGuard;
+import org.metadatacenter.server.search.util.IndexRebuildRegistry;
+import org.metadatacenter.server.search.util.RedisIndexRebuildStore;
 import org.metadatacenter.cedar.util.dw.CedarDependencyHealthCheck;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceIndexResource;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceApplication;
@@ -61,6 +64,13 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     AbstractResourceServerResource.injectArtifactDeletionCompletionService(artifactDeletionCompletionService);
 
     CommandVersionResource.injectCloneInstancesEnqueueServices(cloneInstanceEnqueueService);
+
+    // Both this server and the worker write to the search index, so the record of a rebuild in
+    // progress has to be visible to both or the worker mirrors nothing into it.
+    IndexRebuildRegistry.install(new RedisIndexRebuildStore(cedarConfig.getCacheConfig().getPersistent()));
+
+    // Must follow the install above: it reads the record through the store.
+    IndexJobGuard.recoverFromStore();
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
     IndexCreator.ensureRulesIndexExists(cedarConfig);
