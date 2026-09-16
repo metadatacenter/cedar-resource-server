@@ -5,6 +5,7 @@ import io.dropwizard.core.setup.Environment;
 import io.dropwizard.lifecycle.Managed;
 import org.metadatacenter.cedar.resource.resources.*;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
+import org.metadatacenter.cedar.resource.restore.ArtifactRestoreCompletionService;
 import org.metadatacenter.cedar.resource.search.IndexCreator;
 import org.metadatacenter.cedar.resource.search.IndexJobGuard;
 import org.metadatacenter.server.search.util.IndexRebuildRegistry;
@@ -26,6 +27,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
   private SearchPermissionEnqueueService searchPermissionEnqueueService;
   private ArtifactDeletionCompletionService artifactDeletionCompletionService;
+  private ArtifactRestoreCompletionService artifactRestoreCompletionService;
 
   public static void main(String[] args) throws Exception {
     new ResourceServerApplication().run(args);
@@ -56,12 +58,14 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent());
     artifactDeletionCompletionService = new ArtifactDeletionCompletionService(
         cedarConfig, userService, nodeIndexingService, valuerecommenderReindexQueueService);
+    artifactRestoreCompletionService = new ArtifactRestoreCompletionService(cedarConfig, userService);
 
     CommandGenericResource.injectUserService(userService);
     CommandSearchResource.injectUserService(userService);
     SearchResource.injectServices(nodeIndexingService, nodeSearchingService,
         searchPermissionEnqueueService, valuerecommenderReindexQueueService);
     AbstractResourceServerResource.injectArtifactDeletionCompletionService(artifactDeletionCompletionService);
+    AbstractResourceServerResource.injectArtifactRestoreCompletionService(artifactRestoreCompletionService);
 
     CommandVersionResource.injectCloneInstancesEnqueueServices(cloneInstanceEnqueueService);
 
@@ -83,10 +87,12 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
       public void start() {
         searchPermissionEnqueueService.start();
         artifactDeletionCompletionService.start();
+        artifactRestoreCompletionService.start();
       }
 
       @Override
       public void stop() {
+        artifactRestoreCompletionService.close();
         artifactDeletionCompletionService.close();
         searchPermissionEnqueueService.close();
       }

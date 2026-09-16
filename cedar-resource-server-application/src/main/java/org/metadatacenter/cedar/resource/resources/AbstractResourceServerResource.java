@@ -13,6 +13,8 @@ import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.cedar.resource.artifact.ArtifactServerUtil;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
+import org.metadatacenter.cedar.resource.restore.ArtifactRestoreCompletionService;
+import org.metadatacenter.cedar.resource.restore.ArtifactRestoreJob;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionJob;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
@@ -99,6 +101,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
   protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
   protected static ArtifactDeletionCompletionService artifactDeletionCompletionService;
+  protected static ArtifactRestoreCompletionService artifactRestoreCompletionService;
 
   protected Response siblingNameConflictResponse(String name) {
     return CedarResponse.conflict()
@@ -125,6 +128,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     AbstractResourceServerResource.nodeSearchingService = nodeSearchingService;
     AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
     AbstractResourceServerResource.valuerecommenderReindexQueueService = valuerecommenderReindexQueueService;
+  }
+
+  public static void injectArtifactRestoreCompletionService(
+      ArtifactRestoreCompletionService restoreCompletionService) {
+    artifactRestoreCompletionService = restoreCompletionService;
   }
 
   public static void injectArtifactDeletionCompletionService(
@@ -739,6 +747,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     boolean graphUpdated = false;
     ArtifactPreImage artifactPreImage = null;
     String replacementEtag = null;
+    ArtifactRestoreJob restoreJob = null;
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
       if (verbatim) {
@@ -763,6 +772,12 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
       artifactUpdated = true;
       replacementEtag = headerValue(templateProxyResponse, HttpHeaders.ETAG);
+      // Recorded before the graph update rather than after it fails: the window this closes is a
+      // server that stops between the two writes, and in that window the thing that would do the
+      // compensating is what died.
+      restoreJob = artifactRestoreCompletionService == null ? null
+          : artifactRestoreCompletionService.prepare(id, resourceType, artifactPreImage.content(),
+              replacementEtag, verbatim);
 
       // artifact was updated
       HttpEntity templateEntity = templateProxyResponse.getEntity();
@@ -803,7 +818,9 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         if (sourceHash != null) {
           updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
         }
-        FolderServerArtifact updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
+        FolderServerArtifact updatedResource = restoreJob == null
+            ? folderSession.updateArtifactById(id, resource.getType(), updateFields)
+            : folderSession.updateArtifactById(id, resource.getType(), updateFields, restoreJob.jobId());
         if (updatedResource == null) {
           return CedarResponse.internalServerError().build();
         } else {
@@ -829,9 +846,10 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     } finally {
-      if (artifactUpdated && !graphUpdated) {
-        restoreArtifactAfterFailedGraphUpdate(context, resourceType, id, artifactPreImage, replacementEtag,
-            verbatim);
+      if (artifactUpdated && !graphUpdated && restoreJob != null) {
+        artifactRestoreCompletionService.restoreNow(restoreJob, context);
+      } else if (artifactUpdated && !graphUpdated) {
+        restoreArtifactAfterFailedGraphUpdate(context, resourceType, id, artifactPreImage, replacementEtag, verbatim);
       }
     }
   }
@@ -852,16 +870,24 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
    *
    * <p>The rollback is conditional on the ETag returned by the successful replacement. If another
    * writer changes the document before compensation runs, the artifact server refuses this PUT and
-   * their newer content is preserved. Like create cleanup, this is best effort: the original graph
-   * failure remains the response, while any inability to restore is recorded with the artifact id.
+   * their newer content is preserved.
+   *
+   * <p>This attempt is made in the request because that is the fastest the two stores can be
+   * brought back into agreement. It is no longer the only attempt: the caller records a durable
+   * restore first, so a failure here -- or a process that stops before reaching here -- leaves a job
+   * that {@code ArtifactRestoreCompletionService} carries on retrying. The original graph failure
+   * remains the response either way.
+   *
+   * @return whether the document is back to its pre-image, so the caller knows whether the durable
+   *     job still has work to do
    */
-  protected void restoreArtifactAfterFailedGraphUpdate(CedarRequestContext context, CedarResourceType resourceType,
-                                                       CedarArtifactId artifactId, ArtifactPreImage preImage,
-                                                       String replacementEtag, boolean verbatim) {
+  protected boolean restoreArtifactAfterFailedGraphUpdate(CedarRequestContext context, CedarResourceType resourceType,
+                                                          CedarArtifactId artifactId, ArtifactPreImage preImage,
+                                                          String replacementEtag, boolean verbatim) {
     if (preImage == null || replacementEtag == null || replacementEtag.isBlank()) {
       log.error("Failed graph update left {} changed on the artifact server: conditional rollback is unavailable",
           artifactId);
-      return;
+      return false;
     }
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
@@ -871,13 +897,23 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       ClassicHttpResponse rollbackResponse =
           new ArtifactServiceClient(cedarConfig).put(url, context, preImage.content(), replacementEtag);
       int status = rollbackResponse.getCode();
-      if (status != HttpConstants.CREATED && status != HttpConstants.OK) {
-        log.error("Failed graph update left {} changed on the artifact server: conditional rollback answered {}",
-            artifactId, status);
+      if (status == HttpConstants.CREATED || status == HttpConstants.OK) {
+        return true;
       }
+      if (status == HttpStatus.SC_PRECONDITION_FAILED) {
+        // Another writer has replaced the document since. Their content is newer than this
+        // pre-image, so there is nothing left to put back and nothing for the relay to retry.
+        log.warn("Failed graph update left {} changed on the artifact server, and a later write has"
+            + " since replaced it: the newer content stands", artifactId);
+        return true;
+      }
+      log.error("Failed graph update left {} changed on the artifact server: conditional rollback answered {}",
+          artifactId, status);
+      return false;
     } catch (Exception e) {
       log.error("Failed graph update left {} changed on the artifact server: conditional rollback failed",
           artifactId, e);
+      return false;
     }
   }
 
