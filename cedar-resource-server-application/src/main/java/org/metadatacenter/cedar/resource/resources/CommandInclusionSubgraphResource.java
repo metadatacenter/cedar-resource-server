@@ -2,6 +2,11 @@ package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
+import org.metadatacenter.cedar.deltafinder.DeltaFinder;
+import org.metadatacenter.id.CedarTemplateId;
+import org.metadatacenter.model.CedarResourceType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -42,6 +47,8 @@ import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
@@ -158,6 +165,8 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     }
 
     List<InclusionSubgraphUpdateOutcome> outcomes = new ArrayList<>();
+    List<PreparedUpdate> prepared = new ArrayList<>();
+    Map<String, JsonNode> proposed = new HashMap<>();
     for (InclusionSubgraphTodoElement todo : todoList.getTodoList()) {
       CedarTypedSchemaArtifactId sourceArtifactId = CedarResourceTypeUtil.buildTypedArtifactId(todo.getSourceId());
       CedarTypedSchemaArtifactId targetArtifactId = CedarResourceTypeUtil.buildTypedArtifactId(todo.getTargetId());
@@ -166,8 +175,11 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       var targetArtifactContent = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
           targetArtifactId.getType(), targetArtifactId, c, cedarConfig, null);
       String targetArtifact = targetArtifactContent.content();
-      JsonNode sourceJsonNode = JsonMapper.STRICT_MAPPER.readTree(sourceArtifact);
-      JsonNode targetJsonNode = JsonMapper.STRICT_MAPPER.readTree(targetArtifact);
+      JsonNode sourceJsonNode = proposed.containsKey(todo.getSourceId())
+          ? proposed.get(todo.getSourceId()).deepCopy() : JsonMapper.STRICT_MAPPER.readTree(sourceArtifact);
+      JsonNode storedTarget = JsonMapper.STRICT_MAPPER.readTree(targetArtifact);
+      JsonNode targetJsonNode = proposed.containsKey(todo.getTargetId())
+          ? proposed.get(todo.getTargetId()).deepCopy() : storedTarget.deepCopy();
 
       // The graph said the target includes the source, but the content is what gets written. When the
       // two disagree, writing the target back unchanged would bump its provenance for no change at all.
@@ -177,10 +189,33 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         outcomes.add(InclusionSubgraphUpdateOutcome.unchanged(todo.getSourceId(), todo.getTargetId()));
         continue;
       }
+      if (targetArtifactId.getType() == CedarResourceType.TEMPLATE) {
+        long instances = dataServices.getFolderServiceSession(c)
+            .getNumberOfInstances(CedarTemplateId.build(todo.getTargetId()));
+        if (requiresNewVersion(instances, storedTarget, targetJsonNode)) {
+          return CedarResponse.badRequest()
+              .errorKey(CedarErrorKey.INVALID_DATA)
+              .message("Cannot propagate this change into a template with existing instances. "
+                  + "Create a new template version before applying the updated element or field. "
+                  + "No propagation targets were updated.")
+              .parameter("templateId", todo.getTargetId())
+              .parameter("numberOfInstances", instances)
+              .build();
+        }
+      }
+      proposed.put(todo.getTargetId(), targetJsonNode);
+      prepared.add(new PreparedUpdate(todo, targetArtifactId, targetJsonNode, targetArtifactContent.etag()));
+    }
+
+    // Preflight the complete proposed graph before the first write, including changes through elements.
+    for (PreparedUpdate update : prepared) {
+      InclusionSubgraphTodoElement todo = update.todo();
+      CedarTypedSchemaArtifactId targetArtifactId = update.targetId();
+      JsonNode targetJsonNode = update.document();
       String newTargetContent = JsonMapper.STRICT_MAPPER.writeValueAsString(targetJsonNode);
 
       Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(targetArtifactId.getType(),
-          targetArtifactId, c, newTargetContent, cedarConfig, targetArtifactContent.etag());
+          targetArtifactId, c, newTargetContent, cedarConfig, update.etag());
       int putStatus = putResponse.getStatus();
       if (putStatus >= 400) {
         log.error("The artifact server refused the propagation of {} into {} with status {}",
@@ -203,6 +238,15 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         .build();
   }
 
+  static boolean requiresNewVersion(long instances, JsonNode stored, JsonNode proposed) {
+    if (instances == 0) return false;
+    JsonArtifactReader reader = new JsonArtifactReader();
+    var delta = new DeltaFinder().findDelta(
+        reader.readTemplateSchemaArtifact((ObjectNode) stored),
+        reader.readTemplateSchemaArtifact((ObjectNode) proposed));
+    return !delta.getDestructiveChanges().isEmpty() || !delta.getNonDestructiveChanges().isEmpty();
+  }
 
-
+  private record PreparedUpdate(InclusionSubgraphTodoElement todo, CedarTypedSchemaArtifactId targetId,
+                                JsonNode document, String etag) { }
 }
