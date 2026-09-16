@@ -8493,11 +8493,6 @@ components:
       required:
       - status
       - statusCode
-    CedarFilesystemResourceId:
-      type: object
-      properties:
-        id:
-          type: string
     CedarGroupReference:
       type: object
       description: "A reference to a group. It appears wherever a group is named beside\
@@ -8874,8 +8869,6 @@ components:
           type: string
         pav:lastUpdatedOn:
           type: string
-        resourceId:
-          $ref: "#/components/schemas/CedarFilesystemResourceId"
         resourceType:
           type: string
           enum:
@@ -8966,8 +8959,6 @@ components:
           type: string
         pav:lastUpdatedOn:
           type: string
-        resourceId:
-          $ref: "#/components/schemas/CedarFilesystemResourceId"
         resourceType:
           type: string
           enum:

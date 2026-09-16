@@ -12167,14 +12167,6 @@
         },
         "required" : [ "status", "statusCode" ]
       },
-      "CedarFilesystemResourceId" : {
-        "type" : "object",
-        "properties" : {
-          "id" : {
-            "type" : "string"
-          }
-        }
-      },
       "CedarGroupReference" : {
         "type" : "object",
         "description" : "A reference to a group. It appears wherever a group is named beside something else, as the holder of a grant or as a group a user belongs to. The name accompanies the identifier so a caller need not fetch the group record to display it.",
@@ -12624,9 +12616,6 @@
           "pav:lastUpdatedOn" : {
             "type" : "string"
           },
-          "resourceId" : {
-            "$ref" : "#/components/schemas/CedarFilesystemResourceId"
-          },
           "resourceType" : {
             "type" : "string",
             "enum" : [ "folder", "field", "element", "template", "element-instance", "instance", "user", "group", "category", "message", "user-message", "process-type" ]
@@ -12739,9 +12728,6 @@
           },
           "pav:lastUpdatedOn" : {
             "type" : "string"
-          },
-          "resourceId" : {
-            "$ref" : "#/components/schemas/CedarFilesystemResourceId"
           },
           "resourceType" : {
             "type" : "string",
