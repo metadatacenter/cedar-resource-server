@@ -721,7 +721,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           }
 
           Response createResponse = createDraftArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()),
-              newVersion, fid, true, folderName.orElse(null));
+              newVersion, fid, true, null);
           if (createResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
             return createResponse;
           }
@@ -741,8 +741,14 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                   CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null);
           applyDefinitionToDraft((ObjectNode) newTemplateJsonNode,
               JsonMapper.STRICT_MAPPER.readTree(storedDraft.content()));
-          return executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
+          Response updateResponse = executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
               JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, storedDraft.etag());
+          // The worker must see the final definition, including renamed fields, before copying instances.
+          if (updateResponse.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL
+              && folderName.isPresent() && !folderName.get().isBlank()) {
+            createCopyOfInstancesWithNewTemplate(c, tid, newTemplateId, folderName.get());
+          }
+          return updateResponse;
         }
       } catch (CedarException e) {
         throw e;
