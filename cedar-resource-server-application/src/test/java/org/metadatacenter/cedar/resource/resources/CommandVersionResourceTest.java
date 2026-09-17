@@ -70,6 +70,7 @@ public class CommandVersionResourceTest {
   private static CedarTemplateId publishTemplateId;
   private static CedarTemplateId draftStatusMismatchTemplateId;
   private static CedarTemplateId failedPublishTemplateId;
+  private static CedarTemplateId failedDraftSourceId;
   private static CedarTemplateId failedDraftTemplateId;
   private static CedarTemplateId deleteRetryTemplateId;
   private static CedarTemplateId versionRetrySourceId;
@@ -198,7 +199,7 @@ public class CommandVersionResourceTest {
     template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
     template.setName("Version check fixture");
     template.setDescription("Template with an instance, so update checking compares the models");
-    template.setVersion("1.0.0");
+    template.setVersion("0.0.1");
     template.setPublicationStatus("bibo:draft");
     template.setLatestVersion(true);
     template.setLatestDraftVersion(true);
@@ -250,6 +251,16 @@ public class CommandVersionResourceTest {
         folderSession.createResourceAsChildOfId(failedPublishTemplate, homeFolderId);
     Assertions.assertNotNull(createdFailedPublishTemplate);
     failedPublishTemplateId = CedarTemplateId.build(createdFailedPublishTemplate.getId());
+    FolderServerTemplate draftSource = new FolderServerTemplate();
+    draftSource.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    draftSource.setName("Draft compensation source");
+    draftSource.setVersion("1.0.0");
+    draftSource.setPublicationStatus("bibo:published");
+    draftSource.setLatestVersion(true);
+    draftSource.setLatestDraftVersion(false);
+    draftSource.setLatestPublishedVersion(true);
+    failedDraftSourceId = CedarTemplateId.build(folderSession.createResourceAsChildOfId(draftSource,homeFolderId).getId());
+
 
     FolderServerInstance instance = new FolderServerInstance();
     instance.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.INSTANCE));
@@ -453,7 +464,7 @@ public class CommandVersionResourceTest {
   @Order(Integer.MAX_VALUE - 3)
   public void graphFailureAfterDraftCreateDiscardsTheArtifactAndKeepsTheSourceLatest() throws Exception {
     failingDraft = true;
-    String body = "{\"@id\":\"" + failedPublishTemplateId.getId()
+    String body = "{\"@id\":\"" + failedDraftSourceId.getId()
         + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + failedDraftFolderId.getId()
         + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}";
     HttpRequest request = HttpRequest.newBuilder()
@@ -469,7 +480,7 @@ public class CommandVersionResourceTest {
     Assertions.assertFalse(failedDraftArtifactPresent,
         "the graphless draft remained in the artifact store");
     Assertions.assertEquals(1, COMPENSATING_DRAFT_DELETES.get());
-    Assertions.assertTrue(folderSession.findSchemaArtifactById(failedPublishTemplateId).isLatestVersion(),
+    Assertions.assertTrue(folderSession.findSchemaArtifactById(failedDraftSourceId).isLatestVersion(),
         "the source was demoted before its draft reached the graph");
   }
 
@@ -624,6 +635,7 @@ public class CommandVersionResourceTest {
     if (failingDraft && "GET".equals(exchange.getRequestMethod())) {
       ObjectNode publishedSource = failedPublishTemplateDocument.deepCopy();
       publishedSource.put("bibo:status", "bibo:published");
+      publishedSource.put("@id", failedDraftSourceId.getId());
       sendArtifactResponse(exchange, publishedSource, "\"fixture-etag\"");
       return;
     }

@@ -111,11 +111,7 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
     if (folders.findArtifactById(id) != null && !folders.deleteResourceById(id)) {
       throw new IllegalStateException("The artifact graph node could not be deleted: " + id);
     }
-    if (job.previousVersionId() != null) {
-      CedarSchemaArtifactId previous = CedarSchemaArtifactId.build(job.previousVersionId(), job.resourceType());
-      folders.setLatestVersion(previous);
-      folders.setLatestPublishedVersion(previous);
-    }
+
   }
 
   private void finishProjections(ArtifactDeletionJob job, CedarRequestContext context) throws Exception {
@@ -127,14 +123,7 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
         ValuerecommenderReindexMessageActionType.DELETED)) {
       throw new IllegalStateException("The value-recommender deletion event could not be persisted");
     }
-    if (job.previousVersionId() != null) {
-      CedarSchemaArtifactId previousId = CedarSchemaArtifactId.build(job.previousVersionId(), job.resourceType());
-      FolderServerArtifact previous = CedarDataServices.getInstance().getFolderServiceSession(context)
-          .findArtifactById(previousId);
-      if (previous != null) {
-        nodeIndexingService.indexDocument(previous, context);
-      }
-    }
+
   }
 
   public synchronized void start() {

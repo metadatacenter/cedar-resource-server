@@ -203,11 +203,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 .build();
           }
 
-          // Only a draft may be published. The isCanPublish() flag checked above is computed upstream
-          // and is wrongly true for an already-published artifact (the status guard behind it is
-          // skipped when the object does not carry publication status), so re-publishing slipped
-          // through. Check the real status read back from the artifact server, which is the source of
-          // truth.
+          // Check the document as well as the graph report: neither store may authorize a
+          // transition when their publication states disagree.
           JsonNode oldStatusNode = getJsonNode.get(BIBO_STATUS);
           if (oldStatusNode != null && BiboStatus.PUBLISHED.getValue().equals(oldStatusNode.textValue())) {
             return CedarResponse.badRequest()
@@ -249,7 +246,12 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           if (putStatus == HttpStatus.SC_OK) {
             boolean graphUpdated = false;
+            org.metadatacenter.cedar.resource.restore.ArtifactRestoreJob restoreJob = null;
             try {
+              if (artifactRestoreCompletionService != null) {
+                restoreJob = artifactRestoreCompletionService.prepare(aid, resourceType, getResponse,
+                    putResponse.getHeaderString(HttpHeaders.ETAG), false);
+              }
               // publish in Neo4j server
               FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
 
@@ -263,45 +265,29 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               updates.put(NodeProperty.VERSION, newVersion.getValue());
               updates.put(NodeProperty.PUBLICATION_STATUS, BiboStatus.PUBLISHED.getValue());
               FolderServerArtifact publishedResource =
-                  folderSession.updateArtifactById(aid, resourceType, updates);
+                  restoreJob == null ? folderSession.updateArtifactById(aid, resourceType, updates)
+                      : folderSession.updateArtifactById(aid,resourceType,updates,restoreJob.jobId());
               if (publishedResource == null) {
                 throw new CedarProcessingException("The published artifact could not be updated in the graph");
               }
               graphUpdated = true;
 
-              if (resourceType.isVersioned()) {
-                folderSession.setLatestVersion(aid);
-                folderSession.unsetLatestDraftVersion(aid);
-                folderSession.setLatestPublishedVersion(aid);
-                if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport schemaArtifact) {
-                  if (schemaArtifact.getPreviousVersion() != null) {
-                    folderSession.unsetLatestPublishedVersion(schemaArtifact.getPreviousVersion());
-                  }
-                }
-              }
-
+              completeVersionProjections(c);
               FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
-              updateIndexResource(updatedResource, c);
-
-              // read the updated previous version
-              if (folderServerResourceOld instanceof FolderServerSchemaArtifactCurrentUserReport schemaArtifact) {
-                if (schemaArtifact.hasPreviousVersion()) {
-                  CedarSchemaArtifactId prevId = schemaArtifact.getPreviousVersion();
-                  FolderServerArtifact folderServerResourcePrev = folderSession.findArtifactById(prevId);
-                  updateIndexResource(folderServerResourcePrev, c);
-                }
-              }
 
               return Response.ok().entity(updatedResource).build();
             } finally {
               if (!graphUpdated) {
-                restorePublishedArtifact(c, resourceType, aid, getResponse,
+                if (restoreJob != null) artifactRestoreCompletionService.restoreNow(restoreJob,c);
+                else restorePublishedArtifact(c, resourceType, aid, getResponse,
                     putResponse.getHeaderString(HttpHeaders.ETAG));
               }
             }
 
           }
         }
+      } catch (org.metadatacenter.server.VersionTransitionConflictException e) {
+        return CedarResponse.conflict().errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST).message(e.getMessage()).build();
       } catch (Exception e) {
         log.error("Error while publishing the artifact", e);
       }
@@ -444,10 +430,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         getJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
         if (getJsonNode != null) {
 
-          // Only a published artifact may be the source of a draft. As with publishing above, the
-          // permission report is computed from graph metadata and is not a sufficient state guard:
-          // a newly-created draft was observed with isCanCreateDraft() set, allowing a draft to mint
-          // another draft. The artifact server document is the content-state source of truth.
+          // The source document must agree with the graph's published state.
           JsonNode oldStatusNode = getJsonNode.get(BIBO_STATUS);
           if (oldStatusNode == null
               || !BiboStatus.PUBLISHED.getValue().equals(oldStatusNode.textValue())) {
@@ -512,7 +495,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 schemaArtifact.setLatestPublishedVersion(false);
               }
 
-              FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, fid);
+              FolderServerArtifact newResource = folderSession.createDraftAsChildOfId(brandNewResource, fid, propagateSharing);
               if (newResource == null) {
                 BackendCallResult backendCallResult = new BackendCallResult();
                 backendCallResult.addError(CedarErrorType.SERVER_ERROR)
@@ -522,28 +505,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               }
               draftReachedTheGraph = true;
 
-              // Do not demote the source until its successor exists in both stores. Previously this
-              // happened before graph creation, so a failed create left no draft and no latest source.
-              folderSession.unsetLatestVersion(aid);
-              if (propagateSharing) {
-                ResourcePermissionServiceSession permissionSession =
-                    dataServices.getResourcePermissionServiceSession(c);
-                CedarNodePermissionsWithExtract permissions = permissionSession.getResourcePermissions(aid);
-                ResourcePermissionsRequest permissionsRequest = permissions.toRequest();
-                ResourcePermissionUser newOwner = new ResourcePermissionUser();
-                newOwner.setId(c.getCedarUser().getId());
-                permissionsRequest.setOwner(newOwner);
-                BackendCallResult backendCallResult = permissionSession.updateResourcePermissions(newId,
-                    permissionsRequest);
-                if (backendCallResult.isError()) {
-                  throw new CedarBackendException(backendCallResult);
-                }
-              }
-
               FolderServerArtifact createdNewResource = folderSession.findArtifactById(newId);
-              createIndexArtifact(createdNewResource, c);
-              FolderServerArtifact updatedSourceResource = folderSession.findArtifactById(aid);
-              updateIndexResource(updatedSourceResource, c);
+              completeVersionProjections(c);
 
               if (artifactType == CedarResourceType.TEMPLATE && newFolderName != null && !newFolderName.isEmpty()) {
                 createCopyOfInstancesWithNewTemplate(c, CedarTemplateId.build(aid.getId()),
@@ -569,6 +532,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 .build();
           }
         }
+      } catch (org.metadatacenter.server.VersionTransitionConflictException e) {
+        return CedarResponse.conflict().errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST).message(e.getMessage()).build();
       } catch (Exception e) {
         log.error("Error while creating the draft version of the artifact", e);
       }

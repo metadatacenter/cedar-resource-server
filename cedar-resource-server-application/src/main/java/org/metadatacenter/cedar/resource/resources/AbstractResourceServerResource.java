@@ -102,6 +102,16 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
   protected static ArtifactDeletionCompletionService artifactDeletionCompletionService;
   protected static ArtifactRestoreCompletionService artifactRestoreCompletionService;
+  protected static org.metadatacenter.cedar.resource.version.VersionProjectionService versionProjectionService;
+
+  public static void injectVersionProjectionService(org.metadatacenter.cedar.resource.version.VersionProjectionService service) {
+    versionProjectionService = service;
+  }
+
+  protected void completeVersionProjections(CedarRequestContext context) {
+    if (versionProjectionService != null) versionProjectionService.completePending(nodeIndexingService,context);
+  }
+
 
   protected Response siblingNameConflictResponse(String name) {
     return CedarResponse.conflict()
@@ -203,6 +213,20 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     CedarFolderId fid = CedarFolderId.build(folderIdS);
 
     userMustHaveCapabilityOnFolder(context, fid, ResourceCapability.CREATE_IN_FOLDER);
+
+    if (resourceType.isVersioned()) {
+      try {
+        JsonNode requested = JsonMapper.STRICT_MAPPER.readTree(content);
+        if ((requested.has("pav:version") && !"0.0.1".equals(requested.path("pav:version").asText()))
+            || (requested.has("bibo:status") && !"bibo:draft".equals(requested.path("bibo:status").asText()))
+            || !requested.path("pav:previousVersion").asText("").isEmpty()) {
+          return CedarResponse.badRequest().errorKey(CedarErrorKey.INVALID_DATA)
+              .message("New schema artifact series start at Draft 0.0.1 without a predecessor; use lifecycle commands to advance them").build();
+        }
+      } catch (IOException e) {
+        return CedarResponse.badRequest().errorKey(CedarErrorKey.INVALID_DATA).build();
+      }
+    }
 
     String doiInRequest = ModelUtil.extractDOIFromResourceContent(content, resourceType);
 
@@ -716,6 +740,21 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
     }
 
+    if (folderServerOldResource instanceof FolderServerSchemaArtifact schemaArtifact && !verbatim) {
+      try {
+        JsonNode requested = JsonMapper.STRICT_MAPPER.readTree(content);
+        String previous = schemaArtifact.getPreviousVersion() == null ? null : schemaArtifact.getPreviousVersion().getId();
+        if (!Objects.equals(schemaArtifact.getVersion().getValue(), requested.path("pav:version").asText(null))
+            || !Objects.equals(schemaArtifact.getPublicationStatus().getValue(), requested.path("bibo:status").asText(null))
+            || !Objects.equals(previous, requested.path("pav:previousVersion").asText(null))) {
+          return CedarResponse.badRequest().errorKey(CedarErrorKey.INVALID_DATA)
+              .message("Version, publication status and predecessor are maintained by lifecycle commands").build();
+        }
+      } catch (IOException e) {
+        return CedarResponse.badRequest().errorKey(CedarErrorKey.INVALID_DATA).build();
+      }
+    }
+
     String doiInRequest = ModelUtil.extractDOIFromResourceContent(content, resourceType);
 
     if (doiInRequest != null && !resourceType.supportsDOI()) {
@@ -763,6 +802,22 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           EntityUtils.toString(currentArtifactResponse.getEntity(), StandardCharsets.UTF_8),
           headerValue(currentArtifactResponse, HttpHeaders.ETAG));
 
+      if (resourceType.isVersioned() && !verbatim) {
+        JsonNode current = JsonMapper.STRICT_MAPPER.readTree(artifactPreImage.content());
+        JsonNode requested = JsonMapper.STRICT_MAPPER.readTree(content);
+        if ("bibo:published".equals(current.path("bibo:status").asText())) {
+          return CedarResponse.badRequest().errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED).build();
+        }
+        for (String property : List.of("pav:version", "bibo:status", "pav:previousVersion")) {
+          if (!Objects.equals(current.path(property).asText(null), requested.path(property).asText(null))) {
+            return CedarResponse.badRequest().errorKey(CedarErrorKey.INVALID_DATA)
+                .message("Lifecycle metadata changed; reload the artifact before editing").build();
+          }
+        }
+      }
+      // Even a wildcard client precondition must not overwrite a link repair or publication
+      // that lands after this request read the document used for its lifecycle check.
+      if (resourceType.isVersioned() && "*".equals(expectedEtag)) expectedEtag = artifactPreImage.etag();
       ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).put(url, context, content, expectedEtag);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
       int statusCode = templateProxyResponse.getCode();
@@ -1043,7 +1098,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     // }
 
     CedarSchemaArtifactId previousVersion = null;
-    if (isSchemaArtifact && schemaArtifact.isLatestVersion() != null && schemaArtifact.isLatestVersion()) {
+    if (isSchemaArtifact) {
       previousVersion = schemaArtifact.getPreviousVersion();
     }
 
@@ -1118,6 +1173,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     try {
       artifactDeletionCompletionService.completeAfterArtifactDeletion(deletion, c);
+      completeVersionProjections(c);
     } catch (CedarProcessingException e) {
       log.error("Artifact {} was removed from the content store; durable cleanup remains pending", id, e);
       return Response.accepted().build();
