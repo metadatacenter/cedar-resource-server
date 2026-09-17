@@ -62,6 +62,7 @@ import org.metadatacenter.server.security.model.permission.resource.ResourcePerm
 import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.util.http.CedarResponse;
+import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -144,6 +145,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   private Response publishArtifact(CedarRequestContext c, CedarUntypedSchemaArtifactId aid,
                                    ResourceVersion newVersion) throws CedarException {
+    return publishArtifact(c, aid, newVersion, null);
+  }
+
+  private Response publishArtifact(CedarRequestContext c, CedarUntypedSchemaArtifactId aid,
+                                   ResourceVersion newVersion, ArtifactServerUtil.ArtifactContent source) throws CedarException {
     userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     FolderServerArtifactCurrentUserReport folderServerResourceOld = getArtifactReport(c, aid);
@@ -173,8 +179,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     // Check update permission
     c.must(c.user()).have(updatePermission);
 
-    var artifactContent = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(resourceType, aid, c,
-        cedarConfig, response);
+    var artifactContent = source != null ? source
+        : ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(resourceType, aid, c, cedarConfig, response);
     String getResponse = artifactContent.content();
     if (getResponse != null) {
       JsonNode getJsonNode = null;
@@ -237,6 +243,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, aid, c, content,
               cedarConfig, artifactContent.etag());
           int putStatus = putResponse.getStatus();
+          if (putStatus != HttpStatus.SC_OK) {
+            return putResponse;
+          }
 
           if (putStatus == HttpStatus.SC_OK) {
             boolean graphUpdated = false;
@@ -663,7 +672,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   @Timed
   @Path("/publish-create-draft-template/{template_id}")
   @Operation(summary = "Publish a template and create a new draft", description = "Publish the given template, then create a new draft version from it and apply the supplied template "
-          + "definition. Instances of the source template can be copied into a new folder.", tags = {"Command", "Versioning"})
+          + "definition. Instances of the source template can be copied into a new folder.", tags = {"Command", "Versioning"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "The template definition to apply to the new draft", required = true,
       content = @Content(schema = @Schema(implementation = SchemaArtifactDocument.class)))
   @ApiResponses({
@@ -673,6 +683,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "412", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The source template changed; no draft was created"),
+      @ApiResponse(responseCode = "428", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The source template ETag is required in If-Match"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response publishCreateDraftTemplate(
@@ -686,8 +700,27 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     userMustHaveCapabilityOnArtifact(c, tid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
-    String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(CedarResourceType.TEMPLATE, tid, c,
-        cedarConfig, response);
+    String ifMatch = c.getIfMatchHeader();
+    if (ifMatch == null || ifMatch.isBlank()) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+          .id(tid.getId()).errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
+          .message("Creating a draft from an edited template requires its original ETag in If-Match")
+          .build();
+    }
+    var source = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
+        CedarResourceType.TEMPLATE, tid, c, cedarConfig, response);
+    if (source.etag() == null || source.etag().isBlank()) {
+      throw new CedarProcessingException("The source template has no revision validator");
+    }
+    var expected = RevisionPreconditionParser.parse(ifMatch);
+    var current = RevisionPreconditionParser.parse(source.etag());
+    if (current.revisions().stream().noneMatch(expected::matches)) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .id(tid.getId()).errorKey(CedarErrorKey.ARTIFACT_HAS_MOVED_ON)
+          .message("The template changed since it was opened")
+          .build();
+    }
+    String getResponse = source.content();
     if (getResponse != null) {
       JsonNode oldTemplateJsonNode;
       JsonNode newTemplateJsonNode;
@@ -715,7 +748,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           CedarFolderId fid = CedarFolderId.build(parentFolderExtract.getId());
 
-          Response publishResponse = publishArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()), oldVersion);
+          Response publishResponse = publishArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()), oldVersion, source);
           if (publishResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
             return publishResponse;
           }

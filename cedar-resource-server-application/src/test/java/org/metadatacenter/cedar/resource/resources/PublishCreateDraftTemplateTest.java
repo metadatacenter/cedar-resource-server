@@ -36,6 +36,7 @@ import org.metadatacenter.server.search.permission.SearchPermissionEnqueueServic
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
+import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
 
@@ -74,6 +75,8 @@ public class PublishCreateDraftTemplateTest {
       URI.create("https://repo.metadatacenter.orgx/templates/00000000-1111-2222-3333-444444444444");
 
   private static final Map<String, ObjectNode> ARTIFACTS = new ConcurrentHashMap<>();
+  private static final Map<String, Integer> ETAGS = new ConcurrentHashMap<>();
+  private static volatile String raceOnPut;
   private static final AtomicInteger REVISIONS = new AtomicInteger();
   private static HttpServer artifactServer;
 
@@ -174,15 +177,45 @@ public class PublishCreateDraftTemplateTest {
   }
 
   private static HttpResponse<String> publishCreateDraft(CedarTemplateId sourceId, String body) throws Exception {
-    return CLIENT.send(HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + SERVER.getLocalPort()
-                + "/command/publish-create-draft-template/"
-                + URLEncoder.encode(sourceId.getId(), StandardCharsets.UTF_8)))
-            .header("Authorization", authHeader)
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .build(),
-        HttpResponse.BodyHandlers.ofString());
+    return publishCreateDraft(sourceId, body, "\"" + ETAGS.get(sourceId.getId()) + "\"");
+  }
+
+  private static HttpResponse<String> publishCreateDraft(CedarTemplateId sourceId, String body, String etag) throws Exception {
+    HttpRequest.Builder request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort()
+            + "/command/publish-create-draft-template/"
+            + URLEncoder.encode(sourceId.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json");
+    if (etag != null) request.header("If-Match", etag);
+    return CLIENT.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  @Test
+  public void missingAndStaleValidatorsLeaveBothStoresUntouched() throws Exception {
+    CedarTemplateId id = createSourceTemplate("Conditional version source", null);
+    ObjectNode before = ARTIFACTS.get(id.getId()).deepCopy();
+    int count = ARTIFACTS.size();
+    Assertions.assertEquals(428, publishCreateDraft(id, before.toString(), null).statusCode());
+    Assertions.assertEquals(412, publishCreateDraft(id, before.toString(), "\"0\"").statusCode());
+    Assertions.assertEquals(before, ARTIFACTS.get(id.getId()));
+    Assertions.assertEquals(count, ARTIFACTS.size(), "no draft may be minted");
+    Assertions.assertEquals(BiboStatus.DRAFT,
+        ((FolderServerTemplate) folderSession.findArtifactById(id)).getPublicationStatus());
+  }
+
+  @Test
+  public void concurrentWriteAfterReadCannotPublishOrCreateADraft() throws Exception {
+    CedarTemplateId id = createSourceTemplate("Concurrent version source", null);
+    int count = ARTIFACTS.size();
+    raceOnPut = id.getId();
+    HttpResponse<String> response = publishCreateDraft(id, ARTIFACTS.get(id.getId()).toString());
+    Assertions.assertEquals(412, response.statusCode(), response.body());
+    Assertions.assertEquals("Concurrent editor", ARTIFACTS.get(id.getId()).path("schema:description").asText());
+    Assertions.assertEquals(BiboStatus.DRAFT.getValue(), ARTIFACTS.get(id.getId()).path("bibo:status").asText());
+    Assertions.assertEquals(count, ARTIFACTS.size(), "a failed source CAS must not create a draft");
+    Assertions.assertEquals(BiboStatus.DRAFT,
+        ((FolderServerTemplate) folderSession.findArtifactById(id)).getPublicationStatus());
   }
 
   /** A draft template, present in both stores, that the test user owns. */
@@ -205,6 +238,7 @@ public class PublishCreateDraftTemplateTest {
     ObjectNode document = templateDocument(name, doi);
     document.put(ModelNodeNames.JSON_LD_ID, sourceId.getId());
     ARTIFACTS.put(sourceId.getId(), document);
+    ETAGS.put(sourceId.getId(), REVISIONS.incrementAndGet());
     return sourceId;
   }
 
@@ -236,12 +270,24 @@ public class PublishCreateDraftTemplateTest {
       String mintedId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
       created.put(ModelNodeNames.JSON_LD_ID, mintedId);
       ARTIFACTS.put(mintedId, created);
+      ETAGS.put(mintedId, REVISIONS.incrementAndGet());
       send(exchange, 201, created, mintedId);
       return;
     }
     if ("PUT".equals(method) && artifactId != null) {
+      if (artifactId.equals(raceOnPut)) {
+        raceOnPut = null;
+        ARTIFACTS.get(artifactId).put("schema:description", "Concurrent editor");
+        ETAGS.put(artifactId, REVISIONS.incrementAndGet());
+      }
+      String condition = exchange.getRequestHeaders().getFirst("If-Match");
+      if (condition == null || !RevisionPreconditionParser.parse(condition).matches(ETAGS.get(artifactId))) {
+        send(exchange, condition == null ? 428 : 412, JsonMapper.STRICT_MAPPER.createObjectNode().put("message", "stale"), null);
+        return;
+      }
       ObjectNode replacement = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       ARTIFACTS.put(artifactId, replacement);
+      ETAGS.put(artifactId, REVISIONS.incrementAndGet());
       send(exchange, 200, replacement, null);
       return;
     }
@@ -256,7 +302,8 @@ public class PublishCreateDraftTemplateTest {
   private static void send(HttpExchange exchange, int status, JsonNode body, String location) throws IOException {
     byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
     exchange.getResponseHeaders().set("Content-Type", "application/json");
-    exchange.getResponseHeaders().set("ETag", "\"" + REVISIONS.incrementAndGet() + "\"");
+    Integer revision = ETAGS.get(body.path("@id").asText());
+    if (revision != null) exchange.getResponseHeaders().set("ETag", "\"" + revision + "\"");
     if (location != null) {
       exchange.getResponseHeaders().set("Location", location);
     }
