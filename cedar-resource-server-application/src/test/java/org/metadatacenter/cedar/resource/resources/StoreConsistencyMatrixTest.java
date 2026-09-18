@@ -371,6 +371,7 @@ public class StoreConsistencyMatrixTest {
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
         .header("Authorization", authHeader)
         .header("Content-Type", "application/json")
+        .header("If-Match", "*")
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build());
   }

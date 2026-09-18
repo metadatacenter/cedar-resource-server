@@ -123,7 +123,7 @@ public class CommandFileSystemResourceTest {
     template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
     template.setName(SOURCE_NAME);
     template.setDescription("Copy command regression fixture");
-    template.setVersion("1.0.0");
+    template.setVersion("0.0.1");
     template.setPublicationStatus("bibo:draft");
     template.setLatestVersion(true);
     template.setLatestDraftVersion(true);

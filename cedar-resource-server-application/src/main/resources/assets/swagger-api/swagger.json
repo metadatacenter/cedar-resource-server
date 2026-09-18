@@ -3,7 +3,7 @@
   "info" : {
     "description" : "Better Metadata - Better Science\n\nMutable resources use strong ETags for optimistic concurrency. Read the resource (or its\npermissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing\nrequired precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`\naccepts whichever revision currently exists and therefore deliberately gives up lost-update\nprotection. Comma-separated strong validators are also accepted. Representation suffixes such\nas `\"7-json\"`, `\"7-yaml\"`, and `\"7-resource-record\"` identify different bytes of the same\nstored revision and are valid write preconditions.\n\nSee the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)\nfor authentication, request examples, and complete ETag guidance.\n",
     "title" : "CEDAR Resource Server API",
-    "version" : "2.9.16"
+    "version" : "2.9.17"
   },
   "tags" : [ {
     "name" : "Templates"
@@ -3011,6 +3011,8 @@
         "description" : "Publish the given template, then create a new draft version from it and apply the supplied template definition. Instances of the source template can be copied into a new folder.",
         "operationId" : "publishCreateDraftTemplate",
         "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        }, {
           "description" : "Template identifier.",
           "in" : "path",
           "name" : "template_id",
@@ -3087,6 +3089,26 @@
               }
             },
             "description" : "Not found"
+          },
+          "412" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The source template changed; no draft was created"
+          },
+          "428" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The source template ETag is required in If-Match"
           },
           "500" : {
             "content" : {
@@ -12167,14 +12189,6 @@
         },
         "required" : [ "status", "statusCode" ]
       },
-      "CedarFilesystemResourceId" : {
-        "type" : "object",
-        "properties" : {
-          "id" : {
-            "type" : "string"
-          }
-        }
-      },
       "CedarGroupReference" : {
         "type" : "object",
         "description" : "A reference to a group. It appears wherever a group is named beside something else, as the holder of a grant or as a group a user belongs to. The name accompanies the identifier so a caller need not fetch the group record to display it.",
@@ -12624,9 +12638,6 @@
           "pav:lastUpdatedOn" : {
             "type" : "string"
           },
-          "resourceId" : {
-            "$ref" : "#/components/schemas/CedarFilesystemResourceId"
-          },
           "resourceType" : {
             "type" : "string",
             "enum" : [ "folder", "field", "element", "template", "element-instance", "instance", "user", "group", "category", "message", "user-message", "process-type" ]
@@ -12739,9 +12750,6 @@
           },
           "pav:lastUpdatedOn" : {
             "type" : "string"
-          },
-          "resourceId" : {
-            "$ref" : "#/components/schemas/CedarFilesystemResourceId"
           },
           "resourceType" : {
             "type" : "string",

@@ -219,6 +219,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       if (resourceType.isVersioned()) {
         ((ObjectNode) jsonNode).put(PAV_VERSION, ResourceVersion.ZERO_ZERO_ONE.getValue());
         ((ObjectNode) jsonNode).put(BIBO_STATUS, BiboStatus.DRAFT.getValue());
+        ((ObjectNode) jsonNode).remove(PAV_PREVIOUS_VERSION);
       }
       if (jsonNode.get(SCHEMA_ORG_IDENTIFIER) != null) {
         String schemaId = jsonNode.get(SCHEMA_ORG_IDENTIFIER).asText();

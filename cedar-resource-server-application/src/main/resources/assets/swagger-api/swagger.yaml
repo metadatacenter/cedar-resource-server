@@ -14,7 +14,7 @@ info:
     See the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)
     for authentication, request examples, and complete ETag guidance.
   title: CEDAR Resource Server API
-  version: 2.9.16
+  version: 2.9.17
 tags:
 - name: Templates
 - name: Template Elements
@@ -2041,6 +2041,7 @@ paths:
         \ can be copied into a new folder."
       operationId: publishCreateDraftTemplate
       parameters:
+      - $ref: "#/components/parameters/IfMatch"
       - description: Template identifier.
         in: path
         name: template_id
@@ -2090,6 +2091,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The source template changed; no draft was created
+        "428":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The source template ETag is required in If-Match
         "500":
           content:
             application/json:
@@ -8493,11 +8506,6 @@ components:
       required:
       - status
       - statusCode
-    CedarFilesystemResourceId:
-      type: object
-      properties:
-        id:
-          type: string
     CedarGroupReference:
       type: object
       description: "A reference to a group. It appears wherever a group is named beside\
@@ -8874,8 +8882,6 @@ components:
           type: string
         pav:lastUpdatedOn:
           type: string
-        resourceId:
-          $ref: "#/components/schemas/CedarFilesystemResourceId"
         resourceType:
           type: string
           enum:
@@ -8966,8 +8972,6 @@ components:
           type: string
         pav:lastUpdatedOn:
           type: string
-        resourceId:
-          $ref: "#/components/schemas/CedarFilesystemResourceId"
         resourceType:
           type: string
           enum:

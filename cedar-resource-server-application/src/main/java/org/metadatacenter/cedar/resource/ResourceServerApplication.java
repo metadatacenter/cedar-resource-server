@@ -28,6 +28,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
   private SearchPermissionEnqueueService searchPermissionEnqueueService;
   private ArtifactDeletionCompletionService artifactDeletionCompletionService;
   private ArtifactRestoreCompletionService artifactRestoreCompletionService;
+  private org.metadatacenter.cedar.resource.version.VersionProjectionService versionProjectionService;
 
   public static void main(String[] args) throws Exception {
     new ResourceServerApplication().run(args);
@@ -59,6 +60,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     artifactDeletionCompletionService = new ArtifactDeletionCompletionService(
         cedarConfig, userService, nodeIndexingService, valuerecommenderReindexQueueService);
     artifactRestoreCompletionService = new ArtifactRestoreCompletionService(cedarConfig, userService);
+    versionProjectionService = new org.metadatacenter.cedar.resource.version.VersionProjectionService(cedarConfig, userService, nodeIndexingService);
+    AbstractResourceServerResource.injectVersionProjectionService(versionProjectionService);
 
     CommandGenericResource.injectUserService(userService);
     CommandSearchResource.injectUserService(userService);
@@ -88,10 +91,12 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
         searchPermissionEnqueueService.start();
         artifactDeletionCompletionService.start();
         artifactRestoreCompletionService.start();
+        versionProjectionService.start();
       }
 
       @Override
       public void stop() {
+        versionProjectionService.close();
         artifactRestoreCompletionService.close();
         artifactDeletionCompletionService.close();
         searchPermissionEnqueueService.close();
