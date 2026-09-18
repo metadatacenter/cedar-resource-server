@@ -13,6 +13,7 @@ import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
@@ -56,9 +57,16 @@ import java.util.Map;
  * is settled here, by the check this endpoint makes on every target before it writes any of them. Asserting
  * the visible behaviour at the endpoint keeps these cases honest if that division ever moves again.
  *
- * <p>The fixtures are one element and two templates that include it. User 2 can read one template and not
- * the other, and can write neither — the arrangement that separates "may not see it" from "may see it but
- * may not change it", which the two failures respectively allowed.
+ * <p>The same endpoint also wrote artifacts that publication had fixed. Propagation goes straight to the
+ * artifact server, so the check the ordinary artifact PUT makes never ran, and a template released at
+ * 1.0.0 came back from a propagation carrying a child it had not been published with. That check now runs
+ * here too, beside the capability check and before the same first write.
+ *
+ * <p>The fixtures are one element and four templates that include it. User 2 can read one template and not
+ * another, and can write neither — the arrangement that separates "may not see it" from "may see it but
+ * may not change it", which the first two failures respectively allowed. User 2 can write the remaining
+ * two, one a draft and one published, which separates a target that may take the change from one whose
+ * content publication has fixed.
  *
  * <p>No artifact server runs here, and none is needed: every case asserted below must be settled before
  * the first write goes out. A test that reached the artifact server would be recording the bug.
@@ -90,6 +98,10 @@ public class InclusionSubgraphAuthorizationTest {
   private static FolderServerArtifact readableTemplate;
   /** Includes the source, and user 2 has no grant on it at all. */
   private static FolderServerArtifact invisibleTemplate;
+  /** Includes the source, still a draft, and user 2 may write it. A legitimate propagation target. */
+  private static FolderServerArtifact writableDraftTemplate;
+  /** Includes the source, published, and user 2 may write it. Publication alone must refuse it. */
+  private static FolderServerArtifact publishedTemplate;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -117,13 +129,20 @@ public class InclusionSubgraphAuthorizationTest {
     sourceElement = create(new FolderServerElement(), CedarResourceType.ELEMENT, "ISA source element", user1HomeId);
     readableTemplate = create(new FolderServerTemplate(), CedarResourceType.TEMPLATE, "ISA readable template", user1HomeId);
     invisibleTemplate = create(new FolderServerTemplate(), CedarResourceType.TEMPLATE, "ISA invisible template", user1HomeId);
+    writableDraftTemplate = create(new FolderServerTemplate(), CedarResourceType.TEMPLATE, "ISA writable draft template", user1HomeId);
+    publishedTemplate = create(new FolderServerTemplate(), CedarResourceType.TEMPLATE, "ISA published template",
+        user1HomeId, BiboStatus.PUBLISHED);
 
     grantToUser2(sourceElement, ResourceRole.VIEWER);
     grantToUser2(readableTemplate, ResourceRole.VIEWER);
+    grantToUser2(writableDraftTemplate, ResourceRole.EDITOR);
+    grantToUser2(publishedTemplate, ResourceRole.EDITOR);
 
-    // Both templates include the element. The arc runs from the including artifact to the included one.
+    // Every template includes the element. The arc runs from the including artifact to the included one.
     includes(readableTemplate, sourceElement);
     includes(invisibleTemplate, sourceElement);
+    includes(writableDraftTemplate, sourceElement);
+    includes(publishedTemplate, sourceElement);
   }
 
   @AfterAll
@@ -137,7 +156,7 @@ public class InclusionSubgraphAuthorizationTest {
    */
   @Test
   public void previewOmitsTheArtifactsTheCallerCannotRead() throws Exception {
-    HttpResponse<String> response = post("/command/inclusions-subgraph-preview", requestBody(null));
+    HttpResponse<String> response = post("/command/inclusions-subgraph-preview", requestBody());
 
     Assertions.assertEquals(200, response.statusCode(), "user 2 may read the source element");
     JsonNode templates = JsonMapper.STRICT_MAPPER.readTree(response.body()).get("templates");
@@ -176,12 +195,87 @@ public class InclusionSubgraphAuthorizationTest {
             + outcomes);
   }
 
+  /**
+   * Publication fixes an artifact's content, so a published artifact is no target for a propagation. The
+   * caller here holds EDITOR on it, which isolates the refusal to the publication status: the propagation
+   * once rewrote such a template in place, leaving it at the version it was released as while carrying a
+   * child it had never been published with.
+   */
+  @Test
+  public void updateRefusesAPublishedTarget() throws Exception {
+    HttpResponse<String> response = post("/command/inclusions-subgraph-update", requestBody(publishedTemplate.getId()));
+
+    Assertions.assertEquals(400, response.statusCode(),
+        "a published artifact must not take a propagated change, whatever the caller may do to a draft");
+    Assertions.assertEquals("publishedArtifactCanNotBeChanged",
+        JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(), response.body());
+  }
+
+  /**
+   * One published target is enough to refuse the whole request, as the endpoint promises. The draft
+   * alongside it is a target the caller may write, and the artifact server that would have received it
+   * is not running, so a request that reached the writes would answer with a server error rather than
+   * this refusal.
+   */
+  @Test
+  public void updateWritesNothingWhenOneTargetIsPublished() throws Exception {
+    HttpResponse<String> response = post("/command/inclusions-subgraph-update",
+        requestBody(writableDraftTemplate.getId(), publishedTemplate.getId()));
+
+    Assertions.assertEquals(400, response.statusCode(),
+        "the published target must be refused before the first write, not after the draft beside it was "
+            + "already rewritten");
+    Assertions.assertEquals("publishedArtifactCanNotBeChanged",
+        JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(), response.body());
+  }
+
+  /**
+   * The preview carries each artifact's publication status, so a selector can offer no tick for a target
+   * the update will refuse rather than let the caller choose one and meet the refusal afterwards.
+   */
+  @Test
+  public void previewReportsThePublicationStatusOfEachTarget() throws Exception {
+    HttpResponse<String> response = post("/command/inclusions-subgraph-preview", requestBody());
+
+    Assertions.assertEquals(200, response.statusCode(), response.body());
+    JsonNode templates = JsonMapper.STRICT_MAPPER.readTree(response.body()).get("templates");
+    Assertions.assertEquals("bibo:published",
+        templates.path(publishedTemplate.getId()).path("bibo:status").asText(), response.body());
+    Assertions.assertEquals("bibo:draft",
+        templates.path(writableDraftTemplate.getId()).path("bibo:status").asText(), response.body());
+  }
+
+  /**
+   * The selector posts the preview straight back as the update request, and the update reads its body
+   * strictly, so every member the preview writes has to be one the update accepts. Returned verbatim, a
+   * preview plans no work: nothing in it is marked for update.
+   */
+  @Test
+  public void updateAcceptsAPreviewResponseVerbatim() throws Exception {
+    HttpResponse<String> preview = post("/command/inclusions-subgraph-preview", requestBody());
+    Assertions.assertEquals(200, preview.statusCode(), preview.body());
+
+    HttpResponse<String> response = post("/command/inclusions-subgraph-update", preview.body());
+
+    Assertions.assertEquals(200, response.statusCode(),
+        "the update rejected the body the preview had just produced, which is the body the selector "
+            + "sends: " + response.body());
+    Assertions.assertTrue(JsonMapper.STRICT_MAPPER.readTree(response.body()).get("outcomes").isEmpty(),
+        response.body());
+  }
+
   // ── fixtures and helpers ───────────────────────────────────────────────────
 
-  /** A propagation request rooted at the source element, optionally marking one template for update. */
-  private static String requestBody(String templateIdToUpdate) {
-    String templates = templateIdToUpdate == null ? "{}"
-        : "{\"" + templateIdToUpdate + "\":{\"operation\":\"update\"}}";
+  /** A propagation request rooted at the source element, marking the named templates for update. */
+  private static String requestBody(String... templateIdsToUpdate) {
+    StringBuilder templates = new StringBuilder("{");
+    for (String templateId : templateIdsToUpdate) {
+      if (templates.length() > 1) {
+        templates.append(',');
+      }
+      templates.append('"').append(templateId).append("\":{\"operation\":\"update\"}");
+    }
+    templates.append('}');
     return "{\"@id\":\"" + sourceElement.getId() + "\",\"templates\":" + templates + "}";
   }
 
@@ -197,15 +291,20 @@ public class InclusionSubgraphAuthorizationTest {
 
   private static FolderServerArtifact create(FolderServerArtifact artifact, CedarResourceType type, String name,
                                              CedarFolderId parent) {
+    return create(artifact, type, name, parent, BiboStatus.DRAFT);
+  }
+
+  private static FolderServerArtifact create(FolderServerArtifact artifact, CedarResourceType type, String name,
+                                             CedarFolderId parent, BiboStatus publicationStatus) {
     artifact.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(type));
     artifact.setName(name);
     artifact.setDescription("Created by InclusionSubgraphAuthorizationTest");
     if (artifact instanceof FolderServerSchemaArtifact schema) {
       schema.setVersion("1.0.0");
-      schema.setPublicationStatus("bibo:draft");
+      schema.setPublicationStatus(publicationStatus.getValue());
       schema.setLatestVersion(true);
-      schema.setLatestDraftVersion(true);
-      schema.setLatestPublishedVersion(false);
+      schema.setLatestDraftVersion(publicationStatus == BiboStatus.DRAFT);
+      schema.setLatestPublishedVersion(publicationStatus == BiboStatus.PUBLISHED);
     }
     FolderServerArtifact created = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
         .createResourceAsChildOfId(artifact, parent);

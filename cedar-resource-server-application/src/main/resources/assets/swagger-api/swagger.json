@@ -1964,7 +1964,7 @@
     },
     "/command/inclusions-subgraph-update" : {
       "post" : {
-        "description" : "Propagate a change to the given artifact across the tree of affected artifacts, updating each referencing artifact on the artifact server. The caller needs the readResource capability on the artifact that changed and the updateResource capability on every artifact selected for update. If the caller lacks either capability, the whole request is refused and nothing is written. The response reports what became of each target.",
+        "description" : "Propagate a change to the given artifact across the tree of affected artifacts, updating each referencing artifact on the artifact server. The caller needs the readResource capability on the artifact that changed and the updateResource capability on every artifact selected for update, and every artifact selected for update must still be a draft, since publication fixes an artifact's content. If the caller lacks either capability, or names a published target, the whole request is refused and nothing is written. The response reports what became of each target.",
         "operationId" : "updateInclusionSubgraph",
         "requestBody" : {
           "content" : {
@@ -12596,6 +12596,10 @@
           "@id" : {
             "type" : "string"
           },
+          "bibo:status" : {
+            "type" : "string",
+            "enum" : [ "bibo:draft", "bibo:published" ]
+          },
           "createdByUserName" : {
             "type" : "string"
           },
@@ -12714,6 +12718,10 @@
           },
           "@id" : {
             "type" : "string"
+          },
+          "bibo:status" : {
+            "type" : "string",
+            "enum" : [ "bibo:draft", "bibo:published" ]
           },
           "createdByUserName" : {
             "type" : "string"

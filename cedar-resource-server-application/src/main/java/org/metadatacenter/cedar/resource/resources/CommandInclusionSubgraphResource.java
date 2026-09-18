@@ -6,7 +6,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
 import org.metadatacenter.cedar.deltafinder.DeltaFinder;
 import org.metadatacenter.id.CedarTemplateId;
+import org.metadatacenter.model.BiboStatus;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.model.folderserver.basic.FolderServerSchemaArtifact;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -30,6 +33,7 @@ import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphRespo
 import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphTodoElement;
 import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphTodoList;
 import org.metadatacenter.rest.context.CedarRequestContext;
+import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.InclusionSubgraphServiceSession;
 import org.metadatacenter.server.cache.user.ProvenanceNameUtil;
 import org.metadatacenter.server.search.util.InclusionSubgraphUtil;
@@ -111,9 +115,10 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
   @Path("/inclusions-subgraph-update")
   @Operation(summary = "Update the inclusion subgraph of an artifact", description = "Propagate a change to the given artifact across the tree of affected artifacts, updating each "
           + "referencing artifact on the artifact server. The caller needs the readResource capability on the artifact "
-          + "that changed and the updateResource capability on every artifact selected for update. If the caller lacks "
-          + "either capability, the whole request is refused and nothing is written. The response reports what "
-          + "became of each target.")
+          + "that changed and the updateResource capability on every artifact selected for update, and every artifact "
+          + "selected for update must still be a draft, since publication fixes an artifact's content. If the caller "
+          + "lacks either capability, or names a published target, the whole request is refused and nothing is "
+          + "written. The response reports what became of each target.")
   @RequestBody(description = "The artifact that changed, and the elements and templates to consider", required = true,
       content = @Content(schema = @Schema(implementation = InclusionSubgraphRequest.class)))
   @ApiResponses({
@@ -150,9 +155,10 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
 
     InclusionSubgraphTodoList todoList = InclusionSubgraphUtil.updateResources(treeResponse);
 
-    // Every target is authorized before any target is written. Propagation is not transactional, so a
+    // Every target is admitted before any target is written. Propagation is not transactional, so a
     // check interleaved with the writes would leave the tree half-propagated on the first refusal, and a
     // partly propagated tree is worse to unpick than one that was never touched.
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     for (InclusionSubgraphTodoElement todo : todoList.getTodoList()) {
       CedarTypedSchemaArtifactId targetArtifactId = CedarResourceTypeUtil.buildTypedArtifactId(todo.getTargetId());
       if (targetArtifactId == null) {
@@ -162,6 +168,21 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
             .build();
       }
       userMustHaveCapabilityOnArtifact(c, targetArtifactId, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
+
+      // Publication fixes an artifact's content, and propagation writes that content. The check the
+      // ordinary artifact PUT makes is on that path alone, and these writes go straight to the artifact
+      // server, so a published target would otherwise be rewritten under the version it was released as.
+      FolderServerArtifact target = folderSession.findArtifactById(targetArtifactId);
+      if (target instanceof FolderServerSchemaArtifact schemaArtifact
+          && schemaArtifact.getPublicationStatus() == BiboStatus.PUBLISHED) {
+        return CedarResponse.badRequest()
+            .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
+            .message("Cannot propagate this change into a published artifact. Create a new version of it "
+                + "before applying the updated element or field. No propagation targets were updated.")
+            .parameter("name", target.getName())
+            .parameter("targetId", todo.getTargetId())
+            .build();
+      }
     }
 
     List<InclusionSubgraphUpdateOutcome> outcomes = new ArrayList<>();
@@ -190,8 +211,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         continue;
       }
       if (targetArtifactId.getType() == CedarResourceType.TEMPLATE) {
-        long instances = dataServices.getFolderServiceSession(c)
-            .getNumberOfInstances(CedarTemplateId.build(todo.getTargetId()));
+        long instances = folderSession.getNumberOfInstances(CedarTemplateId.build(todo.getTargetId()));
         if (requiresNewVersion(instances, storedTarget, targetJsonNode)) {
           return CedarResponse.badRequest()
               .errorKey(CedarErrorKey.INVALID_DATA)
