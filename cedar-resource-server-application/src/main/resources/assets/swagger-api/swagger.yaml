@@ -2975,7 +2975,8 @@ paths:
           type: string
       - description: "Sort field names as comma separated values. Prepending a field\
           \ with '-' means descending order on that field. The allowed values are:\
-          \ 'name', 'lastUpdatedOnTS', 'createdOnTS'"
+          \ 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. Prepend 'foldersFirst,'\
+          \ to group folders before artifacts, followed by the desired field and direction."
         in: query
         name: sort
         schema:
@@ -3082,7 +3083,8 @@ paths:
           type: string
       - description: "Sort field names as comma separated values. Prepending a field\
           \ with '-' means descending order on that field. The allowed values are:\
-          \ 'name', 'lastUpdatedOnTS', 'createdOnTS'"
+          \ 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. Prepend 'foldersFirst,'\
+          \ to group folders before artifacts, followed by the desired field and direction."
         in: query
         name: sort
         schema:
@@ -3773,7 +3775,8 @@ paths:
           type: string
       - description: "Sort field names as comma separated values. Prepending a field\
           \ with '-' means descending order on that field. The allowed values are:\
-          \ 'name', 'lastUpdatedOnTS', 'createdOnTS'"
+          \ 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. Prepend 'foldersFirst,'\
+          \ to group folders before artifacts, followed by the desired field and direction."
         in: query
         name: sort
         schema:
@@ -3924,7 +3927,8 @@ paths:
           type: string
       - description: "Sort field names as comma separated values. Prepending a field\
           \ with '-' means descending order on that field. The allowed values are:\
-          \ 'name', 'lastUpdatedOnTS', 'createdOnTS'"
+          \ 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. Prepend 'foldersFirst,'\
+          \ to group folders before artifacts, followed by the desired field and direction."
         in: query
         name: sort
         schema:

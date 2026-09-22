@@ -91,7 +91,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
           + "templates. The allowed values are: 'bibo:draft', 'bibo:published', 'all'")
       @QueryParam(QP_PUBLICATION_STATUS) Optional<String> publicationStatusParam,
       @Parameter(description = "Sort field names as comma separated values. Prepending a field with '-' means descending "
-          + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'")
+          + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. "
+          + "Prepend 'foldersFirst,' to group folders before artifacts, followed by the desired field and direction.")
       @QueryParam(QP_SORT) Optional<String> sortParam,
       @Parameter(description = "Paging limit")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
@@ -202,7 +203,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
           + "templates. The allowed values are: 'bibo:draft', 'bibo:published', 'all'")
       @QueryParam(QP_PUBLICATION_STATUS) Optional<String> publicationStatusParam,
       @Parameter(description = "Sort field names as comma separated values. Prepending a field with '-' means descending "
-          + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'")
+          + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. "
+          + "Prepend 'foldersFirst,' to group folders before artifacts, followed by the desired field and direction.")
       @QueryParam(QP_SORT) Optional<String> sortParam,
       @Parameter(description = "Paging limit")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,

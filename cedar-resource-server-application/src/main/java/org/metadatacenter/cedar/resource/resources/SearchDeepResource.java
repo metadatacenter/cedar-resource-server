@@ -73,7 +73,8 @@ public class SearchDeepResource extends AbstractSearchResource {
       @Parameter(description = "Template identifier. All the instances with this template id will be returned")
       @QueryParam(QP_IS_BASED_ON) Optional<String> isBasedOnParam,
       @Parameter(description = "Sort field names as comma separated values. Prepending a field with '-' means descending "
-          + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'")
+          + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. "
+          + "Prepend 'foldersFirst,' to group folders before artifacts, followed by the desired field and direction.")
       @QueryParam(QP_SORT) Optional<String> sortParam,
       @Parameter(description = "Paging limit")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
