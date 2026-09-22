@@ -36,6 +36,7 @@ import org.metadatacenter.util.NodeListUtil;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.LinkHeaderUtil;
 import org.metadatacenter.util.http.PagedSortedTypedQuery;
+import org.metadatacenter.util.http.ModifiedDateQuery;
 
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -61,7 +62,12 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{folder_id}/contents")
-  @Operation(summary = "Get the contents of a folder", description = "Get the contents of a folder.", tags = {"Folders", "Folder Contents", "Versioning"})
+  @Operation(parameters = {
+      @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
+          description = "Inclusive last-modified lower bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64")),
+      @Parameter(name = "modified_before", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
+          description = "Exclusive last-modified upper bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64"))
+  }, summary = "Get the contents of a folder", description = "Get the contents of a folder.", tags = {"Folders", "Folder Contents", "Versioning"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "A page of resources in the folder",
           content = @Content(schema = @Schema(ref = "#/components/schemas/ResourceListResponse"))),
@@ -113,6 +119,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);
+    pagedSortedTypedQuery.setModified(ModifiedDateQuery.parse(uriInfo.getQueryParameters()));
     pagedSortedTypedQuery.validate();
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -138,6 +145,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     }
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
+    if (pagedSortedTypedQuery.getModified().after() != null) builder.queryParam(ModifiedDateQuery.AFTER, pagedSortedTypedQuery.getModified().after());
+    if (pagedSortedTypedQuery.getModified().before() != null) builder.queryParam(ModifiedDateQuery.BEFORE, pagedSortedTypedQuery.getModified().before());
     URI absoluteURI = builder
         .queryParam(QP_RESOURCE_TYPES, pagedSortedTypedQuery.getResourceTypesAsString())
         .queryParam(QP_VERSION, pagedSortedTypedQuery.getVersionAsString())
@@ -161,7 +170,12 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{folder_id}/contents-extract")
-  @Operation(summary = "Get the content extracts of a folder", description = "Get the content extracts of a folder. Only "
+  @Operation(parameters = {
+      @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
+          description = "Inclusive last-modified lower bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64")),
+      @Parameter(name = "modified_before", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
+          description = "Exclusive last-modified upper bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64"))
+  }, summary = "Get the content extracts of a folder", description = "Get the content extracts of a folder. Only "
       + "the enumerated fields will be returned. Multilevel field paths are not supported. It is intended to return "
       + "smaller payload if a lot of artifacts are expected to be returned.", tags = {"Folders", "Folder Contents", "Versioning"})
   @ApiResponses({
@@ -218,6 +232,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);
+    pagedSortedTypedQuery.setModified(ModifiedDateQuery.parse(uriInfo.getQueryParameters()));
     pagedSortedTypedQuery.validate();
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -243,6 +258,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     }
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
+    if (pagedSortedTypedQuery.getModified().after() != null) builder.queryParam(ModifiedDateQuery.AFTER, pagedSortedTypedQuery.getModified().after());
+    if (pagedSortedTypedQuery.getModified().before() != null) builder.queryParam(ModifiedDateQuery.BEFORE, pagedSortedTypedQuery.getModified().before());
     URI absoluteURI = builder
         .queryParam(QP_RESOURCE_TYPES, pagedSortedTypedQuery.getResourceTypesAsString())
         .queryParam(QP_VERSION, pagedSortedTypedQuery.getVersionAsString())

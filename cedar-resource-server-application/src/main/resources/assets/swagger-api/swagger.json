@@ -4301,6 +4301,22 @@
         "description" : "Get the contents of a folder.",
         "operationId" : "findFolderContentsById",
         "parameters" : [ {
+          "description" : "Inclusive last-modified lower bound, in epoch milliseconds",
+          "in" : "query",
+          "name" : "modified_after",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "description" : "Exclusive last-modified upper bound, in epoch milliseconds",
+          "in" : "query",
+          "name" : "modified_before",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
           "name" : "folder_id",
@@ -4427,6 +4443,22 @@
         "description" : "Get the content extracts of a folder. Only the enumerated fields will be returned. Multilevel field paths are not supported. It is intended to return smaller payload if a lot of artifacts are expected to be returned.",
         "operationId" : "findFolderContentsExtractById",
         "parameters" : [ {
+          "description" : "Inclusive last-modified lower bound, in epoch milliseconds",
+          "in" : "query",
+          "name" : "modified_after",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "description" : "Exclusive last-modified upper bound, in epoch milliseconds",
+          "in" : "query",
+          "name" : "modified_before",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
           "name" : "folder_id",
@@ -5430,6 +5462,22 @@
         "description" : "Search resources using different criteria. All of the parameters are optional, but you need to provide at least one search criteria. The parameters can be combined, but not all of the combinations will work. You can see the type of the executed search in the response body.",
         "operationId" : "search",
         "parameters" : [ {
+          "description" : "Inclusive last-modified lower bound, in epoch milliseconds",
+          "in" : "query",
+          "name" : "modified_after",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "description" : "Exclusive last-modified upper bound, in epoch milliseconds",
+          "in" : "query",
+          "name" : "modified_before",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
           "description" : "Search term. It will be looked up in the artifact names",
           "in" : "query",
           "name" : "q",
@@ -5597,6 +5645,22 @@
         "description" : "Search resources using different criteria. This call can go further than 10.000 resources, by offset or, for a whole result set, by following the continuation each answer carries. It is not intended for everyday use. All of the parameters are optional, but you need to provide at least one search criteria. The parameters can be combined, but not all of the combinations will work. You can see the type of the executed search in the response body.",
         "operationId" : "searchDeep",
         "parameters" : [ {
+          "description" : "Inclusive last-modified lower bound, in epoch milliseconds",
+          "in" : "query",
+          "name" : "modified_after",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "description" : "Exclusive last-modified upper bound, in epoch milliseconds",
+          "in" : "query",
+          "name" : "modified_before",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
           "description" : "Search term. It will be looked up in the artifact names",
           "in" : "query",
           "name" : "q",

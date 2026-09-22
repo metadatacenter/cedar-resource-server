@@ -36,7 +36,12 @@ public class SearchResource extends AbstractSearchResource {
   @GET
   @Timed
   @Path("/search")
-  @Operation(summary = "Search resources", description = "Search resources using different criteria. All of the parameters are optional, but you need to "
+  @Operation(parameters = {
+      @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
+          description = "Inclusive last-modified lower bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64")),
+      @Parameter(name = "modified_before", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
+          description = "Exclusive last-modified upper bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64"))
+  }, summary = "Search resources", description = "Search resources using different criteria. All of the parameters are optional, but you need to "
           + "provide at least one search criteria. The parameters can be combined, but not all of the "
           + "combinations will work. You can see the type of the executed search in the response body.", tags = {"Search", "Template Fields", "Template Elements", "Templates", "Template Instances", "Folders",
           "Folder Contents", "Versioning"})
