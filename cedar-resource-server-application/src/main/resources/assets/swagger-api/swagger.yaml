@@ -14,7 +14,7 @@ info:
     See the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)
     for authentication, request examples, and complete ETag guidance.
   title: CEDAR Resource Server API
-  version: 2.9.17
+  version: 2.9.18
 tags:
 - name: Templates
 - name: Template Elements
@@ -1332,9 +1332,11 @@ paths:
       description: "Propagate a change to the given artifact across the tree of affected\
         \ artifacts, updating each referencing artifact on the artifact server. The\
         \ caller needs the readResource capability on the artifact that changed and\
-        \ the updateResource capability on every artifact selected for update. If\
-        \ the caller lacks either capability, the whole request is refused and nothing\
-        \ is written. The response reports what became of each target."
+        \ the updateResource capability on every artifact selected for update, and\
+        \ every artifact selected for update must still be a draft, since publication\
+        \ fixes an artifact's content. If the caller lacks either capability, or names\
+        \ a published target, the whole request is refused and nothing is written.\
+        \ The response reports what became of each target."
       operationId: updateInclusionSubgraph
       requestBody:
         content:
@@ -2934,6 +2936,18 @@ paths:
       description: Get the contents of a folder.
       operationId: findFolderContentsById
       parameters:
+      - description: "Inclusive last-modified lower bound, in epoch milliseconds"
+        in: query
+        name: modified_after
+        schema:
+          type: integer
+          format: int64
+      - description: "Exclusive last-modified upper bound, in epoch milliseconds"
+        in: query
+        name: modified_before
+        schema:
+          type: integer
+          format: int64
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -2961,7 +2975,8 @@ paths:
           type: string
       - description: "Sort field names as comma separated values. Prepending a field\
           \ with '-' means descending order on that field. The allowed values are:\
-          \ 'name', 'lastUpdatedOnTS', 'createdOnTS'"
+          \ 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. Prepend 'foldersFirst,'\
+          \ to group folders before artifacts, followed by the desired field and direction."
         in: query
         name: sort
         schema:
@@ -3029,6 +3044,18 @@ paths:
         to return smaller payload if a lot of artifacts are expected to be returned.
       operationId: findFolderContentsExtractById
       parameters:
+      - description: "Inclusive last-modified lower bound, in epoch milliseconds"
+        in: query
+        name: modified_after
+        schema:
+          type: integer
+          format: int64
+      - description: "Exclusive last-modified upper bound, in epoch milliseconds"
+        in: query
+        name: modified_before
+        schema:
+          type: integer
+          format: int64
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -3056,7 +3083,8 @@ paths:
           type: string
       - description: "Sort field names as comma separated values. Prepending a field\
           \ with '-' means descending order on that field. The allowed values are:\
-          \ 'name', 'lastUpdatedOnTS', 'createdOnTS'"
+          \ 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. Prepend 'foldersFirst,'\
+          \ to group folders before artifacts, followed by the desired field and direction."
         in: query
         name: sort
         schema:
@@ -3697,6 +3725,18 @@ paths:
         \ can see the type of the executed search in the response body."
       operationId: search
       parameters:
+      - description: "Inclusive last-modified lower bound, in epoch milliseconds"
+        in: query
+        name: modified_after
+        schema:
+          type: integer
+          format: int64
+      - description: "Exclusive last-modified upper bound, in epoch milliseconds"
+        in: query
+        name: modified_before
+        schema:
+          type: integer
+          format: int64
       - description: Search term. It will be looked up in the artifact names
         in: query
         name: q
@@ -3735,7 +3775,8 @@ paths:
           type: string
       - description: "Sort field names as comma separated values. Prepending a field\
           \ with '-' means descending order on that field. The allowed values are:\
-          \ 'name', 'lastUpdatedOnTS', 'createdOnTS'"
+          \ 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. Prepend 'foldersFirst,'\
+          \ to group folders before artifacts, followed by the desired field and direction."
         in: query
         name: sort
         schema:
@@ -3836,6 +3877,18 @@ paths:
         \ will work. You can see the type of the executed search in the response body."
       operationId: searchDeep
       parameters:
+      - description: "Inclusive last-modified lower bound, in epoch milliseconds"
+        in: query
+        name: modified_after
+        schema:
+          type: integer
+          format: int64
+      - description: "Exclusive last-modified upper bound, in epoch milliseconds"
+        in: query
+        name: modified_before
+        schema:
+          type: integer
+          format: int64
       - description: Search term. It will be looked up in the artifact names
         in: query
         name: q
@@ -3874,7 +3927,8 @@ paths:
           type: string
       - description: "Sort field names as comma separated values. Prepending a field\
           \ with '-' means descending order on that field. The allowed values are:\
-          \ 'name', 'lastUpdatedOnTS', 'createdOnTS'"
+          \ 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. Prepend 'foldersFirst,'\
+          \ to group folders before artifacts, followed by the desired field and direction."
         in: query
         name: sort
         schema:
@@ -8851,6 +8905,11 @@ components:
             type: string
         '@id':
           type: string
+        bibo:status:
+          type: string
+          enum:
+          - bibo:draft
+          - bibo:published
         createdByUserName:
           type: string
         createdOnTS:
@@ -8945,6 +9004,11 @@ components:
             type: string
         '@id':
           type: string
+        bibo:status:
+          type: string
+          enum:
+          - bibo:draft
+          - bibo:published
         createdByUserName:
           type: string
         createdOnTS:

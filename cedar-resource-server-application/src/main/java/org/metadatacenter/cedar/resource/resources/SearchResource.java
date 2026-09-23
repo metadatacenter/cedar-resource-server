@@ -36,7 +36,12 @@ public class SearchResource extends AbstractSearchResource {
   @GET
   @Timed
   @Path("/search")
-  @Operation(summary = "Search resources", description = "Search resources using different criteria. All of the parameters are optional, but you need to "
+  @Operation(parameters = {
+      @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
+          description = "Inclusive last-modified lower bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64")),
+      @Parameter(name = "modified_before", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
+          description = "Exclusive last-modified upper bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64"))
+  }, summary = "Search resources", description = "Search resources using different criteria. All of the parameters are optional, but you need to "
           + "provide at least one search criteria. The parameters can be combined, but not all of the "
           + "combinations will work. You can see the type of the executed search in the response body.", tags = {"Search", "Template Fields", "Template Elements", "Templates", "Template Instances", "Folders",
           "Folder Contents", "Versioning"})
@@ -66,7 +71,8 @@ public class SearchResource extends AbstractSearchResource {
       @Parameter(description = "Template identifier. All the instances with this template id will be returned")
       @QueryParam(QP_IS_BASED_ON) Optional<String> isBasedOnParam,
       @Parameter(description = "Sort field names as comma separated values. Prepending a field with '-' means descending "
-          + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS'")
+          + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. "
+          + "Prepend 'foldersFirst,' to group folders before artifacts, followed by the desired field and direction.")
       @QueryParam(QP_SORT) Optional<String> sortParam,
       @Parameter(description = "Paging limit")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,

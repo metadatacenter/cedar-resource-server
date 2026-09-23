@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import org.metadatacenter.model.request.ModifiedDateRange;
+import org.metadatacenter.util.http.ModifiedDateQuery;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -94,7 +96,11 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);
+    pagedSearchQuery.setModified(ModifiedDateQuery.parse(uriInfo.getQueryParameters()));
     pagedSearchQuery.validate();
+    ModifiedDateRange modified = pagedSearchQuery.getModified();
+    builder.queryParam(ModifiedDateQuery.AFTER, Optional.ofNullable(modified.after()).map(String::valueOf));
+    builder.queryParam(ModifiedDateQuery.BEFORE, Optional.ofNullable(modified.before()).map(String::valueOf));
 
     if (continuationParam.isPresent()) {
       if (!searchDeep) {
@@ -146,11 +152,11 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
       if (searchDeep) {
         pagedSearchQuery.validateDeepOffset();
         r = nodeSearchingService
-            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
+            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl, modified);
       } else {
         pagedSearchQuery.validateShallowWindow(cedarConfig.getElasticsearchConfig().getMaxResultWindow());
         r = nodeSearchingService
-            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl);
+            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl, modified);
       }
     }
     r.setNodeListQueryType(nlqt);
@@ -169,9 +175,10 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
                                     ResourcePublicationStatusFilter publicationStatus, String categoryId,
                                     List<String> sortList, int limit, String absoluteUrl,
                                     NodeListQueryType nlqt) throws CedarException {
+    ModifiedDateRange modified = pagedSearchQuery.getModified();
     String userId = c.getCedarUser().getId();
     String fingerprint = SearchContinuation.fingerprint(queryString, idString, resourceTypeList,
-        pagedSearchQuery.getVersionAsString(), pagedSearchQuery.getPublicationStatusAsString(), categoryId, sortList);
+        pagedSearchQuery.getVersionAsString(), pagedSearchQuery.getPublicationStatusAsString(), categoryId, sortList, modified);
 
     SearchContinuation current = SearchContinuation.isStart(continuationValue)
         ? null
@@ -183,7 +190,7 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         current == null ? 0 : current.getTotalCount(),
         current == null ? null : current.getPointInTimeId(),
         current == null ? null : current.getSearchAfterValues(),
-        absoluteUrl);
+        absoluteUrl, modified);
 
     FolderServerNodeListResponse r = page.response();
     String nextContinuation = null;
@@ -212,12 +219,14 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
                                                             List<String> sortList,
                                                             int limit,
                                                             int offset) throws CedarException {
+    ModifiedDateRange modified = pagedSearchQuery.getModified();
     List<CedarResourceType> resourceTypeList = pagedSearchQuery.getResourceTypeList();
 
     FolderServerNodeListResponse r = new FolderServerNodeListResponse();
 
     NodeListRequest req = new NodeListRequest();
     req.setResourceTypes(resourceTypeList);
+    req.setModified(modified);
     req.setVersion(version);
     req.setPublicationStatus(publicationStatus);
     req.setLimit(limit);
@@ -239,20 +248,21 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     long total;
 
     if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_ME) {
-      resources = folderSession.viewSharedWithMe(resourceTypeList, version, publicationStatus, limit, offset, sortList);
-      total = folderSession.viewSharedWithMeCount(resourceTypeList, version, publicationStatus);
+      resources = folderSession.viewSharedWithMe(resourceTypeList, version, publicationStatus, limit, offset, sortList, modified);
+      total = folderSession.viewSharedWithMeCount(resourceTypeList, version, publicationStatus, modified);
     } else if (nlqt == NodeListQueryType.VIEW_SHARED_WITH_EVERYBODY) {
-      resources = folderSession.viewSharedWithEverybody(resourceTypeList, version, publicationStatus, limit, offset, sortList);
-      total = folderSession.viewSharedWithEverybodyCount(resourceTypeList, version, publicationStatus);
+      resources = folderSession.viewSharedWithEverybody(resourceTypeList, version, publicationStatus, limit, offset, sortList, modified);
+      total = folderSession.viewSharedWithEverybodyCount(resourceTypeList, version, publicationStatus, modified);
     } else if (nlqt == NodeListQueryType.VIEW_ALL) {
-      resources = folderSession.viewAll(resourceTypeList, version, publicationStatus, limit, offset, sortList);
-      total = folderSession.viewAllCount(resourceTypeList, version, publicationStatus);
+      resources = folderSession.viewAll(resourceTypeList, version, publicationStatus, limit, offset, sortList, modified);
+      total = folderSession.viewAllCount(resourceTypeList, version, publicationStatus, modified);
     } else if (nlqt == NodeListQueryType.VIEW_SPECIAL_FOLDERS) {
-      resources = folderSession.viewSpecialFolders(limit, offset, sortList);
-      total = folderSession.viewSpecialFoldersCount();
+      boolean includesFolders = resourceTypeList.contains(CedarResourceType.FOLDER);
+      resources = includesFolders ? folderSession.viewSpecialFolders(limit, offset, sortList, modified) : List.of();
+      total = includesFolders ? folderSession.viewSpecialFoldersCount(modified) : 0;
     } else if (nlqt == NodeListQueryType.SEARCH_IS_BASED_ON) {
-      resources = folderSession.searchIsBasedOn(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()), limit, offset, sortList);
-      total = folderSession.searchIsBasedOnCount(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()));
+      resources = folderSession.searchIsBasedOn(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()), limit, offset, sortList, modified);
+      total = folderSession.searchIsBasedOnCount(resourceTypeList, CedarTemplateId.build(req.getIsBasedOn()), modified);
     } else if (nlqt == NodeListQueryType.SEARCH_ID) {
       resources = new ArrayList<>();
       FolderServerResourceExtract found = null;
@@ -267,7 +277,9 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
       }
       if (found != null) {
         FolderServerResourceExtract visible = readableOrRedacted(c, permissionSession, found);
-        if (visible != null) {
+        if (visible != null && resourceTypeList.contains(visible.getType())
+            && (modified.isUnbounded() || (visible.isActiveUserCanRead() && visible.getLastUpdatedOn() != null
+                && modified.contains(java.time.Instant.parse(visible.getLastUpdatedOn().toString()).toEpochMilli())))) {
           resources.add(visible);
         }
       }

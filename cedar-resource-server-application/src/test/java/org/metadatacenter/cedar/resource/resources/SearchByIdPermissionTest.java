@@ -194,6 +194,38 @@ public class SearchByIdPermissionTest {
     Assertions.assertEquals(SECRET_NAME, row.path("schema:name").asText(), row.toString());
   }
 
+  @Test
+  public void modifiedBoundsApplyToFolderCountsAndSharedSearchAndRejectInvalidInput() throws Exception {
+    var folderSession = CedarDataServices.getInstance().getFolderServiceSession(user1Context);
+    String home = folderSession.findHomeFolderOf().getId();
+    String contents = "/folders/" + URLEncoder.encode(home, StandardCharsets.UTF_8) + "/contents";
+    long tomorrow = System.currentTimeMillis() + 86_400_000;
+    for (String path : java.util.List.of(contents + "?resource_types=template,folder",
+        "/search?sharing=shared-with-me&resource_types=template,folder",
+        "/search?sharing=shared-with-everybody&resource_types=template,folder",
+        "/search?mode=special-folders&resource_types=template")) {
+      var request = HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + path
+          + "&modified_after=" + tomorrow)).header("Authorization", authHeaderUser1).GET().build();
+      var response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+      Assertions.assertEquals(200, response.statusCode(), response.body());
+      var body = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      Assertions.assertEquals(0, body.path("totalCount").asLong(), response.body());
+      Assertions.assertEquals(0, body.path("resources").size(), response.body());
+    }
+    var matching = HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + contents
+        + "?resource_types=template,folder&limit=1&modified_after=" + (tomorrow - 2 * 86_400_000)
+        + "&modified_before=" + tomorrow)).header("Authorization", authHeaderUser1).GET().build();
+    var matchingResponse = CLIENT.send(matching, HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(200, matchingResponse.statusCode(), matchingResponse.body());
+    var matchingBody = JsonMapper.STRICT_MAPPER.readTree(matchingResponse.body());
+    Assertions.assertTrue(matchingBody.path("totalCount").asLong() >= 3, matchingResponse.body());
+    Assertions.assertEquals(1, matchingBody.path("resources").size());
+    var request = HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + contents
+        + "?modified_after=10&modified_before=5")).header("Authorization", authHeaderUser1).GET().build();
+    var invalid = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(400, invalid.statusCode(), invalid.body());
+  }
+
   // ── helpers ────────────────────────────────────────────────────────────────
 
   private static HttpResponse<String> search(String path, String id, String authHeader) throws Exception {
