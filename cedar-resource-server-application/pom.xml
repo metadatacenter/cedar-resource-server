@@ -17,6 +17,7 @@
     <!-- Opt in to the cedar-shade execution managed in cedar-parent. -->
     <cedar.shade.phase>package</cedar.shade.phase>
     <cedar.shade.main.class>org.metadatacenter.cedar.resource.ResourceServerApplication</cedar.shade.main.class>
+    <cedar.resource.test.forks>2</cedar.resource.test.forks>
   </properties>
 
   <dependencies>
@@ -191,14 +192,20 @@
       <!--
         The tests redirect the CEDAR environment variables (embedded Neo4j, alternate server
         ports) through a CedarEnvironmentSource override instead of reflective environment
-        rewriting, so no add-opens flags are needed and the test classes share a JVM
-        (reuseForks true): CedarConfig.getInstance rebuilds whenever the override changes.
+        rewriting. Two reusable JVMs isolate the process-global configuration while
+        distributing test classes; methods and classes remain serial within each JVM.
+        HTTP fixtures use OS-assigned ports and Neo4j harnesses own private stores.
+        Set cedar.resource.test.forks=1 for serial diagnosis.
       -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
+          <forkCount>${cedar.resource.test.forks}</forkCount>
           <reuseForks>true</reuseForks>
+          <systemPropertyVariables>
+            <junit.jupiter.execution.parallel.enabled>false</junit.jupiter.execution.parallel.enabled>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
 
