@@ -1,6 +1,10 @@
 package org.metadatacenter.cedar.resource.deletion;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
+import org.neo4j.harness.Neo4j;
 import org.metadatacenter.model.CedarResourceType;
 import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.GraphDatabase;
@@ -14,9 +18,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class Neo4jArtifactDeletionOutboxTest {
 
+  private static Neo4j neo4j;
+
+  @BeforeAll
+  static void startDatabase() {
+    neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
+  }
+
+  @BeforeEach
+  void clearDatabase() {
+    // Keep the expensive harness alive, but give every test an empty graph.
+    // Each test still owns and closes its outbox drivers, including restart tests.
+    neo4j.defaultDatabaseService().executeTransactionally("MATCH (n) DETACH DELETE n");
+  }
+
+  @AfterAll
+  static void stopDatabase() {
+    if (neo4j != null) neo4j.close();
+  }
+
+
   @Test
   void deletionSurvivesRestartAndRetainsEachCompletedStage() {
-    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build()) {
+    {
       String jobId;
       try (var first = new Neo4jArtifactDeletionOutbox(
           GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
@@ -52,8 +76,7 @@ class Neo4jArtifactDeletionOutboxTest {
 
   @Test
   void deferringCountsTheAttemptsSoARetryBudgetCanBeSpent() {
-    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
-         var outbox = new Neo4jArtifactDeletionOutbox(
+    try (var outbox = new Neo4jArtifactDeletionOutbox(
              GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
       String jobId = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "\"7\"",
           "{\"resourceType\":\"template\"}", null, false).jobId();
@@ -70,8 +93,7 @@ class Neo4jArtifactDeletionOutboxTest {
    */
   @Test
   void aParkedJobStopsBeingOfferedButStaysInTheOutbox() {
-    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
-         var outbox = new Neo4jArtifactDeletionOutbox(
+    try (var outbox = new Neo4jArtifactDeletionOutbox(
              GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
       String jobId = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "\"7\"",
           "{\"resourceType\":\"template\"}", null, false).jobId();
@@ -87,8 +109,7 @@ class Neo4jArtifactDeletionOutboxTest {
 
   @Test
   void parkingOneJobLeavesTheOthersRunning() {
-    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
-         var outbox = new Neo4jArtifactDeletionOutbox(
+    try (var outbox = new Neo4jArtifactDeletionOutbox(
              GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
       String refused = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "\"7\"",
           "{\"resourceType\":\"template\"}", null, false).jobId();
@@ -105,8 +126,7 @@ class Neo4jArtifactDeletionOutboxTest {
 
   @Test
   void concurrentPreparationUsesOneJobPerArtifact() {
-    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
-         var outbox = new Neo4jArtifactDeletionOutbox(
+    try (var outbox = new Neo4jArtifactDeletionOutbox(
              GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
       ArtifactDeletionJob first = outbox.prepare("artifact-2", CedarResourceType.INSTANCE,
           "\"3\"", "{\"resourceType\":\"instance\"}", null, false);
@@ -120,8 +140,7 @@ class Neo4jArtifactDeletionOutboxTest {
 
   @Test
   void concurrentRemovalNeverReturnsAPropertylessDeletionJob() throws Exception {
-    try (var neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
-         var outbox = new Neo4jArtifactDeletionOutbox(
+    try (var outbox = new Neo4jArtifactDeletionOutbox(
              GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
       var executor = Executors.newFixedThreadPool(2);
       try {
