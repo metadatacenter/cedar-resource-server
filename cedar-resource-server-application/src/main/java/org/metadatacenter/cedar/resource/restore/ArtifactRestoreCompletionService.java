@@ -137,6 +137,15 @@ public final class ArtifactRestoreCompletionService implements AutoCloseable {
     }
   }
 
+  public void forgetOutcome(ArtifactRestoreJob job) {
+    if (job == null) return;
+    try {
+      outbox.forgetOutcome(job.jobId());
+    } catch (Exception failure) {
+      log.warn("The completed request's restore outcome remains recorded for {}", job.resourceId(), failure);
+    }
+  }
+
   /** How many artifacts are known to be ahead of the graph and waiting to be put back. */
   public long getPendingCount() {
     return outbox.count();

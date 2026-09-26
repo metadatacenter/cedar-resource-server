@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import org.metadatacenter.server.ArtifactGraphUpdateResult;
+
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -246,6 +248,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           if (putStatus == HttpStatus.SC_OK) {
             boolean graphUpdated = false;
+            boolean supersededWrite = false;
             org.metadatacenter.cedar.resource.restore.ArtifactRestoreJob restoreJob = null;
             try {
               if (artifactRestoreCompletionService != null) {
@@ -264,9 +267,21 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               Map<NodeProperty, String> updates = new HashMap<>();
               updates.put(NodeProperty.VERSION, newVersion.getValue());
               updates.put(NodeProperty.PUBLICATION_STATUS, BiboStatus.PUBLISHED.getValue());
-              FolderServerArtifact publishedResource =
-                  restoreJob == null ? folderSession.updateArtifactById(aid, resourceType, updates)
-                      : folderSession.updateArtifactById(aid,resourceType,updates,restoreJob.jobId());
+              FolderServerArtifact publishedResource;
+              if (restoreJob == null) {
+                publishedResource = folderSession.updateArtifactById(aid, resourceType, updates);
+              } else {
+                var result = folderSession.updateArtifactById(aid, resourceType, updates, restoreJob.jobId());
+                if (result.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
+                  supersededWrite = true;
+                  var acknowledged = (org.metadatacenter.model.folderserver.basic.FolderServerSchemaArtifact)
+                      FolderServerArtifact.fromFolderServerResourceCurrentUserReport(folderServerResourceOld);
+                  acknowledged.setVersion(newVersion.getValue());
+                  acknowledged.setPublicationStatus(BiboStatus.PUBLISHED.getValue());
+                  return Response.ok().entity(acknowledged).build();
+                }
+                publishedResource = result.resource();
+              }
               if (publishedResource == null) {
                 throw new CedarProcessingException("The published artifact could not be updated in the graph");
               }
@@ -277,11 +292,12 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
               return Response.ok().entity(updatedResource).build();
             } finally {
-              if (!graphUpdated) {
+              if (!graphUpdated && !supersededWrite) {
                 if (restoreJob != null) artifactRestoreCompletionService.restoreNow(restoreJob,c);
                 else restorePublishedArtifact(c, resourceType, aid, getResponse,
                     putResponse.getHeaderString(HttpHeaders.ETAG));
               }
+              if (restoreJob != null && !graphUpdated) artifactRestoreCompletionService.forgetOutcome(restoreJob);
             }
 
           }

@@ -196,4 +196,89 @@ class Neo4jArtifactRestoreOutboxTest {
     }
   }
 
+  @Test
+  void aSupersededWriterRemainsIdentifiableAfterTheSuccessorCommits() {
+    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+         var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
+      var first = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
+      var next = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "middle", "\"9\"", false);
+      try (var session = driver.session()) {
+        session.writeTransaction(tx -> {
+          assertEquals(org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.GraphDecision.SUPERSEDED,
+              org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.graphDecision(tx, "artifact-1", first.jobId()));
+          assertEquals(org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.GraphDecision.READY,
+              org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.graphDecision(tx, "artifact-1", next.jobId()));
+          org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.remove(tx, next.jobId());
+          return null;
+        });
+        assertEquals(org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.GraphDecision.SUPERSEDED,
+            session.writeTransaction(tx -> org.metadatacenter.server.neo4j.ArtifactRestoreTransaction
+                .graphDecision(tx, "artifact-1", first.jobId())));
+      }
+      assertEquals(0, outbox.count());
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(ints = {200, 503})
+  void aCompletedOrUncertainRestoreIsNeverReportedAsSuccessfulSupersession(int restoreStatus) {
+    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+         var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
+      var first = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
+      outbox.restoreIfPending(first, ignored -> restoreStatus);
+      outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "new preimage", "\"9\"", false);
+      try (var session = driver.session()) {
+        assertEquals(org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.GraphDecision.RESTORED,
+            session.writeTransaction(tx -> org.metadatacenter.server.neo4j.ArtifactRestoreTransaction
+                .graphDecision(tx, "artifact-1", first.jobId())));
+      }
+    }
+  }
+
+  @Test
+  void preparingWhileGraphCompletionDeletesItsJobRetainsTheNewCompensation() throws Exception {
+    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+         var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
+      var first = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
+      var caller = java.util.concurrent.Executors.newSingleThreadExecutor();
+      try (var session = driver.session(); var graph = session.beginTransaction()) {
+        assertEquals(org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.GraphDecision.READY,
+            org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.graphDecision(graph, "artifact-1", first.jobId()));
+        org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.remove(graph, first.jobId());
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var preparing = caller.submit(() -> {
+          entered.countDown();
+          return outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "committed preimage", "\"9\"", false);
+        });
+        assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+        org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.TimeoutException.class,
+            () -> preparing.get(100, java.util.concurrent.TimeUnit.MILLISECONDS));
+        graph.commit();
+        var next = preparing.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertEquals("committed preimage", next.preImage());
+        assertEquals(next.jobId(), outbox.pending(10).get(0).jobId());
+        assertEquals(1, outbox.count());
+      } finally {
+        caller.shutdownNow();
+      }
+    }
+  }
+
+  @Test
+  void finishingAFailedRequestKeepsCompensationButDoesNotLeaveALateOutcomeReceipt() {
+    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+         var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
+      var job = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
+      outbox.restoreIfPending(job, ignored -> 503);
+      outbox.forgetOutcome(job.jobId());
+      assertEquals(1, outbox.count(), "finishing a request must not discard its pending compensation");
+      outbox.restoreIfPending(job, ignored -> 200);
+      assertEquals(0, outbox.count());
+      try (var session = driver.session()) {
+        assertEquals(0, session.run("MATCH (o:CedarArtifactRestoreOutcome) RETURN count(o) AS count")
+            .single().get("count").asInt());
+      }
+    }
+  }
+
 }
