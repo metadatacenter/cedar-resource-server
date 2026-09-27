@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import org.metadatacenter.server.ArtifactGraphUpdateResult;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -784,6 +786,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     boolean artifactUpdated = false;
     boolean graphUpdated = false;
+    boolean supersededWrite = false;
     ArtifactPreImage artifactPreImage = null;
     String replacementEtag = null;
     ArtifactRestoreJob restoreJob = null;
@@ -873,9 +876,29 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         if (sourceHash != null) {
           updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
         }
-        FolderServerArtifact updatedResource = restoreJob == null
-            ? folderSession.updateArtifactById(id, resource.getType(), updateFields)
-            : folderSession.updateArtifactById(id, resource.getType(), updateFields, restoreJob.jobId());
+        FolderServerArtifact updatedResource;
+        if (restoreJob == null) {
+          updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
+        } else {
+          var graphResult = folderSession.updateArtifactById(id, resource.getType(), updateFields, restoreJob.jobId());
+          if (graphResult.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
+            supersededWrite = true;
+            // The artifact write succeeded before its successor. Do not restore it or project
+            // its stale graph fields over the successor's state.
+            resource.setName(newName);
+            resource.setDescription(newDescription);
+            resource.setIdentifier(newIdentifier);
+            if (resource instanceof org.metadatacenter.model.folderserver.basic.FolderServerInstanceArtifact instance) {
+              instance.setIsBasedOn(org.metadatacenter.id.CedarTemplateId.build(
+                  updateFields.get(NodeProperty.IS_BASED_ON)));
+            }
+            return Response.ok().entity(resource).build();
+          }
+          if (graphResult.outcome() != ArtifactGraphUpdateResult.Outcome.UPDATED) {
+            return CedarResponse.internalServerError().build();
+          }
+          updatedResource = graphResult.resource();
+        }
         if (updatedResource == null) {
           return CedarResponse.internalServerError().build();
         } else {
@@ -901,11 +924,12 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     } finally {
-      if (artifactUpdated && !graphUpdated && restoreJob != null) {
+      if (artifactUpdated && !graphUpdated && !supersededWrite && restoreJob != null) {
         artifactRestoreCompletionService.restoreNow(restoreJob, context);
-      } else if (artifactUpdated && !graphUpdated) {
+      } else if (artifactUpdated && !graphUpdated && !supersededWrite) {
         restoreArtifactAfterFailedGraphUpdate(context, resourceType, id, artifactPreImage, replacementEtag, verbatim);
       }
+      if (restoreJob != null && !graphUpdated) artifactRestoreCompletionService.forgetOutcome(restoreJob);
     }
   }
 

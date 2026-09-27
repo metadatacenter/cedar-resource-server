@@ -70,6 +70,12 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
     try (Session session = driver.session()) {
       session.run("CREATE CONSTRAINT cedar_artifact_restore_resource IF NOT EXISTS "
           + "FOR (e:" + LABEL + ") REQUIRE e.resourceId IS UNIQUE").consume();
+      session.run("CREATE CONSTRAINT cedar_artifact_restore_lock_resource IF NOT EXISTS "
+          + "FOR (m:CedarArtifactRestoreLock) REQUIRE m.resourceId IS UNIQUE").consume();
+      session.run("CREATE CONSTRAINT cedar_artifact_restore_outcome_job IF NOT EXISTS "
+          + "FOR (o:CedarArtifactRestoreOutcome) REQUIRE o.jobId IS UNIQUE").consume();
+      session.run("MATCH (o:CedarArtifactRestoreOutcome) WHERE o.createdAt < timestamp() - 86400000 "
+          + "DELETE o").consume();
       session.run("MATCH (e:" + LABEL + ") WHERE e.protocolVersion IS NULL "
           + "SET e.parked = true, e.parkedReason = 'Legacy job: graph completion is unknown'").consume();
     }
@@ -95,7 +101,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
         + "ON CREATE SET e.jobId = $jobId, e.resourceType = $resourceType, e.preImage = $preImage, "
         + "e.conditionEtag = $conditionEtag, e.verbatim = $verbatim, e.createdAt = timestamp(), "
         + "e.protocolVersion = 2, e.nextAttemptAt = timestamp() + $initialDelayMillis "
-        + "ON MATCH SET e.jobId = $jobId, e.restoreStarted = false, e.parked = false, e.attempts = 0, e.conditionEtag = $conditionEtag, e.verbatim = $verbatim, "
+        + "ON MATCH SET e.jobId = $jobId, e.restoreStarted = false, e.requestFinished = false, e.parked = false, e.attempts = 0, e.conditionEtag = $conditionEtag, e.verbatim = $verbatim, "
         + "e.protocolVersion = 2, e.nextAttemptAt = timestamp() + $initialDelayMillis "
         + "RETURN " + JOB_PROJECTION;
     Map<String, Object> parameters = new HashMap<>();
@@ -108,12 +114,19 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
     parameters.put("initialDelayMillis", initialDelayMillis);
     try (Session session = driver.session()) {
       return session.writeTransaction(tx -> {
+        ArtifactRestoreTransaction.lockResource(tx, resourceId);
         var existing = tx.run("MATCH (e:" + LABEL + " {resourceId: $resourceId}) "
-            + "SET e.lockVersion = coalesce(e.lockVersion, 0) + 1 RETURN e.protocolVersion AS version",
+            + "RETURN e.protocolVersion AS version",
             Map.of("resourceId", resourceId));
         if (existing.hasNext() && existing.single().get("version").asInt(0) != 2) {
           throw new IllegalStateException("A legacy restore needs inspection before preparing another: " + resourceId);
         }
+        tx.run("MATCH (e:" + LABEL + " {resourceId: $resourceId}) "
+            + "WITH e WHERE coalesce(e.requestFinished, false) = false "
+            + "MERGE (o:CedarArtifactRestoreOutcome {jobId: e.jobId}) "
+            + "SET o.resourceId = $resourceId, o.createdAt = timestamp(), "
+            + "o.state = CASE WHEN coalesce(e.restoreStarted, false) THEN 'RESTORED' ELSE 'SUPERSEDED' END",
+            Map.of("resourceId", resourceId)).consume();
         return fromRecord(tx.run(query, parameters).single());
       });
     }
@@ -169,6 +182,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
         + "RETURN e.attempts AS attempts";
     try (Session session = driver.session()) {
       return session.writeTransaction(tx -> {
+        if (!ArtifactRestoreTransaction.lock(tx, jobId)) return 0L;
         Result result = tx.run(query, Map.of("jobId", jobId, "delay", 5_000));
         return result.hasNext() ? result.next().get("attempts").asLong(0L) : 0L;
       });
@@ -183,6 +197,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
   public void park(String jobId, String reason) {
     try (Session session = driver.session()) {
       session.writeTransaction(tx -> {
+        if (!ArtifactRestoreTransaction.lock(tx, jobId)) return null;
         tx.run("MATCH (e:" + LABEL + " {jobId: $jobId}) "
                 + "SET e.parked = true, e.parkedReason = $reason, e.parkedAt = timestamp()",
             Map.of("jobId", jobId, "reason", reason)).consume();
@@ -220,6 +235,10 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
         }
         int status = restore.applyAsInt(job);
         if (status == 200 || status == 201 || status == 404 || status == 412) {
+          boolean requestFinished = tx.run("MATCH (e:CedarArtifactRestoreOutbox {jobId: $jobId}) "
+              + "RETURN coalesce(e.requestFinished, false) AS finished", Map.of("jobId", job.jobId()))
+              .single().get("finished").asBoolean();
+          if (!requestFinished) ArtifactRestoreTransaction.restored(tx, job.resourceId(), job.jobId());
           ArtifactRestoreTransaction.remove(tx, job.jobId());
           log.info("Finished restore job for {} with status {}", job.resourceId(), status);
         } else {
@@ -241,7 +260,22 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
   public void remove(String jobId) {
     try (Session session = driver.session()) {
       session.writeTransaction(tx -> {
-        tx.run("MATCH (e:" + LABEL + " {jobId: $jobId}) DELETE e", Map.of("jobId", jobId)).consume();
+        if (ArtifactRestoreTransaction.lock(tx, jobId)) ArtifactRestoreTransaction.remove(tx, jobId);
+        return null;
+      });
+    }
+  }
+
+  /** The originating request has observed its outcome; pending compensation is untouched. */
+  public void forgetOutcome(String jobId) {
+    try (Session session = driver.session()) {
+      session.writeTransaction(tx -> {
+        if (ArtifactRestoreTransaction.lock(tx, jobId)) {
+          tx.run("MATCH (e:CedarArtifactRestoreOutbox {jobId: $jobId}) SET e.requestFinished = true",
+              Map.of("jobId", jobId)).consume();
+        }
+        tx.run("MATCH (o:CedarArtifactRestoreOutcome {jobId: $jobId}) DELETE o",
+            Map.of("jobId", jobId)).consume();
         return null;
       });
     }

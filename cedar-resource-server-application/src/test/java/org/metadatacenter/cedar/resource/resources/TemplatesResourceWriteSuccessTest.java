@@ -243,4 +243,50 @@ public class TemplatesResourceWriteSuccessTest {
     Assertions.assertEquals("Write success fixture, renamed",
         JsonMapper.STRICT_MAPPER.readTree(response.body()).path("schema:name").asText(), response.body());
   }
+
+  @Test
+  @Order(4)
+  public void supersededUpdateAcknowledgesItsOwnStateWithoutOverwritingItsSuccessor() throws Exception {
+    var original = AbstractResourceServerResource.artifactRestoreCompletionService;
+    var completion = org.mockito.Mockito.mock(
+        org.metadatacenter.cedar.resource.restore.ArtifactRestoreCompletionService.class);
+    CedarConfig config = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
+    var context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config));
+    var folders = CedarDataServices.getInstance().getFolderServiceSession(context);
+    try (var outbox = new org.metadatacenter.cedar.resource.restore.Neo4jArtifactRestoreOutbox(config)) {
+      org.mockito.Mockito.when(completion.prepare(org.mockito.ArgumentMatchers.any(),
+          org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(),
+          org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyBoolean())).thenAnswer(call -> {
+        org.metadatacenter.id.CedarArtifactId id = call.getArgument(0);
+        org.metadatacenter.model.CedarResourceType type = call.getArgument(1);
+        var first = outbox.prepare(id.getId(), type, call.getArgument(2), call.getArgument(3), false);
+        var second = outbox.prepare(id.getId(), type, storedArtifact.toString(), "\"successor\"", false);
+        storedArtifact = storedArtifact.deepCopy().put("schema:name", "Successor")
+            .put("schema:description", "Successor description");
+        folders.updateArtifactById(id, type, Map.of(
+            org.metadatacenter.server.neo4j.cypher.NodeProperty.NAME, "Successor",
+            org.metadatacenter.server.neo4j.cypher.NodeProperty.DESCRIPTION, "Successor description"), second.jobId());
+        return first;
+      });
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(completion);
+      var request = HttpRequest.newBuilder()
+          .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+              + URLEncoder.encode(createdId, StandardCharsets.UTF_8)))
+          .header("Authorization", authHeader).header("Content-Type", "application/json")
+          .header("If-Match", "\"stub-artifact-etag-1\"")
+          .PUT(HttpRequest.BodyPublishers.ofString(templateBody("Acknowledged writer"))).build();
+      var response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+      Assertions.assertEquals(200, response.statusCode(), response.body());
+      var body = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      Assertions.assertEquals("Acknowledged writer", body.path("schema:name").asText());
+      Assertions.assertEquals("Written by the authenticated write-success test", body.path("schema:description").asText());
+      Assertions.assertEquals("Successor", storedArtifact.path("schema:name").asText());
+      Assertions.assertEquals("Successor", folders.findArtifactById(
+          org.metadatacenter.id.CedarTemplateId.build(createdId)).getName());
+      org.mockito.Mockito.verify(completion, org.mockito.Mockito.never()).restoreNow(
+          org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    } finally {
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(original);
+    }
+  }
 }

@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import org.metadatacenter.server.ArtifactGraphUpdateResult;
+
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -165,6 +167,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
     boolean artifactUpdated = false;
     boolean graphUpdated = false;
+    boolean supersededWrite = false;
     String replacementEtag = null;
     org.metadatacenter.cedar.resource.restore.ArtifactRestoreJob restoreJob = null;
     ArtifactPreImage artifactPreImage = new ArtifactPreImage(oldArtifactContentJson, expectedEtag);
@@ -183,9 +186,18 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
           : artifactRestoreCompletionService.prepare(artifactId, resourceType, artifactPreImage.content(),
               replacementEtag, false);
 
-      FolderServerArtifact updatedResource = restoreJob == null
-          ? folderSession.updateArtifactById(artifactId, resourceType, updateFields)
-          : folderSession.updateArtifactById(artifactId, resourceType, updateFields, restoreJob.jobId());
+      FolderServerArtifact updatedResource;
+      if (restoreJob == null) {
+        updatedResource = folderSession.updateArtifactById(artifactId, resourceType, updateFields);
+      } else {
+        var result = folderSession.updateArtifactById(artifactId, resourceType, updateFields, restoreJob.jobId());
+        if (result.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
+          supersededWrite = true;
+          folderServerOldResource.setDOI(doiInRequest);
+          return Response.ok().entity(folderServerOldResource).build();
+        }
+        updatedResource = result.resource();
+      }
       if (updatedResource == null) {
         return CedarResponse.internalServerError().build();
       }
@@ -194,11 +206,12 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     } catch (JsonProcessingException e) {
       throw new CedarProcessingException(e);
     } finally {
-      if (artifactUpdated && !graphUpdated && restoreJob != null) {
+      if (artifactUpdated && !graphUpdated && !supersededWrite && restoreJob != null) {
         artifactRestoreCompletionService.restoreNow(restoreJob, c);
-      } else if (artifactUpdated && !graphUpdated) {
+      } else if (artifactUpdated && !graphUpdated && !supersededWrite) {
         restoreArtifactAfterFailedGraphUpdate(c, resourceType, artifactId, artifactPreImage, replacementEtag, false);
       }
+      if (restoreJob != null && !graphUpdated) artifactRestoreCompletionService.forgetOutcome(restoreJob);
     }
   }
 
