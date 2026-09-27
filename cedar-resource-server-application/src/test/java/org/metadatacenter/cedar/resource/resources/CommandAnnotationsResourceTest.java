@@ -18,6 +18,7 @@ import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerField;
@@ -228,6 +229,31 @@ public class CommandAnnotationsResourceTest {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @Test
+  public void existingDocumentDoiRepairsMissingGraphWithoutRewritingDocument() throws Exception {
+    String doi = "https://doi.org/10.1234/recovery";
+    currentArtifact.putObject("_annotations").putObject(ModelNodeNames.DATACITE_DOI_URI).put("@id", doi);
+    ObjectNode original = currentArtifact.deepCopy();
+    FolderServiceSession folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
+    Assertions.assertNull(folderSession.findArtifactById(artifactId).getDOI());
+
+    // A different DOI must be rejected even before the graph has been repaired.
+    Assertions.assertEquals(400, setDoi("https://doi.org/10.1234/different").statusCode());
+    Assertions.assertNull(folderSession.findArtifactById(artifactId).getDOI());
+    for (int attempt = 0; attempt < 2; attempt++) {
+      HttpResponse<String> response = setDoi(doi);
+      Assertions.assertEquals(200, response.statusCode(), response.body());
+      Assertions.assertEquals(doi, folderSession.findArtifactById(artifactId).getDOI());
+      Assertions.assertEquals(original, currentArtifact);
+      Assertions.assertEquals(1, currentRevision);
+      Assertions.assertEquals(0, PUT_REQUESTS.get(), "graph recovery must not rewrite the document");
+    }
+    Assertions.assertEquals(400, setDoi("https://doi.org/10.1234/different").statusCode());
+    Assertions.assertEquals(doi, folderSession.findArtifactById(artifactId).getDOI());
+    Assertions.assertEquals(original, currentArtifact);
+    Assertions.assertEquals(0, PUT_REQUESTS.get());
   }
 
   @Test
