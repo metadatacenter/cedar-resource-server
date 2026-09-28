@@ -1087,9 +1087,13 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   }
 
   protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id) throws CedarException {
+    return executeArtifactDelete(c, resourceType, id, c.getIfMatchHeader());
+  }
+
+  protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id, String ifMatch) throws CedarException {
     // Check delete preconditions
     userMustHaveCapabilityOnArtifact(c, id, ResourceCapability.DELETE_RESOURCE);
-    if (c.getIfMatchHeader() == null || c.getIfMatchHeader().isBlank()) {
+    if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
           .id(id.getId())
           .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
@@ -1149,7 +1153,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
                 .build();
           }
           long revision = currentRevision.revisions().iterator().next();
-          if (!RevisionPreconditionParser.parse(c.getIfMatchHeader()).matches(revision)) {
+          if (!RevisionPreconditionParser.parse(ifMatch).matches(revision)) {
             return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
                 .id(id)
                 .errorKey(CedarErrorKey.ARTIFACT_HAS_MOVED_ON)
@@ -1160,7 +1164,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         } else if (status == HttpStatus.SC_NOT_FOUND) {
           EntityUtils.consume(current.getEntity());
           artifactAlreadyDeleted = true;
-          artifactEtag = c.getIfMatchHeader();
+          artifactEtag = ifMatch;
         } else {
           return generateStatusResponse(current);
         }
@@ -1180,7 +1184,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           ProxyUtil.proxyResponseHeaders(proxyResponse, response);
           int statusCode = proxyResponse.getCode();
           if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
-            if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
+            if (statusCode >= 400 && statusCode < 500) {
+              // A refused request is not permission for a background retry after its blocker disappears.
               artifactDeletionCompletionService.abandon(deletion);
             }
             return generateStatusResponse(proxyResponse);

@@ -110,6 +110,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     final FoldersResource folders = new FoldersResource(cedarConfig);
     environment.jersey().register(folders);
+    environment.jersey().register(new org.metadatacenter.cedar.resource.resources.RecursiveFolderResource(cedarConfig));
 
     final FolderContentsResource folderContents = new FolderContentsResource(cedarConfig);
     environment.jersey().register(folderContents);

@@ -75,6 +75,7 @@ public class FoldersResourceTest {
   private static String homeFolderId;
   private static String homeFolderPath;
   private static String user1Id;
+  private static String user2Id;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -86,6 +87,7 @@ public class FoldersResourceTest {
     authHeaderUser1 = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     authHeaderUser2 = TestAuthUtil.getTestUser2AuthHeader(cedarConfig);
     user1Id = TestAuthUtil.getTestUser1(cedarConfig).getId();
+    user2Id = TestAuthUtil.getTestUser2(cedarConfig).getId();
 
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
@@ -291,6 +293,89 @@ public class FoldersResourceTest {
         "a refused write must leave the folder alone");
 
     request("DELETE", "/folders/" + encode(folderId), null, authHeaderUser1, "\"1\"");
+  }
+
+  @Test
+  public void recursiveDeletionInventoriesAllFoldersAndRequiresCurrentConfirmation() throws Exception {
+    String root = createRecursiveTestFolder(homeFolderId);
+    String child = createRecursiveTestFolder(root);
+    String grandchild = createRecursiveTestFolder(child);
+    String url = "/folders/" + encode(root) + "/deletion";
+    HttpResponse<String> preview = request("GET", url, null, authHeaderUser1);
+    Assertions.assertEquals(200, preview.statusCode(), preview.body());
+    JsonNode plan = JsonMapper.STRICT_MAPPER.readTree(preview.body());
+    Assertions.assertTrue(plan.get("allowed").asBoolean(), preview.body());
+    Assertions.assertEquals(3, plan.at("/counts/folder").asInt());
+    Assertions.assertEquals(3, plan.get("items").size());
+    String added = createRecursiveTestFolder(root);
+    HttpResponse<String> changed = request("POST", url,
+        JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("token", plan.get("token").asText())), authHeaderUser1);
+    Assertions.assertEquals(409, changed.statusCode(), changed.body());
+    Assertions.assertEquals(200, request("GET", "/folders/" + encode(grandchild), null, authHeaderUser1).statusCode());
+    JsonNode fresh = JsonMapper.STRICT_MAPPER.readTree(request("GET", url, null, authHeaderUser1).body());
+    Assertions.assertEquals(4, fresh.at("/counts/folder").asInt());
+    HttpResponse<String> deleted = request("POST", url,
+        JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("token", fresh.get("token").asText())), authHeaderUser1);
+    Assertions.assertEquals(200, deleted.statusCode(), deleted.body());
+    Assertions.assertEquals("completed", JsonMapper.STRICT_MAPPER.readTree(deleted.body()).get("status").asText(), deleted.body());
+    for (String id : List.of(root, child, grandchild, added))
+      Assertions.assertEquals(404, request("GET", "/folders/" + encode(id), null, authHeaderUser1).statusCode());
+  }
+
+  @Test
+  public void recursiveDeletionRefusesHomesAndUnauthorizedInventories() throws Exception {
+    String root = createRecursiveTestFolder(homeFolderId);
+    Assertions.assertEquals(403, request("GET", "/folders/" + encode(root) + "/deletion", null, authHeaderUser2).statusCode());
+    HttpResponse<String> home = request("GET", "/folders/" + encode(homeFolderId) + "/deletion", null, authHeaderUser1);
+    Assertions.assertEquals(400, home.statusCode(), home.body());
+    request("DELETE", "/folders/" + encode(root), null, authHeaderUser1, "\"1\"");
+  }
+
+  @Test
+  public void recursiveDeletionRequiresRootOwnershipEvenWithManagerAccess() throws Exception {
+    String root = createRecursiveTestFolder(homeFolderId);
+    String child = createRecursiveTestFolder(root);
+    String path = "/folders/" + encode(root);
+    String endpoint = path + "/deletion";
+    for (String role : List.of("editor", "manager")) {
+      String grants = JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("userPermissions",
+          List.of(Map.of("user", Map.of("@id", user2Id), "role", role)), "groupPermissions", List.of()));
+      var acl = request("GET", path + "/permissions", null, authHeaderUser1);
+      Assertions.assertEquals(200, request("PUT", path + "/permissions", grants, authHeaderUser1,
+          acl.headers().firstValue("ETag").orElseThrow()).statusCode());
+      for (String method : List.of("GET", "POST")) {
+        var denied = request(method, endpoint, method.equals("POST") ? "{\"token\":\"" + "a".repeat(64) + "\"}" : null, authHeaderUser2);
+        Assertions.assertEquals(403, denied.statusCode(), denied.body());
+        Assertions.assertEquals("FOLDER_DELETE_NOT_OWNER", JsonMapper.STRICT_MAPPER.readTree(denied.body()).get("code").asText());
+      }
+    }
+    var plan = JsonMapper.STRICT_MAPPER.readTree(request("GET", endpoint, null, authHeaderUser1).body());
+    var acl = request("GET", path + "/permissions", null, authHeaderUser1);
+    var transfer = request("POST", "/command/transfer-resource-ownership",
+        JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("@id", root, "newOwnerId", user2Id)), authHeaderUser1,
+        acl.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(200, transfer.statusCode(), transfer.body());
+    acl = request("GET", path + "/permissions", null, authHeaderUser2);
+    var grant = request("PUT", path + "/permissions", JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of(
+        "userPermissions", List.of(Map.of("user", Map.of("@id", user1Id), "role", "manager")), "groupPermissions", List.of())),
+        authHeaderUser2, acl.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(200, grant.statusCode(), grant.body());
+    var denied = request("POST", endpoint, JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("token", plan.get("token").asText())), authHeaderUser1);
+    Assertions.assertEquals(403, denied.statusCode(), denied.body());
+    Assertions.assertEquals("FOLDER_DELETE_NOT_OWNER", JsonMapper.STRICT_MAPPER.readTree(denied.body()).get("code").asText());
+    Assertions.assertEquals(200, request("GET", "/folders/" + encode(child), null, authHeaderUser2).statusCode());
+    // Owning the root is sufficient; the child remains owned by user 1.
+    var fresh = JsonMapper.STRICT_MAPPER.readTree(request("GET", endpoint, null, authHeaderUser2).body());
+    Assertions.assertTrue(fresh.get("allowed").asBoolean());
+    var deleted = request("POST", endpoint, JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("token", fresh.get("token").asText())), authHeaderUser2);
+    Assertions.assertEquals("completed", JsonMapper.STRICT_MAPPER.readTree(deleted.body()).get("status").asText(), deleted.body());
+  }
+
+  private String createRecursiveTestFolder(String parent) throws Exception {
+    HttpResponse<String> result = request("POST", "/folders",
+        JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("folderId", parent, "name", "Recursive " + UUID.randomUUID(), "description", "Recursive deletion test")), authHeaderUser1);
+    Assertions.assertEquals(201, result.statusCode(), result.body());
+    return JsonMapper.STRICT_MAPPER.readTree(result.body()).get("@id").asText();
   }
 
   @Test

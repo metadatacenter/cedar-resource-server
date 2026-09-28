@@ -3151,6 +3151,52 @@ paths:
       - Folders
       - Folder Contents
       - Versioning
+  /folders/{folder_id}/deletion:
+    get:
+      operationId: preview
+      parameters:
+      - in: path
+        name: folder_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+          description: Complete deletion inventory and blockers
+      security:
+      - api_key: []
+      summary: Inventory and check a recursive folder deletion
+      tags:
+      - Folders
+    post:
+      operationId: delete
+      parameters:
+      - in: path
+        name: folder_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Confirmation"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Outcome"
+          description: Completed or stopped deletion with confirmed progress
+      security:
+      - api_key: []
+      summary: Delete exactly the confirmed eligible folder inventory
+      tags:
+      - Folders
   /folders/{folder_id}/details:
     get:
       description: Get the details of a folder.
@@ -8599,6 +8645,12 @@ components:
           description: Family name of the user.
       required:
       - '@id'
+    Confirmation:
+      type: object
+      additionalProperties: false
+      properties:
+        token:
+          type: string
     CopyRequest:
       type: object
       additionalProperties: false
@@ -9262,6 +9314,30 @@ components:
         schema:name:
           type: string
           description: Display name.
+    Item:
+      type: object
+      properties:
+        deletable:
+          type: boolean
+        depth:
+          type: integer
+          format: int32
+        id:
+          type: string
+        instancesInside:
+          type: integer
+          format: int64
+        instancesOutside:
+          type: integer
+          format: int64
+        name:
+          type: string
+        parentId:
+          type: string
+        protectedFolder:
+          type: boolean
+        type:
+          type: string
     MoveRequest:
       type: object
       additionalProperties: false
@@ -9318,6 +9394,54 @@ components:
         version:
           type: string
           nullable: true
+    Outcome:
+      type: object
+      properties:
+        code:
+          type: string
+        deleted:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        message:
+          type: string
+        remaining:
+          type: integer
+          format: int64
+        status:
+          type: string
+    Plan:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        instancesOutside:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Item"
+        protectedFolders:
+          type: integer
+          format: int64
+        restrictedItems:
+          type: integer
+          format: int64
+        templatesWithInstances:
+          type: integer
+          format: int64
+        templatesWithOutsideInstances:
+          type: integer
+          format: int64
+        token:
+          type: string
     PublishArtifactRequest:
       type: object
       additionalProperties: false

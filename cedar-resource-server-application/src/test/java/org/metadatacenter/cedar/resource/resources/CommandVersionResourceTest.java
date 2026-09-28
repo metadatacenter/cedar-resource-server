@@ -93,6 +93,7 @@ public class CommandVersionResourceTest {
   private static volatile boolean draftingFromDraft;
   private static volatile boolean failingDraft;
   private static volatile boolean retryingDelete;
+  private static volatile boolean refusingDelete;
   private static volatile boolean retryingVersionCommands;
   private static volatile boolean failedDraftArtifactPresent;
   private static volatile boolean failingPublish;
@@ -303,6 +304,7 @@ public class CommandVersionResourceTest {
     draftingFromDraft = false;
     failingDraft = false;
     retryingDelete = false;
+    refusingDelete = false;
     retryingVersionCommands = false;
     failedDraftArtifactPresent = false;
     failingPublish = false;
@@ -429,6 +431,22 @@ public class CommandVersionResourceTest {
     Assertions.assertNotNull(folderSession.findArtifactById(versionRetryDraftId));
     Assertions.assertEquals(2, folderSession.getVersionHistory(versionRetrySourceId).size(),
         "the retried lifecycle produced more than one successor");
+  }
+
+  @Test
+  @Order(-1)
+  public void refusedDeletionDoesNotLeaveAnAutomaticRetry() throws Exception {
+    refusingDelete = true;
+    long before = AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount();
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(deleteRetryTemplateId.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader).header("If-Match", "\"1\"").DELETE().build();
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    Assertions.assertNotNull(folderSession.findArtifactById(deleteRetryTemplateId));
+    Assertions.assertEquals(before, AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount(),
+        "a refused template deletion must not run later when its instances disappear");
   }
 
   /**
@@ -591,6 +609,18 @@ public class CommandVersionResourceTest {
   }
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
+    if (refusingDelete) {
+      if (exchange.getRequestMethod().equals("GET")) {
+        sendArtifactResponse(exchange, JsonMapper.STRICT_MAPPER.createObjectNode(), "\"1\"");
+      } else {
+        byte[] body = "{\"message\":\"The template has instances\"}".getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(400, body.length);
+        exchange.getResponseBody().write(body);
+        exchange.close();
+      }
+      return;
+    }
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
     if (draftingFromDraft && "GET".equals(exchange.getRequestMethod())) {
       sendArtifactResponse(exchange, draftStatusMismatchDocument, "\"draft-status-etag\"");
