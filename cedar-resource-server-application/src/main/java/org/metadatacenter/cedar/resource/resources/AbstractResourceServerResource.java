@@ -1076,12 +1076,20 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     triggerInstanceUpdatesForTemplate(context, artifact.getType(), id);
   }
 
+  /**
+   * An instance's indexed field names and labels are read from its template, so a template change
+   * leaves them stale although no instance changed. The version projection relay reindexes each
+   * marked instance in the background, because a template can have more instances than a request
+   * should wait for.
+   */
   private void triggerInstanceUpdatesForTemplate(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id) {
     if (resourceType == CedarResourceType.TEMPLATE) {
       FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-      long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(id.getId()));
-      if (instanceCount > 0) {
-        log.warn("Template " + id + " has " + instanceCount + " instances that need to be updated");
+      CedarTemplateId templateId = CedarTemplateId.build(id.getId());
+      long instanceCount = folderSession.getNumberOfInstances(templateId);
+      if (instanceCount > 0 && !folderSession.enqueueInstanceReindex(templateId)) {
+        log.error("The " + instanceCount + " instances of template " + id + " could not be marked for "
+            + "reindexing. Their search fields stay stale until the index is rebuilt.");
       }
     }
   }

@@ -17,7 +17,10 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Retries the document-link and search projections recorded by each graph lifecycle transaction. */
+/**
+ * Retries the document-link and search projections recorded by each graph lifecycle transaction, and
+ * the full reindex a template change requests for each of its instances.
+ */
 public final class VersionProjectionService implements AutoCloseable {
   private final CedarConfig config;
   private final UserService users;
