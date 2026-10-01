@@ -6,7 +6,7 @@ import org.metadatacenter.model.folderserver.basic.FileSystemResource;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.search.IndexedDocumentId;
 
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class NoOpNodeIndexingService extends NodeIndexingService {
 
-  private final Set<String> indexedResourceIds = ConcurrentHashMap.newKeySet();
+  private final Map<String, FileSystemResource> lastIndexed = new ConcurrentHashMap<>();
 
   public NoOpNodeIndexingService(CedarConfig cedarConfig) {
     super(cedarConfig, "no-op-index", null);
@@ -25,12 +25,17 @@ public class NoOpNodeIndexingService extends NodeIndexingService {
 
   @Override
   public IndexedDocumentId indexDocument(FileSystemResource resource, CedarRequestContext requestContext) {
-    indexedResourceIds.add(resource.getId());
+    lastIndexed.put(resource.getId(), resource);
     return null;
   }
 
   public boolean wasIndexed(String resourceId) {
-    return indexedResourceIds.contains(resourceId);
+    return lastIndexed.containsKey(resourceId);
+  }
+
+  /** The resource as most recently handed to the index, or null if it never was. */
+  public FileSystemResource lastIndexed(String resourceId) {
+    return lastIndexed.get(resourceId);
   }
 
   @Override
