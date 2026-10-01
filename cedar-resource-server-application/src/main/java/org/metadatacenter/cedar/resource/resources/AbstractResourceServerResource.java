@@ -1210,10 +1210,14 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     try {
       artifactDeletionCompletionService.completeAfterArtifactDeletion(deletion, c);
-      completeVersionProjections(c);
     } catch (CedarProcessingException e) {
       log.error("Artifact {} was removed from the content store; durable cleanup remains pending", id, e);
       return Response.accepted().build();
+    } finally {
+      // The surviving versions' index documents depend on the graph alone. A later cleanup step that
+      // fails, such as queueing the value-recommender event, must not leave search describing them as
+      // they stood before the deletion until the background relay catches up.
+      completeVersionProjections(c);
     }
 
     return Response.noContent().build();
