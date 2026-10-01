@@ -46,7 +46,9 @@ class ArtifactCountsResourceTest {
           "CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0",
           "CEDAR_RESOURCE_STOP_PORT", "0", "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
           "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifact.getAddress().getPort()),
-          "CEDAR_REDIS_PERSISTENT_PORT", "1"));
+          "CEDAR_REDIS_PERSISTENT_PORT", "1",
+          "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
+          "CEDAR_OPENSEARCH_REST_PORT", "1"));
     } catch (Exception e) { throw new ExceptionInInitializerError(e); }
   }
   private static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =

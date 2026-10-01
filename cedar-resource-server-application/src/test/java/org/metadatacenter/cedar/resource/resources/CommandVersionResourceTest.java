@@ -129,7 +129,9 @@ public class CommandVersionResourceTest {
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
         "CEDAR_TERMINOLOGY_SERVER_HOST", "127.0.0.1",
-        "CEDAR_TERMINOLOGY_HTTP_PORT", Integer.toString(terminologyServer.getAddress().getPort())));
+        "CEDAR_TERMINOLOGY_HTTP_PORT", Integer.toString(terminologyServer.getAddress().getPort()),
+        "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
+        "CEDAR_OPENSEARCH_REST_PORT", "1"));
 
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
