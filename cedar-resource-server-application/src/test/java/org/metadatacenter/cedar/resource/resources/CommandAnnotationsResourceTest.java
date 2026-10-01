@@ -20,6 +20,7 @@ import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.model.folderserver.basic.FileSystemResource;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerField;
 import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
@@ -63,6 +64,7 @@ public class CommandAnnotationsResourceTest {
   private static String authHeader;
   private static CedarUntypedArtifactId artifactId;
   private static CedarRequestContext userContext;
+  private static NoOpNodeIndexingService indexing;
   private static CedarConfig cedarConfig;
   private static ObjectNode currentArtifact;
   private static int currentRevision;
@@ -93,8 +95,9 @@ public class CommandAnnotationsResourceTest {
     authHeader = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
+    indexing = new NoOpNodeIndexingService(cedarConfig);
     AbstractResourceServerResource.injectServices(
-        new NoOpNodeIndexingService(cedarConfig),
+        indexing,
         new IndexUtils(cedarConfig).getNodeSearchingService(),
         new SearchPermissionEnqueueService(cedarConfig),
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
@@ -254,6 +257,22 @@ public class CommandAnnotationsResourceTest {
     Assertions.assertEquals(doi, folderSession.findArtifactById(artifactId).getDOI());
     Assertions.assertEquals(original, currentArtifact);
     Assertions.assertEquals(0, PUT_REQUESTS.get());
+  }
+
+  /**
+   * The DOI write also moves the artifact's last-updated date and modifier, which search shows,
+   * sorts and filters on. Nothing reindexed the artifact afterwards.
+   */
+  @Test
+  public void aDoiWriteReindexesTheArtifact() throws Exception {
+    Assertions.assertFalse(indexing.wasIndexed(artifactId.getId()), "the fixture starts unindexed");
+
+    Assertions.assertEquals(200, setDoi("10.1234/reindexed").statusCode());
+
+    FileSystemResource indexed = indexing.lastIndexed(artifactId.getId());
+    Assertions.assertNotNull(indexed, "the DOI write did not reindex the artifact");
+    Assertions.assertEquals("10.1234/reindexed", ((FolderServerArtifact) indexed).getDOI(),
+        "the artifact was reindexed as it stood before the write");
   }
 
   @Test
