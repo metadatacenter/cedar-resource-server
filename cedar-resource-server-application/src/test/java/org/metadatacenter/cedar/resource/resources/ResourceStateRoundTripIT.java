@@ -459,8 +459,8 @@ public class ResourceStateRoundTripIT {
   }
 
   /**
-   * Read from the graph by the listing and the details. Search does not compute the flag. Its
-   * documents record a resource's parent and nothing about the folders above it.
+   * The listing and the details read this from the path above the resource, and search asks the graph
+   * once per page, because its documents record a resource's parent and nothing above it.
    */
   private static void assertImplicitlyOpen(String id, String folder, boolean open) throws Exception {
     Assertions.assertEquals(open, listed(user1Auth, folder, id).path("isOpenImplicitly").asBoolean(),
@@ -474,6 +474,7 @@ public class ResourceStateRoundTripIT {
     }
     Assertions.assertNotNull(self, "the details' path does not reach the resource: " + details.path("pathInfo"));
     Assertions.assertEquals(open, self.path("isOpenImplicitly").asBoolean(), "the details' path");
+    Assertions.assertEquals(open, searched(user1Auth, id).path("isOpenImplicitly").asBoolean(), "search");
   }
 
   private static JsonNode listed(String auth, String folder, String id) throws Exception {

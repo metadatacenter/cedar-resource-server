@@ -38,6 +38,7 @@ import jakarta.ws.rs.core.Response;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.metadatacenter.constant.CedarQueryParameters.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -163,6 +164,7 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     r.setNodeListQueryType(nlqt);
     r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, r.getTotalCount(), limit, offset));
     ProvenanceNameUtil.addProvenanceDisplayNames(r);
+    addOpenThroughAFolder(c, r);
     return Response.ok().entity(r).build();
   }
 
@@ -205,7 +207,25 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     r.setNodeListQueryType(nlqt);
     r.setPaging(LinkHeaderUtil.getContinuationLinkHeaders(absoluteUrl, limit, nextContinuation));
     ProvenanceNameUtil.addProvenanceDisplayNames(r);
+    addOpenThroughAFolder(c, r);
     return Response.ok().entity(r).build();
+  }
+
+  /**
+   * Whether each result sits inside an open folder, which OpenView then serves. A folder listing reads
+   * this from the path above its entries. The index records a resource's parent and nothing about the
+   * folders above it, so one graph query answers it for the whole page. A redacted entry is left
+   * alone, because the answer would say something about where it is.
+   */
+  private void addOpenThroughAFolder(CedarRequestContext c, FolderServerNodeListResponse r) {
+    List<? extends FolderServerResourceExtract> readable = r.getResources().stream()
+        .filter(FolderServerResourceExtract::isActiveUserCanRead)
+        .toList();
+    Set<String> open = dataServices.getFolderServiceSession(c).findResourcesOpenThroughAFolder(
+        readable.stream().map(FolderServerResourceExtract::getId).toList());
+    for (FolderServerResourceExtract resource : readable) {
+      resource.setIsOpenImplicitly(open.contains(resource.getId()));
+    }
   }
 
   private FolderServerNodeListResponse performGraphDbSearch(CedarRequestContext c,
