@@ -3,6 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import org.metadatacenter.model.request.ModifiedDateRange;
 import org.metadatacenter.util.http.ModifiedDateQuery;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.bridge.PathInfoBuilder;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarProcessingException;
@@ -300,6 +301,11 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
       if (resourceExtract.isActiveUserCanRead() && !resourceExtract.getType().equals(CedarResourceType.FOLDER)) {
         FolderServerFolder parentFolder = folderSession.getParentFolder(CedarUntypedArtifactId.build(resourceExtract.getId()));
         TrustedByUtil.decorateWithTrustedBy(resourceExtract, parentFolder, cedarConfig.getTrustedFolders().getFoldersMap());
+      }
+      // What the user may do with each entry, as a folder listing and the details report it. Without it
+      // a shared-with-me view offered no action at all, not even opening the resource.
+      if (resourceExtract.isActiveUserCanRead()) {
+        PathInfoBuilder.addCurrentUserPermissions(permissionSession, resourceExtract);
       }
     }
 

@@ -245,14 +245,18 @@ public class ResourceStateRoundTripIT {
 
     share(folder, Map.of(user2.getId(), ResourceRole.VIEWER), Map.of());
     assertAgree(user2Auth, template, folder);
+    assertSharedView(user2Auth, "shared-with-me", folder, true);
     share(folder, Map.of(), Map.of());
     assertHidden(user2Auth, template, folder);
+    assertSharedView(user2Auth, "shared-with-me", folder, false);
 
     String everybody = everybodyGroupId();
     share(folder, Map.of(), Map.of(everybody, ResourceRole.VIEWER));
     assertAgree(user2Auth, template, folder);
+    assertSharedView(user2Auth, "shared-with-everybody", folder, true);
     share(folder, Map.of(), Map.of());
     assertHidden(user2Auth, template, folder);
+    assertSharedView(user2Auth, "shared-with-everybody", folder, false);
   }
 
   // ── 4. Move: into a shared folder, then back ─────────────────────────────────
@@ -429,6 +433,22 @@ public class ResourceStateRoundTripIT {
     Assertions.assertTrue(actions.containsAll(offered), "expected " + offered + " among " + actions);
     for (String action : withheld) {
       Assertions.assertFalse(actions.contains(action), "did not expect " + action + " among " + actions);
+    }
+  }
+
+  /**
+   * The shared views are served from the graph rather than the index. One lists the resource exactly
+   * while it is shared, and offers the same actions as its details.
+   */
+  private static void assertSharedView(String auth, String sharing, String id, boolean listed) throws Exception {
+    HttpResponse<String> response = send("GET", "/search?limit=100&sharing=" + sharing, null, auth, null);
+    Assertions.assertEquals(200, response.statusCode(), response.body());
+    JsonNode entry = find(JsonMapper.STRICT_MAPPER.readTree(response.body()), id);
+    Assertions.assertEquals(listed, entry != null, "the " + sharing + " view");
+    if (listed) {
+      JsonNode details = JsonMapper.STRICT_MAPPER.readTree(send("GET", detailsPath(id), null, auth, null).body());
+      Assertions.assertEquals(actions(details), actions(entry),
+          "the " + sharing + " view offers other actions than the details");
     }
   }
 
