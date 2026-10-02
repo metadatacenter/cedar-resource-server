@@ -53,6 +53,7 @@ class CrossStoreSequenceTest {
   private static volatile Runnable afterPost;
   private static volatile String copiedId;
   private static volatile boolean refuseCleanup;
+  private static volatile boolean compressedCreationValidator;
   private static final HttpClient client = HttpClient.newHttpClient();
   private static final DropwizardTestSupport<ResourceServerConfiguration> server =
       new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
@@ -88,6 +89,7 @@ class CrossStoreSequenceTest {
     delayedName = null;
     afterPost = null;
     refuseCleanup = false;
+    compressedCreationValidator = false;
   }
 
   @AfterAll
@@ -200,6 +202,7 @@ class CrossStoreSequenceTest {
     CedarFolderId targetId = config.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
     assertNotNull(folders.createFolderAsChildOfId(target, home, targetId));
     refuseCleanup = true;
+    compressedCreationValidator = true;
     afterPost = () -> assertTrue(folders.deleteFolderById(targetId));
     ObjectNode command;
     String path;
@@ -351,7 +354,11 @@ class CrossStoreSequenceTest {
 
   private static void respond(HttpExchange exchange, int status, Stored stored) throws IOException {
     exchange.getResponseHeaders().set("Content-Type", "application/json");
-    if (stored != null) exchange.getResponseHeaders().set("ETag", stored.etag());
+    if (stored != null) {
+      String validator = status == 201 && compressedCreationValidator
+          ? "\"" + stored.revision() + "--gzip\"" : stored.etag();
+      exchange.getResponseHeaders().set("ETag", validator);
+    }
     byte[] bytes = (stored == null ? "{}" : stored.body().toString()).getBytes(StandardCharsets.UTF_8);
     exchange.sendResponseHeaders(status, status == 204 ? -1 : bytes.length);
     if (status != 204) exchange.getResponseBody().write(bytes);
