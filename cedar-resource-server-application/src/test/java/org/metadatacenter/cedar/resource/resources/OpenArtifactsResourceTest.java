@@ -155,7 +155,8 @@ class OpenArtifactsResourceTest {
 
   private static FolderServerFolder folder(CedarFolderId parent) {
     var folder = new FolderServerFolder();
-    folder.setName("Open test folder");
+    // This fixture moves between parents; keep its name distinct from the destination's children.
+    folder.setName("Open test folder " + UUID.randomUUID());
     return folders.createFolderAsChildOfId(folder, parent,
         config.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class));
   }
