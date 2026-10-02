@@ -59,7 +59,18 @@ public class ArtifactServerUtil {
                                                            CedarRequestContext context, String content,
                                                            CedarConfig cedarConfig, String expectedEtag)
       throws CedarProcessingException {
+    return putSchemaArtifactToArtifactServer(resourceType, id, context, content, cedarConfig, expectedEtag, false);
+  }
+
+  public static Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id,
+                                                           CedarRequestContext context, String content,
+                                                           CedarConfig cedarConfig, String expectedEtag,
+                                                           boolean requireNoInstances) throws CedarProcessingException {
     String url = cedarConfig.getMicroserviceUrlUtil().getArtifact().getArtifactTypeWithId(resourceType, id);
+    if (requireNoInstances) {
+      if (resourceType != CedarResourceType.TEMPLATE) throw new IllegalArgumentException("Only templates have instance references");
+      url += "/inclusion";
+    }
     ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).put(url, context, content, expectedEtag);
     return buildPutResponse(templateProxyResponse);
   }

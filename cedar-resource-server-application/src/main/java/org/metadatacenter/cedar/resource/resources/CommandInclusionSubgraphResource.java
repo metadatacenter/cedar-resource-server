@@ -199,6 +199,13 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       JsonNode sourceJsonNode = proposed.containsKey(todo.getSourceId())
           ? proposed.get(todo.getSourceId()).deepCopy() : JsonMapper.STRICT_MAPPER.readTree(sourceArtifact);
       JsonNode storedTarget = JsonMapper.STRICT_MAPPER.readTree(targetArtifact);
+      // Publication may commit after graph preflight. This body and its ETag are one snapshot;
+      // a later publication changes that ETag and is refused by the conditional write below.
+      if (BiboStatus.PUBLISHED.getValue().equals(storedTarget.path("bibo:status").asText())) {
+        return CedarResponse.badRequest().errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
+            .message("A propagation target was published. No propagation targets were updated.")
+            .parameter("targetId", todo.getTargetId()).build();
+      }
       JsonNode targetJsonNode = proposed.containsKey(todo.getTargetId())
           ? proposed.get(todo.getTargetId()).deepCopy() : storedTarget.deepCopy();
 
@@ -224,7 +231,9 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         }
       }
       proposed.put(todo.getTargetId(), targetJsonNode);
-      prepared.add(new PreparedUpdate(todo, targetArtifactId, targetJsonNode, targetArtifactContent.etag()));
+      boolean structuralTemplateChange = targetArtifactId.getType() == CedarResourceType.TEMPLATE
+          && requiresNewVersion(1, storedTarget, targetJsonNode);
+      prepared.add(new PreparedUpdate(todo, targetArtifactId, targetJsonNode, targetArtifactContent.etag(), structuralTemplateChange));
     }
 
     // Preflight the complete proposed graph before the first write, including changes through elements.
@@ -235,7 +244,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       String newTargetContent = JsonMapper.STRICT_MAPPER.writeValueAsString(targetJsonNode);
 
       Response putResponse = ArtifactServerUtil.putSchemaArtifactToArtifactServer(targetArtifactId.getType(),
-          targetArtifactId, c, newTargetContent, cedarConfig, update.etag());
+          targetArtifactId, c, newTargetContent, cedarConfig, update.etag(), update.requireNoInstances());
       int putStatus = putResponse.getStatus();
       if (putStatus >= 400) {
         log.error("The artifact server refused the propagation of {} into {} with status {}",
@@ -268,5 +277,5 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
   }
 
   private record PreparedUpdate(InclusionSubgraphTodoElement todo, CedarTypedSchemaArtifactId targetId,
-                                JsonNode document, String etag) { }
+                                JsonNode document, String etag, boolean requireNoInstances) { }
 }
