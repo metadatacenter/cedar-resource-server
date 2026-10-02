@@ -214,6 +214,47 @@ public class IndexedSearchOpenSearchIT {
             + continued.path("resources"));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"/search?", "/search-deep?", "/search-deep?continuation=start&"})
+  void movedSubtreeUsesCurrentOpennessAndGrantsAfterAnOldIndexWrite(String route) throws Exception {
+    String term = "moveprobe" + UUID.randomUUID().toString().replace("-", "");
+    String revoked = templateId(term + "-revoked");
+    String retained = templateId(term + "-retained");
+    String reader = TestAuthUtil.getTestUser2(cedarConfig).getId();
+    index(revoked, term + " revoked", List.of(readKey(reader)));
+    index(retained, term + " retained", List.of(readKey(reader)));
+    var folders = CedarDataServices.getInstance().getFolderServiceSession(
+        CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig)));
+    var home = folders.findHomeFolderOf().getResourceId();
+    var openParent = new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
+    openParent.setName(term + " public");
+    var openId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(org.metadatacenter.id.CedarFolderId.class);
+    org.junit.jupiter.api.Assertions.assertNotNull(folders.createFolderAsChildOfId(openParent, home, openId));
+    var child = new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
+    child.setName(term + " subtree");
+    var childId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(org.metadatacenter.id.CedarFolderId.class);
+    org.junit.jupiter.api.Assertions.assertNotNull(folders.createFolderAsChildOfId(child, openId, childId));
+    org.junit.jupiter.api.Assertions.assertTrue(folders.setOpen(openId));
+    for (String id : List.of(revoked, retained)) {
+      org.junit.jupiter.api.Assertions.assertTrue(folders.moveResource(CedarTemplateId.build(templateIri(id)), childId));
+    }
+    refresh();
+    JsonNode before = get(route + "q=" + enc(term) + "&limit=20", user2Auth);
+    assertEquals(2, resourceIds(before).size());
+    before.path("resources").forEach(hit -> org.junit.jupiter.api.Assertions.assertTrue(hit.path("isOpenImplicitly").asBoolean()));
+
+    // The old index payload is already prepared. Publish it after the real graph move and revocation.
+    var stale = openSearch.get(new org.opensearch.action.get.GetRequest(INDEX_NAME, revoked), RequestOptions.DEFAULT).getSourceAsMap();
+    org.junit.jupiter.api.Assertions.assertTrue(folders.moveFolder(childId, home));
+    setReaderGrant(revoked, false);
+    openSearch.index(new IndexRequest(INDEX_NAME).id(revoked).source(stale), RequestOptions.DEFAULT);
+    refresh();
+    JsonNode after = get(route + "q=" + enc(term) + "&limit=20", user2Auth);
+    assertEquals(Set.of(templateIri(retained)), resourceIds(after), "the stale index must not restore revoked access");
+    assertFalse(after.path("resources").get(0).path("isOpenImplicitly").asBoolean(),
+        "moving out of the open ancestor removes inherited openness without removing a direct read grant");
+  }
+
   private static void setReaderGrant(String documentId, boolean grant) throws Exception {
     var owner = TestAuthUtil.getTestUser1(cedarConfig);
     var reader = TestAuthUtil.getTestUser2(cedarConfig);

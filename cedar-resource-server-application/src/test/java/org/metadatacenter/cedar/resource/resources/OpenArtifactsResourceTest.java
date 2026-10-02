@@ -125,6 +125,34 @@ class OpenArtifactsResourceTest {
     upstreamStatus.set(200);
   }
 
+  @Test void movingASubtreeOutAndBackRechecksAnonymousReadsAndKeepsDirectGrants() throws Exception {
+    upstreamStatus.set(200);
+    var branch = folder(openChild).getResourceId();
+    var resource = create(CedarResourceType.TEMPLATE, branch);
+    var id = org.metadatacenter.id.CedarTemplateId.build(resource.getId());
+    var reader = TestAuthUtil.getTestUser2(config);
+    var grant = new org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest();
+    grant.setOwner(new org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser(
+        TestAuthUtil.getTestUser1(config).getId()));
+    grant.getUserPermissions().add(new org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair(
+        new org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser(reader.getId()),
+        org.metadatacenter.server.security.model.permission.resource.ResourceRole.VIEWER));
+    var permissions = CedarDataServices.getInstance().getResourcePermissionServiceSession(
+        CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config)));
+    assertFalse(permissions.updateResourcePermissions(id, grant).isError());
+    for (var parent : List.of(home, openChild, home)) {
+      assertTrue(folders.moveFolder(branch, parent));
+      assertEquals(parent.equals(home) ? 401 : 200, get(CedarResourceType.TEMPLATE, id.getId(), null).statusCode());
+      String path = "/templates/" + URLEncoder.encode(id.getId(), StandardCharsets.UTF_8);
+      for (String suffix : List.of("", "?format=yaml")) {
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + path + suffix))
+            .header("Authorization", reader.getFirstApiKeyAuthHeader()).GET().build();
+        assertEquals(200, CLIENT.send(request, HttpResponse.BodyHandlers.ofString()).statusCode(),
+            "the explicit reader keeps content and export access after the move");
+      }
+    }
+  }
+
   private static FolderServerFolder folder(CedarFolderId parent) {
     var folder = new FolderServerFolder();
     folder.setName("Open test folder");

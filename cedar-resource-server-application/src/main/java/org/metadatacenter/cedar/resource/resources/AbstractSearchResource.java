@@ -160,6 +160,7 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         r = nodeSearchingService
             .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl, modified);
       }
+      authorizeIndexedHits(c, r);
     }
     r.setNodeListQueryType(nlqt);
     r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, r.getTotalCount(), limit, offset));
@@ -206,6 +207,16 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     }
     // Advance through the snapshot's hits before filtering. Otherwise an empty denied page could
     // keep reissuing the same position. Ordering is historical; permission to disclose a hit is not.
+    authorizeIndexedHits(c, r);
+    r.setNodeListQueryType(nlqt);
+    r.setPaging(LinkHeaderUtil.getContinuationLinkHeaders(absoluteUrl, limit, nextContinuation));
+    ProvenanceNameUtil.addProvenanceDisplayNames(r);
+    addOpenThroughAFolder(c, r);
+    return Response.ok().entity(r).build();
+  }
+
+  /** An index projection can outlive a grant even without a retained search snapshot. */
+  private void authorizeIndexedHits(CedarRequestContext c, FolderServerNodeListResponse r) {
     ResourcePermissionServiceSession permissions = dataServices.getResourcePermissionServiceSession(c);
     List<FolderServerResourceExtract> authorized = new ArrayList<>();
     for (FolderServerResourceExtract resource : r.getResources()) {
@@ -217,11 +228,6 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
       }
     }
     r.setResources(authorized);
-    r.setNodeListQueryType(nlqt);
-    r.setPaging(LinkHeaderUtil.getContinuationLinkHeaders(absoluteUrl, limit, nextContinuation));
-    ProvenanceNameUtil.addProvenanceDisplayNames(r);
-    addOpenThroughAFolder(c, r);
-    return Response.ok().entity(r).build();
   }
 
   /**
