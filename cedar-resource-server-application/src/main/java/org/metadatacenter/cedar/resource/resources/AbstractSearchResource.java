@@ -204,6 +204,19 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
           .encode();
       r.setContinuation(nextContinuation);
     }
+    // Advance through the snapshot's hits before filtering. Otherwise an empty denied page could
+    // keep reissuing the same position. Ordering is historical; permission to disclose a hit is not.
+    ResourcePermissionServiceSession permissions = dataServices.getResourcePermissionServiceSession(c);
+    List<FolderServerResourceExtract> authorized = new ArrayList<>();
+    for (FolderServerResourceExtract resource : r.getResources()) {
+      if (c.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE)
+          || permissions.userHasCapability(resource.getResourceId(),
+              org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE)) {
+        PathInfoBuilder.addCurrentUserPermissions(permissions, resource);
+        authorized.add(resource);
+      }
+    }
+    r.setResources(authorized);
     r.setNodeListQueryType(nlqt);
     r.setPaging(LinkHeaderUtil.getContinuationLinkHeaders(absoluteUrl, limit, nextContinuation));
     ProvenanceNameUtil.addProvenanceDisplayNames(r);

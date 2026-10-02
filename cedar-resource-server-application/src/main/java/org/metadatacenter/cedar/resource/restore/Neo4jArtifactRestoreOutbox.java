@@ -97,6 +97,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
                                     String preImage,
                                     String conditionEtag,
                                     boolean verbatim) {
+    long revision = contentRevision(conditionEtag);
     String query = "MERGE (e:" + LABEL + " {resourceId: $resourceId}) "
         + "ON CREATE SET e.jobId = $jobId, e.resourceType = $resourceType, e.preImage = $preImage, "
         + "e.conditionEtag = $conditionEtag, e.verbatim = $verbatim, e.createdAt = timestamp(), "
@@ -116,11 +117,31 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
       return session.writeTransaction(tx -> {
         ArtifactRestoreTransaction.lockResource(tx, resourceId);
         var existing = tx.run("MATCH (e:" + LABEL + " {resourceId: $resourceId}) "
-            + "RETURN e.protocolVersion AS version",
+            + "RETURN e.protocolVersion AS version, e.conditionEtag AS etag",
             Map.of("resourceId", resourceId));
-        if (existing.hasNext() && existing.single().get("version").asInt(0) != 2) {
-          throw new IllegalStateException("A legacy restore needs inspection before preparing another: " + resourceId);
+        long previousRevision = tx.run("MATCH (m:CedarArtifactRestoreLock {resourceId: $resourceId}) "
+            + "RETURN coalesce(m.highestPreparedRevision, -1) AS revision", Map.of("resourceId", resourceId))
+            .single().get("revision").asLong();
+        if (existing.hasNext()) {
+          var pending = existing.single();
+          if (pending.get("version").asInt(0) != 2) {
+            throw new IllegalStateException("A legacy restore needs inspection before preparing another: " + resourceId);
+          }
+          String pendingEtag = pending.get("etag").asString();
+          previousRevision = Math.max(previousRevision, contentRevision(pendingEtag));
         }
+        if (revision <= previousRevision) {
+          // The stable lock keeps this high-water mark after the newer job has completed. HTTP
+          // responses can arrive out of order even when no two prepared jobs ever overlap.
+          tx.run("MERGE (o:CedarArtifactRestoreOutcome {jobId: $jobId}) "
+              + "SET o.resourceId = $resourceId, o.createdAt = timestamp(), o.state = 'SUPERSEDED'",
+              parameters).consume();
+          return new ArtifactRestoreJob((String) parameters.get("jobId"), resourceId, resourceType,
+              preImage, conditionEtag, verbatim);
+        }
+        tx.run("MATCH (m:CedarArtifactRestoreLock {resourceId: $resourceId}) "
+            + "SET m.highestPreparedRevision = $revision",
+            Map.of("resourceId", resourceId, "revision", revision)).consume();
         tx.run("MATCH (e:" + LABEL + " {resourceId: $resourceId}) "
             + "WITH e WHERE coalesce(e.requestFinished, false) = false "
             + "MERGE (o:CedarArtifactRestoreOutcome {jobId: e.jobId}) "
@@ -296,6 +317,14 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
         (String) properties.get("preImage"),
         (String) properties.get("conditionEtag"),
         Boolean.TRUE.equals(properties.get("verbatim")));
+  }
+
+  private static long contentRevision(String etag) {
+    var parsed = org.metadatacenter.util.http.RevisionPreconditionParser.parse(etag == null ? "" : etag);
+    if (parsed.anyCurrentRevision() || parsed.revisions().size() != 1) {
+      throw new IllegalArgumentException("The artifact write must return a numeric revision ETag");
+    }
+    return parsed.revisions().iterator().next();
   }
 
   private static ArtifactRestoreJob fromRecord(Record record) {

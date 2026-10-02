@@ -679,12 +679,18 @@ public class CommandVersionResourceTest {
       byte[] response = draft.toString().getBytes(StandardCharsets.UTF_8);
       exchange.getResponseHeaders().set("Content-Type", "application/json");
       exchange.getResponseHeaders().set("Location", failedDraftTemplateId.getId());
+      exchange.getResponseHeaders().set("ETag", "\"7\"");
       exchange.sendResponseHeaders(201, response.length);
       exchange.getResponseBody().write(response);
       exchange.close();
       return;
     }
     if (failingDraft && "DELETE".equals(exchange.getRequestMethod())) {
+      if (!"\"7\"".equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
+        exchange.sendResponseHeaders(412, -1);
+        exchange.close();
+        return;
+      }
       failedDraftArtifactPresent = false;
       COMPENSATING_DRAFT_DELETES.incrementAndGet();
       exchange.sendResponseHeaders(204, -1);
@@ -738,12 +744,18 @@ public class CommandVersionResourceTest {
       byte[] response = created.toString().getBytes(StandardCharsets.UTF_8);
       exchange.getResponseHeaders().set("Content-Type", "application/json");
       exchange.getResponseHeaders().set("Location", failedCreateTemplateId.getId());
+      exchange.getResponseHeaders().set("ETag", "\"7\"");
       exchange.sendResponseHeaders(201, response.length);
       exchange.getResponseBody().write(response);
       exchange.close();
       return;
     }
     if (creatingArtifact && "DELETE".equals(exchange.getRequestMethod())) {
+      if (!"\"7\"".equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
+        exchange.sendResponseHeaders(412, -1);
+        exchange.close();
+        return;
+      }
       createdArtifactPresent = false;
       COMPENSATING_DELETES.incrementAndGet();
       exchange.sendResponseHeaders(204, -1);

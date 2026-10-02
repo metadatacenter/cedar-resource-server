@@ -10,6 +10,13 @@ import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.id.CedarTemplateId;
+import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.server.security.model.auth.CedarNodeMaterializedPermissions;
@@ -175,6 +182,55 @@ public class IndexedSearchOpenSearchIT {
         new HashSet<>(walked));
   }
 
+  @Test
+  void continuationMustNotReturnMetadataAfterTheIndexedGrantIsRevoked() throws Exception {
+    String term = "revocationprobe" + RUN.replace("-", "");
+    String reader = TestAuthUtil.getTestUser2(cedarConfig).getId();
+    for (int i = 0; i < 3; i++) {
+      String id = templateId("revocation-" + i);
+      index(id, term + " confidential " + i, List.of(readKey(reader)));
+    }
+    refresh();
+    JsonNode first = get("/search-deep?q=" + enc(term) + "&limit=1&continuation=start", user2Auth);
+    assertEquals(1, resourceIds(first).size(), first.toString());
+    String continuation = first.path("continuation").asText();
+    org.junit.jupiter.api.Assertions.assertTrue(!continuation.isBlank(), first.toString());
+
+    // The live index has caught up completely with revocation before either next request.
+    for (int i = 0; i < 3; i++) {
+      setReaderGrant(templateId("revocation-" + i), false);
+      index(templateId("revocation-" + i), term + " confidential " + i, List.of());
+    }
+    refresh();
+    assertEquals(Set.of(), resourceIds(get("/search?q=" + enc(term) + "&limit=20", user2Auth)),
+        "fresh search must prove that the indexed grant has gone");
+    assertEquals(Set.of(), resourceIds(get("/search-deep?q=" + enc(term)
+        + "&limit=1&continuation=start", user2Auth)), "a fresh snapshot must also deny access");
+
+    JsonNode continued = get("/search-deep?q=" + enc(term) + "&limit=1&continuation="
+        + enc(continuation), user2Auth);
+    assertEquals(Set.of(), resourceIds(continued),
+        "an old continuation must not expose revoked metadata after graph and live index deny it: "
+            + continued.path("resources"));
+  }
+
+  private static void setReaderGrant(String documentId, boolean grant) throws Exception {
+    var owner = TestAuthUtil.getTestUser1(cedarConfig);
+    var reader = TestAuthUtil.getTestUser2(cedarConfig);
+    var id = CedarTemplateId.build(templateIri(documentId));
+    var request = new ResourcePermissionsRequest();
+    request.setOwner(new ResourcePermissionUser(owner.getId()));
+    if (grant) request.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
+        new ResourcePermissionUser(reader.getId()), ResourceRole.VIEWER));
+    var result = CedarDataServices.getInstance()
+        .getResourcePermissionServiceSession(CedarRequestContextFactory.fromUser(owner))
+        .updateResourcePermissions(id, request);
+    assertFalse(result.isError(), "graph permission change must succeed");
+    assertEquals(grant, CedarDataServices.getInstance()
+        .getResourcePermissionServiceSession(CedarRequestContextFactory.fromUser(reader))
+        .userHasRole(id, ResourceRole.VIEWER), "prove the live graph grant changed");
+  }
+
   private static JsonNode get(String path, String authHeader) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
@@ -196,6 +252,19 @@ public class IndexedSearchOpenSearchIT {
 
   private static void index(String documentId, String name, List<String> users) throws Exception {
     String cedarId = templateIri(documentId);
+    var owner = TestAuthUtil.getTestUser1(cedarConfig);
+    var ownerContext = CedarRequestContextFactory.fromUser(owner);
+    if (!SEEDED_DOCUMENT_IDS.contains(documentId)) {
+      var folders = CedarDataServices.getInstance().getFolderServiceSession(ownerContext);
+      FolderServerTemplate template = new FolderServerTemplate();
+      template.setId(cedarId);
+      template.setName(name);
+      template.setVersion("0.0.1");
+      template.setPublicationStatus("bibo:draft");
+      org.junit.jupiter.api.Assertions.assertNotNull(
+          folders.createResourceAsChildOfId(template, folders.findHomeFolderOf().getResourceId()));
+    }
+    setReaderGrant(documentId, users.contains(readKey(TestAuthUtil.getTestUser2(cedarConfig).getId())));
     Map<String, Object> info = new LinkedHashMap<>();
     info.put("@id", cedarId);
     info.put("resourceType", "template");

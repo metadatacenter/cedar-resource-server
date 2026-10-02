@@ -236,6 +236,9 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       throw new CedarProcessingException(e);
     }
 
+    CedarArtifactId createdArtifactId = null;
+    String createdEtag = null;
+    boolean registered = false;
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
@@ -254,6 +257,9 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         JsonNode jsonNode = JsonMapper.STRICT_MAPPER.readTree(entityContent);
         String createdId = jsonNode.get("@id").asText();
         CedarArtifactId newId = CedarArtifactId.build(createdId, resourceType);
+        createdArtifactId = newId;
+        Header validator = templateProxyResponse.getFirstHeader(HttpHeaders.ETAG);
+        createdEtag = validator == null ? null : validator.getValue();
 
         FolderServerArtifact folderServerCreatedResource =
             ArtifactCopyOperations.registerCopy(folderSession, sourceArtifactId, newId, targetFolderId,
@@ -262,6 +268,10 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
                 ModelUtil.extractDescriptionFromResource(resourceType, jsonNode).getValue(),
                 ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue(), null, null);
 
+        if (folderServerCreatedResource == null) {
+          return CedarResponse.badRequest().errorKey(CedarErrorKey.RESOURCE_NOT_CREATED).build();
+        }
+        registered = true;
         if (locationHeader != null) {
           response.setHeader(locationHeader.getName(), locationHeader.getValue());
         }
@@ -279,6 +289,10 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
+    } finally {
+      if (createdArtifactId != null && !registered) {
+        discardArtifactAfterFailedCreate(c, resourceType, createdArtifactId, createdEtag);
+      }
     }
   }
 

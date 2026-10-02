@@ -187,7 +187,9 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         String mediaType = entity.getContentType();
         String location = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION).getValue();
         URI locationURI = new URI(location);
-        return Response.created(locationURI).type(mediaType).entity(entity.getContent()).build();
+        return Response.created(locationURI).type(mediaType)
+            .header(HttpHeaders.ETAG, headerValue(templateProxyResponse, HttpHeaders.ETAG))
+            .entity(entity.getContent()).build();
       }
     } catch (CedarProcessingException e) {
       throw e;
@@ -253,6 +255,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     // there, and the caller, told the create failed, has no id to clean up with. Remember the id from
     // the moment it exists and discard it in the finally unless the artifact reached the graph.
     CedarArtifactId createdArtifactId = null;
+    String createdArtifactEtag = null;
     boolean artifactReachedTheGraph = false;
     try {
       String url;
@@ -281,6 +284,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
           createdArtifactId = aid;
+          createdArtifactEtag = headerValue(templateProxyResponse, HttpHeaders.ETAG);
 
           JsonPointerValuePair namePair = ModelUtil.extractNameFromResource(resourceType, templateJsonNode);
           JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode);
@@ -386,7 +390,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       throw new CedarProcessingException(e);
     } finally {
       if (createdArtifactId != null && !artifactReachedTheGraph) {
-        discardArtifactAfterFailedCreate(context, resourceType, createdArtifactId);
+        discardArtifactAfterFailedCreate(context, resourceType, createdArtifactId, createdArtifactEtag);
       }
     }
   }
@@ -401,10 +405,14 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
    * — the artifact is unreachable through this server once it has no graph node.
    */
   protected void discardArtifactAfterFailedCreate(CedarRequestContext context, CedarResourceType resourceType,
-                                                  CedarArtifactId artifactId) {
+                                                  CedarArtifactId artifactId, String createdEtag) {
+    if (createdEtag == null) {
+      log.error("Refused create left {} on the artifact server: its response carried no validator", artifactId);
+      return;
+    }
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
-      ClassicHttpResponse discardResponse = new ArtifactServiceClient(cedarConfig).delete(url, context, "\"1\"");
+      ClassicHttpResponse discardResponse = new ArtifactServiceClient(cedarConfig).delete(url, context, createdEtag);
       int status = discardResponse.getCode();
       if (status != HttpStatus.SC_NO_CONTENT && status != HttpStatus.SC_OK && status != HttpStatus.SC_NOT_FOUND) {
         log.error("Refused create left {} on the artifact server: discard answered {}", artifactId, status);

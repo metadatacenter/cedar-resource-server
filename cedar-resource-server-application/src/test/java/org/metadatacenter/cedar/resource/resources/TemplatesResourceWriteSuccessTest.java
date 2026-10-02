@@ -156,7 +156,7 @@ public class TemplatesResourceWriteSuccessTest {
     // The artifact server is the reference resource for this exchange and answers every read and
     // write with an ETag; the resource server carries it through. A stub that omitted it would be
     // testing a downstream server CEDAR does not have.
-    exchange.getResponseHeaders().set("ETag", "\"stub-artifact-etag-" + ARTIFACT_PUTS.get() + "\"");
+    exchange.getResponseHeaders().set("ETag", "\"" + (1 + ARTIFACT_PUTS.get()) + "\"");
     if (location != null) {
       exchange.getResponseHeaders().set("Location", location);
     }
@@ -260,7 +260,9 @@ public class TemplatesResourceWriteSuccessTest {
         org.metadatacenter.id.CedarArtifactId id = call.getArgument(0);
         org.metadatacenter.model.CedarResourceType type = call.getArgument(1);
         var first = outbox.prepare(id.getId(), type, call.getArgument(2), call.getArgument(3), false);
-        var second = outbox.prepare(id.getId(), type, storedArtifact.toString(), "\"successor\"", false);
+        long successor = org.metadatacenter.util.http.RevisionPreconditionParser
+            .parse(call.getArgument(3)).revisions().iterator().next() + 1;
+        var second = outbox.prepare(id.getId(), type, storedArtifact.toString(), "\"" + successor + "\"", false);
         storedArtifact = storedArtifact.deepCopy().put("schema:name", "Successor")
             .put("schema:description", "Successor description");
         folders.updateArtifactById(id, type, Map.of(
@@ -273,7 +275,7 @@ public class TemplatesResourceWriteSuccessTest {
           .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
               + URLEncoder.encode(createdId, StandardCharsets.UTF_8)))
           .header("Authorization", authHeader).header("Content-Type", "application/json")
-          .header("If-Match", "\"stub-artifact-etag-1\"")
+          .header("If-Match", "\"2\"")
           .PUT(HttpRequest.BodyPublishers.ofString(templateBody("Acknowledged writer"))).build();
       var response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
       Assertions.assertEquals(200, response.statusCode(), response.body());

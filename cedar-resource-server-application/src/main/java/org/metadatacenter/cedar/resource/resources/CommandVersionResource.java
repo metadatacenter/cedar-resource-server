@@ -535,7 +535,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               return Response.created(uri).entity(createdNewResource).build();
             } finally {
               if (!draftReachedTheGraph) {
-                discardArtifactAfterFailedCreate(c, artifactType, newId);
+                discardArtifactAfterFailedCreate(c, artifactType, newId,
+                    artifactServerPostResponse.getHeaderString(jakarta.ws.rs.core.HttpHeaders.ETAG));
               }
             }
 
