@@ -89,4 +89,33 @@ class RecursiveFolderDeletionTest {
     assertThrows(IllegalStateException.class, () -> new RecursiveFolderDeletion(store, "user", "root").plan());
     assertTrue(store.removed.isEmpty());
   }
+  @Test void aLostDeleteResponseRequiresAReinventoryBeforeRetryingTheSurvivors() throws Exception {
+    var remaining = new LinkedHashMap<String,Entry>();
+    for (Entry entry : List.of(ROOT,SUB,TEMPLATE,INSTANCE)) remaining.put(entry.id(),entry);
+    var attempts = new ArrayList<String>();
+    Store store = new Store() {
+      public Inventory inventory() {
+        return new Inventory(new ArrayList<>(remaining.values()),
+            Map.of("template",remaining.containsKey("instance") ? List.of("instance") : List.of()));
+      }
+      public Step delete(Entry entry) throws Exception {
+        attempts.add(entry.id());
+        assertNotNull(remaining.remove(entry.id()),"a retry must not repeat a completed delete");
+        if (entry.id().equals("instance")) throw new java.io.IOException("connection lost after committing delete");
+        return new Step(true,Reason.COMPLETED);
+      }
+    };
+    var service = new RecursiveFolderDeletion(store,"user","root");
+    String token = service.plan().token();
+    Outcome lost = service.execute(token);
+    assertEquals("stopped",lost.status());
+    assertEquals(0,lost.deleted().get("instance"),"the unacknowledged delete must not be reported as confirmed");
+    assertTrue(remaining.containsKey("root"));
+    assertEquals("changed",service.execute(token).status());
+    assertEquals(List.of("instance"),attempts);
+    assertEquals("completed",service.execute(service.plan().token()).status());
+    assertTrue(remaining.isEmpty());
+    assertEquals(List.of("instance","template","sub","root"),attempts);
+  }
+
 }
