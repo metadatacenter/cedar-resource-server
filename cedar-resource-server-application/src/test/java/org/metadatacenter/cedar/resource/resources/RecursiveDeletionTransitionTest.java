@@ -44,6 +44,8 @@ class RecursiveDeletionTransitionTest {
   private static HttpServer artifactServer;
   private static ExecutorService artifactThreads;
   private static CedarConfig config;
+  private static org.neo4j.driver.Driver graph;
+  private static final String unrelatedJob = "unrelated-deletion-" + java.util.UUID.randomUUID();
   private static FolderServiceSession folders;
   private static CedarFolderId home;
   private static String authorization;
@@ -69,6 +71,15 @@ class RecursiveDeletionTransitionTest {
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1", "CEDAR_OPENSEARCH_REST_PORT", "1"));
     server.before();
     config = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
+    var neo = org.metadatacenter.server.neo4j.Neo4jConfig.fromCedarConfig(config);
+    graph = org.neo4j.driver.GraphDatabase.driver(neo.getUri(),
+        org.neo4j.driver.AuthTokens.basic(neo.getUserName(),neo.getUserPassword()));
+    // Suites share the embedded graph. An unrelated parked job must not invalidate this test's
+    // assertion that a refused deletion leaves no job for any resource in its own tree.
+    try (var session = graph.session()) {
+      session.run("CREATE (:CedarArtifactDeletionOutbox {resourceId:$id,parked:true})",
+          Map.of("id",unrelatedJob)).consume();
+    }
     TestAuthUtil.installInMemoryUserService(config);
     EmbeddedCedarNeo4j.seed(config);
     authorization = TestAuthUtil.getTestUser1AuthHeader(config);
@@ -87,6 +98,11 @@ class RecursiveDeletionTransitionTest {
 
   @AfterAll
   static void stop() {
+    try (var session = graph.session()) {
+      session.run("MATCH (j:CedarArtifactDeletionOutbox {resourceId:$id}) DELETE j",
+          Map.of("id",unrelatedJob)).consume();
+    }
+    graph.close();
     completion.close();
     server.after();
     artifactServer.stop(0);
@@ -140,7 +156,11 @@ class RecursiveDeletionTransitionTest {
     assertEquals("stopped",partial.path("status").asText());
     assertEquals(1,partial.path("deleted").path("instance").asInt());
     assertEquals(java.util.List.of(removedInstance),deleted);
-    assertEquals(0,completion.getPendingCount(),"a definite refusal must not become a later background delete");
+    try (var session = graph.session()) {
+      long pending = session.run("MATCH (j:CedarArtifactDeletionOutbox) WHERE j.resourceId IN $ids RETURN count(j) AS n",
+          Map.of("ids",java.util.List.of(removedInstance,refusedId,survivor))).single().get("n").asLong();
+      assertEquals(0,pending,"a definite refusal must not become a later background delete");
+    }
     assertNotNull(folders.findFolderById(root)); assertNotNull(folders.findFolderById(subtree));
     String added = null;
     if (change.equals("move-subtree")) {
