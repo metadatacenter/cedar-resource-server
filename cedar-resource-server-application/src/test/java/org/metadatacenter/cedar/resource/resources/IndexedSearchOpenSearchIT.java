@@ -10,6 +10,13 @@ import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.id.CedarTemplateId;
+import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
+import org.metadatacenter.rest.context.CedarRequestContextFactory;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.server.security.model.auth.CedarNodeMaterializedPermissions;
@@ -175,6 +182,96 @@ public class IndexedSearchOpenSearchIT {
         new HashSet<>(walked));
   }
 
+  @Test
+  void continuationMustNotReturnMetadataAfterTheIndexedGrantIsRevoked() throws Exception {
+    String term = "revocationprobe" + RUN.replace("-", "");
+    String reader = TestAuthUtil.getTestUser2(cedarConfig).getId();
+    for (int i = 0; i < 3; i++) {
+      String id = templateId("revocation-" + i);
+      index(id, term + " confidential " + i, List.of(readKey(reader)));
+    }
+    refresh();
+    JsonNode first = get("/search-deep?q=" + enc(term) + "&limit=1&continuation=start", user2Auth);
+    assertEquals(1, resourceIds(first).size(), first.toString());
+    String continuation = first.path("continuation").asText();
+    org.junit.jupiter.api.Assertions.assertTrue(!continuation.isBlank(), first.toString());
+
+    // The live index has caught up completely with revocation before either next request.
+    for (int i = 0; i < 3; i++) {
+      setReaderGrant(templateId("revocation-" + i), false);
+      index(templateId("revocation-" + i), term + " confidential " + i, List.of());
+    }
+    refresh();
+    assertEquals(Set.of(), resourceIds(get("/search?q=" + enc(term) + "&limit=20", user2Auth)),
+        "fresh search must prove that the indexed grant has gone");
+    assertEquals(Set.of(), resourceIds(get("/search-deep?q=" + enc(term)
+        + "&limit=1&continuation=start", user2Auth)), "a fresh snapshot must also deny access");
+
+    JsonNode continued = get("/search-deep?q=" + enc(term) + "&limit=1&continuation="
+        + enc(continuation), user2Auth);
+    assertEquals(Set.of(), resourceIds(continued),
+        "an old continuation must not expose revoked metadata after graph and live index deny it: "
+            + continued.path("resources"));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"/search?", "/search-deep?", "/search-deep?continuation=start&"})
+  void movedSubtreeUsesCurrentOpennessAndGrantsAfterAnOldIndexWrite(String route) throws Exception {
+    String term = "moveprobe" + UUID.randomUUID().toString().replace("-", "");
+    String revoked = templateId(term + "-revoked");
+    String retained = templateId(term + "-retained");
+    String reader = TestAuthUtil.getTestUser2(cedarConfig).getId();
+    index(revoked, term + " revoked", List.of(readKey(reader)));
+    index(retained, term + " retained", List.of(readKey(reader)));
+    var folders = CedarDataServices.getInstance().getFolderServiceSession(
+        CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig)));
+    var home = folders.findHomeFolderOf().getResourceId();
+    var openParent = new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
+    openParent.setName(term + " public");
+    var openId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(org.metadatacenter.id.CedarFolderId.class);
+    org.junit.jupiter.api.Assertions.assertNotNull(folders.createFolderAsChildOfId(openParent, home, openId));
+    var child = new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
+    child.setName(term + " subtree");
+    var childId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(org.metadatacenter.id.CedarFolderId.class);
+    org.junit.jupiter.api.Assertions.assertNotNull(folders.createFolderAsChildOfId(child, openId, childId));
+    org.junit.jupiter.api.Assertions.assertTrue(folders.setOpen(openId));
+    for (String id : List.of(revoked, retained)) {
+      org.junit.jupiter.api.Assertions.assertTrue(folders.moveResource(CedarTemplateId.build(templateIri(id)), childId));
+    }
+    refresh();
+    JsonNode before = get(route + "q=" + enc(term) + "&limit=20", user2Auth);
+    assertEquals(2, resourceIds(before).size());
+    before.path("resources").forEach(hit -> org.junit.jupiter.api.Assertions.assertTrue(hit.path("isOpenImplicitly").asBoolean()));
+
+    // The old index payload is already prepared. Publish it after the real graph move and revocation.
+    var stale = openSearch.get(new org.opensearch.action.get.GetRequest(INDEX_NAME, revoked), RequestOptions.DEFAULT).getSourceAsMap();
+    org.junit.jupiter.api.Assertions.assertTrue(folders.moveFolder(childId, home));
+    setReaderGrant(revoked, false);
+    openSearch.index(new IndexRequest(INDEX_NAME).id(revoked).source(stale), RequestOptions.DEFAULT);
+    refresh();
+    JsonNode after = get(route + "q=" + enc(term) + "&limit=20", user2Auth);
+    assertEquals(Set.of(templateIri(retained)), resourceIds(after), "the stale index must not restore revoked access");
+    assertFalse(after.path("resources").get(0).path("isOpenImplicitly").asBoolean(),
+        "moving out of the open ancestor removes inherited openness without removing a direct read grant");
+  }
+
+  private static void setReaderGrant(String documentId, boolean grant) throws Exception {
+    var owner = TestAuthUtil.getTestUser1(cedarConfig);
+    var reader = TestAuthUtil.getTestUser2(cedarConfig);
+    var id = CedarTemplateId.build(templateIri(documentId));
+    var request = new ResourcePermissionsRequest();
+    request.setOwner(new ResourcePermissionUser(owner.getId()));
+    if (grant) request.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
+        new ResourcePermissionUser(reader.getId()), ResourceRole.VIEWER));
+    var result = CedarDataServices.getInstance()
+        .getResourcePermissionServiceSession(CedarRequestContextFactory.fromUser(owner))
+        .updateResourcePermissions(id, request);
+    assertFalse(result.isError(), "graph permission change must succeed");
+    assertEquals(grant, CedarDataServices.getInstance()
+        .getResourcePermissionServiceSession(CedarRequestContextFactory.fromUser(reader))
+        .userHasRole(id, ResourceRole.VIEWER), "prove the live graph grant changed");
+  }
+
   private static JsonNode get(String path, String authHeader) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
@@ -196,6 +293,19 @@ public class IndexedSearchOpenSearchIT {
 
   private static void index(String documentId, String name, List<String> users) throws Exception {
     String cedarId = templateIri(documentId);
+    var owner = TestAuthUtil.getTestUser1(cedarConfig);
+    var ownerContext = CedarRequestContextFactory.fromUser(owner);
+    if (!SEEDED_DOCUMENT_IDS.contains(documentId)) {
+      var folders = CedarDataServices.getInstance().getFolderServiceSession(ownerContext);
+      FolderServerTemplate template = new FolderServerTemplate();
+      template.setId(cedarId);
+      template.setName(name);
+      template.setVersion("0.0.1");
+      template.setPublicationStatus("bibo:draft");
+      org.junit.jupiter.api.Assertions.assertNotNull(
+          folders.createResourceAsChildOfId(template, folders.findHomeFolderOf().getResourceId()));
+    }
+    setReaderGrant(documentId, users.contains(readKey(TestAuthUtil.getTestUser2(cedarConfig).getId())));
     Map<String, Object> info = new LinkedHashMap<>();
     info.put("@id", cedarId);
     info.put("resourceType", "template");

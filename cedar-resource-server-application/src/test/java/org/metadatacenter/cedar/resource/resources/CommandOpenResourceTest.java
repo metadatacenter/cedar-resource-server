@@ -36,6 +36,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 
 /** Integration coverage for conditional OpenView visibility changes against embedded Neo4j. */
@@ -46,7 +48,9 @@ public class CommandOpenResourceTest {
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
         "CEDAR_RESOURCE_STOP_PORT", "0",
-        "CEDAR_REDIS_PERSISTENT_PORT", "1"));
+        "CEDAR_REDIS_PERSISTENT_PORT", "1",
+        "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
+        "CEDAR_OPENSEARCH_REST_PORT", "1"));
   }
 
   private static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
@@ -54,9 +58,13 @@ public class CommandOpenResourceTest {
           ResourceHelpers.resourceFilePath("test-config.yml"));
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
+  private static NoOpNodeIndexingService indexing;
   private static String authHeader;
   private static String artifactId;
   private static String folderId;
+  private static String homeFolderId;
+  private static String listedFolderId;
+  private static String listedArtifactId;
 
   @BeforeAll
   static void setUp() throws Exception {
@@ -67,8 +75,9 @@ public class CommandOpenResourceTest {
     authHeader = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
+    indexing = new NoOpNodeIndexingService(cedarConfig);
     AbstractResourceServerResource.injectServices(
-        new NoOpNodeIndexingService(cedarConfig),
+        indexing,
         new IndexUtils(cedarConfig).getNodeSearchingService(),
         new SearchPermissionEnqueueService(cedarConfig),
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
@@ -76,24 +85,38 @@ public class CommandOpenResourceTest {
     CedarRequestContext context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     FolderServiceSession session = CedarDataServices.getInstance().getFolderServiceSession(context);
     CedarFolderId homeId = session.findHomeFolderOf().getResourceId();
+    homeFolderId = homeId.getId();
 
+    folderId = createFolder(session, cedarConfig, homeId, "Conditional Open Folder");
+    artifactId = createTemplate(session, cedarConfig, folderId, "Conditional Open Template");
+    // The listing tests change open state on fixtures of their own, so the revision counts the
+    // tests above assert do not depend on the order the methods run in.
+    listedFolderId = createFolder(session, cedarConfig, homeId, "Listed Open Folder");
+    listedArtifactId = createTemplate(session, cedarConfig, listedFolderId, "Listed Open Template");
+  }
+
+  private static String createFolder(FolderServiceSession session, CedarConfig cedarConfig, CedarFolderId parentId,
+                                     String name) {
     FolderServerFolder folder = new FolderServerFolder();
-    folder.setName("Conditional Open Folder");
+    folder.setName(name);
     folder.setDescription("Open command integration fixture");
     CedarFolderId newFolderId = CedarFolderId.build(
         cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FOLDER));
-    folderId = session.createFolderAsChildOfId(folder, homeId, newFolderId).getId();
+    return session.createFolderAsChildOfId(folder, parentId, newFolderId).getId();
+  }
 
+  private static String createTemplate(FolderServiceSession session, CedarConfig cedarConfig, String parentId,
+                                       String name) {
     FolderServerTemplate template = new FolderServerTemplate();
     template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
-    template.setName("Conditional Open Template");
+    template.setName(name);
     template.setDescription("Open command integration fixture");
     template.setVersion("1.0.0");
     template.setPublicationStatus("bibo:draft");
     template.setLatestVersion(true);
     template.setLatestDraftVersion(true);
     template.setLatestPublishedVersion(false);
-    artifactId = session.createResourceAsChildOfId(template, CedarFolderId.build(folderId)).getId();
+    return session.createResourceAsChildOfId(template, CedarFolderId.build(parentId)).getId();
   }
 
   @AfterAll
@@ -167,6 +190,80 @@ public class CommandOpenResourceTest {
     HttpResponse<String> after = request("GET", folderPath, null, null);
     Assertions.assertEquals(200, after.statusCode(), after.body());
     Assertions.assertEquals("\"2\"", etag(after));
+  }
+
+  /**
+   * A folder listing offered no OpenView change at all, so an artifact made not open could not be
+   * made open again from the workspace; and the command never reindexed, so search listings kept
+   * offering the change the artifact no longer allowed. Through a close and a reopen, the listing
+   * must offer exactly what the details offer, and the index must receive each new state.
+   */
+  @Test
+  void anArtifactCanBeReopenedAndEveryViewFollowsItsOpenState() throws Exception {
+    String detailsPath = "/templates/" + enc(listedArtifactId) + "/details";
+    String body = "{\"@id\":\"" + listedArtifactId + "\"}";
+    assertListingMatchesDetails(listedFolderId, listedArtifactId, detailsPath, "enableOpenView");
+
+    for (boolean open : new boolean[]{true, false, true}) {
+      String etag = etag(request("GET", detailsPath, null, null));
+      HttpResponse<String> changed = request("POST",
+          open ? "/command/make-artifact-open" : "/command/make-artifact-not-open", body, etag);
+      Assertions.assertEquals(200, changed.statusCode(), changed.body());
+
+      assertListingMatchesDetails(listedFolderId, listedArtifactId, detailsPath,
+          open ? "disableOpenView" : "enableOpenView");
+      Assertions.assertNotNull(indexing.lastIndexed(listedArtifactId), "the command must reindex the artifact");
+      Assertions.assertEquals(open, indexing.lastIndexed(listedArtifactId).isOpen(),
+          "the index must receive the artifact's new open state");
+    }
+  }
+
+  @Test
+  void aFolderCanBeReopenedAndEveryViewFollowsItsOpenState() throws Exception {
+    String folderPath = "/folders/" + enc(listedFolderId);
+    String body = "{\"@id\":\"" + listedFolderId + "\"}";
+    assertListingMatchesDetails(homeFolderId, listedFolderId, folderPath, "enableOpenView");
+
+    for (boolean open : new boolean[]{true, false, true}) {
+      String etag = etag(request("GET", folderPath, null, null));
+      HttpResponse<String> changed = request("POST",
+          open ? "/command/make-folder-open" : "/command/make-folder-not-open", body, etag);
+      Assertions.assertEquals(200, changed.statusCode(), changed.body());
+
+      assertListingMatchesDetails(homeFolderId, listedFolderId, folderPath,
+          open ? "disableOpenView" : "enableOpenView");
+      Assertions.assertNotNull(indexing.lastIndexed(listedFolderId), "the command must reindex the folder");
+      Assertions.assertEquals(open, indexing.lastIndexed(listedFolderId).isOpen(),
+          "the index must receive the folder's new open state");
+    }
+  }
+
+  private static void assertListingMatchesDetails(String parentId, String resourceId, String detailsPath,
+                                                  String expectedOpenViewAction) throws Exception {
+    HttpResponse<String> details = request("GET", detailsPath, null, null);
+    Assertions.assertEquals(200, details.statusCode(), details.body());
+    Set<String> detailsActions = actions(JsonMapper.STRICT_MAPPER.readTree(details.body()));
+
+    HttpResponse<String> listing = request("GET", "/folders/" + enc(parentId) + "/contents?limit=100", null, null);
+    Assertions.assertEquals(200, listing.statusCode(), listing.body());
+    JsonNode listed = null;
+    for (JsonNode resource : JsonMapper.STRICT_MAPPER.readTree(listing.body()).path("resources")) {
+      if (resourceId.equals(resource.path("@id").asText())) {
+        listed = resource;
+      }
+    }
+    Assertions.assertNotNull(listed, listing.body());
+    Set<String> listingActions = actions(listed);
+
+    Assertions.assertTrue(detailsActions.contains(expectedOpenViewAction), detailsActions.toString());
+    Assertions.assertEquals(detailsActions, listingActions,
+        "a listed resource must offer the actions its details offer");
+  }
+
+  private static Set<String> actions(JsonNode resource) {
+    Set<String> actions = new TreeSet<>();
+    resource.path("currentUserPermissions").path("availableActions").forEach(a -> actions.add(a.asText()));
+    return actions;
   }
 
   private static CompletableFuture<HttpResponse<String>> requestAsync(String path, String body, String ifMatch) {

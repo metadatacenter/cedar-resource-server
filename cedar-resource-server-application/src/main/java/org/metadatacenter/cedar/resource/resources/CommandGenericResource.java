@@ -14,11 +14,11 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.keycloak.events.Event;
 import org.metadatacenter.model.validation.report.CedarValidationReport;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.util.artifact.ArtifactDocument;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.model.KeycloakLoginEvent;
 import org.metadatacenter.cedar.resource.security.AdminCommand;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -124,11 +124,10 @@ public class CommandGenericResource extends AbstractResourceServerResource {
 
     if (jsonBody != null) {
       try {
-        Event event = JsonMapper.STRICT_MAPPER.treeToValue(jsonBody.get("event"), Event.class);
+        KeycloakLoginEvent event = KeycloakLoginEvent.read(jsonBody.get("event"));
         CedarUserExtract targetUser = JsonMapper.STRICT_MAPPER.treeToValue(jsonBody.get("eventUser"), CedarUserExtract.class);
 
-        String clientId = event.getClientId();
-        if (cedarConfig.getKeycloakConfig().getResource().equals(clientId)) {
+        if (event.isFromClient(cedarConfig.getKeycloakConfig().getResource())) {
           CedarUser user = createUserRelatedObjects(userService, targetUser);
           CedarRequestContext userContext = CedarRequestContextFactory.fromUser(user);
 

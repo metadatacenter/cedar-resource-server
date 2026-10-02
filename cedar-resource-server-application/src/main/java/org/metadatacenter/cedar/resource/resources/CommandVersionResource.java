@@ -287,7 +287,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               }
               graphUpdated = true;
 
-              completeVersionProjections(c);
+              completeVersionProjections(c, relatedVersionIds(aid.getId()));
               FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
 
               return Response.ok().entity(updatedResource).build();
@@ -484,19 +484,19 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           String artifactServerPostRequestBodyAsString = JsonMapper.STRICT_MAPPER.writeValueAsString(newDocument);
 
-          Response artifactServerPostResponse = executeResourcePostToArtifactServer(c, artifactType,
-              artifactServerPostRequestBodyAsString);
+          String cleanupJob = artifactCreateCleanupService.prepare(artifactType, "draft");
+          try {
+            Response artifactServerPostResponse = executeResourcePostToArtifactServer(c, artifactType,
+                artifactServerPostRequestBodyAsString, cleanupJob);
 
-          int artifactServerPostStatus = artifactServerPostResponse.getStatus();
-          InputStream is = (InputStream) artifactServerPostResponse.getEntity();
-          JsonNode artifactServerPostResponseNode = JsonMapper.STRICT_MAPPER.readTree(is);
-          if (artifactServerPostStatus == CedarResponseStatus.CREATED.getStatusCode()) {
-            JsonNode atId = artifactServerPostResponseNode.at(AT_ID);
-            String newIdString = atId.asText();
-            CedarUntypedSchemaArtifactId newId = CedarUntypedSchemaArtifactId.build(newIdString);
+            int artifactServerPostStatus = artifactServerPostResponse.getStatus();
+            InputStream is = (InputStream) artifactServerPostResponse.getEntity();
+            JsonNode artifactServerPostResponseNode = JsonMapper.STRICT_MAPPER.readTree(is);
+            if (artifactServerPostStatus == CedarResponseStatus.CREATED.getStatusCode()) {
+              JsonNode atId = artifactServerPostResponseNode.at(AT_ID);
+              String newIdString = atId.asText();
+              CedarUntypedSchemaArtifactId newId = CedarUntypedSchemaArtifactId.build(newIdString);
 
-            boolean draftReachedTheGraph = false;
-            try {
               FolderServerArtifact sourceResource = folderSession.findSchemaArtifactById(aid);
 
               BiboStatus status = BiboStatus.DRAFT;
@@ -511,7 +511,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 schemaArtifact.setLatestPublishedVersion(false);
               }
 
-              FolderServerArtifact newResource = folderSession.createDraftAsChildOfId(brandNewResource, fid, propagateSharing);
+              FolderServerArtifact newResource = folderSession.createDraftWithCleanup(brandNewResource, fid, propagateSharing, cleanupJob);
               if (newResource == null) {
                 BackendCallResult backendCallResult = new BackendCallResult();
                 backendCallResult.addError(CedarErrorType.SERVER_ERROR)
@@ -519,10 +519,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                     .message("There was an error while creating the draft version of the artifact");
                 throw new CedarBackendException(backendCallResult);
               }
-              draftReachedTheGraph = true;
 
               FolderServerArtifact createdNewResource = folderSession.findArtifactById(newId);
-              completeVersionProjections(c);
+              completeVersionProjections(c, relatedVersionIds(newId.getId()));
 
               if (artifactType == CedarResourceType.TEMPLATE && newFolderName != null && !newFolderName.isEmpty()) {
                 createCopyOfInstancesWithNewTemplate(c, CedarTemplateId.build(aid.getId()),
@@ -533,19 +532,15 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               URI uri = builder.build();
 
               return Response.created(uri).entity(createdNewResource).build();
-            } finally {
-              if (!draftReachedTheGraph) {
-                discardArtifactAfterFailedCreate(c, artifactType, newId);
-              }
+            } else {
+              return CedarResponse.internalServerError()
+                  .message("There was an error while creating the artifact on the artifact server")
+                  .parameter("responseCode", artifactServerPostStatus)
+                  .parameter("responseDocument", artifactServerPostResponseNode)
+                  .build();
             }
-
-            /// this is the end of Neo4j creation
-          } else {
-            return CedarResponse.internalServerError()
-                .message("There was an error while creating the artifact on the artifact server")
-                .parameter("responseCode", artifactServerPostStatus)
-                .parameter("responseDocument", artifactServerPostResponseNode)
-                .build();
+          } finally {
+            artifactCreateCleanupService.cleanupNow(cleanupJob, c);
           }
         }
       } catch (org.metadatacenter.server.VersionTransitionConflictException e) {

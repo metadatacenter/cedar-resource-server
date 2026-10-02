@@ -18,7 +18,9 @@ import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarUntypedArtifactId;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.ModelNodeNames;
 import org.metadatacenter.model.SystemComponent;
+import org.metadatacenter.model.folderserver.basic.FileSystemResource;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerField;
 import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
@@ -62,6 +64,7 @@ public class CommandAnnotationsResourceTest {
   private static String authHeader;
   private static CedarUntypedArtifactId artifactId;
   private static CedarRequestContext userContext;
+  private static NoOpNodeIndexingService indexing;
   private static CedarConfig cedarConfig;
   private static ObjectNode currentArtifact;
   private static int currentRevision;
@@ -83,7 +86,9 @@ public class CommandAnnotationsResourceTest {
         "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
-        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort())));
+        "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
+        "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
+        "CEDAR_OPENSEARCH_REST_PORT", "1"));
 
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
@@ -92,8 +97,9 @@ public class CommandAnnotationsResourceTest {
     authHeader = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
+    indexing = new NoOpNodeIndexingService(cedarConfig);
     AbstractResourceServerResource.injectServices(
-        new NoOpNodeIndexingService(cedarConfig),
+        indexing,
         new IndexUtils(cedarConfig).getNodeSearchingService(),
         new SearchPermissionEnqueueService(cedarConfig),
         new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
@@ -228,6 +234,47 @@ public class CommandAnnotationsResourceTest {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @Test
+  public void existingDocumentDoiRepairsMissingGraphWithoutRewritingDocument() throws Exception {
+    String doi = "https://doi.org/10.1234/recovery";
+    currentArtifact.putObject("_annotations").putObject(ModelNodeNames.DATACITE_DOI_URI).put("@id", doi);
+    ObjectNode original = currentArtifact.deepCopy();
+    FolderServiceSession folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
+    Assertions.assertNull(folderSession.findArtifactById(artifactId).getDOI());
+
+    // A different DOI must be rejected even before the graph has been repaired.
+    Assertions.assertEquals(400, setDoi("https://doi.org/10.1234/different").statusCode());
+    Assertions.assertNull(folderSession.findArtifactById(artifactId).getDOI());
+    for (int attempt = 0; attempt < 2; attempt++) {
+      HttpResponse<String> response = setDoi(doi);
+      Assertions.assertEquals(200, response.statusCode(), response.body());
+      Assertions.assertEquals(doi, folderSession.findArtifactById(artifactId).getDOI());
+      Assertions.assertEquals(original, currentArtifact);
+      Assertions.assertEquals(1, currentRevision);
+      Assertions.assertEquals(0, PUT_REQUESTS.get(), "graph recovery must not rewrite the document");
+    }
+    Assertions.assertEquals(400, setDoi("https://doi.org/10.1234/different").statusCode());
+    Assertions.assertEquals(doi, folderSession.findArtifactById(artifactId).getDOI());
+    Assertions.assertEquals(original, currentArtifact);
+    Assertions.assertEquals(0, PUT_REQUESTS.get());
+  }
+
+  /**
+   * The DOI write also moves the artifact's last-updated date and modifier, which search shows,
+   * sorts and filters on. Nothing reindexed the artifact afterwards.
+   */
+  @Test
+  public void aDoiWriteReindexesTheArtifact() throws Exception {
+    Assertions.assertFalse(indexing.wasIndexed(artifactId.getId()), "the fixture starts unindexed");
+
+    Assertions.assertEquals(200, setDoi("10.1234/reindexed").statusCode());
+
+    FileSystemResource indexed = indexing.lastIndexed(artifactId.getId());
+    Assertions.assertNotNull(indexed, "the DOI write did not reindex the artifact");
+    Assertions.assertEquals("10.1234/reindexed", ((FolderServerArtifact) indexed).getDOI(),
+        "the artifact was reindexed as it stood before the write");
   }
 
   @Test

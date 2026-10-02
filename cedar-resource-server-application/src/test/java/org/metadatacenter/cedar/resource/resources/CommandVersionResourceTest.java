@@ -93,6 +93,7 @@ public class CommandVersionResourceTest {
   private static volatile boolean draftingFromDraft;
   private static volatile boolean failingDraft;
   private static volatile boolean retryingDelete;
+  private static volatile boolean refusingDelete;
   private static volatile boolean retryingVersionCommands;
   private static volatile boolean failedDraftArtifactPresent;
   private static volatile boolean failingPublish;
@@ -128,7 +129,9 @@ public class CommandVersionResourceTest {
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
         "CEDAR_TERMINOLOGY_SERVER_HOST", "127.0.0.1",
-        "CEDAR_TERMINOLOGY_HTTP_PORT", Integer.toString(terminologyServer.getAddress().getPort())));
+        "CEDAR_TERMINOLOGY_HTTP_PORT", Integer.toString(terminologyServer.getAddress().getPort()),
+        "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
+        "CEDAR_OPENSEARCH_REST_PORT", "1"));
 
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
@@ -303,6 +306,7 @@ public class CommandVersionResourceTest {
     draftingFromDraft = false;
     failingDraft = false;
     retryingDelete = false;
+    refusingDelete = false;
     retryingVersionCommands = false;
     failedDraftArtifactPresent = false;
     failingPublish = false;
@@ -429,6 +433,22 @@ public class CommandVersionResourceTest {
     Assertions.assertNotNull(folderSession.findArtifactById(versionRetryDraftId));
     Assertions.assertEquals(2, folderSession.getVersionHistory(versionRetrySourceId).size(),
         "the retried lifecycle produced more than one successor");
+  }
+
+  @Test
+  @Order(-1)
+  public void refusedDeletionDoesNotLeaveAnAutomaticRetry() throws Exception {
+    refusingDelete = true;
+    long before = AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount();
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(deleteRetryTemplateId.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader).header("If-Match", "\"1\"").DELETE().build();
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    Assertions.assertNotNull(folderSession.findArtifactById(deleteRetryTemplateId));
+    Assertions.assertEquals(before, AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount(),
+        "a refused template deletion must not run later when its instances disappear");
   }
 
   /**
@@ -591,6 +611,18 @@ public class CommandVersionResourceTest {
   }
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
+    if (refusingDelete) {
+      if (exchange.getRequestMethod().equals("GET")) {
+        sendArtifactResponse(exchange, JsonMapper.STRICT_MAPPER.createObjectNode(), "\"1\"");
+      } else {
+        byte[] body = "{\"message\":\"The template has instances\"}".getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(400, body.length);
+        exchange.getResponseBody().write(body);
+        exchange.close();
+      }
+      return;
+    }
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
     if (draftingFromDraft && "GET".equals(exchange.getRequestMethod())) {
       sendArtifactResponse(exchange, draftStatusMismatchDocument, "\"draft-status-etag\"");
@@ -647,12 +679,18 @@ public class CommandVersionResourceTest {
       byte[] response = draft.toString().getBytes(StandardCharsets.UTF_8);
       exchange.getResponseHeaders().set("Content-Type", "application/json");
       exchange.getResponseHeaders().set("Location", failedDraftTemplateId.getId());
+      exchange.getResponseHeaders().set("ETag", "\"7\"");
       exchange.sendResponseHeaders(201, response.length);
       exchange.getResponseBody().write(response);
       exchange.close();
       return;
     }
     if (failingDraft && "DELETE".equals(exchange.getRequestMethod())) {
+      if (!"\"7\"".equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
+        exchange.sendResponseHeaders(412, -1);
+        exchange.close();
+        return;
+      }
       failedDraftArtifactPresent = false;
       COMPENSATING_DRAFT_DELETES.incrementAndGet();
       exchange.sendResponseHeaders(204, -1);
@@ -706,12 +744,18 @@ public class CommandVersionResourceTest {
       byte[] response = created.toString().getBytes(StandardCharsets.UTF_8);
       exchange.getResponseHeaders().set("Content-Type", "application/json");
       exchange.getResponseHeaders().set("Location", failedCreateTemplateId.getId());
+      exchange.getResponseHeaders().set("ETag", "\"7\"");
       exchange.sendResponseHeaders(201, response.length);
       exchange.getResponseBody().write(response);
       exchange.close();
       return;
     }
     if (creatingArtifact && "DELETE".equals(exchange.getRequestMethod())) {
+      if (!"\"7\"".equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
+        exchange.sendResponseHeaders(412, -1);
+        exchange.close();
+        return;
+      }
       createdArtifactPresent = false;
       COMPENSATING_DELETES.incrementAndGet();
       exchange.sendResponseHeaders(204, -1);

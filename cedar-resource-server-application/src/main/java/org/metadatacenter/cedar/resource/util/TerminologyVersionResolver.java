@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.util;
 
+import org.metadatacenter.util.json.JsonMapper;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.metadatacenter.artifacts.model.core.fields.constraints.VersionSpec;
@@ -26,7 +28,7 @@ import java.util.Optional;
  */
 public class TerminologyVersionResolver implements ControlledTermVersionFreezer.VersionResolver {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final ObjectMapper MAPPER = JsonMapper.TOLERANT_MAPPER;
 
   private final String base;          // terminology base URL, trailing slash guaranteed
   private final String authorization; // the publishing user's Authorization header (or null)

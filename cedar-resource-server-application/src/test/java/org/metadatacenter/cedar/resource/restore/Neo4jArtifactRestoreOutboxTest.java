@@ -39,6 +39,23 @@ class Neo4jArtifactRestoreOutboxTest {
   }
 
 
+  @Test
+  void completedNewerRevisionRemainsAFenceAfterOutboxRestart() {
+    try (var first = new Neo4jArtifactRestoreOutbox(GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+      var newer = first.prepare("artifact-fence", CedarResourceType.TEMPLATE, "newer preimage", "\"9\"", false);
+      first.remove(newer.jobId());
+    }
+    try (var restarted = new Neo4jArtifactRestoreOutbox(GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0);
+         var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+         var session = driver.session()) {
+      var delayed = restarted.prepare("artifact-fence", CedarResourceType.TEMPLATE, "older preimage", "\"8\"", false);
+      assertEquals(0, restarted.count(), "an older response must not create new compensation work");
+      var decision = session.writeTransaction(tx -> org.metadatacenter.server.neo4j.ArtifactRestoreTransaction
+          .graphDecision(tx, "artifact-fence", delayed.jobId()));
+      assertEquals(org.metadatacenter.server.neo4j.ArtifactRestoreTransaction.GraphDecision.SUPERSEDED, decision);
+    }
+  }
+
   private static final String PRE_IMAGE = "{\"schema:name\":\"before\"}";
 
   @Test

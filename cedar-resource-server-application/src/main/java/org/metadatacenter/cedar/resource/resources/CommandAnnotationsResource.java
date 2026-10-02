@@ -143,14 +143,20 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     Map<NodeProperty, String> updateFields = new HashMap<>();
     updateFields.put(NodeProperty.DOI, doiInRequest);
 
-    // A prior request may have committed the document but not its graph projection. Repeating the
-    // same DOI repairs that projection without replacing the document or incrementing its revision.
+    // A prior request may have committed the document but not its graph projection or its index
+    // document. Repeating the same DOI repairs both without replacing the document or incrementing
+    // its revision.
     if (artifactDOI != null) {
       if (existingDOI != null) {
+        updateIndexResource(folderServerOldResource, c);
         return Response.ok().entity(folderServerOldResource).build();
       }
       FolderServerArtifact repaired = folderSession.updateArtifactById(artifactId, resourceType, updateFields);
-      return repaired == null ? CedarResponse.internalServerError().build() : Response.ok().entity(repaired).build();
+      if (repaired == null) {
+        return CedarResponse.internalServerError().build();
+      }
+      updateIndexResource(repaired, c);
+      return Response.ok().entity(repaired).build();
     }
 
     String oldArtifactContentJson = oldArtifactContent.toString();
@@ -188,9 +194,10 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
       FolderServerArtifact updatedResource;
       if (restoreJob == null) {
-        updatedResource = folderSession.updateArtifactById(artifactId, resourceType, updateFields);
+        updatedResource = folderSession.updateArtifactById(artifactId, resourceType, updateFields,
+            null, objectNode.toString()).resource();
       } else {
-        var result = folderSession.updateArtifactById(artifactId, resourceType, updateFields, restoreJob.jobId());
+        var result = folderSession.updateArtifactById(artifactId, resourceType, updateFields, restoreJob.jobId(), objectNode.toString());
         if (result.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
           supersededWrite = true;
           folderServerOldResource.setDOI(doiInRequest);
@@ -202,6 +209,9 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
         return CedarResponse.internalServerError().build();
       }
       graphUpdated = true;
+      // The graph write moved the last-updated date and modifier, which search shows, sorts and
+      // filters on.
+      completeArtifactProjection(artifactId, c);
       return Response.ok().entity(updatedResource).build();
     } catch (JsonProcessingException e) {
       throw new CedarProcessingException(e);

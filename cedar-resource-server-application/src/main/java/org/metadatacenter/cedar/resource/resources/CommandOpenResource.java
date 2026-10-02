@@ -163,6 +163,8 @@ public class CommandOpenResource extends AbstractResourceServerResource {
       if (updated == null) {
         return CedarResponse.notFound().id(artifactId).message("The artifact can not be found by id").build();
       }
+      // The indexed document carries isOpen, and search listings derive the OpenView actions from it.
+      updateIndexResource(updated.resource(), c);
       return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updated.revision()))
           .entity(updated.resource()).build();
     } catch (RevisionConflictException e) {
@@ -192,6 +194,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
       if (updated == null) {
         return CedarResponse.notFound().id(folderId).message("The folder can not be found by id").build();
       }
+      updateIndexFolder(updated.resource(), c);
       return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updated.revision()))
           .entity(updated.resource()).build();
     } catch (RevisionConflictException e) {

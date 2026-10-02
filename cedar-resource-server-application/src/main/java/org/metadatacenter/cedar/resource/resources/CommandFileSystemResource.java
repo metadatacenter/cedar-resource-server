@@ -236,6 +236,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       throw new CedarProcessingException(e);
     }
 
+    String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "copy");
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
@@ -244,7 +245,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
 
       int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpStatus.SC_CREATED) {
-        // artifact was not created
+        artifactCreateCleanupService.rejected(cleanupJob, statusCode);
         return generateStatusResponse(templateProxyResponse);
       } else {
         // artifact was created
@@ -254,14 +255,19 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         JsonNode jsonNode = JsonMapper.STRICT_MAPPER.readTree(entityContent);
         String createdId = jsonNode.get("@id").asText();
         CedarArtifactId newId = CedarArtifactId.build(createdId, resourceType);
+        Header validator = templateProxyResponse.getFirstHeader(HttpHeaders.ETAG);
+        artifactCreateCleanupService.created(cleanupJob, createdId, validator == null ? null : validator.getValue());
 
         FolderServerArtifact folderServerCreatedResource =
             ArtifactCopyOperations.registerCopy(folderSession, sourceArtifactId, newId, targetFolderId,
                 resourceType,
                 ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue(),
                 ModelUtil.extractDescriptionFromResource(resourceType, jsonNode).getValue(),
-                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue(), null, null);
+                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue(), null, null, cleanupJob);
 
+        if (folderServerCreatedResource == null) {
+          return CedarResponse.badRequest().errorKey(CedarErrorKey.RESOURCE_NOT_CREATED).build();
+        }
         if (locationHeader != null) {
           response.setHeader(locationHeader.getName(), locationHeader.getValue());
         }
@@ -279,6 +285,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       throw e;
     } catch (Exception e) {
       throw new CedarProcessingException(e);
+    } finally {
+      artifactCreateCleanupService.cleanupNow(cleanupJob, c);
     }
   }
 

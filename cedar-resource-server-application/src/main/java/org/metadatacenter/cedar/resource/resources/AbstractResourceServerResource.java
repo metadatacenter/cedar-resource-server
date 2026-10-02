@@ -104,14 +104,28 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
   protected static ArtifactDeletionCompletionService artifactDeletionCompletionService;
   protected static ArtifactRestoreCompletionService artifactRestoreCompletionService;
+  protected static org.metadatacenter.server.resource.ArtifactCreateCleanupService artifactCreateCleanupService;
+
+  public static void injectArtifactCreateCleanupService(org.metadatacenter.server.resource.ArtifactCreateCleanupService service) {
+    artifactCreateCleanupService = service;
+  }
   protected static org.metadatacenter.cedar.resource.version.VersionProjectionService versionProjectionService;
 
   public static void injectVersionProjectionService(org.metadatacenter.cedar.resource.version.VersionProjectionService service) {
     versionProjectionService = service;
   }
 
-  protected void completeVersionProjections(CedarRequestContext context) {
-    if (versionProjectionService != null) versionProjectionService.completePending(nodeIndexingService,context);
+  protected java.util.List<String> relatedVersionIds(String id) {
+    try {
+      return versionProjectionService == null ? java.util.List.of() : versionProjectionService.relatedIds(id);
+    } catch (Exception failure) {
+      log.warn("Version projections for {} remain recorded for the relay", id, failure);
+      return java.util.List.of();
+    }
+  }
+
+  protected void completeVersionProjections(CedarRequestContext context, java.util.Collection<String> ids) {
+    if (versionProjectionService != null) versionProjectionService.completeRelated(ids,nodeIndexingService,context);
   }
 
 
@@ -171,11 +185,18 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_ORG_DESCRIPTION, description);
   }
 
-  protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarResourceType resourceType, String content) throws CedarProcessingException {
+  protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarResourceType resourceType, String content, String cleanupJob) throws CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
       ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).post(url, context, content);
+      if (templateProxyResponse.getCode() == HttpStatus.SC_CREATED && templateProxyResponse.getEntity() != null) {
+        String body = EntityUtils.toString(templateProxyResponse.getEntity(), StandardCharsets.UTF_8);
+        templateProxyResponse.setEntity(new org.apache.hc.core5.http.io.entity.StringEntity(body,
+            org.apache.hc.core5.http.ContentType.APPLICATION_JSON));
+        artifactCreateCleanupService.created(cleanupJob,
+            JsonMapper.STRICT_MAPPER.readTree(body).path("@id").asText(), headerValue(templateProxyResponse, HttpHeaders.ETAG));
+      } else artifactCreateCleanupService.rejected(cleanupJob, templateProxyResponse.getCode());
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
       int statusCode = templateProxyResponse.getCode();
@@ -187,7 +208,9 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         String mediaType = entity.getContentType();
         String location = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION).getValue();
         URI locationURI = new URI(location);
-        return Response.created(locationURI).type(mediaType).entity(entity.getContent()).build();
+        return Response.created(locationURI).type(mediaType)
+            .header(HttpHeaders.ETAG, headerValue(templateProxyResponse, HttpHeaders.ETAG))
+            .entity(entity.getContent()).build();
       }
     } catch (CedarProcessingException e) {
       throw e;
@@ -247,13 +270,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
     }
 
-    // The artifact server takes the content before this server has finished judging it, and the two
-    // stores are not written under one transaction. Every refusal below — a missing name or version, an
-    // illegal resource type, a graph node that does not come back — happens after the artifact exists
-    // there, and the caller, told the create failed, has no id to clean up with. Remember the id from
-    // the moment it exists and discard it in the finally unless the artifact reached the graph.
-    CedarArtifactId createdArtifactId = null;
-    boolean artifactReachedTheGraph = false;
+    // Intent precedes the content request, including requests whose response never reaches us.
+    String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "create");
     try {
       String url;
       ClassicHttpResponse templateProxyResponse;
@@ -270,7 +288,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
       int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpStatus.SC_CREATED) {
-        // artifact was not created
+        artifactCreateCleanupService.rejected(cleanupJob, statusCode);
         return generateStatusResponse(templateProxyResponse);
       } else {
         // artifact was created
@@ -280,7 +298,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           JsonNode templateJsonNode = JsonMapper.STRICT_MAPPER.readTree(templateEntityContent);
           String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
-          createdArtifactId = aid;
+          artifactCreateCleanupService.created(cleanupJob, id, headerValue(templateProxyResponse, HttpHeaders.ETAG));
 
           JsonPointerValuePair namePair = ModelUtil.extractNameFromResource(resourceType, templateJsonNode);
           JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode);
@@ -350,7 +368,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
               brandNewResource.setDOI(doi);
             }
           }
-          FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, fid);
+          FolderServerArtifact newResource = folderSession.createResourceWithCleanup(brandNewResource, fid, cleanupJob);
 
           if (newResource == null) {
             return CedarResponse.badRequest()
@@ -361,10 +379,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
                 .message("The artifact was not created!")
                 .build();
           }
-          // Both stores now hold it, so the create stands. A failure in the indexing and propagation
-          // below leaves the artifact in place and reports 500, as it did before; discarding it here
-          // would trade an artifact-server orphan for a graph one.
-          artifactReachedTheGraph = true;
+          // Registration retired cleanup in its graph transaction; downstream failures cannot undo it.
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
           URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
           updateInclusionSubgraphIfNeeded(context, newResource, templateJsonNode);
@@ -385,32 +400,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     } finally {
-      if (createdArtifactId != null && !artifactReachedTheGraph) {
-        discardArtifactAfterFailedCreate(context, resourceType, createdArtifactId);
-      }
-    }
-  }
-
-  /**
-   * Remove an artifact this server accepted from the artifact server but then refused, so a create the
-   * caller was told had failed leaves nothing behind.
-   *
-   * <p>Best-effort by necessity: it runs while the request is already failing, and the failure the
-   * caller sees must be the one that caused this rather than whatever goes wrong cleaning up. A
-   * discard that cannot complete is logged with the id, which is the only handle anyone has afterwards
-   * — the artifact is unreachable through this server once it has no graph node.
-   */
-  protected void discardArtifactAfterFailedCreate(CedarRequestContext context, CedarResourceType resourceType,
-                                                  CedarArtifactId artifactId) {
-    try {
-      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
-      ClassicHttpResponse discardResponse = new ArtifactServiceClient(cedarConfig).delete(url, context, "\"1\"");
-      int status = discardResponse.getCode();
-      if (status != HttpStatus.SC_NO_CONTENT && status != HttpStatus.SC_OK && status != HttpStatus.SC_NOT_FOUND) {
-        log.error("Refused create left {} on the artifact server: discard answered {}", artifactId, status);
-      }
-    } catch (Exception e) {
-      log.error("Refused create left {} on the artifact server: discard failed", artifactId, e);
+      artifactCreateCleanupService.cleanupNow(cleanupJob, context);
     }
   }
 
@@ -878,9 +868,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         }
         FolderServerArtifact updatedResource;
         if (restoreJob == null) {
-          updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
+          updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields,
+              null, templateEntityContent).resource();
         } else {
-          var graphResult = folderSession.updateArtifactById(id, resource.getType(), updateFields, restoreJob.jobId());
+          var graphResult = folderSession.updateArtifactById(id, resource.getType(), updateFields,
+              restoreJob.jobId(), templateEntityContent);
           if (graphResult.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
             supersededWrite = true;
             // The artifact write succeeded before its successor. Do not restore it or project
@@ -906,10 +898,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           // Both primary stores now describe the replacement. Logging before the graph write would
           // leave a false successful-write trail when the artifact compensation below restores it.
           logPrivilegedWrite(context, id, folderServerOldResource, verbatim, content);
-          updateInclusionSubgraphIfNeeded(context, updatedResource, templateJsonNode);
-          updateIndexResource(updatedResource, context);
-          updateValuerecommenderResource(updatedResource);
-          triggerInstanceUpdatesForTemplate(context, resourceType, id);
+          completeArtifactProjection(id, context);
           return Response.ok().entity(updatedResource).build();
         }
       } else {
@@ -1048,48 +1037,45 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     }
   }
 
-  /**
-   * The work an artifact-server write leaves behind, for a caller that writes content directly rather
-   * than through the update proxy above: recompute the inclusion arcs, reindex, queue the value
-   * recommender, and note the instances that now trail the template.
-   *
-   * <p>Skipping this is not cosmetic. The search index stores artifact content, so a write that does not
-   * reindex leaves OpenSearch serving the previous version indefinitely, and stale inclusion arcs make
-   * the next propagation compute the wrong affected tree.
-   *
-   * <p>The Neo4j name, description and identifier are deliberately not touched. The proxy path rewrites
-   * them because the caller supplied a whole new artifact; a caller that replaced a subdocument has not
-   * changed the artifact's own name or description, and copying them back would be a no-op at best.
-   */
-  protected void applyArtifactUpdateSideEffects(CedarRequestContext context, CedarArtifactId id, JsonNode newContent)
-      throws CedarProcessingException {
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-    FolderServerArtifact artifact = folderSession.findArtifactById(id);
-    if (artifact == null) {
-      log.warn("Artifact {} was written but is not in the graph; its index entry and inclusion arcs were left alone", id);
-      return;
-    }
-    logPrivilegedWrite(context, id, artifact, false, null);
-    updateInclusionSubgraphIfNeeded(context, artifact, newContent);
-    updateIndexResource(artifact, context);
-    updateValuerecommenderResource(artifact);
-    triggerInstanceUpdatesForTemplate(context, artifact.getType(), id);
+  protected void completeArtifactProjection(CedarArtifactId id, CedarRequestContext context) {
+    if (versionProjectionService != null) versionProjectionService.complete(id.getId(), nodeIndexingService, context);
   }
 
-  private void triggerInstanceUpdatesForTemplate(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id) {
-    if (resourceType == CedarResourceType.TEMPLATE) {
-      FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-      long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(id.getId()));
-      if (instanceCount > 0) {
-        log.warn("Template " + id + " has " + instanceCount + " instances that need to be updated");
+  /** Inclusion propagation uses the same content-to-graph fence and durable follow-up as a save. */
+  protected void applyArtifactUpdateSideEffects(CedarRequestContext context, CedarTypedSchemaArtifactId id, JsonNode newContent,
+                                               String preImage, String replacementEtag) throws CedarProcessingException {
+    var restore = artifactRestoreCompletionService == null ? null
+        : artifactRestoreCompletionService.prepare(id, id.getType(), preImage, replacementEtag, false);
+    boolean committed = false;
+    boolean superseded = false;
+    try {
+      var folderSession = dataServices.getFolderServiceSession(context);
+      var result = folderSession.updateArtifactById(id, id.getType(), Map.of(),
+          restore == null ? null : restore.jobId(), newContent.toString());
+      superseded = result.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED;
+      if (superseded) return;
+      if (result.resource() == null) throw new CedarProcessingException("The propagated artifact could not be updated in the graph");
+      committed = true;
+      logPrivilegedWrite(context, id, result.resource(), false, null);
+      completeArtifactProjection(id, context);
+    } finally {
+      if (!committed && !superseded) {
+        if (restore != null) artifactRestoreCompletionService.restoreNow(restore, context);
+        else restoreArtifactAfterFailedGraphUpdate(context, id.getType(), id,
+            new ArtifactPreImage(preImage, null), replacementEtag, false);
       }
+      if (restore != null && !committed) artifactRestoreCompletionService.forgetOutcome(restore);
     }
   }
 
   protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id) throws CedarException {
+    return executeArtifactDelete(c, resourceType, id, c.getIfMatchHeader());
+  }
+
+  protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id, String ifMatch) throws CedarException {
     // Check delete preconditions
     userMustHaveCapabilityOnArtifact(c, id, ResourceCapability.DELETE_RESOURCE);
-    if (c.getIfMatchHeader() == null || c.getIfMatchHeader().isBlank()) {
+    if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
           .id(id.getId())
           .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
@@ -1149,7 +1135,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
                 .build();
           }
           long revision = currentRevision.revisions().iterator().next();
-          if (!RevisionPreconditionParser.parse(c.getIfMatchHeader()).matches(revision)) {
+          if (!RevisionPreconditionParser.parse(ifMatch).matches(revision)) {
             return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
                 .id(id)
                 .errorKey(CedarErrorKey.ARTIFACT_HAS_MOVED_ON)
@@ -1160,7 +1146,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         } else if (status == HttpStatus.SC_NOT_FOUND) {
           EntityUtils.consume(current.getEntity());
           artifactAlreadyDeleted = true;
-          artifactEtag = c.getIfMatchHeader();
+          artifactEtag = ifMatch;
         } else {
           return generateStatusResponse(current);
         }
@@ -1171,6 +1157,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       throw new CedarProcessingException(e);
     }
 
+    var affectedVersionIds = relatedVersionIds(id.getId());
     ArtifactDeletionJob deletion = artifactDeletionCompletionService.prepare(id, artifact, artifactEtag,
         previousVersion == null ? null : previousVersion.getId(), artifactAlreadyDeleted);
 
@@ -1180,7 +1167,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           ProxyUtil.proxyResponseHeaders(proxyResponse, response);
           int statusCode = proxyResponse.getCode();
           if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
-            if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
+            if (statusCode >= 400 && statusCode < 500) {
+              // A refused request is not permission for a background retry after its blocker disappears.
               artifactDeletionCompletionService.abandon(deletion);
             }
             return generateStatusResponse(proxyResponse);
@@ -1197,10 +1185,14 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     try {
       artifactDeletionCompletionService.completeAfterArtifactDeletion(deletion, c);
-      completeVersionProjections(c);
     } catch (CedarProcessingException e) {
       log.error("Artifact {} was removed from the content store; durable cleanup remains pending", id, e);
       return Response.accepted().build();
+    } finally {
+      // The surviving versions' index documents depend on the graph alone. A later cleanup step that
+      // fails, such as queueing the value-recommender event, must not leave search describing them as
+      // they stood before the deletion until the background relay catches up.
+      completeVersionProjections(c, affectedVersionIds);
     }
 
     return Response.noContent().build();
@@ -1379,18 +1371,13 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         folderServerArtifact, ValuerecommenderReindexMessageActionType.CREATED);
   }
 
-  protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c) throws CedarProcessingException {
-    nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getResourceId());
-    nodeIndexingService.indexDocument(folderServerArtifact, c);
+  protected void updateIndexResource(FolderServerArtifact artifact, CedarRequestContext c) throws CedarProcessingException {
+    if (versionProjectionService == null) throw new CedarProcessingException("Artifact projection service unavailable");
+    versionProjectionService.refresh(artifact.getId(), nodeIndexingService, c);
   }
 
-  protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c, boolean retryRemove) throws CedarProcessingException {
-    if (!retryRemove) {
-      updateIndexResource(folderServerArtifact, c);
-    } else {
-      nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getResourceId(), retryRemove);
-      nodeIndexingService.indexDocument(folderServerArtifact, c);
-    }
+  protected void updateIndexResource(FolderServerArtifact artifact, CedarRequestContext c, boolean retryRemove) throws CedarProcessingException {
+    updateIndexResource(artifact, c);
   }
 
   protected void updateIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws CedarProcessingException {
