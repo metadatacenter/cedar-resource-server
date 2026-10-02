@@ -52,6 +52,7 @@ class CrossStoreSequenceTest {
   private static volatile CountDownLatch releaseFirstReply;
   private static volatile Runnable afterPost;
   private static volatile String copiedId;
+  private static volatile boolean refuseCleanup;
   private static final HttpClient client = HttpClient.newHttpClient();
   private static final DropwizardTestSupport<ResourceServerConfiguration> server =
       new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
@@ -86,6 +87,7 @@ class CrossStoreSequenceTest {
     if (releaseFirstReply != null) releaseFirstReply.countDown();
     delayedName = null;
     afterPost = null;
+    refuseCleanup = false;
   }
 
   @AfterAll
@@ -182,6 +184,89 @@ class CrossStoreSequenceTest {
     assertFalse(documents.containsKey(copiedId), "a refused copy must discard the newly created content-store orphan");
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"create", "copy", "draft"})
+  void failedCreationAndFailedCleanupRecoverThroughANewRelay(String operation) throws Exception {
+    String source = createTemplate("Durable cleanup source");
+    if (operation.equals("draft")) {
+      folders.updateArtifactById(artifactId(source), CedarResourceType.TEMPLATE,
+          Map.of(org.metadatacenter.server.neo4j.cypher.NodeProperty.PUBLICATION_STATUS, "bibo:published",
+              org.metadatacenter.server.neo4j.cypher.NodeProperty.VERSION, "0.0.1"));
+      documents.get(source).body().put("bibo:status", "bibo:published");
+    }
+    FolderServerFolder target = new FolderServerFolder();
+    target.setName("Destination removed during " + operation);
+    target.setDescription("Failed-create recovery");
+    CedarFolderId targetId = config.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    assertNotNull(folders.createFolderAsChildOfId(target, home, targetId));
+    refuseCleanup = true;
+    afterPost = () -> assertTrue(folders.deleteFolderById(targetId));
+    ObjectNode command;
+    String path;
+    if (operation.equals("copy")) {
+      command = JsonMapper.MAPPER.createObjectNode().put("@id", source)
+          .put("targetFolderId", targetId.getId()).put("nameTemplate", "Copy of {{name}}");
+      path = "/command/copy-artifact-to-folder";
+    } else if (operation.equals("draft")) {
+      command = JsonMapper.MAPPER.createObjectNode().put("@id", source)
+          .put("folderId", targetId.getId()).put("newVersion", "0.0.2");
+      path = "/command/create-draft-artifact";
+    } else {
+      command = documents.get(source).body().deepCopy(); command.putNull("@id");
+      path = "/templates?folder_id=" + enc(targetId.getId());
+    }
+    var failed = send("POST", path, command.toString(), null);
+    assertTrue(failed.statusCode() >= 400, failed.body());
+    String orphan = copiedId;
+    assertNotNull(orphan);
+    assertNull(folders.findArtifactById(artifactId(orphan)));
+    assertTrue(documents.containsKey(orphan), "the injected outage must prevent immediate cleanup");
+    String job = cleanupJob(orphan);
+    assertNotNull(job, "failed cleanup must survive the request");
+    afterPost = null; refuseCleanup = false;
+    try (var restarted = new org.metadatacenter.server.resource.ArtifactCreateCleanupService(config,
+        CedarDataServices.getInstance().getNeoUserService())) {
+      restarted.cleanupNow(job, CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config)));
+    }
+    assertFalse(documents.containsKey(orphan), "a fresh relay must delete the exact unregistered revision");
+    assertNull(cleanupJob(orphan));
+    assertTrue(documents.containsKey(source), "the source must survive compensation of its derivative");
+  }
+
+  @Test
+  void anIndexFailureAfterCopyRegistrationDoesNotDeleteSuccessfulContent() throws Exception {
+    String source = createTemplate("Copy indexing outage source");
+    var index = org.mockito.Mockito.mock(org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService.class);
+    org.mockito.Mockito.doThrow(new org.metadatacenter.exception.CedarProcessingException("index outage"))
+        .when(index).indexDocument(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    AbstractResourceServerResource.injectServices(index,
+        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config),
+        new ValuerecommenderReindexQueueService(config.getCacheConfig().getPersistent()));
+    try {
+      ObjectNode command = JsonMapper.MAPPER.createObjectNode().put("@id", source)
+          .put("targetFolderId", home.getId()).put("nameTemplate", "Copy of {{name}}");
+      var failed = send("POST", "/command/copy-artifact-to-folder", command.toString(), null);
+      assertEquals(500, failed.statusCode());
+      assertNotNull(folders.findArtifactById(artifactId(copiedId)));
+      assertTrue(documents.containsKey(copiedId), "index failure must not compensate a committed registration");
+      assertNull(cleanupJob(copiedId), "registration must retire cleanup before downstream calls");
+    } finally {
+      AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
+          new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config),
+          new ValuerecommenderReindexQueueService(config.getCacheConfig().getPersistent()));
+    }
+  }
+
+  private static String cleanupJob(String id) {
+    var neo = org.metadatacenter.server.neo4j.Neo4jConfig.fromCedarConfig(config);
+    try (var driver = org.neo4j.driver.GraphDatabase.driver(neo.getUri(),
+        org.neo4j.driver.AuthTokens.basic(neo.getUserName(), neo.getUserPassword())); var session = driver.session()) {
+      var result = session.run("MATCH (j:CedarArtifactCreateCleanup {resourceId:$id}) RETURN j.jobId AS job",
+          Map.of("id", id));
+      return result.hasNext() ? result.single().get("job").asString() : null;
+    }
+  }
+
   @Test
   void sequentialEditsKeepContentAndGraphInAgreement() throws Exception {
     String id = createTemplate("Sequential control");
@@ -244,7 +329,10 @@ class CrossStoreSequenceTest {
     if (!stored.etag().equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
       respond(exchange, 412, null); return;
     }
-    if (method.equals("DELETE")) { documents.remove(id); respond(exchange, 204, null); return; }
+    if (method.equals("DELETE")) {
+      if (refuseCleanup) { respond(exchange, 503, null); return; }
+      documents.remove(id); respond(exchange, 204, null); return;
+    }
     if (method.equals("PUT")) {
       ObjectNode body = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody());
       Stored replacement = new Stored(body, stored.revision() + 1);

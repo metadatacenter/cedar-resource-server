@@ -104,6 +104,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
   protected static ArtifactDeletionCompletionService artifactDeletionCompletionService;
   protected static ArtifactRestoreCompletionService artifactRestoreCompletionService;
+  protected static org.metadatacenter.server.resource.ArtifactCreateCleanupService artifactCreateCleanupService;
+
+  public static void injectArtifactCreateCleanupService(org.metadatacenter.server.resource.ArtifactCreateCleanupService service) {
+    artifactCreateCleanupService = service;
+  }
   protected static org.metadatacenter.cedar.resource.version.VersionProjectionService versionProjectionService;
 
   public static void injectVersionProjectionService(org.metadatacenter.cedar.resource.version.VersionProjectionService service) {
@@ -171,11 +176,18 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_ORG_DESCRIPTION, description);
   }
 
-  protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarResourceType resourceType, String content) throws CedarProcessingException {
+  protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarResourceType resourceType, String content, String cleanupJob) throws CedarProcessingException {
     try {
       String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
 
       ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).post(url, context, content);
+      if (templateProxyResponse.getCode() == HttpStatus.SC_CREATED && templateProxyResponse.getEntity() != null) {
+        String body = EntityUtils.toString(templateProxyResponse.getEntity(), StandardCharsets.UTF_8);
+        templateProxyResponse.setEntity(new org.apache.hc.core5.http.io.entity.StringEntity(body,
+            org.apache.hc.core5.http.ContentType.APPLICATION_JSON));
+        artifactCreateCleanupService.created(cleanupJob,
+            JsonMapper.STRICT_MAPPER.readTree(body).path("@id").asText(), headerValue(templateProxyResponse, HttpHeaders.ETAG));
+      } else artifactCreateCleanupService.rejected(cleanupJob, templateProxyResponse.getCode());
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
       int statusCode = templateProxyResponse.getCode();
@@ -249,14 +261,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
     }
 
-    // The artifact server takes the content before this server has finished judging it, and the two
-    // stores are not written under one transaction. Every refusal below — a missing name or version, an
-    // illegal resource type, a graph node that does not come back — happens after the artifact exists
-    // there, and the caller, told the create failed, has no id to clean up with. Remember the id from
-    // the moment it exists and discard it in the finally unless the artifact reached the graph.
-    CedarArtifactId createdArtifactId = null;
-    String createdArtifactEtag = null;
-    boolean artifactReachedTheGraph = false;
+    // Intent precedes the content request, including requests whose response never reaches us.
+    String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "create");
     try {
       String url;
       ClassicHttpResponse templateProxyResponse;
@@ -273,7 +279,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
       int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpStatus.SC_CREATED) {
-        // artifact was not created
+        artifactCreateCleanupService.rejected(cleanupJob, statusCode);
         return generateStatusResponse(templateProxyResponse);
       } else {
         // artifact was created
@@ -283,8 +289,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           JsonNode templateJsonNode = JsonMapper.STRICT_MAPPER.readTree(templateEntityContent);
           String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
-          createdArtifactId = aid;
-          createdArtifactEtag = headerValue(templateProxyResponse, HttpHeaders.ETAG);
+          artifactCreateCleanupService.created(cleanupJob, id, headerValue(templateProxyResponse, HttpHeaders.ETAG));
 
           JsonPointerValuePair namePair = ModelUtil.extractNameFromResource(resourceType, templateJsonNode);
           JsonPointerValuePair descriptionPair = ModelUtil.extractDescriptionFromResource(resourceType, templateJsonNode);
@@ -354,7 +359,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
               brandNewResource.setDOI(doi);
             }
           }
-          FolderServerArtifact newResource = folderSession.createResourceAsChildOfId(brandNewResource, fid);
+          FolderServerArtifact newResource = folderSession.createResourceWithCleanup(brandNewResource, fid, cleanupJob);
 
           if (newResource == null) {
             return CedarResponse.badRequest()
@@ -365,10 +370,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
                 .message("The artifact was not created!")
                 .build();
           }
-          // Both stores now hold it, so the create stands. A failure in the indexing and propagation
-          // below leaves the artifact in place and reports 500, as it did before; discarding it here
-          // would trade an artifact-server orphan for a graph one.
-          artifactReachedTheGraph = true;
+          // Registration retired cleanup in its graph transaction; downstream failures cannot undo it.
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
           URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
           updateInclusionSubgraphIfNeeded(context, newResource, templateJsonNode);
@@ -389,36 +391,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     } finally {
-      if (createdArtifactId != null && !artifactReachedTheGraph) {
-        discardArtifactAfterFailedCreate(context, resourceType, createdArtifactId, createdArtifactEtag);
-      }
-    }
-  }
-
-  /**
-   * Remove an artifact this server accepted from the artifact server but then refused, so a create the
-   * caller was told had failed leaves nothing behind.
-   *
-   * <p>Best-effort by necessity: it runs while the request is already failing, and the failure the
-   * caller sees must be the one that caused this rather than whatever goes wrong cleaning up. A
-   * discard that cannot complete is logged with the id, which is the only handle anyone has afterwards
-   * — the artifact is unreachable through this server once it has no graph node.
-   */
-  protected void discardArtifactAfterFailedCreate(CedarRequestContext context, CedarResourceType resourceType,
-                                                  CedarArtifactId artifactId, String createdEtag) {
-    if (createdEtag == null) {
-      log.error("Refused create left {} on the artifact server: its response carried no validator", artifactId);
-      return;
-    }
-    try {
-      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
-      ClassicHttpResponse discardResponse = new ArtifactServiceClient(cedarConfig).delete(url, context, createdEtag);
-      int status = discardResponse.getCode();
-      if (status != HttpStatus.SC_NO_CONTENT && status != HttpStatus.SC_OK && status != HttpStatus.SC_NOT_FOUND) {
-        log.error("Refused create left {} on the artifact server: discard answered {}", artifactId, status);
-      }
-    } catch (Exception e) {
-      log.error("Refused create left {} on the artifact server: discard failed", artifactId, e);
+      artifactCreateCleanupService.cleanupNow(cleanupJob, context);
     }
   }
 

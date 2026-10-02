@@ -28,6 +28,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
   private SearchPermissionEnqueueService searchPermissionEnqueueService;
   private ArtifactDeletionCompletionService artifactDeletionCompletionService;
   private ArtifactRestoreCompletionService artifactRestoreCompletionService;
+  private org.metadatacenter.server.resource.ArtifactCreateCleanupService artifactCreateCleanupService;
   private org.metadatacenter.cedar.resource.version.VersionProjectionService versionProjectionService;
 
   public static void main(String[] args) throws Exception {
@@ -60,6 +61,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     artifactDeletionCompletionService = new ArtifactDeletionCompletionService(
         cedarConfig, userService, nodeIndexingService, valuerecommenderReindexQueueService);
     artifactRestoreCompletionService = new ArtifactRestoreCompletionService(cedarConfig, userService);
+    artifactCreateCleanupService = new org.metadatacenter.server.resource.ArtifactCreateCleanupService(cedarConfig, userService);
+    AbstractResourceServerResource.injectArtifactCreateCleanupService(artifactCreateCleanupService);
     versionProjectionService = new org.metadatacenter.cedar.resource.version.VersionProjectionService(cedarConfig, userService, nodeIndexingService);
     AbstractResourceServerResource.injectVersionProjectionService(versionProjectionService);
 
@@ -91,12 +94,14 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
         searchPermissionEnqueueService.start();
         artifactDeletionCompletionService.start();
         artifactRestoreCompletionService.start();
+        artifactCreateCleanupService.start();
         versionProjectionService.start();
       }
 
       @Override
       public void stop() {
         versionProjectionService.close();
+        artifactCreateCleanupService.close();
         artifactRestoreCompletionService.close();
         artifactDeletionCompletionService.close();
         searchPermissionEnqueueService.close();
