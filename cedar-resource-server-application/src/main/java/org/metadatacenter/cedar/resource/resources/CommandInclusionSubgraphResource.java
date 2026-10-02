@@ -233,7 +233,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       proposed.put(todo.getTargetId(), targetJsonNode);
       boolean structuralTemplateChange = targetArtifactId.getType() == CedarResourceType.TEMPLATE
           && requiresNewVersion(1, storedTarget, targetJsonNode);
-      prepared.add(new PreparedUpdate(todo, targetArtifactId, targetJsonNode, targetArtifactContent.etag(), structuralTemplateChange));
+      prepared.add(new PreparedUpdate(todo, targetArtifactId, targetJsonNode, targetArtifactContent.etag(), structuralTemplateChange, targetArtifactContent.content()));
     }
 
     // Preflight the complete proposed graph before the first write, including changes through elements.
@@ -253,7 +253,8 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         continue;
       }
 
-      applyArtifactUpdateSideEffects(c, targetArtifactId, targetJsonNode);
+      applyArtifactUpdateSideEffects(c, targetArtifactId, targetJsonNode, update.preImage(),
+          putResponse.getHeaderString(jakarta.ws.rs.core.HttpHeaders.ETAG));
       outcomes.add(InclusionSubgraphUpdateOutcome.updated(todo.getSourceId(), todo.getTargetId(), putStatus));
     }
 
@@ -277,5 +278,5 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
   }
 
   private record PreparedUpdate(InclusionSubgraphTodoElement todo, CedarTypedSchemaArtifactId targetId,
-                                JsonNode document, String etag, boolean requireNoInstances) { }
+                                JsonNode document, String etag, boolean requireNoInstances, String preImage) { }
 }

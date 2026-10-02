@@ -127,6 +127,44 @@ class CrossStoreSequenceTest {
   }
 
   @Test
+  void aCommittedSaveKeepsItsDerivedWorkWhenSearchIsUnavailable() throws Exception {
+    String id = createTemplate("Before index outage");
+    var index = org.mockito.Mockito.mock(org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService.class);
+    org.mockito.Mockito.when(index.indexDocumentForProjection(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenThrow(new org.metadatacenter.exception.CedarProcessingException("search unavailable"));
+    AbstractResourceServerResource.injectServices(index,
+        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config),
+        new ValuerecommenderReindexQueueService(config.getCacheConfig().getPersistent()));
+    try {
+      ObjectNode content = documents.get(id).body().deepCopy().put("schema:name", "Committed during outage");
+      var saved = send("PUT", "/templates/" + enc(id), content.toString(), "\"1\"");
+      assertEquals(200, saved.statusCode(), saved.body());
+      assertEquals("Committed during outage", folders.findArtifactById(artifactId(id)).getName());
+      assertEquals("Committed during outage", documents.get(id).body().path("schema:name").asText());
+      var neo = org.metadatacenter.server.neo4j.Neo4jConfig.fromCedarConfig(config);
+      try (var driver = org.neo4j.driver.GraphDatabase.driver(neo.getUri(),
+          org.neo4j.driver.AuthTokens.basic(neo.getUserName(), neo.getUserPassword())); var session = driver.session()) {
+        var job = session.run("MATCH (j:CedarVersionProjection {resourceId:$id}) RETURN j.content AS content",
+            Map.of("id", id)).single();
+        assertEquals("Committed during outage", JsonMapper.STRICT_MAPPER.readTree(job.get("content").asString())
+            .path("schema:name").asText());
+        assertEquals(0, session.run("MATCH (j:CedarArtifactRestoreOutbox {resourceId:$id}) RETURN count(j) AS n",
+            Map.of("id", id)).single().get("n").asInt(), "committed graph work must not be compensated");
+        var next = content.deepCopy().put("schema:name", "Successor during outage");
+        assertEquals(200, send("PUT", "/templates/" + enc(id), next.toString(), "\"2\"").statusCode());
+        var successor = session.run("MATCH (j:CedarVersionProjection {resourceId:$id}) RETURN j.content AS content",
+            Map.of("id", id)).single();
+        assertEquals("Successor during outage", JsonMapper.STRICT_MAPPER.readTree(successor.get("content").asString())
+            .path("schema:name").asText(), "recovery must retain the last committed document");
+      }
+    } finally {
+      AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
+          new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config),
+          new ValuerecommenderReindexQueueService(config.getCacheConfig().getPersistent()));
+    }
+  }
+
+  @Test
   void aCopyCleansUpItsDocumentWhenTheDestinationDisappears() throws Exception {
     String source = createTemplate("Copy source");
     FolderServerFolder target = new FolderServerFolder();

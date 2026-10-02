@@ -886,9 +886,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         }
         FolderServerArtifact updatedResource;
         if (restoreJob == null) {
-          updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields);
+          updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields,
+              null, templateEntityContent).resource();
         } else {
-          var graphResult = folderSession.updateArtifactById(id, resource.getType(), updateFields, restoreJob.jobId());
+          var graphResult = folderSession.updateArtifactById(id, resource.getType(), updateFields,
+              restoreJob.jobId(), templateEntityContent);
           if (graphResult.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
             supersededWrite = true;
             // The artifact write succeeded before its successor. Do not restore it or project
@@ -914,10 +916,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           // Both primary stores now describe the replacement. Logging before the graph write would
           // leave a false successful-write trail when the artifact compensation below restores it.
           logPrivilegedWrite(context, id, folderServerOldResource, verbatim, content);
-          updateInclusionSubgraphIfNeeded(context, updatedResource, templateJsonNode);
-          updateIndexResource(updatedResource, context);
-          updateValuerecommenderResource(updatedResource);
-          triggerInstanceUpdatesForTemplate(context, resourceType, id);
+          completeArtifactProjection(id, context);
           return Response.ok().entity(updatedResource).build();
         }
       } else {
@@ -1056,49 +1055,34 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     }
   }
 
-  /**
-   * The work an artifact-server write leaves behind, for a caller that writes content directly rather
-   * than through the update proxy above: recompute the inclusion arcs, reindex, queue the value
-   * recommender, and note the instances that now trail the template.
-   *
-   * <p>Skipping this is not cosmetic. The search index stores artifact content, so a write that does not
-   * reindex leaves OpenSearch serving the previous version indefinitely, and stale inclusion arcs make
-   * the next propagation compute the wrong affected tree.
-   *
-   * <p>The Neo4j name, description and identifier are deliberately not touched. The proxy path rewrites
-   * them because the caller supplied a whole new artifact; a caller that replaced a subdocument has not
-   * changed the artifact's own name or description, and copying them back would be a no-op at best.
-   */
-  protected void applyArtifactUpdateSideEffects(CedarRequestContext context, CedarArtifactId id, JsonNode newContent)
-      throws CedarProcessingException {
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-    FolderServerArtifact artifact = folderSession.findArtifactById(id);
-    if (artifact == null) {
-      log.warn("Artifact {} was written but is not in the graph; its index entry and inclusion arcs were left alone", id);
-      return;
-    }
-    logPrivilegedWrite(context, id, artifact, false, null);
-    updateInclusionSubgraphIfNeeded(context, artifact, newContent);
-    updateIndexResource(artifact, context);
-    updateValuerecommenderResource(artifact);
-    triggerInstanceUpdatesForTemplate(context, artifact.getType(), id);
+  protected void completeArtifactProjection(CedarArtifactId id, CedarRequestContext context) {
+    if (versionProjectionService != null) versionProjectionService.complete(id.getId(), nodeIndexingService, context);
   }
 
-  /**
-   * An instance's indexed field names and labels are read from its template, so a template change
-   * leaves them stale although no instance changed. The version projection relay reindexes each
-   * marked instance in the background, because a template can have more instances than a request
-   * should wait for.
-   */
-  private void triggerInstanceUpdatesForTemplate(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id) {
-    if (resourceType == CedarResourceType.TEMPLATE) {
-      FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-      CedarTemplateId templateId = CedarTemplateId.build(id.getId());
-      long instanceCount = folderSession.getNumberOfInstances(templateId);
-      if (instanceCount > 0 && !folderSession.enqueueInstanceReindex(templateId)) {
-        log.error("The " + instanceCount + " instances of template " + id + " could not be marked for "
-            + "reindexing. Their search fields stay stale until the index is rebuilt.");
+  /** Inclusion propagation uses the same content-to-graph fence and durable follow-up as a save. */
+  protected void applyArtifactUpdateSideEffects(CedarRequestContext context, CedarTypedSchemaArtifactId id, JsonNode newContent,
+                                               String preImage, String replacementEtag) throws CedarProcessingException {
+    var restore = artifactRestoreCompletionService == null ? null
+        : artifactRestoreCompletionService.prepare(id, id.getType(), preImage, replacementEtag, false);
+    boolean committed = false;
+    boolean superseded = false;
+    try {
+      var folderSession = dataServices.getFolderServiceSession(context);
+      var result = folderSession.updateArtifactById(id, id.getType(), Map.of(),
+          restore == null ? null : restore.jobId(), newContent.toString());
+      superseded = result.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED;
+      if (superseded) return;
+      if (result.resource() == null) throw new CedarProcessingException("The propagated artifact could not be updated in the graph");
+      committed = true;
+      logPrivilegedWrite(context, id, result.resource(), false, null);
+      completeArtifactProjection(id, context);
+    } finally {
+      if (!committed && !superseded) {
+        if (restore != null) artifactRestoreCompletionService.restoreNow(restore, context);
+        else restoreArtifactAfterFailedGraphUpdate(context, id.getType(), id,
+            new ArtifactPreImage(preImage, null), replacementEtag, false);
       }
+      if (restore != null && !committed) artifactRestoreCompletionService.forgetOutcome(restore);
     }
   }
 
@@ -1404,18 +1388,13 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         folderServerArtifact, ValuerecommenderReindexMessageActionType.CREATED);
   }
 
-  protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c) throws CedarProcessingException {
-    nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getResourceId());
-    nodeIndexingService.indexDocument(folderServerArtifact, c);
+  protected void updateIndexResource(FolderServerArtifact artifact, CedarRequestContext c) throws CedarProcessingException {
+    if (versionProjectionService == null) throw new CedarProcessingException("Artifact projection service unavailable");
+    versionProjectionService.refresh(artifact.getId(), nodeIndexingService, c);
   }
 
-  protected void updateIndexResource(FolderServerArtifact folderServerArtifact, CedarRequestContext c, boolean retryRemove) throws CedarProcessingException {
-    if (!retryRemove) {
-      updateIndexResource(folderServerArtifact, c);
-    } else {
-      nodeIndexingService.removeDocumentFromIndex(folderServerArtifact.getResourceId(), retryRemove);
-      nodeIndexingService.indexDocument(folderServerArtifact, c);
-    }
+  protected void updateIndexResource(FolderServerArtifact artifact, CedarRequestContext c, boolean retryRemove) throws CedarProcessingException {
+    updateIndexResource(artifact, c);
   }
 
   protected void updateIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws CedarProcessingException {

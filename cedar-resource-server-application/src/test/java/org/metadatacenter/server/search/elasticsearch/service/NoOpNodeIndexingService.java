@@ -29,6 +29,11 @@ public class NoOpNodeIndexingService extends NodeIndexingService {
     return null;
   }
 
+  @Override
+  public IndexedDocumentId indexDocumentForProjection(FileSystemResource resource, CedarRequestContext context) {
+    return indexDocument(resource, context);
+  }
+
   public boolean wasIndexed(String resourceId) {
     return lastIndexed.containsKey(resourceId);
   }

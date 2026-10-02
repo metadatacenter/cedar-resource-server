@@ -194,9 +194,10 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
       FolderServerArtifact updatedResource;
       if (restoreJob == null) {
-        updatedResource = folderSession.updateArtifactById(artifactId, resourceType, updateFields);
+        updatedResource = folderSession.updateArtifactById(artifactId, resourceType, updateFields,
+            null, objectNode.toString()).resource();
       } else {
-        var result = folderSession.updateArtifactById(artifactId, resourceType, updateFields, restoreJob.jobId());
+        var result = folderSession.updateArtifactById(artifactId, resourceType, updateFields, restoreJob.jobId(), objectNode.toString());
         if (result.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
           supersededWrite = true;
           folderServerOldResource.setDOI(doiInRequest);
@@ -210,7 +211,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
       graphUpdated = true;
       // The graph write moved the last-updated date and modifier, which search shows, sorts and
       // filters on.
-      updateIndexResource(updatedResource, c);
+      completeArtifactProjection(artifactId, c);
       return Response.ok().entity(updatedResource).build();
     } catch (JsonProcessingException e) {
       throw new CedarProcessingException(e);

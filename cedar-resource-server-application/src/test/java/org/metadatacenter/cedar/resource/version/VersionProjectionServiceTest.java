@@ -33,14 +33,14 @@ class VersionProjectionServiceTest {
       try(var service=new VersionProjectionService(GraphDatabase.driver(neo.boltURI(),AuthTokens.none()),index,
           (artifact,previous) -> { assertNull(previous); calls.incrementAndGet(); });
           var s=reader.session()) {
-        when(index.indexDocument(any(),isNull())).thenThrow(new org.metadatacenter.exception.CedarProcessingException("index unavailable"));
+        when(index.indexDocumentForProjection(any(),isNull())).thenThrow(new org.metadatacenter.exception.CedarProcessingException("index unavailable"));
         service.completePending(index,null);
         assertEquals(1,s.run("MATCH (j:CedarVersionProjection) RETURN count(j) AS n").single().get("n").asInt());
         reset(index);
         // Recovery reads the current graph rather than replaying the stale object held by an old request.
         s.run("MATCH (a:Artifact {_id:$id}) SET a.isLatestVersion=false",Map.of("id",id)).consume();
         service.completePending(index,null);
-        verify(index).indexDocument(argThat(a -> !((FolderServerSchemaArtifact)a).isLatestVersion()),isNull());
+        verify(index).indexDocumentForProjection(argThat(a -> !((FolderServerSchemaArtifact)a).isLatestVersion()),isNull());
         assertEquals(0,s.run("MATCH (j:CedarVersionProjection) RETURN count(j) AS n").single().get("n").asInt());
         assertEquals(3,calls.get());
       }
