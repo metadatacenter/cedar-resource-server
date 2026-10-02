@@ -115,8 +115,17 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     versionProjectionService = service;
   }
 
-  protected void completeVersionProjections(CedarRequestContext context) {
-    if (versionProjectionService != null) versionProjectionService.completePending(nodeIndexingService,context);
+  protected java.util.List<String> relatedVersionIds(String id) {
+    try {
+      return versionProjectionService == null ? java.util.List.of() : versionProjectionService.relatedIds(id);
+    } catch (Exception failure) {
+      log.warn("Version projections for {} remain recorded for the relay", id, failure);
+      return java.util.List.of();
+    }
+  }
+
+  protected void completeVersionProjections(CedarRequestContext context, java.util.Collection<String> ids) {
+    if (versionProjectionService != null) versionProjectionService.completeRelated(ids,nodeIndexingService,context);
   }
 
 
@@ -1148,6 +1157,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       throw new CedarProcessingException(e);
     }
 
+    var affectedVersionIds = relatedVersionIds(id.getId());
     ArtifactDeletionJob deletion = artifactDeletionCompletionService.prepare(id, artifact, artifactEtag,
         previousVersion == null ? null : previousVersion.getId(), artifactAlreadyDeleted);
 
@@ -1182,7 +1192,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       // The surviving versions' index documents depend on the graph alone. A later cleanup step that
       // fails, such as queueing the value-recommender event, must not leave search describing them as
       // they stood before the deletion until the background relay catches up.
-      completeVersionProjections(c);
+      completeVersionProjections(c, affectedVersionIds);
     }
 
     return Response.noContent().build();

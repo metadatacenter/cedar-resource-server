@@ -287,7 +287,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               }
               graphUpdated = true;
 
-              completeVersionProjections(c);
+              completeVersionProjections(c, relatedVersionIds(aid.getId()));
               FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
 
               return Response.ok().entity(updatedResource).build();
@@ -521,7 +521,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               }
 
               FolderServerArtifact createdNewResource = folderSession.findArtifactById(newId);
-              completeVersionProjections(c);
+              completeVersionProjections(c, relatedVersionIds(newId.getId()));
 
               if (artifactType == CedarResourceType.TEMPLATE && newFolderName != null && !newFolderName.isEmpty()) {
                 createCopyOfInstancesWithNewTemplate(c, CedarTemplateId.build(aid.getId()),

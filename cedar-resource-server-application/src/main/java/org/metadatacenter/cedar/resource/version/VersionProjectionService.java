@@ -97,6 +97,19 @@ public final class VersionProjectionService implements AutoCloseable {
     }
   }
 
+  /** Capture the affected chain before a lifecycle mutation, including before deleting its anchor. */
+  public List<String> relatedIds(String id) {
+    try (var session=driver.session()) {
+      return session.run("MATCH (a:Artifact {_id:$id}) MATCH (a)-[:PREVIOUSVERSION*0..]-(v:Artifact) "
+          + "RETURN DISTINCT v._id AS id ORDER BY id", Map.of("id",id)).list(r -> r.get("id").asString());
+    }
+  }
+
+  /** A request must refresh its own chain even when an unrelated, older relay job is blocked. */
+  public void completeRelated(Collection<String> ids, NodeIndexingService indexing, CedarRequestContext context) {
+    for (String id : ids) complete(id,indexing,context);
+  }
+
   /** Reindex commands also use current graph state, never an object retained by a delayed caller. */
   public void refresh(String id, NodeIndexingService indexing, CedarRequestContext context) {
     try (var session=driver.session()) {

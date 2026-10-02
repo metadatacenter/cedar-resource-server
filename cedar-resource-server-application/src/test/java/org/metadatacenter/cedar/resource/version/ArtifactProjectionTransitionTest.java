@@ -109,6 +109,29 @@ class ArtifactProjectionTransitionTest {
     assertEquals("Saved",observed("link"));
   }
 
+  @ParameterizedTest @ValueSource(booleans={false,true})
+  void aLifecycleRequestRefreshesItsWholeChainDespiteABlockedNotification(boolean blockedInSameChain) throws Exception {
+    save("Blocked older save"); failure.set("notification");
+    String release=blockedInSameChain?ID:ID+"-release", draft=ID+"-draft";
+    try(var session=observer.session()) {
+      session.writeTransaction(tx -> {
+        VersionChainTransaction.lock(tx);
+        tx.run("MERGE (r:Artifact:Template {_id:$release}) "
+            + "SET r.resourceType='template', r.schema_name='Published', r.pav_version='1.0.0', r.bibo_status='bibo:published' "
+            + "CREATE (d:Artifact:Template {_id:$draft,resourceType:'template',schema_name:'Draft',pav_version:'2.0.0',"
+            + "bibo_status:'bibo:draft',pav_previousVersion:$release}) CREATE (d)-[:PREVIOUSVERSION]->(r)",
+            Map.of("release",release,"draft",draft)).consume();
+        VersionChainTransaction.reconcile(tx,draft);
+        return null;
+      });
+    }
+    try(var request=relay()) { request.completeRelated(request.relatedIds(draft),index,null); }
+    verify(index).indexDocumentForProjection(argThat(a -> a.getId().equals(release)),isNull());
+    verify(index).indexDocumentForProjection(argThat(a -> a.getId().equals(draft)),isNull());
+    if(!blockedInSameChain) verify(index,never()).indexDocumentForProjection(argThat(a -> a.getId().equals(ID)),isNull());
+    assertEquals(1,pending(),"The failed notification stays durable, without blocking either version's index");
+  }
+
   @Test void aLateEarlierRequestProjectsOnlyTheSuccessorsSnapshot() throws Exception {
     save("First"); // Request A pauses after committing its graph update, before invoking the relay.
     save("Second");
