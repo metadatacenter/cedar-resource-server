@@ -110,6 +110,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
@@ -169,6 +171,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
@@ -238,6 +242,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
@@ -277,6 +283,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @Parameter(description = "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON. A published artifact may be replaced this way, since a verbatim write states the whole document rather than editing it.")
       @QueryParam(QP_VERBATIM) Optional<Boolean> verbatimParam,
       @Parameter(hidden = true) String requestBody) throws CedarException {
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
 
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -316,6 +323,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_DELETE);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
@@ -340,6 +349,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
@@ -369,6 +380,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_UPDATE);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
@@ -392,6 +405,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
@@ -415,6 +430,8 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 

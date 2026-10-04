@@ -356,7 +356,7 @@ public class CommandFileSystemResourceTest {
       Assertions.assertTrue(nodeIndexingService.wasIndexed(createdId),
           artifact.getKey() + " should be offered to the indexing service");
       Assertions.assertTrue(response.headers().firstValue("Location").orElse("").endsWith(
-          java.net.URLEncoder.encode(createdId, StandardCharsets.UTF_8)),
+          artifact.getKey() + "/" + createdId.substring(createdId.lastIndexOf('/') + 1)),
           artifact.getKey() + " should return Resource's created-artifact location");
     }
   }

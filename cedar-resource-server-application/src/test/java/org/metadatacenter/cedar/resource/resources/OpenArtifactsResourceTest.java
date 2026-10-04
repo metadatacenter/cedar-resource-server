@@ -101,7 +101,7 @@ class OpenArtifactsResourceTest {
       }
       String bare = id.substring(id.lastIndexOf('/') + 1);
       assertEquals(200, get(type, bare, null).statusCode());
-      assertEquals("/" + type.getPrefix() + "/" + URLEncoder.encode(id, StandardCharsets.UTF_8), lastPath);
+      assertEquals("/" + type.getPrefix() + "/" + bare, lastPath);
       assertTrue(folders.setNotOpen(org.metadatacenter.id.CedarArtifactId.build(id, type)));
       assertEquals(401, get(type, id, ownerAuth).statusCode(), "Revocation is immediately effective");
 

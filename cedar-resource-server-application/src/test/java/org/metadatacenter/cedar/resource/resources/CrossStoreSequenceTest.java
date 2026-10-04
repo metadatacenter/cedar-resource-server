@@ -312,7 +312,7 @@ class CrossStoreSequenceTest {
 
   private static void handleArtifact(HttpExchange exchange) throws IOException {
     String path = exchange.getRequestURI().getPath();
-    String id = path.startsWith("/templates/") ? path.substring("/templates/".length()) : null;
+    String id = path.startsWith("/templates/") ? config.getLinkedDataUtil().resolveResourceId(CedarResourceType.TEMPLATE, path.substring("/templates/".length())) : null;
     String method = exchange.getRequestMethod();
     if (method.equals("POST")) {
       ObjectNode body = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody());

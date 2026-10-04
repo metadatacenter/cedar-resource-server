@@ -116,6 +116,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -179,6 +181,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -249,6 +253,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -290,6 +296,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);
@@ -326,6 +334,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -350,6 +360,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -379,6 +391,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -402,6 +416,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 

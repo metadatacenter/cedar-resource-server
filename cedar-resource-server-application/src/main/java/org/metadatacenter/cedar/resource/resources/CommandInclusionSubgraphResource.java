@@ -90,6 +90,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
 
     InclusionSubgraphRequest treeRequest = c.request().getRequestBody().convert(InclusionSubgraphRequest.class);
 
+    normalizeSelectors(treeRequest);
     String id = treeRequest.getId();
     if (id == null) {
       return CedarResponse.badRequest()
@@ -138,6 +139,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
 
     InclusionSubgraphRequest treeRequest = c.request().getRequestBody().convert(InclusionSubgraphRequest.class);
 
+    normalizeSelectors(treeRequest);
     String id = treeRequest.getId();
     if (id == null) {
       return CedarResponse.badRequest()
@@ -275,6 +277,35 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         reader.readTemplateSchemaArtifact((ObjectNode) stored),
         reader.readTemplateSchemaArtifact((ObjectNode) proposed));
     return !delta.getDestructiveChanges().isEmpty() || !delta.getNonDestructiveChanges().isEmpty();
+  }
+
+  private void normalizeSelectors(InclusionSubgraphRequest request) {
+    if (request.getId() != null) request.setId(linkedDataUtil.resolveResourceId(request.getId()));
+    request.setElements(normalizeElements(request.getElements()));
+    request.setTemplates(normalizeKeys(request.getTemplates(), CedarResourceType.TEMPLATE));
+  }
+
+  private Map<String, org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphElement> normalizeElements(
+      Map<String, org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphElement> elements) {
+    var resolved = normalizeKeys(elements, CedarResourceType.ELEMENT);
+    if (resolved != null) for (var element : resolved.values()) {
+      if (element != null) {
+        element.setElements(normalizeElements(element.getElements()));
+        element.setTemplates(normalizeKeys(element.getTemplates(), CedarResourceType.TEMPLATE));
+      }
+    }
+    return resolved;
+  }
+
+  private <T> Map<String, T> normalizeKeys(Map<String, T> selectors, CedarResourceType type) {
+    if (selectors == null) return null;
+    Map<String, T> resolved = new java.util.LinkedHashMap<>();
+    selectors.forEach((key, value) -> {
+      String id = linkedDataUtil.resolveResourceId(type, key);
+      if (resolved.containsKey(id)) throw new jakarta.ws.rs.BadRequestException("Duplicate resource selector: " + key);
+      resolved.put(id, value);
+    });
+    return resolved;
   }
 
   private record PreparedUpdate(InclusionSubgraphTodoElement todo, CedarTypedSchemaArtifactId targetId,

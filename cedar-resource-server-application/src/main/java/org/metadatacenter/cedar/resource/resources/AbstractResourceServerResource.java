@@ -232,7 +232,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (folderIdP.isEmpty()) {
       folderIdS = context.getCedarUser().getHomeFolderId();
     } else {
-      folderIdS = folderIdP.stringValue();
+      folderIdS = linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, folderIdP.stringValue());
     }
 
     CedarFolderId fid = CedarFolderId.build(folderIdS);
@@ -381,7 +381,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           }
           // Registration retired cleanup in its graph transaction; downstream failures cannot undo it.
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-          URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
+          URI uri = builder.path(CedarUrlUtil.urlEncode(linkedDataUtil.resourcePathId(resourceType, id))).build();
           updateInclusionSubgraphIfNeeded(context, newResource, templateJsonNode);
           createIndexArtifact(newResource, context);
           createValuerecommenderResource(newResource);

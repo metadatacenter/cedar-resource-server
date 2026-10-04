@@ -111,6 +111,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
     CedarElementId eid = CedarElementId.build(id);
 
@@ -170,6 +172,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
     CedarElementId eid = CedarElementId.build(id);
 
@@ -239,6 +243,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
     CedarElementId eid = CedarElementId.build(id);
 
@@ -280,6 +286,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
+
     CedarElementId eid = CedarElementId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);
@@ -316,6 +324,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_DELETE);
     CedarElementId eid = CedarElementId.build(id);
 
@@ -340,6 +350,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
     CedarElementId eid = CedarElementId.build(id);
 
@@ -369,6 +381,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_UPDATE);
     CedarElementId eid = CedarElementId.build(id);
 
@@ -392,6 +406,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
     CedarElementId eid = CedarElementId.build(id);
 
@@ -415,6 +431,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_ELEMENT_READ);
     CedarElementId eid = CedarElementId.build(id);
 

@@ -723,6 +723,8 @@ public class ResourceStateRoundTripIT {
         ? URLDecoder.decode(path.substring(collection.length(),
         predecessor ? path.length() - "/version-predecessor".length() : path.length()), StandardCharsets.UTF_8)
         : null;
+    if (id != null) id = cedarConfig.getLinkedDataUtil().resolveResourceId(
+        instances ? CedarResourceType.INSTANCE : CedarResourceType.TEMPLATE, id);
 
     if ("POST".equals(method) && id == null) {
       ObjectNode created = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(body);

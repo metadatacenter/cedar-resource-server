@@ -15,6 +15,7 @@ import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.constant.LinkedData;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorReasonKey;
@@ -100,6 +101,8 @@ public class FoldersResource extends AbstractResourceServerResource {
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
+
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
     CedarFolderId fid = CedarFolderId.build(id);
 
@@ -136,6 +139,7 @@ public class FoldersResource extends AbstractResourceServerResource {
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     return findFolder(id);
   }
 
@@ -167,6 +171,8 @@ public class FoldersResource extends AbstractResourceServerResource {
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
+
     c.must(id).be(ValidId);
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
     c.must(c.request().getRequestBody()).be(NonEmpty);
@@ -228,6 +234,8 @@ public class FoldersResource extends AbstractResourceServerResource {
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
+
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
     CedarFolderId fid = CedarFolderId.build(id);
 
@@ -320,6 +328,8 @@ public class FoldersResource extends AbstractResourceServerResource {
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
+
     c.must(c.user()).have(CedarPermission.FOLDER_READ);
     CedarFolderId fid = CedarFolderId.build(id);
 
@@ -351,6 +361,8 @@ public class FoldersResource extends AbstractResourceServerResource {
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
+
     c.must(c.user()).have(CedarPermission.FOLDER_UPDATE);
     CedarFolderId fid = CedarFolderId.build(id);
 
@@ -400,7 +412,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
 
     if (!folderIdP.isEmpty()) {
-      folderIdV = folderIdP.stringValue();
+      folderIdV = linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, folderIdP.stringValue());
       CedarFolderId fidv = CedarFolderId.build(folderIdV);
       userMustHaveCapabilityOnFolder(c, fidv, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
       parentFolder = folderSession.findFolderById(fidv);
@@ -477,7 +489,7 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-    URI uri = builder.path(CedarUrlUtil.urlEncode(newFolder.getId())).build();
+    URI uri = builder.path(CedarUrlUtil.urlEncode(linkedDataUtil.resourcePathId(CedarResourceType.FOLDER, newFolder.getId()))).build();
     createIndexFolder(newFolder, c);
     return Response.created(uri).header(HttpHeaders.ETAG, RevisionPreconditionParser.format(1L))
         .entity(newFolder).build();

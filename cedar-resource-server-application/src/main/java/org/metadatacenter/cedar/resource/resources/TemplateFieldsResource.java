@@ -111,6 +111,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -171,6 +173,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -240,6 +244,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -281,6 +287,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     CedarFieldId fid = CedarFieldId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);
@@ -317,6 +325,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_DELETE);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -341,6 +351,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -370,6 +382,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -393,6 +407,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -416,6 +432,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 

@@ -90,7 +90,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     c.must(idParameter).be(NonEmpty);
     c.must(doiParameter).be(NonEmpty);
 
-    String id = idParameter.stringValue();
+    String id = linkedDataUtil.resolveResourceId(idParameter.stringValue());
     String doiInRequest = doiParameter.stringValue();
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);

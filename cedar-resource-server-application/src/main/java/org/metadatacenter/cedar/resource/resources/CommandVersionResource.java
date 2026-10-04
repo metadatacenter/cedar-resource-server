@@ -128,7 +128,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
 
-    String id = idParam.stringValue();
+    String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
 
     ResourceVersion newVersion = null;
@@ -377,9 +377,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     CedarParameter propagateSharingParam = c.request().getRequestBody().get("propagateSharing");
     CedarParameter newFolderNameParam = c.request().getRequestBody().get("newFolderName");
 
-    String id = idParam.stringValue();
+    String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
-    String folderId = folderIdParam.stringValue();
+    String folderId = linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, folderIdParam.stringValue());
     CedarFolderId fid = CedarFolderId.build(folderId);
     String propagateSharingString = propagateSharingParam.stringValue();
     String newFolderNameString = newFolderNameParam.stringValue();
@@ -576,6 +576,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
@@ -671,6 +673,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       @QueryParam(QP_FOLDER_NAME) Optional<String> folderName) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(CedarResourceType.TEMPLATE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
     CedarTemplateId tid = CedarTemplateId.build(id);
 

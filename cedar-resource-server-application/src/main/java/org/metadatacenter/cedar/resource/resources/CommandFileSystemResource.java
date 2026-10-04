@@ -122,8 +122,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     c.must(targetFolderParam).be(NonEmpty);
     c.must(nameTemplateParam).be(NonEmpty);
 
-    String id = idParam.stringValue();
-    String folderId = targetFolderParam.stringValue();
+    String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
+    String folderId = linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, targetFolderParam.stringValue());
     String nameTemplate = nameTemplateParam.stringValue();
 
 
@@ -321,8 +321,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     c.must(sourceParam).be(NonEmpty);
     c.must(targetParam).be(NonEmpty);
 
-    String sId = sourceParam.stringValue();
-    String fId = targetParam.stringValue();
+    String sId = linkedDataUtil.resolveResourceId(sourceParam.stringValue());
+    String fId = linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, targetParam.stringValue());
 
     CedarFolderId targetFolderId = CedarFolderId.build(fId);
 
@@ -492,7 +492,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     // Was read without checking, so a body with no identifier became a 500 further down.
     c.must(idParam).be(NonEmpty);
 
-    String id = idParam.stringValue();
+    String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
 
     CedarResourceId untypedResourceId = CedarUntypedResourceId.build(id);
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -650,7 +650,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     c.must(newOwnerIdParam).be(NonEmpty);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
-    CedarResourceId untypedId = CedarUntypedResourceId.build(idParam.stringValue());
+    CedarResourceId untypedId = CedarUntypedResourceId.build(linkedDataUtil.resolveResourceId(idParam.stringValue()));
     CedarResourceType resourceType = folderSession.getResourceType(untypedId);
     boolean permissionControlledResource = resourceType != null && switch (resourceType) {
       case FOLDER, FIELD, ELEMENT, TEMPLATE, INSTANCE -> true;
