@@ -30,9 +30,11 @@ import org.metadatacenter.cedar.deltafinder.DeltaFinder;
 import org.metadatacenter.cedar.deltafinder.change.Change;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.error.CedarErrorType;
 import org.metadatacenter.cedar.resource.artifact.ArtifactServerRefusal;
 import org.metadatacenter.exception.CedarBackendException;
+import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.exception.CedarProcessingException;
@@ -588,6 +590,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     userMustHaveCapabilityOnArtifact(c, tid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
+    ObjectNode newTemplateObjectNode = submittedTemplate(c);
     Map<String, Object> resp = new HashMap<>();
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -605,13 +608,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     }
 
     try {
-      JsonNode oldTemplateJsonNode;
-      JsonNode newTemplateJsonNode;
-      oldTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
-      newTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(c.request().getRequestBody().asJsonString());
-      if (!(oldTemplateJsonNode instanceof ObjectNode oldTemplateObjectNode)
-          || !(newTemplateJsonNode instanceof ObjectNode newTemplateObjectNode)) {
-        throw new IllegalArgumentException("Both stored and submitted templates must be JSON objects");
+      JsonNode oldTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
+      if (!(oldTemplateJsonNode instanceof ObjectNode oldTemplateObjectNode)) {
+        throw new IllegalArgumentException("The stored template is not a JSON object");
       }
 
       JsonArtifactReader reader = new JsonArtifactReader();
@@ -643,8 +642,6 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       resp.put("pav:version", newVersion);
       resp.put("schema:name", oldModelArtifact.name());
       return Response.ok().entity(resp).build();
-    } catch (CedarException e) {
-      throw e;
     } catch (Exception e) {
       log.error("Error while checking template {} for update", tid.getId(), e);
       throw new CedarProcessingException("There was an error while checking the template for update", e);
@@ -692,6 +689,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           .message("Creating a draft from an edited template requires its original ETag in If-Match")
           .build();
     }
+    ObjectNode newTemplateJsonNode = submittedTemplate(c);
     var source = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
         CedarResourceType.TEMPLATE, tid, c, cedarConfig, response);
     if (source.etag() == null || source.etag().isBlank()) {
@@ -708,14 +706,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     String getResponse = source.content();
     if (getResponse != null) {
       JsonNode oldTemplateJsonNode;
-      JsonNode newTemplateJsonNode;
       try {
         oldTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(getResponse);
-        newTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(c.request().getRequestBody().asJsonString());
-        if (oldTemplateJsonNode != null && newTemplateJsonNode != null) {
+        if (oldTemplateJsonNode != null) {
           JsonArtifactReader reader = new JsonArtifactReader();
           TemplateSchemaArtifact oldModelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) oldTemplateJsonNode);
-          TemplateSchemaArtifact newModelArtifact = reader.readTemplateSchemaArtifact((ObjectNode) newTemplateJsonNode);
 
           JsonNode jsonNode = oldTemplateJsonNode.get(PAV_VERSION);
           String oldVersionString = jsonNode.asText();
@@ -757,7 +752,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           ArtifactServerUtil.ArtifactContent storedDraft =
               ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
                   CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null);
-          applyDefinitionToDraft((ObjectNode) newTemplateJsonNode,
+          applyDefinitionToDraft(newTemplateJsonNode,
               JsonMapper.STRICT_MAPPER.readTree(storedDraft.content()));
           Response updateResponse = executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
               JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, storedDraft.etag());
@@ -782,6 +777,26 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         .message("There was an error while publishing the template and creating its draft")
         .parameter("id", tid)
         .build();
+  }
+
+  /**
+   * The template definition a versioning command was sent. A body that is not a template the artifact
+   * library can read is the client's mistake, so it is refused before anything is read or changed: it
+   * was a 500, after the command had already looked up the stored template, and check-update said such
+   * a body could replace a template that had no instances, without reading it at all.
+   */
+  private static ObjectNode submittedTemplate(CedarRequestContext c) throws CedarException {
+    if (!(c.request().getRequestBody().asJson() instanceof ObjectNode submitted)) {
+      throw new CedarBadRequestException(new CedarErrorPack()
+          .message("The request body must be the template definition, as a JSON object"));
+    }
+    try {
+      new JsonArtifactReader().readTemplateSchemaArtifact(submitted.deepCopy());
+    } catch (RuntimeException e) {
+      throw new CedarBadRequestException(new CedarErrorPack()
+          .message("The request body is not a template the artifact library can read: " + e.getMessage()));
+    }
+    return submitted;
   }
 
   /**

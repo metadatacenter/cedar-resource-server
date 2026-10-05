@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -12,16 +11,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.apache.commons.codec.CharEncoding;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.util.artifact.SchemaArtifactDocument;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
-import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarElementId;
 import org.metadatacenter.model.CedarResourceType;
@@ -29,15 +22,10 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
-import org.metadatacenter.util.http.CedarResponse;
-import org.metadatacenter.util.http.ArtifactServiceClient;
-import org.metadatacenter.util.json.JsonMapper;
 
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_ELEMENT_ID;
@@ -179,50 +167,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
     userMustHaveCapabilityOnArtifact(c, eid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
-    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.ELEMENT, eid);
-    ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, c);
-    // If error while retrieving artifact, re-run and return proxy call directly
-    if (proxyResponse.getCode() != Response.Status.OK.getStatusCode()) {
-      return executeResourceGetByProxyFromArtifactServer(CedarResourceType.ELEMENT, id, c);
-    }
-    HttpEntity entity = proxyResponse.getEntity();
-    JsonNode elementNode = null;
-
-    try {
-      String elementSource = EntityUtils.toString(entity, CharEncoding.UTF_8);
-      elementNode = JsonMapper.STRICT_MAPPER.readTree(elementSource);
-    } catch (IOException | ParseException e) {
-      throw new RuntimeException(e);
-    }
-
-    String elementUUID = linkedDataUtil.getUUID(id, CedarResourceType.ELEMENT);
-
-    // Handle JSON
-    if (acceptHeader == null || acceptHeader.isEmpty() || acceptHeader.contains(MediaType.APPLICATION_JSON) || acceptHeader.contains("*/*")) {
-      String fileName = elementUUID + ".json";
-      return CedarResponse.ok()
-          .type(MediaType.APPLICATION_JSON)
-          .contentDispositionAttachment(fileName)
-          .entity(elementNode)
-          .build();
-    }
-    // Handle YAML
-    if (acceptHeader.contains("yaml")) {  // matches both application/yaml and application/x-yaml
-      String fileName = elementUUID + ".yaml";
-      String content = ArtifactYamlTranscoder.jsonToYaml(elementNode, CedarResourceType.ELEMENT, compactParam.isPresent() && compactParam.get());
-      return CedarResponse.ok()
-          .type(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)
-          .contentDispositionAttachment(fileName)
-          .entity(content)
-          .build();
-    }
-    // Unknown accept header
-    return CedarResponse.badRequest()
-        .message("You passed an invalid Accept header: '" + acceptHeader + "'")
-        .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
-        .parameter(HttpConstants.HTTP_HEADER_ACCEPT, acceptHeader)
-        .parameter("allowed Accept headers", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML}))
-        .build();
+    return downloadArtifact(c, CedarResourceType.ELEMENT, eid, compactParam);
   }
 
   @GET

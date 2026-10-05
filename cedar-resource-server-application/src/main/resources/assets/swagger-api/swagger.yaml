@@ -6101,8 +6101,8 @@ paths:
       tags:
       - Template Instances
     get:
-      description: Get a template instance. YAML can be requested via the Accept header;
-        the format query parameter takes precedence.
+      description: Get a template instance. YAML or N-Quads can be requested via the
+        Accept header; the format query parameter takes precedence.
       operationId: findTemplateInstance
       parameters:
       - description: "Template Instance identifier. Example: https://repo.metadatacenter.org/template-instances/8bc64ab5-df6b-48c8-8c61-6c016245918e"
@@ -6128,6 +6128,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InstanceArtifactDocument"
+            application/n-quads:
+              schema:
+                type: string
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/InstanceArtifactDocument"
@@ -6144,6 +6147,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/CedarError"
@@ -6154,6 +6160,9 @@ paths:
         "401":
           content:
             application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/n-quads:
               schema:
                 $ref: "#/components/schemas/CedarError"
             application/x-yaml:
@@ -6168,6 +6177,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/CedarError"
@@ -6180,6 +6192,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/CedarError"
@@ -6190,6 +6205,9 @@ paths:
         "500":
           content:
             application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/n-quads:
               schema:
                 $ref: "#/components/schemas/CedarError"
             application/x-yaml:
