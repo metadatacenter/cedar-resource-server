@@ -31,6 +31,7 @@ import org.metadatacenter.cedar.deltafinder.change.Change;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorType;
+import org.metadatacenter.cedar.resource.artifact.ArtifactServerRefusal;
 import org.metadatacenter.exception.CedarBackendException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
@@ -304,6 +305,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         }
       } catch (org.metadatacenter.server.VersionTransitionConflictException e) {
         return CedarResponse.conflict().errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST).message(e.getMessage()).build();
+      } catch (CedarException e) {
+        // A refusal or an outage answers with its own status; this used to become a bare 500.
+        throw e;
       } catch (Exception e) {
         log.error("Error while publishing the artifact", e);
       }
@@ -533,11 +537,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
               return Response.created(uri).entity(createdNewResource).build();
             } else {
-              return CedarResponse.internalServerError()
-                  .message("There was an error while creating the artifact on the artifact server")
-                  .parameter("responseCode", artifactServerPostStatus)
-                  .parameter("responseDocument", artifactServerPostResponseNode)
-                  .build();
+              // The artifact server's refusal, with its own status: a validation failure is the
+              // caller's to fix, and it was answered as an unexplained 500.
+              throw new ArtifactServerRefusal(artifactServerPostStatus,
+                  artifactServerPostResponseNode == null ? null : artifactServerPostResponseNode.toString());
             }
           } finally {
             artifactCreateCleanupService.cleanupNow(cleanupJob, c);
@@ -545,6 +548,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         }
       } catch (org.metadatacenter.server.VersionTransitionConflictException e) {
         return CedarResponse.conflict().errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST).message(e.getMessage()).build();
+      } catch (CedarException e) {
+        throw e;
       } catch (Exception e) {
         log.error("Error while creating the draft version of the artifact", e);
       }
