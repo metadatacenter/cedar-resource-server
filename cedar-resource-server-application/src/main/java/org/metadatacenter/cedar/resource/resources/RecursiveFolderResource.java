@@ -122,8 +122,10 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
         boolean readable = permissions.userHasCapability(id, ResourceCapability.READ_RESOURCE);
         boolean deletable = permissions.userHasCapability(id, ResourceCapability.DELETE_RESOURCE)
             && c.getCedarUser().has(deletePermission(node.getType()));
+        String previousVersion = node instanceof FolderServerSchemaArtifact version && version.getPreviousVersion() != null
+            ? version.getPreviousVersion().getId() : null;
         return new Entry(node.getId(), node.getName(), node.getType().getValue(), parent, index,
-            revision, etag, readable, deletable, protectedFolder);
+            revision, etag, readable, deletable, protectedFolder, previousVersion);
       }
       @Override public Inventory inventory() throws Exception {
         requireOwner(permissions, root);

@@ -11,9 +11,10 @@ import org.metadatacenter.util.json.JsonMapper;
  * reports partial progress: multiple databases cannot provide an atomic recursive delete.
  */
 public final class RecursiveFolderDeletion {
+  /** previousVersionId is the version this one was made from, or null when it has none. */
   public record Entry(String id, String name, String type, String parentId, int depth,
                       long graphRevision, String etag, boolean readable, boolean deletable,
-                      boolean protectedFolder) {}
+                      boolean protectedFolder, String previousVersionId) {}
   public record Inventory(List<Entry> entries, Map<String, List<String>> references) {}
   public record Item(String id, String name, String type, String parentId, int depth,
                      boolean deletable, boolean protectedFolder, long instancesInside, long instancesOutside) {}
@@ -109,8 +110,10 @@ public final class RecursiveFolderDeletion {
     if (token == null || !MessageDigest.isEqual(current.token().getBytes(StandardCharsets.UTF_8), token.getBytes(StandardCharsets.UTF_8)))
       return new Outcome("changed", deleted, inventory.entries().size(), Reason.CHANGED);
     if (!current.allowed()) return new Outcome("blocked", deleted, inventory.entries().size(), Reason.BLOCKED);
+    Map<String, Integer> successors = successorsInside(inventory.entries());
     List<Entry> ordered = new ArrayList<>(inventory.entries());
     ordered.sort(Comparator.comparingInt((Entry e) -> e.type().equals("instance") ? 0 : e.type().equals("folder") ? 2 : 1)
+        .thenComparingInt(e -> successors.getOrDefault(e.id(), 0))
         .thenComparing(Comparator.comparingInt(Entry::depth).reversed()).thenComparing(Entry::id));
     long remaining = ordered.size();
     for (Entry entry : ordered) {
@@ -126,6 +129,27 @@ public final class RecursiveFolderDeletion {
       remaining--;
     }
     return new Outcome("completed", deleted, 0, Reason.COMPLETED);
+  }
+  /**
+   * How many newer versions of each artifact the folder holds, along its longest chain of successors.
+   * Deleting a version rewrites its successor's link to it, which moves the successor's revision past
+   * the one the inventory confirmed. Deleting in ascending order of this count removes every
+   * successor first, so no deletion changes an item that is still to be deleted.
+   */
+  private static Map<String, Integer> successorsInside(List<Entry> entries) {
+    Map<String, Entry> byId = new HashMap<>();
+    entries.forEach(e -> byId.put(e.id(), e));
+    Map<String, Integer> successors = new HashMap<>();
+    for (Entry entry : entries) {
+      // A corrupt, cyclic chain must not loop.
+      Set<String> seen = new HashSet<>(Set.of(entry.id()));
+      String previous = entry.previousVersionId();
+      for (int distance = 1; previous != null && byId.containsKey(previous) && seen.add(previous); distance++) {
+        successors.merge(previous, distance, Math::max);
+        previous = byId.get(previous).previousVersionId();
+      }
+    }
+    return successors;
   }
   private static Map<String, Long> counts() {
     Map<String, Long> result = new LinkedHashMap<>();
