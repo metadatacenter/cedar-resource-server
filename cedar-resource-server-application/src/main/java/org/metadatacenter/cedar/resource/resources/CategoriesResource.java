@@ -369,7 +369,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
     String ifMatch = c.getIfMatchHeader();
     FolderServerCategory existingCategory = categorySession.getCategoryById(ccid);
     if (existingCategory == null) {
-      if (ifMatch != null && !ifMatch.isBlank()) {
+      if (!RevisionPreconditionParser.isAbsent(ifMatch)) {
         return categoryUpdateTargetDeleted();
       }
       c.should(existingCategory).be(NonNull).otherwiseNotFound(
@@ -381,8 +381,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     userMustHaveCategoryCapability(c, ccid, CategoryCapability.UPDATE_CATEGORY);
 
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .message("Updating a category requires the ETag returned by GET in If-Match")
           .build();
     }
@@ -489,8 +489,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
     }
 
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .message("Deleting a category requires the ETag returned by GET in If-Match")
           .build();
     }
@@ -612,8 +612,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
     }
 
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(categoryId)
           .message("Replacing category permissions requires the ETag returned by GET in If-Match")
           .build();

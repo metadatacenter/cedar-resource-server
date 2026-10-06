@@ -744,8 +744,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     if (folderServerOldResource != null) {
       context.must(context.user()).have(CedarPermission.getUpdateForArtifactType(resourceType));
-      if (expectedEtag == null || expectedEtag.isBlank()) {
-        return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+      if (RevisionPreconditionParser.isAbsent(expectedEtag)) {
+        return CedarResponse.preconditionRequired()
             .id(id)
             .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
             .message("Updating an existing artifact requires the ETag returned by GET in If-Match")
@@ -1161,8 +1161,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id, String ifMatch) throws CedarException {
     // Check delete preconditions
     userMustHaveCapabilityOnArtifact(c, id, ResourceCapability.DELETE_RESOURCE);
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(id.getId())
           .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
           .message("Deleting an artifact requires the ETag returned by GET in If-Match")
@@ -1414,8 +1414,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
             .parameter("resourceId", resourceId.getId());
       }
       String ifMatch = c.getIfMatchHeader();
-      if (ifMatch == null || ifMatch.isBlank()) {
-        return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+      if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+        return CedarResponse.preconditionRequired()
             .id(resourceId)
             .message("Replacing resource permissions requires the ETag returned by GET in If-Match")
             .build();
@@ -1496,8 +1496,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
   protected Response updateFolderNameAndDescriptionInGraphDb(CedarRequestContext c, CedarFolderId folderId) throws CedarException {
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .message("Updating a folder requires the ETag returned by GET in If-Match")
           .build();
     }

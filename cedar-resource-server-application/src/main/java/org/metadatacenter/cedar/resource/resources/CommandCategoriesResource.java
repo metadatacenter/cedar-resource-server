@@ -290,8 +290,8 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     userMustHaveCategoryCapability(c, categoryId, CategoryCapability.TRANSFER_OWNERSHIP);
 
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(categoryId)
           .message("Transferring category ownership requires the permissions ETag in If-Match")
           .build();

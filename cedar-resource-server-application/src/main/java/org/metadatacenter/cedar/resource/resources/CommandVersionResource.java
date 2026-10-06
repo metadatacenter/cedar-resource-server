@@ -683,8 +683,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnArtifact(c, tid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(tid.getId()).errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
           .message("Creating a draft from an edited template requires its original ETag in If-Match")
           .build();

@@ -416,8 +416,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         org.metadatacenter.server.security.model.permission.resource.ResourceCapability.MOVE_INTO_FOLDER);
 
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(sourceId)
           .message("Moving a resource requires the source resource ETag in If-Match")
           .build();
@@ -551,8 +551,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     c.must(c.user()).have(permission);
 
     String expectedEtag = c.getIfMatchHeader();
-    if (expectedEtag == null || expectedEtag.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(expectedEtag)) {
+      return CedarResponse.preconditionRequired()
           .message("Renaming a resource requires the ETag returned by GET in If-Match")
           .build();
     }
@@ -665,8 +665,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnFilesystemResource(c, resourceId, ResourceCapability.TRANSFER_OWNERSHIP);
 
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(resourceId)
           .message("Transferring ownership requires the permissions ETag in If-Match")
           .build();

@@ -205,11 +205,11 @@ public class CommandOpenResource extends AbstractResourceServerResource {
 
   private RevisionPrecondition requirePrecondition(CedarRequestContext c) {
     String ifMatch = c.getIfMatchHeader();
-    return ifMatch == null || ifMatch.isBlank() ? null : RevisionPreconditionParser.parse(ifMatch);
+    return RevisionPreconditionParser.isAbsent(ifMatch) ? null : RevisionPreconditionParser.parse(ifMatch);
   }
 
   private Response preconditionRequired(String id) {
-    return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    return CedarResponse.preconditionRequired()
         .id(id)
         .message("Changing OpenView visibility requires the details ETag in If-Match")
         .build();

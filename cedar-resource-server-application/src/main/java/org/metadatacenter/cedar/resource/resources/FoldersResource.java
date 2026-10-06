@@ -275,8 +275,8 @@ public class FoldersResource extends AbstractResourceServerResource {
             .build();
       } else {
         String ifMatch = c.getIfMatchHeader();
-        if (ifMatch == null || ifMatch.isBlank()) {
-          return CedarResponse.status(org.metadatacenter.http.CedarResponseStatus.PRECONDITION_REQUIRED)
+        if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+          return CedarResponse.preconditionRequired()
               .message("Deleting a folder requires the ETag returned by GET in If-Match")
               .build();
         }
