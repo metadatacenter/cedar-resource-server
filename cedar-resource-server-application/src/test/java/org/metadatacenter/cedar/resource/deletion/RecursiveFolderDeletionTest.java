@@ -1,13 +1,17 @@
 package org.metadatacenter.cedar.resource.deletion;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import java.util.*;
+import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.metadatacenter.cedar.resource.deletion.RecursiveFolderDeletion.*;
 
 class RecursiveFolderDeletionTest {
   private static Entry entry(String id, String type, String parent, int depth) {
-    return new Entry(id, id, type, parent, depth, 1, "\"1\"", true, true, false);
+    return new Entry(id, id, type, parent, depth, 1, "\"1\"", true, true, false, null);
   }
   private static final Entry ROOT = entry("root", "folder", "home", 0);
   private static final Entry SUB = entry("sub", "folder", "root", 1);
@@ -41,7 +45,7 @@ class RecursiveFolderDeletionTest {
   }
   @Test void unreadableDescendantIsCountedButItsIdentityIsNotExposed() throws Exception {
     Fake store = new Fake();
-    var hidden = new Entry("secret", "Private name", "field", "root", 1, 1, "\"1\"", false, false, false);
+    var hidden = new Entry("secret", "Private name", "field", "root", 1, 1, "\"1\"", false, false, false, null);
     store.current = new Inventory(List.of(ROOT, hidden), Map.of());
     var service = new RecursiveFolderDeletion(store, "user", "root"); Plan plan = service.plan();
     assertFalse(plan.allowed()); assertEquals(1, plan.restrictedItems());
@@ -59,7 +63,7 @@ class RecursiveFolderDeletionTest {
   @Test void changedPermissionAndUserInvalidateConfirmation() throws Exception {
     Fake store = new Fake(); var service = new RecursiveFolderDeletion(store, "user", "root"); String token = service.plan().token();
     assertEquals("changed", new RecursiveFolderDeletion(store, "another", "root").execute(token).status());
-    var denied = new Entry(ROOT.id(), ROOT.name(), ROOT.type(), ROOT.parentId(), 0, 1, "\"1\"", true, false, false);
+    var denied = new Entry(ROOT.id(), ROOT.name(), ROOT.type(), ROOT.parentId(), 0, 1, "\"1\"", true, false, false, null);
     store.current = new Inventory(List.of(denied, SUB, TEMPLATE, INSTANCE), store.current.references());
     assertEquals("changed", service.execute(token).status()); assertTrue(store.removed.isEmpty());
   }
@@ -71,7 +75,7 @@ class RecursiveFolderDeletionTest {
   }
   @Test void protectedDescendantRefusesTheWholeOperation() throws Exception {
     Fake store = new Fake();
-    Entry protectedChild = new Entry("protected", "Protected", "folder", "root", 1, 1, "\"1\"", true, true, true);
+    Entry protectedChild = new Entry("protected", "Protected", "folder", "root", 1, 1, "\"1\"", true, true, true, null);
     store.current = new Inventory(List.of(ROOT, protectedChild), Map.of());
     var service = new RecursiveFolderDeletion(store, "user", "root");
     Plan plan = service.plan();
@@ -118,4 +122,72 @@ class RecursiveFolderDeletionTest {
     assertEquals(List.of("instance","template","sub","root"),attempts);
   }
 
+  private static Entry version(String id, int depth, String previous) {
+    return new Entry(id, id, "template", "root", depth, 1, "\"1\"", true, true, false, previous);
+  }
+  private static List<Entry> chain(List<String> ids, String depths) {
+    List<Entry> chain = new ArrayList<>();
+    String previous = null;
+    for (int i = 0; i < ids.size(); i++) {
+      int depth = switch (depths) {
+        case "equal" -> 1;
+        case "oldest-deepest" -> ids.size() - i;
+        default -> i + 1;
+      };
+      chain.add(version(ids.get(i), depth, previous));
+      previous = ids.get(i);
+    }
+    return chain;
+  }
+  private static void permutations(List<String> prefix, List<String> rest, List<List<String>> out) {
+    if (rest.isEmpty()) { out.add(prefix); return; }
+    for (String next : rest) {
+      List<String> remaining = new ArrayList<>(rest); remaining.remove(next);
+      List<String> longer = new ArrayList<>(prefix); longer.add(next);
+      permutations(longer, remaining, out);
+    }
+  }
+  /** Chains of two to four versions, oldest first, under every identifier order and three depth patterns. */
+  static Stream<Arguments> chains() {
+    List<Arguments> cases = new ArrayList<>();
+    for (int length = 2; length <= 4; length++) {
+      List<List<String>> orders = new ArrayList<>();
+      permutations(List.of(), List.of("a", "k", "t", "z").subList(0, length), orders);
+      for (List<String> ids : orders)
+        for (String depths : List.of("equal", "oldest-deepest", "newest-deepest"))
+          cases.add(Arguments.of(ids, depths));
+    }
+    return cases.stream();
+  }
+  @ParameterizedTest(name = "versions {0}, depths {1}")
+  @MethodSource("chains")
+  void aVersionIsDeletedBeforeTheVersionItWasMadeFrom(List<String> ids, String depths) throws Exception {
+    Fake store = new Fake();
+    List<Entry> entries = new ArrayList<>(List.of(ROOT, SUB));
+    entries.addAll(chain(ids, depths));
+    Map<String, List<String>> references = new HashMap<>();
+    ids.forEach(id -> references.put(id, List.of()));
+    store.current = new Inventory(entries, references);
+    var service = new RecursiveFolderDeletion(store, "user", "root");
+    assertEquals("completed", service.execute(service.plan().token()).status());
+    List<String> newestFirst = new ArrayList<>(ids);
+    Collections.reverse(newestFirst);
+    assertEquals(newestFirst, store.removed.stream().filter(ids::contains).toList());
+    assertEquals(List.of("sub", "root"), store.removed.subList(ids.size(), store.removed.size()));
+  }
+  @Test void aPredecessorOutsideTheFolderDoesNotHoldBackItsSuccessor() throws Exception {
+    Fake store = new Fake();
+    store.current = new Inventory(List.of(ROOT, version("draft", 1, "elsewhere")), Map.of("draft", List.of()));
+    var service = new RecursiveFolderDeletion(store, "user", "root");
+    assertEquals("completed", service.execute(service.plan().token()).status());
+    assertEquals(List.of("draft", "root"), store.removed);
+  }
+  @Test void aCyclicVersionChainStillOrdersAndDeletesEverything() throws Exception {
+    Fake store = new Fake();
+    store.current = new Inventory(List.of(ROOT, version("one", 1, "two"), version("two", 1, "one")),
+        Map.of("one", List.of(), "two", List.of()));
+    var service = new RecursiveFolderDeletion(store, "user", "root");
+    assertEquals("completed", service.execute(service.plan().token()).status());
+    assertEquals(Set.of("one", "two", "root"), Set.copyOf(store.removed));
+  }
 }

@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -12,16 +11,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.apache.commons.codec.CharEncoding;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.util.artifact.SchemaArtifactDocument;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
-import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarFieldId;
 import org.metadatacenter.model.CedarResourceType;
@@ -29,15 +22,10 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
-import org.metadatacenter.util.http.CedarResponse;
-import org.metadatacenter.util.http.ArtifactServiceClient;
-import org.metadatacenter.util.json.JsonMapper;
 
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_FIELD_ID;
@@ -111,6 +99,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -171,55 +161,14 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
     userMustHaveCapabilityOnArtifact(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
-    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.FIELD, fid);
-    ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, c);
-    // If error while retrieving artifact, re-run and return proxy call directly
-    if (proxyResponse.getCode() != Response.Status.OK.getStatusCode()) {
-      return executeResourceGetByProxyFromArtifactServer(CedarResourceType.FIELD, id, c);
-    }
-    HttpEntity entity = proxyResponse.getEntity();
-    JsonNode fieldNode = null;
-
-    try {
-      String fieldSource = EntityUtils.toString(entity, CharEncoding.UTF_8);
-      fieldNode = JsonMapper.STRICT_MAPPER.readTree(fieldSource);
-    } catch (IOException | ParseException e) {
-      throw new RuntimeException(e);
-    }
-
-    String fieldUUID = linkedDataUtil.getUUID(id, CedarResourceType.FIELD);
-
-    // Handle JSON
-    if (acceptHeader == null || acceptHeader.isEmpty() || acceptHeader.contains(MediaType.APPLICATION_JSON) || acceptHeader.contains("*/*")) {
-      String fileName = fieldUUID + ".json";
-      return CedarResponse.ok()
-          .type(MediaType.APPLICATION_JSON)
-          .contentDispositionAttachment(fileName)
-          .entity(fieldNode)
-          .build();
-    }
-    // Handle YAML
-    if (acceptHeader.contains("yaml")) {  // matches both application/yaml and application/x-yaml
-      String fileName = fieldUUID + ".yaml";
-      String content = ArtifactYamlTranscoder.jsonToYaml(fieldNode, CedarResourceType.FIELD, compactParam.isPresent() && compactParam.get());
-      return CedarResponse.ok()
-          .type(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)
-          .contentDispositionAttachment(fileName)
-          .entity(content)
-          .build();
-    }
-    // Unknown accept header
-    return CedarResponse.badRequest()
-        .message("You passed an invalid Accept header: '" + acceptHeader + "'")
-        .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
-        .parameter(HttpConstants.HTTP_HEADER_ACCEPT, acceptHeader)
-        .parameter("allowed Accept headers", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML}))
-        .build();
+    return downloadArtifact(c, CedarResourceType.FIELD, fid, compactParam);
   }
 
   @GET
@@ -240,6 +189,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -281,6 +232,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     CedarFieldId fid = CedarFieldId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);
@@ -317,6 +270,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_DELETE);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -341,6 +296,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -370,6 +327,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_UPDATE);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -393,6 +352,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 
@@ -416,6 +377,8 @@ public class TemplateFieldsResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Field identifier.", required = true) @PathParam(PP_TEMPLATE_FIELD_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FIELD, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_FIELD_READ);
     CedarFieldId fid = CedarFieldId.build(id);
 

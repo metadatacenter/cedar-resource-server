@@ -96,7 +96,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
-    String artifactId = artifactIdParam.stringValue();
+    String artifactId = linkedDataUtil.resolveResourceId(artifactIdParam.stringValue());
     String categoryId = categoryIdParam.stringValue();
 
     CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
@@ -153,7 +153,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
-    String artifactId = artifactIdParam.stringValue();
+    String artifactId = linkedDataUtil.resolveResourceId(artifactIdParam.stringValue());
     String categoryId = categoryIdParam.stringValue();
 
     CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
@@ -218,7 +218,7 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
-    String artifactId = categoryRequest.getArtifactId();
+    String artifactId = linkedDataUtil.resolveResourceId(categoryRequest.getArtifactId());
     CedarParameter artifactIdParam = new CedarInPlaceParameter("artifactId", artifactId);
     c.must(artifactIdParam).be(NonEmpty);
 
@@ -290,8 +290,8 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
     userMustHaveCategoryCapability(c, categoryId, CategoryCapability.TRANSFER_OWNERSHIP);
 
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(categoryId)
           .message("Transferring category ownership requires the permissions ETag in If-Match")
           .build();

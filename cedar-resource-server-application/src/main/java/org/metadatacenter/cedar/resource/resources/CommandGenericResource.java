@@ -258,7 +258,12 @@ public class CommandGenericResource extends AbstractResourceServerResource {
     // serializations: taking it as a parameter is what lets a YAML body be read at all, and it also
     // means the entity stream is spent by the time the context is asked, so the context would hand the
     // proxy nothing. `artifactRequestBodyAsJson` normalizes a JSON body exactly as the context did.
-    String bodyForArtifactServer = artifactRequestBodyAsJson(requestBody, validatedResourceType(resourceType));
+    //
+    // A YAML instance is completed against its template, as a write of it is. Without that, its JSON
+    // names none of the fields' property IRIs, and the command refused every YAML instance it was sent.
+    CedarResourceType kind = validatedResourceType(resourceType);
+    String bodyForArtifactServer = artifactRequestBodyAsJson(requestBody, kind,
+        kind == CedarResourceType.INSTANCE ? templateResolverFor(c) : null);
 
     try {
       ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).post(url, c, bodyForArtifactServer);

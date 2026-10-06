@@ -7,6 +7,13 @@ info:
   description: |
     Better Metadata - Better Science
 
+    Folders and artifacts use type-qualified selectors: `folders/<uuid>`, `templates/<uuid>`,
+    `template-elements/<uuid>`, `template-fields/<uuid>`, or `template-instances/<uuid>`.
+    Typed routes include the type once, for example `/templates/<uuid>`. Query parameters and
+    command-body selectors retain the type, including folder parameters. Percent-encoded full
+    IRIs remain accepted for compatibility. Stored document identities and references remain
+    full IRIs; legacy repository hosts must remain absolute until their data is migrated.
+
     Mutable resources use strong ETags for optimistic concurrency. Read the resource (or its
     permissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing
     required precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`
@@ -483,8 +490,8 @@ components:
       properties:
         folderId:
           type: string
-          format: uri
-          description: Identifier of the parent folder. The caller needs the createInFolder capability on it.
+          format: uri-reference
+          description: Parent selector folders/<uuid> or its full IRI. The caller needs the createInFolder capability on it.
         path:
           type: string
           description: Normalized path of the parent folder, as an alternative to folderId.
@@ -511,7 +518,8 @@ components:
           format: uri
         folderId:
           type: string
-          format: uri
+          format: uri-reference
+          description: Parent selector folders/<uuid> or its full IRI.
         path:
           type: string
         name:

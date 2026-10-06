@@ -138,7 +138,8 @@ class InclusionTransitionTest {
 
   private static void handleArtifact(HttpExchange exchange) throws IOException {
     String path = exchange.getRequestURI().getPath();
-    String id = path.substring(path.indexOf('/', 1) + 1).replaceFirst("/inclusion$", "");
+    String id = config.getLinkedDataUtil().resolveResourceId(
+        CedarResourceType.forPrefix(path.split("/")[1]), path.substring(path.indexOf('/', 1) + 1).replaceFirst("/inclusion$", ""));
     Stored stored = documents.get(id);
     if (stored == null) { respond(exchange, 404, null); return; }
     if (exchange.getRequestMethod().equals("GET")) {

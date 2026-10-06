@@ -39,6 +39,7 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
   @ApiResponse(responseCode = "200", description = "Complete deletion inventory and blockers", content = @Content(schema = @Schema(implementation = Plan.class)))
   public Response preview(@PathParam("folder_id") String id) throws Exception {
     CedarRequestContext c = context(id);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     try {
       return Response.ok(service(c, id).plan()).header("Cache-Control", "no-store").build();
     } catch (IllegalStateException e) {
@@ -53,6 +54,7 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
   @ApiResponse(responseCode = "200", description = "Completed or stopped deletion with confirmed progress", content = @Content(schema = @Schema(implementation = Outcome.class)))
   public Response delete(@PathParam("folder_id") String id, Confirmation confirmation) throws Exception {
     CedarRequestContext c = context(id);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     c.request().getRequestBody().mustHaveOnly("token");
     if (confirmation == null || confirmation.token() == null || !confirmation.token().matches("[a-f0-9]{64}"))
       return problem(400, Reason.INVALID_TOKEN);
@@ -64,6 +66,7 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     userMustHaveCapabilityOnFolder(c, CedarFolderId.build(id), ResourceCapability.READ_RESOURCE);
     FolderServerFolder root = dataServices.getFolderServiceSession(c).findFolderById(CedarFolderId.build(id));
     if (root.isRoot() || root.isSystem() || root.isUserHome())
@@ -119,8 +122,10 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
         boolean readable = permissions.userHasCapability(id, ResourceCapability.READ_RESOURCE);
         boolean deletable = permissions.userHasCapability(id, ResourceCapability.DELETE_RESOURCE)
             && c.getCedarUser().has(deletePermission(node.getType()));
+        String previousVersion = node instanceof FolderServerSchemaArtifact version && version.getPreviousVersion() != null
+            ? version.getPreviousVersion().getId() : null;
         return new Entry(node.getId(), node.getName(), node.getType().getValue(), parent, index,
-            revision, etag, readable, deletable, protectedFolder);
+            revision, etag, readable, deletable, protectedFolder, previousVersion);
       }
       @Override public Inventory inventory() throws Exception {
         requireOwner(permissions, root);
@@ -131,7 +136,7 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
         // Bound each internal request without truncating the inventory of a large tree.
         for (int offset = 0; offset < templates.size(); offset += 1000) {
           String url = cedarConfig.getServers().getArtifact().getBase().replaceAll("/$", "") + "/templates/deletion-references";
-          try (var response = new ArtifactServiceClient(cedarConfig).post(url, c, JsonMapper.STRICT_MAPPER.writeValueAsString(templates.subList(offset, Math.min(offset + 1000, templates.size()))))) {
+          try (var response = new ArtifactServiceClient(cedarConfig).post(url, c, JsonMapper.STRICT_MAPPER.writeValueAsString(templates.subList(offset, Math.min(offset + 1000, templates.size())).stream().map(linkedDataUtil::resourceRequestId).toList()))) {
             String body = EntityUtils.toString(response.getEntity());
             if (response.getCode() != 200) throw new IllegalStateException("Template references could not be checked");
             references.putAll(JsonMapper.STRICT_MAPPER.readValue(body, new TypeReference<Map<String, List<String>>>() {}));

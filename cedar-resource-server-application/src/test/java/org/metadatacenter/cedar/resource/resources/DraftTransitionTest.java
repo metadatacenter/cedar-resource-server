@@ -172,7 +172,8 @@ class DraftTransitionTest {
       exchange.getResponseHeaders().set("Location",id);
       respond(exchange,201,created); return;
     }
-    String id = path.substring(path.indexOf('/',1)+1);
+    String id = config.getLinkedDataUtil().resolveResourceId(
+        CedarResourceType.forPrefix(path.split("/")[1]), path.substring(path.indexOf('/',1)+1));
     Stored stored = documents.get(id);
     if (stored == null) { respond(exchange,404,null); return; }
     if (exchange.getRequestMethod().equals("GET")) { respond(exchange,200,stored); return; }

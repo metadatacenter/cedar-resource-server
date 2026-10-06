@@ -1,9 +1,9 @@
 {
   "openapi" : "3.0.1",
   "info" : {
-    "description" : "Better Metadata - Better Science\n\nMutable resources use strong ETags for optimistic concurrency. Read the resource (or its\npermissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing\nrequired precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`\naccepts whichever revision currently exists and therefore deliberately gives up lost-update\nprotection. Comma-separated strong validators are also accepted. Representation suffixes such\nas `\"7-json\"`, `\"7-yaml\"`, and `\"7-resource-record\"` identify different bytes of the same\nstored revision and are valid write preconditions.\n\nSee the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)\nfor authentication, request examples, and complete ETag guidance.\n",
+    "description" : "Better Metadata - Better Science\n\nFolders and artifacts use type-qualified selectors: `folders/<uuid>`, `templates/<uuid>`,\n`template-elements/<uuid>`, `template-fields/<uuid>`, or `template-instances/<uuid>`.\nTyped routes include the type once, for example `/templates/<uuid>`. Query parameters and\ncommand-body selectors retain the type, including folder parameters. Percent-encoded full\nIRIs remain accepted for compatibility. Stored document identities and references remain\nfull IRIs; legacy repository hosts must remain absolute until their data is migrated.\n\nMutable resources use strong ETags for optimistic concurrency. Read the resource (or its\npermissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing\nrequired precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`\naccepts whichever revision currently exists and therefore deliberately gives up lost-update\nprotection. Comma-separated strong validators are also accepted. Representation suffixes such\nas `\"7-json\"`, `\"7-yaml\"`, and `\"7-resource-record\"` identify different bytes of the same\nstored revision and are valid write preconditions.\n\nSee the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)\nfor authentication, request examples, and complete ETag guidance.\n",
     "title" : "CEDAR Resource Server API",
-    "version" : "2.9.20"
+    "version" : "2.9.21"
   },
   "tags" : [ {
     "name" : "Templates"
@@ -8949,7 +8949,7 @@
         "tags" : [ "Template Instances" ]
       },
       "get" : {
-        "description" : "Get a template instance. YAML can be requested via the Accept header; the format query parameter takes precedence.",
+        "description" : "Get a template instance. YAML or N-Quads can be requested via the Accept header; the format query parameter takes precedence.",
         "operationId" : "findTemplateInstance",
         "parameters" : [ {
           "description" : "Template Instance identifier. Example: https://repo.metadatacenter.org/template-instances/8bc64ab5-df6b-48c8-8c61-6c016245918e",
@@ -8982,6 +8982,11 @@
                   "$ref" : "#/components/schemas/InstanceArtifactDocument"
                 }
               },
+              "application/n-quads" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              },
               "application/x-yaml" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/InstanceArtifactDocument"
@@ -9008,6 +9013,11 @@
                   "$ref" : "#/components/schemas/CedarError"
                 }
               },
+              "application/n-quads" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              },
               "application/x-yaml" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CedarError"
@@ -9024,6 +9034,11 @@
           "401" : {
             "content" : {
               "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              },
+              "application/n-quads" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CedarError"
                 }
@@ -9048,6 +9063,11 @@
                   "$ref" : "#/components/schemas/CedarError"
                 }
               },
+              "application/n-quads" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              },
               "application/x-yaml" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CedarError"
@@ -9068,6 +9088,11 @@
                   "$ref" : "#/components/schemas/CedarError"
                 }
               },
+              "application/n-quads" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              },
               "application/x-yaml" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CedarError"
@@ -9084,6 +9109,11 @@
           "500" : {
             "content" : {
               "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              },
+              "application/n-quads" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CedarError"
                 }
@@ -12627,8 +12657,8 @@
           },
           "folderId" : {
             "type" : "string",
-            "format" : "uri",
-            "description" : "Identifier of the parent folder. The caller needs the createInFolder capability on it."
+            "format" : "uri-reference",
+            "description" : "Parent selector folders/<uuid> or its full IRI. The caller needs the createInFolder capability on it."
           },
           "name" : {
             "type" : "string"
@@ -12686,7 +12716,8 @@
           },
           "folderId" : {
             "type" : "string",
-            "format" : "uri"
+            "format" : "uri-reference",
+            "description" : "Parent selector folders/<uuid> or its full IRI."
           },
           "name" : {
             "type" : "string"

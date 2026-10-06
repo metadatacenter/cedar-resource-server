@@ -198,14 +198,16 @@ class RecursiveDeletionTransitionTest {
     if (path.equals("/templates/deletion-references")) {
       var references = JsonMapper.STRICT_MAPPER.createObjectNode();
       for (var template : JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody())) {
-        var array = references.putArray(template.asText());
+        String templateId = config.getLinkedDataUtil().resolveResourceId(CedarResourceType.TEMPLATE, template.asText());
+        var array = references.putArray(templateId);
         documents.forEach((id,value) -> {
-          if (template.asText().equals(value.body().path("schema:isBasedOn").asText())) array.add(id);
+          if (templateId.equals(value.body().path("schema:isBasedOn").asText())) array.add(id);
         });
       }
       respond(exchange,200,new Stored(references,1)); return;
     }
-    String id = path.substring(path.indexOf('/',1)+1); Stored stored = documents.get(id);
+    String id = config.getLinkedDataUtil().resolveResourceId(
+        CedarResourceType.forPrefix(path.split("/")[1]), path.substring(path.indexOf('/',1)+1)); Stored stored = documents.get(id);
     if (stored == null) { respond(exchange,404,null); return; }
     if (exchange.getRequestMethod().equals("GET")) { respond(exchange,200,stored); return; }
     if (exchange.getRequestMethod().equals("DELETE")) {

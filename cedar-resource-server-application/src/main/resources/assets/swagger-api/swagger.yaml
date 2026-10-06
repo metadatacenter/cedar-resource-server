@@ -3,6 +3,13 @@ info:
   description: |
     Better Metadata - Better Science
 
+    Folders and artifacts use type-qualified selectors: `folders/<uuid>`, `templates/<uuid>`,
+    `template-elements/<uuid>`, `template-fields/<uuid>`, or `template-instances/<uuid>`.
+    Typed routes include the type once, for example `/templates/<uuid>`. Query parameters and
+    command-body selectors retain the type, including folder parameters. Percent-encoded full
+    IRIs remain accepted for compatibility. Stored document identities and references remain
+    full IRIs; legacy repository hosts must remain absolute until their data is migrated.
+
     Mutable resources use strong ETags for optimistic concurrency. Read the resource (or its
     permissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing
     required precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`
@@ -14,7 +21,7 @@ info:
     See the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)
     for authentication, request examples, and complete ETag guidance.
   title: CEDAR Resource Server API
-  version: 2.9.20
+  version: 2.9.21
 tags:
 - name: Templates
 - name: Template Elements
@@ -6094,8 +6101,8 @@ paths:
       tags:
       - Template Instances
     get:
-      description: Get a template instance. YAML can be requested via the Accept header;
-        the format query parameter takes precedence.
+      description: Get a template instance. YAML or N-Quads can be requested via the
+        Accept header; the format query parameter takes precedence.
       operationId: findTemplateInstance
       parameters:
       - description: "Template Instance identifier. Example: https://repo.metadatacenter.org/template-instances/8bc64ab5-df6b-48c8-8c61-6c016245918e"
@@ -6121,6 +6128,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InstanceArtifactDocument"
+            application/n-quads:
+              schema:
+                type: string
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/InstanceArtifactDocument"
@@ -6137,6 +6147,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/CedarError"
@@ -6147,6 +6160,9 @@ paths:
         "401":
           content:
             application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/n-quads:
               schema:
                 $ref: "#/components/schemas/CedarError"
             application/x-yaml:
@@ -6161,6 +6177,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/CedarError"
@@ -6173,6 +6192,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/CedarError"
@@ -6183,6 +6205,9 @@ paths:
         "500":
           content:
             application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/n-quads:
               schema:
                 $ref: "#/components/schemas/CedarError"
             application/x-yaml:
@@ -8869,9 +8894,9 @@ components:
           type: string
         folderId:
           type: string
-          format: uri
-          description: Identifier of the parent folder. The caller needs the createInFolder
-            capability on it.
+          format: uri-reference
+          description: Parent selector folders/<uuid> or its full IRI. The caller
+            needs the createInFolder capability on it.
         name:
           type: string
         path:
@@ -8923,7 +8948,8 @@ components:
           type: string
         folderId:
           type: string
-          format: uri
+          format: uri-reference
+          description: Parent selector folders/<uuid> or its full IRI.
         name:
           type: string
         path:

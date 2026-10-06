@@ -232,7 +232,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (folderIdP.isEmpty()) {
       folderIdS = context.getCedarUser().getHomeFolderId();
     } else {
-      folderIdS = folderIdP.stringValue();
+      folderIdS = linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, folderIdP.stringValue());
     }
 
     CedarFolderId fid = CedarFolderId.build(folderIdS);
@@ -381,7 +381,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           }
           // Registration retired cleanup in its graph transaction; downstream failures cannot undo it.
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-          URI uri = builder.path(CedarUrlUtil.urlEncode(id)).build();
+          URI uri = builder.path(CedarUrlUtil.urlEncode(linkedDataUtil.resourcePathId(resourceType, id))).build();
           updateInclusionSubgraphIfNeeded(context, newResource, templateJsonNode);
           createIndexArtifact(newResource, context);
           createValuerecommenderResource(newResource);
@@ -439,7 +439,9 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   /**
    * Serves an artifact GET honoring the Accept header: JSON is proxied through from the artifact
    * server as before; YAML is produced by converting the stored JSON on the fly. An Accept header
-   * matching neither supported type yields 406 Not Acceptable.
+   * matching neither supported type yields 406 Not Acceptable. An artifact the artifact library can
+   * not read has no YAML form, so a YAML read of one answers with its JSON where the Accept header
+   * admits JSON, and is refused where it does not.
    */
   protected Response executeArtifactGetNegotiated(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<Boolean> compact) throws CedarException {
     Optional<MediaType> responseType = negotiatedArtifactResponseType();
@@ -451,30 +453,114 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     }
     String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
     ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, context);
-    int statusCode = proxyResponse.getCode();
-    if (statusCode != HttpStatus.SC_OK) {
-      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      return generateStatusResponse(proxyResponse);
+    if (proxyResponse.getCode() != HttpStatus.SC_OK) {
+      return relayedReadRefusal(proxyResponse);
     }
+    JsonNode artifactNode = readArtifact(proxyResponse);
+    String canonicalEtag = headerValue(proxyResponse, HttpHeaders.ETAG);
+    response.setHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT);
+    boolean compactRepresentation = compact.isPresent() && compact.get();
+    String yamlContent;
     try {
-      String artifactSource = EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8);
-      JsonNode artifactNode = JsonMapper.STRICT_MAPPER.readTree(artifactSource);
-      boolean compactRepresentation = compact.isPresent() && compact.get();
-      String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compactRepresentation);
-      String canonicalEtag = headerValue(proxyResponse, HttpHeaders.ETAG);
-      String yamlEtag = representationEtag(canonicalEtag,
-          compactRepresentation ? "yaml-compact-v2" : "yaml");
-      response.setHeader(HttpHeaders.ETAG, yamlEtag);
-      response.setHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT);
+      yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType, compactRepresentation);
+    } catch (ArtifactYamlTranscoder.UnreadableArtifactException e) {
+      if (!acceptsJson()) {
+        return noYamlFormResponse(id.getId(), resourceType, e);
+      }
+      response.setHeader(HttpHeaders.ETAG, canonicalEtag);
       return CedarResponse.ok()
-          .header(HttpHeaders.ETAG, yamlEtag)
+          .header(HttpHeaders.ETAG, canonicalEtag)
           .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
-          .type(responseType.get().toString())
-          .entity(yamlContent)
+          .type(MediaType.APPLICATION_JSON)
+          .entity(artifactNode)
           .build();
-    } catch (Exception e) {
+    }
+    String yamlEtag = representationEtag(canonicalEtag,
+        compactRepresentation ? "yaml-compact-v2" : "yaml");
+    response.setHeader(HttpHeaders.ETAG, yamlEtag);
+    return CedarResponse.ok()
+        .header(HttpHeaders.ETAG, yamlEtag)
+        .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
+        .type(responseType.get().toString())
+        .entity(yamlContent)
+        .build();
+  }
+
+  /**
+   * Serves an artifact as a file to save, in the representation the Accept header negotiates, which
+   * is the one a GET of the artifact would answer with. The four kinds each parsed the header for
+   * themselves: a wildcard such as {@code application/*} was refused as an invalid resource type, a
+   * preference for YAML over JSON was read as a request for JSON, and YAML was labelled
+   * {@code application/x-yaml} whichever YAML type was asked for.
+   */
+  protected Response downloadArtifact(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id,
+                                      Optional<Boolean> compact) throws CedarException {
+    Optional<MediaType> responseType = negotiatedArtifactResponseType();
+    if (responseType.isEmpty()) {
+      return notAcceptableArtifactFormatResponse();
+    }
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, id);
+    ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, context);
+    if (proxyResponse.getCode() != HttpStatus.SC_OK) {
+      return relayedReadRefusal(proxyResponse);
+    }
+    JsonNode artifactNode = readArtifact(proxyResponse);
+    String fileName = linkedDataUtil.getUUID(id.getId(), resourceType);
+    if (ArtifactYamlTranscoder.isYaml(responseType.get())) {
+      try {
+        String yamlContent = ArtifactYamlTranscoder.jsonToYaml(artifactNode, resourceType,
+            compact.isPresent() && compact.get());
+        return CedarResponse.ok()
+            .type(responseType.get().toString())
+            .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
+            .contentDispositionAttachment(fileName + ".yaml")
+            .entity(yamlContent)
+            .build();
+      } catch (ArtifactYamlTranscoder.UnreadableArtifactException e) {
+        if (!acceptsJson()) {
+          return noYamlFormResponse(id.getId(), resourceType, e);
+        }
+      }
+    }
+    return CedarResponse.ok()
+        .type(MediaType.APPLICATION_JSON)
+        .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
+        .contentDispositionAttachment(fileName + ".json")
+        .entity(artifactNode)
+        .build();
+  }
+
+  /**
+   * The artifact server's refusal of a read, with its status and its explanation. The explanation is
+   * the artifact server's JSON, and is labelled so: left unlabelled, it took the type the Accept
+   * header negotiated, and a client that asked for YAML was handed JSON it was told was YAML.
+   */
+  private Response relayedReadRefusal(ClassicHttpResponse proxyResponse) throws CedarProcessingException {
+    ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+    HttpEntity entity = proxyResponse.getEntity();
+    String type = entity == null || entity.getContentType() == null ? MediaType.APPLICATION_JSON : entity.getContentType();
+    return Response.fromResponse(generateStatusResponse(proxyResponse)).type(type).build();
+  }
+
+  private static JsonNode readArtifact(ClassicHttpResponse proxyResponse) throws CedarProcessingException {
+    try {
+      return JsonMapper.STRICT_MAPPER.readTree(EntityUtils.toString(proxyResponse.getEntity(), StandardCharsets.UTF_8));
+    } catch (IOException | ParseException e) {
       throw new CedarProcessingException(e);
     }
+  }
+
+  /** Whether the request accepts JSON at all, as a read falls back to when it can not produce YAML. */
+  protected boolean acceptsJson() {
+    return ArtifactYamlTranscoder.acceptsJson(httpHeaders.getAcceptableMediaTypes());
+  }
+
+  protected Response noYamlFormResponse(String id, CedarResourceType resourceType,
+                                        ArtifactYamlTranscoder.UnreadableArtifactException e) {
+    response.setHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT);
+    return Response.fromResponse(ArtifactYamlTranscoder.noYamlFormResponse(id, resourceType, e))
+        .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
+        .build();
   }
 
   /**
@@ -658,8 +744,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     if (folderServerOldResource != null) {
       context.must(context.user()).have(CedarPermission.getUpdateForArtifactType(resourceType));
-      if (expectedEtag == null || expectedEtag.isBlank()) {
-        return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+      if (RevisionPreconditionParser.isAbsent(expectedEtag)) {
+        return CedarResponse.preconditionRequired()
             .id(id)
             .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
             .message("Updating an existing artifact requires the ETag returned by GET in If-Match")
@@ -1075,8 +1161,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected Response executeArtifactDelete(CedarRequestContext c, CedarResourceType resourceType, CedarArtifactId id, String ifMatch) throws CedarException {
     // Check delete preconditions
     userMustHaveCapabilityOnArtifact(c, id, ResourceCapability.DELETE_RESOURCE);
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(id.getId())
           .errorKey(CedarErrorKey.ARTIFACT_PRECONDITION_REQUIRED)
           .message("Deleting an artifact requires the ETag returned by GET in If-Match")
@@ -1298,6 +1384,15 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     // here logged the failure and carried on with a null request, which reached the update.
     ResourcePermissionsRequest permissionsRequest =
         c.request().getRequestBody().convert(ResourcePermissionsRequest.class);
+    // The request starts both lists empty, so a body naming neither read as one that removes every
+    // grant on the resource. It says nothing about who may have access, and is refused.
+    JsonNode permissionsBody = c.request().getRequestBody().asJson();
+    if (!permissionsBody.has("userPermissions") && !permissionsBody.has("groupPermissions")) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_DATA)
+          .message("A permissions document names its user grants, its group grants or both")
+          .build();
+    }
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
@@ -1319,8 +1414,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
             .parameter("resourceId", resourceId.getId());
       }
       String ifMatch = c.getIfMatchHeader();
-      if (ifMatch == null || ifMatch.isBlank()) {
-        return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+      if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+        return CedarResponse.preconditionRequired()
             .id(resourceId)
             .message("Replacing resource permissions requires the ETag returned by GET in If-Match")
             .build();
@@ -1401,8 +1496,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
   protected Response updateFolderNameAndDescriptionInGraphDb(CedarRequestContext c, CedarFolderId folderId) throws CedarException {
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .message("Updating a folder requires the ETag returned by GET in If-Match")
           .build();
     }

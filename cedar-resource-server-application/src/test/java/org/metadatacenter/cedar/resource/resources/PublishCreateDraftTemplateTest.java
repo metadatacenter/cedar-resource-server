@@ -264,6 +264,7 @@ public class PublishCreateDraftTemplateTest {
         ? URLDecoder.decode(path.substring(path.indexOf("/templates/") + "/templates/".length()),
         StandardCharsets.UTF_8)
         : null;
+    if (artifactId != null) artifactId = cedarConfig.getLinkedDataUtil().resolveResourceId(CedarResourceType.TEMPLATE, artifactId);
 
     if ("POST".equals(method)) {
       ObjectNode created = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);

@@ -34,19 +34,27 @@ public class ArtifactServerUtil {
                                                                               CedarConfig cedarConfig,
                                                                               HttpServletResponse response)
       throws CedarProcessingException {
+    String url = cedarConfig.getMicroserviceUrlUtil().getArtifact().getArtifactTypeWithId(resourceType, id);
+    // An outage is thrown as one and keeps its 503; wrapping it made every unreachable artifact
+    // server a 500.
+    ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, context);
+    String content;
     try {
-      String url = cedarConfig.getMicroserviceUrlUtil().getArtifact().getArtifactTypeWithId(resourceType, id);
-      ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, context);
-      if (response != null) {
-        ProxyUtil.proxyResponseHeaders(proxyResponse, response);
-      }
       HttpEntity entity = proxyResponse.getEntity();
-      String etag = proxyResponse.getFirstHeader(HttpHeaders.ETAG) == null ? null
-          : proxyResponse.getFirstHeader(HttpHeaders.ETAG).getValue();
-      return new ArtifactContent(EntityUtils.toString(entity, StandardCharsets.UTF_8), etag);
+      content = entity == null ? null : EntityUtils.toString(entity, StandardCharsets.UTF_8);
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
+    int status = proxyResponse.getCode();
+    if (status < 200 || status >= 300) {
+      throw new ArtifactServerRefusal(status, content);
+    }
+    if (response != null) {
+      ProxyUtil.proxyResponseHeaders(proxyResponse, response);
+    }
+    String etag = proxyResponse.getFirstHeader(HttpHeaders.ETAG) == null ? null
+        : proxyResponse.getFirstHeader(HttpHeaders.ETAG).getValue();
+    return new ArtifactContent(content, etag);
   }
 
   public static Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, String content,

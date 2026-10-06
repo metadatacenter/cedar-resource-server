@@ -67,16 +67,18 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
+    id = id.map(linkedDataUtil::resolveResourceId);
+    isBasedOnParam = isBasedOnParam.map(value -> linkedDataUtil.resolveResourceId(CedarResourceType.TEMPLATE, value));
     NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharingParam, modeParam, categoryIdParam);
 
 
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
         .queryParam(QP_Q, q)
-        .queryParam(QP_ID, id)
+        .queryParam(QP_ID, id.map(linkedDataUtil::resourceRequestId))
         .queryParam(QP_RESOURCE_TYPES, resourceTypes)
         .queryParam(QP_VERSION, versionParam)
         .queryParam(QP_PUBLICATION_STATUS, publicationStatusParam)
-        .queryParam(QP_IS_BASED_ON, isBasedOnParam)
+        .queryParam(QP_IS_BASED_ON, isBasedOnParam.map(linkedDataUtil::resourceRequestId))
         .queryParam(QP_SORT, sortParam)
         .queryParam(QP_LIMIT, limitParam)
         .queryParam(QP_OFFSET, offsetParam)

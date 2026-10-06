@@ -341,10 +341,10 @@ public class CommandVersionResourceTest {
   }
 
   @Test
-  public void malformedSubmittedTemplateIsAnInternalFailureNotNotFound() throws Exception {
+  public void malformedSubmittedTemplateIsABadRequestNotNotFound() throws Exception {
     HttpResponse<String> response = checkUpdateTemplate("[]");
 
-    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Assertions.assertEquals(400, response.statusCode(), response.body());
   }
 
   @Test

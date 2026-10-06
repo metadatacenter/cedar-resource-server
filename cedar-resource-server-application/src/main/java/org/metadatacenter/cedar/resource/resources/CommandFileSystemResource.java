@@ -122,8 +122,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     c.must(targetFolderParam).be(NonEmpty);
     c.must(nameTemplateParam).be(NonEmpty);
 
-    String id = idParam.stringValue();
-    String folderId = targetFolderParam.stringValue();
+    String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
+    String folderId = linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, targetFolderParam.stringValue());
     String nameTemplate = nameTemplateParam.stringValue();
 
 
@@ -321,8 +321,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     c.must(sourceParam).be(NonEmpty);
     c.must(targetParam).be(NonEmpty);
 
-    String sId = sourceParam.stringValue();
-    String fId = targetParam.stringValue();
+    String sId = linkedDataUtil.resolveResourceId(sourceParam.stringValue());
+    String fId = linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, targetParam.stringValue());
 
     CedarFolderId targetFolderId = CedarFolderId.build(fId);
 
@@ -416,8 +416,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         org.metadatacenter.server.security.model.permission.resource.ResourceCapability.MOVE_INTO_FOLDER);
 
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(sourceId)
           .message("Moving a resource requires the source resource ETag in If-Match")
           .build();
@@ -492,7 +492,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     // Was read without checking, so a body with no identifier became a 500 further down.
     c.must(idParam).be(NonEmpty);
 
-    String id = idParam.stringValue();
+    String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
 
     CedarResourceId untypedResourceId = CedarUntypedResourceId.build(id);
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -551,8 +551,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     c.must(c.user()).have(permission);
 
     String expectedEtag = c.getIfMatchHeader();
-    if (expectedEtag == null || expectedEtag.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(expectedEtag)) {
+      return CedarResponse.preconditionRequired()
           .message("Renaming a resource requires the ETag returned by GET in If-Match")
           .build();
     }
@@ -650,7 +650,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     c.must(newOwnerIdParam).be(NonEmpty);
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
-    CedarResourceId untypedId = CedarUntypedResourceId.build(idParam.stringValue());
+    CedarResourceId untypedId = CedarUntypedResourceId.build(linkedDataUtil.resolveResourceId(idParam.stringValue()));
     CedarResourceType resourceType = folderSession.getResourceType(untypedId);
     boolean permissionControlledResource = resourceType != null && switch (resourceType) {
       case FOLDER, FIELD, ELEMENT, TEMPLATE, INSTANCE -> true;
@@ -665,8 +665,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnFilesystemResource(c, resourceId, ResourceCapability.TRANSFER_OWNERSHIP);
 
     String ifMatch = c.getIfMatchHeader();
-    if (ifMatch == null || ifMatch.isBlank()) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
           .id(resourceId)
           .message("Transferring ownership requires the permissions ETag in If-Match")
           .build();

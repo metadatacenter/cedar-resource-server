@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.id.CedarFolderId;
@@ -148,7 +149,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
     CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("@id");
     CedarParameter idParam = requestBody.get("@id");
     c.must(idParam).be(NonEmpty);
-    CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(idParam.stringValue());
+    CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(linkedDataUtil.resolveResourceId(idParam.stringValue()));
     userMustHaveCapabilityOnArtifact(c, artifactId, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.MANAGE_OPENVIEW);
 
     RevisionPrecondition precondition = requirePrecondition(c);
@@ -178,7 +179,7 @@ public class CommandOpenResource extends AbstractResourceServerResource {
 
     CedarParameter idParam = c.request().getRequestBody().mustHaveOnly("@id").get("@id");
     c.must(idParam).be(NonEmpty);
-    CedarFolderId folderId = CedarFolderId.build(idParam.stringValue());
+    CedarFolderId folderId = CedarFolderId.build(linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, idParam.stringValue()));
 
     userMustHaveCapabilityOnFolder(c, folderId, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.MANAGE_OPENVIEW);
 
@@ -204,11 +205,11 @@ public class CommandOpenResource extends AbstractResourceServerResource {
 
   private RevisionPrecondition requirePrecondition(CedarRequestContext c) {
     String ifMatch = c.getIfMatchHeader();
-    return ifMatch == null || ifMatch.isBlank() ? null : RevisionPreconditionParser.parse(ifMatch);
+    return RevisionPreconditionParser.isAbsent(ifMatch) ? null : RevisionPreconditionParser.parse(ifMatch);
   }
 
   private Response preconditionRequired(String id) {
-    return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
+    return CedarResponse.preconditionRequired()
         .id(id)
         .message("Changing OpenView visibility requires the details ETag in If-Match")
         .build();

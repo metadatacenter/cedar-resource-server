@@ -1,7 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.codahale.metrics.annotation.Timed;
-import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -12,33 +11,24 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.apache.commons.codec.CharEncoding;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.util.artifact.InstanceArtifactDocument;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.constant.HttpConstants;
-import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarTemplateInstanceId;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.request.OutputFormatType;
 import org.metadatacenter.proxy.ArtifactProxy;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.security.model.auth.CedarNodePermissionsWithExtract;
 import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
-import org.metadatacenter.util.http.CedarResponse;
-import org.metadatacenter.util.http.ArtifactServiceClient;
-import org.metadatacenter.util.json.JsonMapper;
 
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_INSTANCE_ID;
@@ -93,11 +83,21 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{template_instance_id}")
-  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
-  @Operation(summary = "Get a template instance", description = "Get a template instance. YAML can be requested via the "
-      + "Accept header; the format query parameter takes precedence.")
+  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml",
+      "application/n-quads"})
+  @Operation(summary = "Get a template instance", description = "Get a template instance. YAML or N-Quads can be "
+      + "requested via the Accept header; the format query parameter takes precedence.")
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "A template instance", content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)),
+      @ApiResponse(responseCode = "200", description = "A template instance",
+          content = {
+              @Content(mediaType = MediaType.APPLICATION_JSON,
+                  schema = @Schema(implementation = InstanceArtifactDocument.class)),
+              @Content(mediaType = HttpConstants.CONTENT_TYPE_APPLICATION_YAML,
+                  schema = @Schema(implementation = InstanceArtifactDocument.class)),
+              @Content(mediaType = "application/yaml",
+                  schema = @Schema(implementation = InstanceArtifactDocument.class)),
+              @Content(mediaType = "application/n-quads", schema = @Schema(type = "string"))
+          },
           headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
@@ -116,14 +116,25 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
     userMustHaveCapabilityOnArtifact(c, tiid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
-    if (format.isEmpty()) {
-      return executeArtifactGetNegotiated(c, CedarResourceType.INSTANCE, tiid, compactParam);
+    if (format.isPresent()) {
+      return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(cedarConfig, response, CedarResourceType.INSTANCE, id, format, c);
     }
-    return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(cedarConfig, response, CedarResourceType.INSTANCE, id, format, c);
+    // N-Quads is the representation format=rdf-nquad names, so an Accept preferring it asks for that.
+    Optional<MediaType> responseType =
+        ArtifactYamlTranscoder.negotiateInstanceResponseType(httpHeaders.getAcceptableMediaTypes());
+    if (responseType.isPresent() && ArtifactYamlTranscoder.APPLICATION_NQUADS_TYPE.equals(responseType.get())) {
+      Response nquads = ArtifactProxy.executeResourceGetByProxyFromArtifactServer(cedarConfig, response,
+          CedarResourceType.INSTANCE, id, Optional.of(OutputFormatType.RDF_NQUAD.getValue()), c);
+      response.setHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT);
+      return Response.fromResponse(nquads).header(HttpHeaders.VARY, HttpHeaders.ACCEPT).build();
+    }
+    return executeArtifactGetNegotiated(c, CedarResourceType.INSTANCE, tiid, compactParam);
   }
 
 
@@ -179,55 +190,14 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
     userMustHaveCapabilityOnArtifact(c, tiid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
-    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.INSTANCE, tiid);
-    ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).get(url, c);
-    // If error while retrieving artifact, re-run and return proxy call directly
-    if (proxyResponse.getCode() != Response.Status.OK.getStatusCode()) {
-      return executeResourceGetByProxyFromArtifactServer(CedarResourceType.INSTANCE, id, c);
-    }
-    HttpEntity entity = proxyResponse.getEntity();
-    JsonNode instanceNode = null;
-
-    try {
-      String instanceSource = EntityUtils.toString(entity, CharEncoding.UTF_8);
-      instanceNode = JsonMapper.STRICT_MAPPER.readTree(instanceSource);
-    } catch (IOException | ParseException e) {
-      throw new RuntimeException(e);
-    }
-
-    String instanceUUID = linkedDataUtil.getUUID(id, CedarResourceType.INSTANCE);
-
-    // Handle JSON
-    if (acceptHeader == null || acceptHeader.isEmpty() || acceptHeader.contains(MediaType.APPLICATION_JSON) || acceptHeader.contains("*/*")) {
-      String fileName = instanceUUID + ".json";
-      return CedarResponse.ok()
-          .type(MediaType.APPLICATION_JSON)
-          .contentDispositionAttachment(fileName)
-          .entity(instanceNode)
-          .build();
-    }
-    // Handle YAML
-    if (acceptHeader.contains("yaml")) {  // matches both application/yaml and application/x-yaml
-      String fileName = instanceUUID + ".yaml";
-      String content = ArtifactYamlTranscoder.jsonToYaml(instanceNode, CedarResourceType.INSTANCE, compactParam.isPresent() && compactParam.get());
-      return CedarResponse.ok()
-          .type(HttpConstants.CONTENT_TYPE_APPLICATION_YAML)
-          .contentDispositionAttachment(fileName)
-          .entity(content)
-          .build();
-    }
-    // Unknown accept header
-    return CedarResponse.badRequest()
-        .message("You passed an invalid Accept header: '" + acceptHeader + "'")
-        .errorKey(CedarErrorKey.INVALID_RESOURCE_TYPE)
-        .parameter(HttpConstants.HTTP_HEADER_ACCEPT, acceptHeader)
-        .parameter("allowed Accept headers", Arrays.toString(new String[]{MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML}))
-        .build();
+    return downloadArtifact(c, CedarResourceType.INSTANCE, tiid, compactParam);
   }
 
 
@@ -249,6 +219,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -290,6 +262,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);
@@ -326,6 +300,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_DELETE);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -350,6 +326,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -379,6 +357,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_UPDATE);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 
@@ -402,6 +382,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
+
     c.must(c.user()).have(CedarPermission.TEMPLATE_INSTANCE_READ);
     CedarTemplateInstanceId tiid = CedarTemplateInstanceId.build(id);
 

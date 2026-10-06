@@ -83,7 +83,7 @@ public class OpenArtifactsResource extends CedarMicroserviceResource {
   @AnonymousAccess
   private Response readOpen(String id, CedarResourceType type) throws CedarException {
     var anonymous = buildAnonymousRequestContext();
-    String resolved = id.contains("://") ? id : linkedDataUtil.getLinkedDataId(type, id);
+    String resolved = linkedDataUtil.resolveResourceId(type, id.contains("/") ? id : linkedDataUtil.getLinkedDataId(type, id));
     CedarArtifactId artifactId = CedarArtifactId.build(resolved, type);
     FolderServiceSession folders = dataServices.getFolderServiceSession(anonymous);
     FolderServerArtifact artifact = folders.findArtifactById(artifactId);

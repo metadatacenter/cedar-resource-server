@@ -397,7 +397,9 @@ public class StoreConsistencyMatrixTest {
     String artifactId = null;
     for (String collection : List.of("/template-instances/", "/templates/")) {
       if (path.startsWith(collection) && path.length() > collection.length()) {
-        artifactId = URLDecoder.decode(path.substring(collection.length()), StandardCharsets.UTF_8);
+        artifactId = cedarConfig.getLinkedDataUtil().resolveResourceId(
+            CedarResourceType.forPrefix(collection.substring(1, collection.length() - 1)),
+            URLDecoder.decode(path.substring(collection.length()), StandardCharsets.UTF_8));
         break;
       }
     }
