@@ -180,7 +180,7 @@ public class SharingRoundTripTest {
   }
 
   /**
-   * The three request shapes the HTTP validators exist to refuse. None of them is reachable when a
+   * The request shapes the HTTP validators exist to refuse. None of them is reachable when a
    * grant is applied through the session, which is why they were untested.
    */
   @Test
@@ -209,6 +209,9 @@ public class SharingRoundTripTest {
     String legacyValue = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2.getId()
         + "\"},\"role\":\"write\"}],\"groupPermissions\":[]}";
     expectRefusal(folder, legacyValue, "a request using a legacy permission value as a role");
+
+    // An empty document, which named no grants and so removed every one the resource had.
+    expectRefusal(folder, "{}", "a request naming neither user nor group grants");
 
     // None of the refusals may have changed anything: user 2 still has no access at all.
     Assertions.assertFalse(user2Permissions().userHasCapability(folder.getResourceId(), ResourceCapability.READ_RESOURCE),

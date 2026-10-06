@@ -1384,6 +1384,15 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     // here logged the failure and carried on with a null request, which reached the update.
     ResourcePermissionsRequest permissionsRequest =
         c.request().getRequestBody().convert(ResourcePermissionsRequest.class);
+    // The request starts both lists empty, so a body naming neither read as one that removes every
+    // grant on the resource. It says nothing about who may have access, and is refused.
+    JsonNode permissionsBody = c.request().getRequestBody().asJson();
+    if (!permissionsBody.has("userPermissions") && !permissionsBody.has("groupPermissions")) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.INVALID_DATA)
+          .message("A permissions document names its user grants, its group grants or both")
+          .build();
+    }
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(c);
