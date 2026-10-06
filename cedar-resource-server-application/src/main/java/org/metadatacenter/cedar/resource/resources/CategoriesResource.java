@@ -364,14 +364,23 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
+    // A conditional update to a category that has gone fails its precondition, since what the caller
+    // read has gone. An unconditional one is a write to nothing, and was answered 412 as well.
+    String ifMatch = c.getIfMatchHeader();
     FolderServerCategory existingCategory = categorySession.getCategoryById(ccid);
     if (existingCategory == null) {
-      return categoryUpdateTargetDeleted();
+      if (ifMatch != null && !ifMatch.isBlank()) {
+        return categoryUpdateTargetDeleted();
+      }
+      c.should(existingCategory).be(NonNull).otherwiseNotFound(
+          new CedarErrorPack()
+              .message("The category can not be found by id!")
+              .operation(CedarOperations.lookup(FolderServerCategory.class, "id", ccid.getId()))
+      );
     }
 
     userMustHaveCategoryCapability(c, ccid, CategoryCapability.UPDATE_CATEGORY);
 
-    String ifMatch = c.getIfMatchHeader();
     if (ifMatch == null || ifMatch.isBlank()) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_REQUIRED)
           .message("Updating a category requires the ETag returned by GET in If-Match")
