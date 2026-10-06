@@ -210,8 +210,10 @@ public class SharingRoundTripTest {
         + "\"},\"role\":\"write\"}],\"groupPermissions\":[]}";
     expectRefusal(folder, legacyValue, "a request using a legacy permission value as a role");
 
-    // An empty document, which named no grants and so removed every one the resource had.
+    // A document leaving out a list, which removed every grant of that kind: {} cleared all of them.
     expectRefusal(folder, "{}", "a request naming neither user nor group grants");
+    expectRefusal(folder, "{\"userPermissions\":[]}", "a request naming only user grants");
+    expectRefusal(folder, "{\"groupPermissions\":[]}", "a request naming only group grants");
 
     // None of the refusals may have changed anything: user 2 still has no access at all.
     Assertions.assertFalse(user2Permissions().userHasCapability(folder.getResourceId(), ResourceCapability.READ_RESOURCE),
