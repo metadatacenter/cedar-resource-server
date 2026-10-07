@@ -174,7 +174,7 @@ public class ArtifactServerAnswerMatrixTest {
       new Object[]{"read", "GET"}, new Object[]{"update", "PUT"}, new Object[]{"delete", "DELETE"});
 
   /** The artifact server's answers, as statuses; null is no answer at all. */
-  private static final List<Integer> ANSWERS = java.util.Arrays.asList(400, 403, 404, 409, 412, 428, 500, 503, null);
+  private static final List<Integer> ANSWERS = java.util.Arrays.asList(400, 401, 403, 404, 409, 412, 422, 428, 429, 500, 502, 503, 504, null);
 
   static Stream<Arguments> cases() {
     List<Arguments> cases = new ArrayList<>();

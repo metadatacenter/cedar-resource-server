@@ -902,7 +902,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       int statusCode = templateProxyResponse.getCode();
       if (statusCode != HttpConstants.CREATED && statusCode != HttpConstants.OK) {
         String templateProxyResponseContent = EntityUtils.toString(templateProxyResponse.getEntity(), StandardCharsets.UTF_8);
-        return CedarResponse.status(CedarResponseStatus.fromStatusCode(statusCode)).entity(templateProxyResponseContent).build();
+        return CedarResponse.status(statusCode).entity(templateProxyResponseContent).build();
       }
       artifactUpdated = true;
       replacementEtag = headerValue(templateProxyResponse, HttpHeaders.ETAG);
