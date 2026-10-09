@@ -291,4 +291,54 @@ public class TemplatesResourceWriteSuccessTest {
       AbstractResourceServerResource.injectArtifactRestoreCompletionService(original);
     }
   }
+  @Test
+  @Order(5)
+  public void verbatimRepairPreservesDisplayedProvenanceWithAndWithoutTheRestoreOutbox() throws Exception {
+    CedarConfig config = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
+    // A fresh artifact keeps this regression independent of the preceding synthetic successor race.
+    var create = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates?folder_id="
+            + URLEncoder.encode(homeFolderId.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader).header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(templateBody("Verbatim provenance fixture"))).build();
+    var created = CLIENT.send(create, HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    String fixtureId = JsonMapper.STRICT_MAPPER.readTree(created.body()).path("@id").asText();
+    String originalAuthor = TestAuthUtil.getTestUser2(config).getId();
+    String originalDate = "2017-12-29T08:48:17.987-08:00";
+    var completion = AbstractResourceServerResource.artifactRestoreCompletionService;
+    try {
+      for (boolean useOutbox : new boolean[]{true, false}) {
+        AbstractResourceServerResource.injectArtifactRestoreCompletionService(useOutbox ? completion : null);
+        ObjectNode candidate = storedArtifact.deepCopy();
+        candidate.put("@id", fixtureId);
+        candidate.put("oslc:modifiedBy", originalAuthor);
+        candidate.put("pav:lastUpdatedOn", originalDate);
+        var request = HttpRequest.newBuilder()
+            .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+                + URLEncoder.encode(fixtureId, StandardCharsets.UTF_8) + "?verbatim=true"))
+            .header("Authorization", TestAuthUtil.getAdminUserAuthHeader(config))
+            .header("Content-Type", "application/json").header("If-Match", "*")
+            .PUT(HttpRequest.BodyPublishers.ofString(candidate.toString())).build();
+        var response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        Assertions.assertEquals(200, response.statusCode(), response.body());
+        Assertions.assertEquals(candidate, storedArtifact, "JSON readback alone used to miss this corruption");
+        var detailsRequest = HttpRequest.newBuilder()
+            .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+                + URLEncoder.encode(fixtureId, StandardCharsets.UTF_8) + "/details"))
+            .header("Authorization", authHeader).GET().build();
+        var detailsResponse = CLIENT.send(detailsRequest, HttpResponse.BodyHandlers.ofString());
+        Assertions.assertEquals(200, detailsResponse.statusCode(), detailsResponse.body());
+        var details = JsonMapper.STRICT_MAPPER.readTree(detailsResponse.body());
+        Assertions.assertEquals(originalAuthor, details.path("oslc:modifiedBy").asText());
+        Assertions.assertEquals(java.time.OffsetDateTime.parse(originalDate).toEpochSecond(),
+            java.time.OffsetDateTime.parse(details.path("pav:lastUpdatedOn").asText()).toEpochSecond());
+        Assertions.assertEquals(java.time.OffsetDateTime.parse(originalDate).toEpochSecond(),
+            details.path("lastUpdatedOnTS").asLong());
+      }
+    } finally {
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(completion);
+    }
+  }
+
 }

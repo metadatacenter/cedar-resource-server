@@ -952,13 +952,17 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         if (sourceHash != null) {
           updateFields.put(NodeProperty.SOURCE_HASH, sourceHash);
         }
+        // The document path skips stamping for verbatim writes. The graph must do the same:
+        // listings, details and search display these fields, not the stored JSON's provenance.
+        var modificationProvenance = verbatim
+            ? org.metadatacenter.server.ArtifactModificationProvenance.fromDocument(templateJsonNode) : null;
         FolderServerArtifact updatedResource;
         if (restoreJob == null) {
           updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields,
-              null, templateEntityContent).resource();
+              null, templateEntityContent, modificationProvenance).resource();
         } else {
           var graphResult = folderSession.updateArtifactById(id, resource.getType(), updateFields,
-              restoreJob.jobId(), templateEntityContent);
+              restoreJob.jobId(), templateEntityContent, modificationProvenance);
           if (graphResult.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
             supersededWrite = true;
             // The artifact write succeeded before its successor. Do not restore it or project
