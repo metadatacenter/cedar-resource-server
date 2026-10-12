@@ -53,6 +53,7 @@ class ArtifactProjectionTransitionTest {
         (a, previous) -> {
           if (failure.get().equals("link")) throw new IllegalStateException("document unavailable");
           persisted("link",a.getName());
+          persisted("previous",previous == null ? "<none>" : previous);
         }, (a, body, context) -> {
           if (failure.get().equals("inclusion")) throw new IllegalStateException("inclusion unavailable");
           persisted("inclusion",body.path("included").asText());
@@ -151,6 +152,36 @@ class ArtifactProjectionTransitionTest {
     save("Second"); failure.set("");
     try(var restarted=relay()) { restarted.completePending(index,null); }
     assertDerived("Second");
+  }
+
+  @Test void editingASurvivingDraftPreservesItsPendingPredecessorRepair() {
+    String first=ID+"-first", predecessor=ID+"-predecessor";
+    try(var s=observer.session()) {
+      s.run("MATCH (d:Artifact {_id:$draft}) "
+          + "CREATE (a:Artifact:Template {_id:$first,resourceType:'template',schema_name:'First',"
+          + "pav_version:'1.0.0',bibo_status:'bibo:published'}) "
+          + "CREATE (b:Artifact:Template {_id:$predecessor,resourceType:'template',schema_name:'Predecessor',"
+          + "pav_version:'2.0.0',bibo_status:'bibo:published',pav_previousVersion:$first}) "
+          + "SET d.pav_version='3.0.0',d.pav_previousVersion=$predecessor "
+          + "CREATE (d)-[:PREVIOUSVERSION]->(b)-[:PREVIOUSVERSION]->(a)",
+          Map.of("draft",ID,"first",first,"predecessor",predecessor)).consume();
+      s.writeTransaction(tx -> { VersionChainTransaction.delete(tx,predecessor); return null; });
+    }
+    persisted("previous",predecessor); // The document still has its old link while recovery is pending.
+    save("Edited after deletion");
+    try(var restarted=relay()) {
+      assertTrue(restarted.complete(first,index,null));
+      assertTrue(restarted.complete(ID,index,null));
+    }
+    assertDerived("Edited after deletion");
+    assertEquals(first,observed("previous"),"saving content must retain the outstanding document-link repair");
+    try(var s=observer.session()) {
+      var draft=s.run("MATCH (d:Artifact {_id:$id})-[:PREVIOUSVERSION]->(p) "
+          + "RETURN d.pav_previousVersion AS property,p._id AS edge,d.schema_name AS name",Map.of("id",ID)).single();
+      assertEquals(first,draft.get("property").asString());
+      assertEquals(first,draft.get("edge").asString());
+      assertEquals("Edited after deletion",draft.get("name").asString());
+    }
   }
 
   @Test void aSaveWaitsForAnInFlightProjectionAndThenLeavesItsOwnDurableWork() throws Exception {
