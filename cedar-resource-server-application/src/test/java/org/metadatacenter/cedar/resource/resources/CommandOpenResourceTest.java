@@ -85,13 +85,15 @@ public class CommandOpenResourceTest {
     CedarRequestContext context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     FolderServiceSession session = CedarDataServices.getInstance().getFolderServiceSession(context);
     CedarFolderId homeId = session.findHomeFolderOf().getResourceId();
-    homeFolderId = homeId.getId();
+    // Other integration classes share the home folder and can fill its first page.
+    // Keep the visibility assertions in a directory containing only our fixtures.
+    homeFolderId = createFolder(session, cedarConfig, homeId, "Open visibility fixtures");
 
     folderId = createFolder(session, cedarConfig, homeId, "Conditional Open Folder");
     artifactId = createTemplate(session, cedarConfig, folderId, "Conditional Open Template");
     // The listing tests change open state on fixtures of their own, so the revision counts the
     // tests above assert do not depend on the order the methods run in.
-    listedFolderId = createFolder(session, cedarConfig, homeId, "Listed Open Folder");
+    listedFolderId = createFolder(session, cedarConfig, CedarFolderId.build(homeFolderId), "Listed Open Folder");
     listedArtifactId = createTemplate(session, cedarConfig, listedFolderId, "Listed Open Template");
   }
 
