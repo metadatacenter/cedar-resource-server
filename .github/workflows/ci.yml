@@ -23,22 +23,6 @@ jobs:
     name: Maven tests (Java 17)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    services:
-      opensearch:
-        image: opensearchproject/opensearch:2.19.1
-        env:
-          discovery.type: single-node
-          plugins.security.disabled: "true"
-          DISABLE_INSTALL_DEMO_CONFIG: "true"
-          OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
-        ports:
-          - 9200:9200
-        options: >-
-          --health-cmd "curl -fsS http://localhost:9200/_cluster/health"
-          --health-start-period 60s
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 12
     env:
       BMIR_NEXUS_USERNAME: ${{ secrets.BMIR_NEXUS_USERNAME }}
       BMIR_NEXUS_PASSWORD: ${{ secrets.BMIR_NEXUS_PASSWORD }}
@@ -185,6 +169,19 @@ jobs:
       CEDAR_BRIDGE_STOP_PORT: "9215"
 
     steps:
+      # Started first and left to boot in the background while Maven compiles and runs the unit
+      # suites. Only the failsafe integration tests under -Popensearch-it read it, and that profile
+      # waits for it to be healthy before they start. As a service container it held the first step
+      # for about 45 s.
+      - name: Start OpenSearch
+        run: >
+          nohup docker run --detach --name opensearch --publish 9200:9200
+          --env discovery.type=single-node
+          --env plugins.security.disabled=true
+          --env DISABLE_INSTALL_DEMO_CONFIG=true
+          --env "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+          opensearchproject/opensearch:2.19.1 > "$RUNNER_TEMP/opensearch-start.log" 2>&1 &
+
       - name: Check out repository
         uses: actions/checkout@v7
 
