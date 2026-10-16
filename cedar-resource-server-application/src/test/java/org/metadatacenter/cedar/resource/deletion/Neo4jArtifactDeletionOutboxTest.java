@@ -3,12 +3,10 @@ package org.metadatacenter.cedar.resource.deletion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.AfterAll;
-import org.neo4j.harness.Neo4j;
+import org.metadatacenter.cedar.resource.ScratchNeo4j;
 import org.metadatacenter.model.CedarResourceType;
 import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.GraphDatabase;
-import org.neo4j.harness.Neo4jBuilders;
 
 import java.util.concurrent.Executors;
 
@@ -18,23 +16,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class Neo4jArtifactDeletionOutboxTest {
 
-  private static Neo4j neo4j;
-
   @BeforeAll
-  static void startDatabase() {
-    neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
+  static void blankDatabase() {
+    ScratchNeo4j.blank();
   }
 
   @BeforeEach
   void clearDatabase() {
     // Keep the expensive harness alive, but give every test an empty graph.
     // Each test still owns and closes its outbox drivers, including restart tests.
-    neo4j.defaultDatabaseService().executeTransactionally("MATCH (n) DETACH DELETE n");
-  }
-
-  @AfterAll
-  static void stopDatabase() {
-    if (neo4j != null) neo4j.close();
+    ScratchNeo4j.clear();
   }
 
 
@@ -43,7 +34,7 @@ class Neo4jArtifactDeletionOutboxTest {
     {
       String jobId;
       try (var first = new Neo4jArtifactDeletionOutbox(
-          GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+          GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
         ArtifactDeletionJob prepared = first.prepare("artifact-1", CedarResourceType.TEMPLATE,
             "\"7\"", "{\"resourceType\":\"template\"}", "artifact-0", false);
         jobId = prepared.jobId();
@@ -53,7 +44,7 @@ class Neo4jArtifactDeletionOutboxTest {
       }
 
       try (var restarted = new Neo4jArtifactDeletionOutbox(
-          GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+          GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
         ArtifactDeletionJob resumed = restarted.pending(10).get(0);
         assertEquals(jobId, resumed.jobId());
         assertEquals("artifact-1", resumed.resourceId());
@@ -65,7 +56,7 @@ class Neo4jArtifactDeletionOutboxTest {
       }
 
       try (var restartedAgain = new Neo4jArtifactDeletionOutbox(
-          GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+          GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
         ArtifactDeletionJob projectionsPending = restartedAgain.pending(10).get(0);
         assertTrue(projectionsPending.graphDeleted());
         restartedAgain.remove(jobId);
@@ -77,7 +68,7 @@ class Neo4jArtifactDeletionOutboxTest {
   @Test
   void deferringCountsTheAttemptsSoARetryBudgetCanBeSpent() {
     try (var outbox = new Neo4jArtifactDeletionOutbox(
-             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+             GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       String jobId = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "\"7\"",
           "{\"resourceType\":\"template\"}", null, false).jobId();
 
@@ -94,7 +85,7 @@ class Neo4jArtifactDeletionOutboxTest {
   @Test
   void aParkedJobStopsBeingOfferedButStaysInTheOutbox() {
     try (var outbox = new Neo4jArtifactDeletionOutbox(
-             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+             GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       String jobId = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "\"7\"",
           "{\"resourceType\":\"template\"}", null, false).jobId();
       assertEquals(1, outbox.pending(10).size());
@@ -110,7 +101,7 @@ class Neo4jArtifactDeletionOutboxTest {
   @Test
   void parkingOneJobLeavesTheOthersRunning() {
     try (var outbox = new Neo4jArtifactDeletionOutbox(
-             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+             GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       String refused = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "\"7\"",
           "{\"resourceType\":\"template\"}", null, false).jobId();
       outbox.prepare("artifact-2", CedarResourceType.TEMPLATE, "\"8\"",
@@ -127,7 +118,7 @@ class Neo4jArtifactDeletionOutboxTest {
   @Test
   void concurrentPreparationUsesOneJobPerArtifact() {
     try (var outbox = new Neo4jArtifactDeletionOutbox(
-             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+             GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       ArtifactDeletionJob first = outbox.prepare("artifact-2", CedarResourceType.INSTANCE,
           "\"3\"", "{\"resourceType\":\"instance\"}", null, false);
       ArtifactDeletionJob repeated = outbox.prepare("artifact-2", CedarResourceType.INSTANCE,
@@ -141,7 +132,7 @@ class Neo4jArtifactDeletionOutboxTest {
   @Test
   void concurrentRemovalNeverReturnsAPropertylessDeletionJob() throws Exception {
     try (var outbox = new Neo4jArtifactDeletionOutbox(
-             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+             GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       var executor = Executors.newFixedThreadPool(2);
       try {
         for (int iteration = 0; iteration < 100; iteration++) {

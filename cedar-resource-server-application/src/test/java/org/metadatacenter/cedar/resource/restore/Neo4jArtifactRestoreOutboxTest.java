@@ -3,12 +3,10 @@ package org.metadatacenter.cedar.resource.restore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.AfterAll;
-import org.neo4j.harness.Neo4j;
+import org.metadatacenter.cedar.resource.ScratchNeo4j;
 import org.metadatacenter.model.CedarResourceType;
 import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.GraphDatabase;
-import org.neo4j.harness.Neo4jBuilders;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,34 +17,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class Neo4jArtifactRestoreOutboxTest {
 
-  private static Neo4j neo4j;
-
   @BeforeAll
-  static void startDatabase() {
-    neo4j = Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
+  static void blankDatabase() {
+    ScratchNeo4j.blank();
   }
 
   @BeforeEach
   void clearDatabase() {
     // Keep the expensive harness alive, but give every test an empty graph.
     // Each test still owns and closes its outbox drivers, including restart tests.
-    neo4j.defaultDatabaseService().executeTransactionally("MATCH (n) DETACH DELETE n");
-  }
-
-  @AfterAll
-  static void stopDatabase() {
-    if (neo4j != null) neo4j.close();
+    ScratchNeo4j.clear();
   }
 
 
   @Test
   void completedNewerRevisionRemainsAFenceAfterOutboxRestart() {
-    try (var first = new Neo4jArtifactRestoreOutbox(GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+    try (var first = new Neo4jArtifactRestoreOutbox(GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       var newer = first.prepare("artifact-fence", CedarResourceType.TEMPLATE, "newer preimage", "\"9\"", false);
       first.remove(newer.jobId());
     }
-    try (var restarted = new Neo4jArtifactRestoreOutbox(GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0);
-         var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+    try (var restarted = new Neo4jArtifactRestoreOutbox(GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0);
+         var driver = GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none());
          var session = driver.session()) {
       var delayed = restarted.prepare("artifact-fence", CedarResourceType.TEMPLATE, "older preimage", "\"8\"", false);
       assertEquals(0, restarted.count(), "an older response must not create new compensation work");
@@ -63,7 +54,7 @@ class Neo4jArtifactRestoreOutboxTest {
     {
       String jobId;
       try (var first = new Neo4jArtifactRestoreOutbox(
-          GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+          GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
         ArtifactRestoreJob prepared =
             first.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", true);
         jobId = prepared.jobId();
@@ -71,7 +62,7 @@ class Neo4jArtifactRestoreOutboxTest {
       }
 
       try (var restarted = new Neo4jArtifactRestoreOutbox(
-          GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+          GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
         ArtifactRestoreJob resumed = restarted.pending(10).get(0);
         assertEquals(jobId, resumed.jobId());
         assertEquals("artifact-1", resumed.resourceId());
@@ -94,7 +85,7 @@ class Neo4jArtifactRestoreOutboxTest {
   @Test
   void asecondFailedUpdateAdvancesTheConditionAndKeepsTheOldestContent() {
     try (var outbox = new Neo4jArtifactRestoreOutbox(
-             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+             GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
       outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "{\"schema:name\":\"middle\"}", "\"9\"", false);
 
@@ -108,7 +99,7 @@ class Neo4jArtifactRestoreOutboxTest {
   @Test
   void deferringCountsTheAttemptsSoARetryBudgetCanBeSpent() {
     try (var outbox = new Neo4jArtifactRestoreOutbox(
-             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+             GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       String jobId = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false).jobId();
 
       assertEquals(1, outbox.defer(jobId));
@@ -119,7 +110,7 @@ class Neo4jArtifactRestoreOutboxTest {
   @Test
   void aParkedRestoreStopsBeingRetriedAndStaysFindable() {
     try (var outbox = new Neo4jArtifactRestoreOutbox(
-             GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+             GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       String jobId = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false).jobId();
 
       outbox.park(jobId, "the artifact server refused the restore with 400");
@@ -131,7 +122,7 @@ class Neo4jArtifactRestoreOutboxTest {
   }
   @Test
   void committedGraphUpdateRetiresEvenAPreviouslyFetchedRestore() {
-    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+    try (var driver = GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none());
          var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
       var job = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", true);
       var fetched = outbox.pending(10).get(0);
@@ -150,7 +141,7 @@ class Neo4jArtifactRestoreOutboxTest {
 
   @Test
   void rolledBackGraphTransactionLeavesTheRestoreAvailable() {
-    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+    try (var driver = GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none());
          var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
       var job = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", true);
       try (var session = driver.session(); var tx = session.beginTransaction()) {
@@ -171,7 +162,7 @@ class Neo4jArtifactRestoreOutboxTest {
 
   @Test
   void anOldRequestCannotRestoreOrRemoveANewerJob() {
-    try (var outbox = new Neo4jArtifactRestoreOutbox(GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none()), 0)) {
+    try (var outbox = new Neo4jArtifactRestoreOutbox(GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       var first = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
       var next = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "middle", "\"9\"", false);
       outbox.remove(first.jobId());
@@ -184,7 +175,7 @@ class Neo4jArtifactRestoreOutboxTest {
 
   @Test
   void legacyJobsAreParkedBecauseGraphCompletionIsUnknown() {
-    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none())) {
+    try (var driver = GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none())) {
       try (var session = driver.session()) {
         session.run("CREATE (:CedarArtifactRestoreOutbox {jobId: 'old', resourceId: 'artifact-1'})").consume();
       }
@@ -200,7 +191,7 @@ class Neo4jArtifactRestoreOutboxTest {
 
   @Test
   void anUncertainRestorePreventsTheOriginalGraphWriteFromCommitting() {
-    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+    try (var driver = GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none());
          var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
       var job = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", true);
       outbox.restoreIfPending(job, ignored -> 503);
@@ -215,7 +206,7 @@ class Neo4jArtifactRestoreOutboxTest {
 
   @Test
   void aSupersededWriterRemainsIdentifiableAfterTheSuccessorCommits() {
-    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+    try (var driver = GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none());
          var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
       var first = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
       var next = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, "middle", "\"9\"", false);
@@ -239,7 +230,7 @@ class Neo4jArtifactRestoreOutboxTest {
   @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(ints = {200, 503})
   void aCompletedOrUncertainRestoreIsNeverReportedAsSuccessfulSupersession(int restoreStatus) {
-    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+    try (var driver = GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none());
          var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
       var first = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
       outbox.restoreIfPending(first, ignored -> restoreStatus);
@@ -254,7 +245,7 @@ class Neo4jArtifactRestoreOutboxTest {
 
   @Test
   void preparingWhileGraphCompletionDeletesItsJobRetainsTheNewCompensation() throws Exception {
-    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+    try (var driver = GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none());
          var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
       var first = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
       var caller = java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -283,7 +274,7 @@ class Neo4jArtifactRestoreOutboxTest {
 
   @Test
   void finishingAFailedRequestKeepsCompensationButDoesNotLeaveALateOutcomeReceipt() {
-    try (var driver = GraphDatabase.driver(neo4j.boltURI(), AuthTokens.none());
+    try (var driver = GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none());
          var outbox = new Neo4jArtifactRestoreOutbox(driver, 0)) {
       var job = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
       outbox.restoreIfPending(job, ignored -> 503);
