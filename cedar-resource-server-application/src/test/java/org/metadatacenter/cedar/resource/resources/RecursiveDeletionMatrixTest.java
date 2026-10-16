@@ -54,24 +54,31 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Recursive folder deletion over real resource HTTP and graph, across artifact type, version history,
- * folder layout, where the folder's boundary falls in a version chain, and identifier order. The
- * document store is a stand-in that keeps revisions and refuses a stale If-Match. As the artifact
- * server does, it rewrites a successor's link when the resource server reports its predecessor gone,
- * which moves the successor's revision on.
+ * Recursive folder deletion over real resource HTTP and graph, across artifact type, version history
+ * and where the folder's boundary falls in a version chain. The document store is a stand-in that
+ * keeps revisions and refuses a stale If-Match. As the artifact server does, it rewrites a successor's
+ * link when the resource server reports its predecessor gone, which moves the successor's revision on.
+ *
+ * <p>The deletion order is a sort that puts a version ahead of the version it was made from before it
+ * considers depth or identifier. {@code RecursiveFolderDeletionTest} holds that sort to every
+ * identifier order of two- to four-version chains under each depth pattern, so this matrix keeps one
+ * layout and one order: every version at the same depth, the oldest identifier sorting first. With
+ * equal depths that is the one order in which a store path that lost the link between versions would
+ * fall back to identifier order, delete the older version first, and then fail on the successor's
+ * stale If-Match.
  */
 class RecursiveDeletionMatrixTest {
-  /** A version history, oldest first. */
+  /**
+   * A version history, oldest first. Deletion does not branch on publication status, so one
+   * single-version history stands for a draft and a published one alike.
+   */
   enum History {
-    DRAFT("0.0.1:draft"),
     PUBLISHED("1.0.0:published"),
     PUBLISHED_THEN_DRAFT("1.0.0:published", "1.0.1:draft"),
     TWO_PUBLISHED_THEN_DRAFT("1.0.0:published", "2.0.0:published", "2.0.1:draft");
     final List<String> versions;
     History(String... versions) { this.versions = List.of(versions); }
   }
-  /** Where the versions sit below the folder being deleted. */
-  enum Layout { FLAT, NESTED, OLDEST_DEEPEST, NEWEST_DEEPEST }
   /** Which versions of the chain the folder holds. */
   enum Boundary { INSIDE, OLDEST_OUTSIDE, NEWEST_OUTSIDE }
   /** Whether the oldest version's identifier sorts first or last. */
@@ -133,20 +140,18 @@ class RecursiveDeletionMatrixTest {
     List<Arguments> cases = new ArrayList<>();
     for (CedarResourceType type : List.of(CedarResourceType.TEMPLATE, CedarResourceType.ELEMENT, CedarResourceType.FIELD))
       for (History history : History.values())
-        for (Layout layout : Layout.values())
-          for (Boundary boundary : Boundary.values())
-            for (Order order : Order.values()) {
-              // A single version has no boundary to cross and no order to choose.
-              if (history.versions.size() == 1 && (boundary != Boundary.INSIDE || order != Order.NEWEST_FIRST)) continue;
-              cases.add(Arguments.of(type, history, layout, boundary, order));
-            }
+        for (Boundary boundary : Boundary.values()) {
+          // A single version has no boundary to cross.
+          if (history.versions.size() == 1 && boundary != Boundary.INSIDE) continue;
+          cases.add(Arguments.of(type, history, boundary));
+        }
     return cases.stream();
   }
 
-  @ParameterizedTest(name = "{0} {1} {2} {3} {4}")
+  @ParameterizedTest(name = "{0} {1} {2}")
   @MethodSource("cases")
-  void oneConfirmedPassDeletesTheWholeTree(CedarResourceType type, History history, Layout layout,
-                                           Boundary boundary, Order order) throws Exception {
+  void oneConfirmedPassDeletesTheWholeTree(CedarResourceType type, History history, Boundary boundary)
+      throws Exception {
     deleted.clear();
     var root = folder("Matrix root ", home);
     var a = folder("Matrix a ", root);
@@ -160,13 +165,9 @@ class RecursiveDeletionMatrixTest {
     for (int i = 0; i < n; i++) {
       boolean outside = (boundary == Boundary.OLDEST_OUTSIDE && i == 0)
           || (boundary == Boundary.NEWEST_OUTSIDE && i == n - 1);
-      CedarFolderId parent = outside ? home : switch (layout) {
-        case FLAT -> root;
-        case NESTED -> c;
-        case OLDEST_DEEPEST -> levels.get(n - 1 - i);
-        case NEWEST_DEEPEST -> levels.get(i);
-      };
-      String prefix = (order == Order.OLDEST_FIRST ? "a" + i : "z" + (9 - i)) + "-";
+      // Every version at the same depth, the oldest identifier sorting first: see the class comment.
+      CedarFolderId parent = outside ? home : c;
+      String prefix = "a" + i + "-";
       String[] version = history.versions.get(i).split(":");
       previous = schemaArtifact(type, prefix, version[0], version[1], previous, i == n - 1, parent);
       chain.add(previous);
