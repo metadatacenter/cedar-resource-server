@@ -66,6 +66,7 @@ public class ArtifactPermissionLevelMatrixTest {
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
         "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
+        "CEDAR_ARTIFACT_HTTP_PORT", "1",
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
         "CEDAR_OPENSEARCH_REST_PORT", "1"));
   }
@@ -129,7 +130,11 @@ public class ArtifactPermissionLevelMatrixTest {
     SERVER.after();
   }
 
-  /** Viewer permits artifact reads but not grant management. */
+  /**
+   * Viewer permits artifact reads but not content writes or grant management. The artifact server is
+   * on a dead port, so a content write that passed its permission check would answer 5xx rather than
+   * the 403 the row expects.
+   */
   @Test
   public void aViewerGrantProvidesViewerCapabilitiesOnly() throws Exception {
     List<Fixture> readable = fixtures("viewer-readable", ResourceRole.VIEWER);
@@ -148,6 +153,13 @@ public class ArtifactPermissionLevelMatrixTest {
         matrix.when("GET", f.path() + "/versions")
             .expect(ANONYMOUS, 401).expect(OWNER, 200).expect(OTHER_USER, 200);
       }
+      // Reading the content does not authorize replacing or deleting it.
+      matrix.when("PUT", f.path(), contentBody(f))
+          .header("If-Match", "*")
+          .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
+      matrix.when("DELETE", f.path())
+          .header("If-Match", "*")
+          .expect(ANONYMOUS, 401).expect(OTHER_USER, 403);
     }
 
     // Refused, so these fixtures are not mutated and need no isolation beyond their own set. An
@@ -161,7 +173,12 @@ public class ArtifactPermissionLevelMatrixTest {
 
     matrix.verify();
 
-    // A refusal must have changed nothing: user 2's Viewer grant survives the denied attempt.
+    // A refusal must have changed nothing. The refused writes left each node in place and unrenamed,
+    // and user 2's Viewer grant survives the denied re-share.
+    for (Fixture f : readable) {
+      Assertions.assertEquals(f.node().getName(), details(f, actors.get(OWNER)).path("schema:name").asText(),
+          "the refused content writes should have left the " + f.label() + " in place");
+    }
     for (Fixture f : resharable) {
       Assertions.assertTrue(user2Permissions().userHasCapability(f.node().getResourceId(), ResourceCapability.READ_RESOURCE),
           "the refused ACL update should have left the " + f.label() + "'s permissions untouched");
@@ -289,6 +306,14 @@ public class ArtifactPermissionLevelMatrixTest {
     ResourcePermissionsRequest request = new ResourcePermissionsRequest();
     request.setOwner(new ResourcePermissionUser(user1.getId()));
     return JsonMapper.STRICT_MAPPER.writeValueAsString(request);
+  }
+
+  /** A replacement document for a denied content write. The check precedes validation, so it need not be valid. */
+  private static String contentBody(Fixture fixture) {
+    return JsonMapper.STRICT_MAPPER.createObjectNode()
+        .put("@id", fixture.node().getId())
+        .put("schema:name", "Overwritten By A Viewer")
+        .toString();
   }
 
   private static ResourcePermissionServiceSession user2Permissions() {

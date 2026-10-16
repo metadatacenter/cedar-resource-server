@@ -63,10 +63,11 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
  * surfaces it did not reach.
  *
  * <p>Every fixture is owned by test user 1 and shared with nobody, so user 2 has no grant on any of
- * them. Each row asserts that an unauthenticated caller is refused, that user 2 is refused, and — for
- * the reads — that the owner succeeds. The owner's success is what gives the denials their meaning:
- * it shows the endpoint works and is discriminating by identity rather than being broken for
- * everybody, which a table of 401s and 403s alone cannot distinguish.
+ * them. Each row asserts that an unauthenticated caller is refused and that user 2 is refused. The
+ * rows for reads answered from the graph also assert that the owner succeeds. The owner's success is
+ * what gives those denials their meaning: it shows the endpoint works and is discriminating by
+ * identity rather than being broken for everybody, which a table of 401s and 403s alone cannot
+ * distinguish.
  *
  * <p>The four artifact types are driven from one table rather than copied per type. They delegate to
  * the same superclass methods, so their behaviour ought to be identical — but that is a claim about
@@ -74,19 +75,20 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
  * one asymmetry is real and encoded: instances expose no {@code /versions}, because they are not
  * versioned.
  *
- * <p>The artifact rows cover only the endpoints the resource server answers from the workspace graph:
- * details, permissions, report and versions. The content endpoints (<code>GET /templates/{id}</code>
- * and the write paths) proxy to the artifact server, which this suite does not run — the whole
- * resource-server suite is backend-free — so a row for them would assert the proxy failing rather
- * than the authorization decision. Covering those needs the cross-service contract tests the roadmap
- * describes, not this table. The permission check happens before the proxy in every case, so the
- * security contract itself is fully covered here; what is missing is only the owner's happy path on
- * the content routes.
+ * <p>Two kinds of artifact route are covered. The graph routes (details, permissions, report and
+ * versions) are answered from the workspace graph. Through the content routes a caller reads,
+ * downloads, replaces or deletes the document itself, and the resource server proxies each such
+ * request to the artifact server. This suite runs no artifact server and points the resource server
+ * at a dead port. The resource server checks permission on every content route before it proxies, so
+ * a refusal needs no artifact server. If a check went missing, the request would reach the dead port
+ * and the caller would receive a 5xx, which fails the row. The owner's success on the content routes
+ * needs an artifact server, so those rows assert only the refusals.
  *
- * <p>Categories have no such gap, since every category endpoint is answered from the graph. Their
- * contract differs from artifact access: every authenticated user receives the Viewer role through
- * the Everyone grant on the root category, while category changes require the applicable inherited
- * or direct role. Any Viewer may also read the category ACL. Only a Manager or owner may change it.
+ * <p>Categories have no content routes, since every category endpoint is answered from the graph.
+ * Their contract differs from artifact access: every authenticated user receives the Viewer role
+ * through the Everyone grant on the root category, while category changes require the applicable
+ * inherited or direct role. Any Viewer may also read the category ACL. Only a Manager or owner may
+ * change it.
  */
 public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
@@ -98,6 +100,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
         "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
+        "CEDAR_ARTIFACT_HTTP_PORT", "1",
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
         "CEDAR_OPENSEARCH_REST_PORT", "1"));
   }
@@ -294,6 +297,27 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
       // other write row. This denial reaches the call-result path, which once defaulted to 401 (see
       // the category row below); it now carries CedarErrorType.PERMISSION, so it answers 403 to match.
       matrix.when("PUT", artifact.path() + "/permissions", permissionsBody)
+          .header("If-Match", "*")
+          .expect(ANONYMOUS, 401)
+          .expect(OTHER_USER, 403);
+
+      // The content routes. The document is the metadata itself, and a stranger must not read,
+      // download, replace or delete it. The writes send If-Match, since a replacement without one is
+      // refused with 428 before its permission check.
+      matrix.when("GET", artifact.path())
+          .expect(ANONYMOUS, 401)
+          .expect(OTHER_USER, 403);
+
+      matrix.when("GET", artifact.path() + "/download")
+          .expect(ANONYMOUS, 401)
+          .expect(OTHER_USER, 403);
+
+      matrix.when("PUT", artifact.path(), contentBody(artifact))
+          .header("If-Match", "*")
+          .expect(ANONYMOUS, 401)
+          .expect(OTHER_USER, 403);
+
+      matrix.when("DELETE", artifact.path())
           .header("If-Match", "*")
           .expect(ANONYMOUS, 401)
           .expect(OTHER_USER, 403);
@@ -584,6 +608,14 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
   private HttpResponse<String> request(String method, String path, String body, String authHeader) throws Exception {
     return request(method, path, body, authHeader, null);
+  }
+
+  /** A replacement document for a denied content write. The check precedes validation, so it need not be valid. */
+  private static String contentBody(Artifact artifact) {
+    return JsonMapper.STRICT_MAPPER.createObjectNode()
+        .put("@id", artifact.id())
+        .put("schema:name", "Overwritten By An Intruder")
+        .toString();
   }
 
   private static boolean containsText(JsonNode array, String expected) {

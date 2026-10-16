@@ -165,13 +165,18 @@ public class ArtifactServerAnswerMatrixTest {
       },
       "delete", id -> send("DELETE", "/templates/" + encode(id), null));
 
-  /** The request of a command that is failed, as the method the artifact server receives it under. */
+  /**
+   * The request of a command that is failed, as the method the artifact server receives it under. An
+   * update and a deletion each read the document first, so their GET is failed as well as their write.
+   */
   private static final List<Object[]> STEPS = List.of(
       new Object[]{"publish", "GET"}, new Object[]{"publish", "PUT"},
       new Object[]{"create a draft", "GET"}, new Object[]{"create a draft", "POST"},
       new Object[]{"publish and draft", "GET"}, new Object[]{"publish and draft", "PUT"},
       new Object[]{"copy", "GET"}, new Object[]{"copy", "POST"},
-      new Object[]{"read", "GET"}, new Object[]{"update", "PUT"}, new Object[]{"delete", "DELETE"});
+      new Object[]{"read", "GET"},
+      new Object[]{"update", "GET"}, new Object[]{"update", "PUT"},
+      new Object[]{"delete", "GET"}, new Object[]{"delete", "DELETE"});
 
   /** The artifact server's answers, as statuses; null is no answer at all. */
   private static final List<Integer> ANSWERS = java.util.Arrays.asList(400, 401, 403, 404, 409, 412, 422, 428, 429, 500, 502, 503, 504, null);
