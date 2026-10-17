@@ -229,6 +229,29 @@ public class TemplatesResourceWriteRejectionTest {
     Assertions.assertTrue(response.body().contains("artifactPreconditionRequired"), response.body());
   }
 
+  /**
+   * An identifier the request supplies that cannot be resolved is refused in the shared error body,
+   * with a message saying what was wrong. The refusal had no entity, so it reached the client as a 400
+   * whose body carried no message.
+   */
+  @Test
+  public void anUnresolvableIdentifierIsRefusedWithItsMessage() throws Exception {
+    assertIdentifierRefusal(putTemplate("not-a-uuid", "", "{}", "application/json", authHeaderUser1),
+        "Invalid template identifier");
+    assertIdentifierRefusal(search("?is_based_on=%20"), "A resource identifier is required");
+    assertIdentifierRefusal(search("?id=users%2F11111111-2222-3333-4444-555555555555"),
+        "Expected a folder or artifact type");
+  }
+
+  private static void assertIdentifierRefusal(HttpResponse<String> response, String message) throws Exception {
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    Assertions.assertEquals("BAD_REQUEST", error.path("status").asText(), response.body());
+    Assertions.assertEquals(400, error.path("statusCode").asInt(), response.body());
+    Assertions.assertEquals("invalidInput", error.path("errorKey").asText(), response.body());
+    Assertions.assertEquals(message, error.path("message").asText(), response.body());
+  }
+
   @Test
   public void unavailableArtifactServerReturnsSanitizedServiceUnavailable() throws Exception {
     HttpResponse<String> response = post("", "{}", "application/json");
