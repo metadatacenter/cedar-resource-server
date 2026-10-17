@@ -3231,6 +3231,68 @@ paths:
               schema:
                 $ref: "#/components/schemas/Plan"
           description: Complete deletion inventory and blockers
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "A home or system folder can never be deleted (folderCanNotBeDeleted,\
+            \ with the reason userHomeFolder or systemFolder)"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The request carries no valid credentials
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "Only the folder's owner may delete it and its contents, whatever\
+            \ role another user holds (folderCanNotBeDeleted). A caller who cannot\
+            \ read the folder, or who lacks the permission to delete folders, is also\
+            \ refused."
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The folder does not exist
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The request does not accept a JSON response
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The complete inventory could not be checked, because the folder\
+            \ changed while it was read or a revision or template reference could\
+            \ not be read"
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The deployment limits each user's request rate, and the caller\
+            \ exceeded it"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The graph database, the artifact server or another service\
+            \ the request depends on is unavailable"
       security:
       - api_key: []
       summary: Inventory and check a recursive folder deletion
@@ -3256,6 +3318,77 @@ paths:
               schema:
                 $ref: "#/components/schemas/Outcome"
           description: Completed or stopped deletion with confirmed progress
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The body carries no token in the form an inventory issues\
+            \ (invalidInput), or is not JSON holding only a token (malformedJsonRequestBody).\
+            \ A home or system folder can never be deleted (folderCanNotBeDeleted,\
+            \ with the reason userHomeFolder or systemFolder). Nothing was deleted."
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The request carries no valid credentials
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "Only the folder's owner may delete it and its contents, whatever\
+            \ role another user holds (folderCanNotBeDeleted). A caller who cannot\
+            \ read the folder, or who lacks the permission to delete folders, is also\
+            \ refused. Nothing was deleted."
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The folder does not exist
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The request does not accept a JSON response
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The folder changed after the confirmed inventory, or a blocker\
+            \ stops its deletion (folderCanNotBeDeleted). Nothing was deleted. The\
+            \ body's objects.outcome holds the outcome, with the status changed or\
+            \ blocked, the counts and the reason."
+        "415":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The body is not declared as JSON
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The deployment limits each user's request rate, and the caller\
+            \ exceeded it"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The graph database, the artifact server or another service\
+            \ the request depends on is unavailable"
       security:
       - api_key: []
       summary: Delete exactly the confirmed eligible folder inventory

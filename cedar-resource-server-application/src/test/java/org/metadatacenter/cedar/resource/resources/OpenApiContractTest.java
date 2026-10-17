@@ -121,6 +121,36 @@ class OpenApiContractTest {
         categoryAclPath.at("/put/responses/200/content/application~1json/schema/$ref").asText());
   }
 
+  /**
+   * A recursive folder deletion documents every answer it gives, each refusal in the shared error body.
+   * A refused confirmation still reports its outcome, and the document says where.
+   */
+  @Test
+  void recursiveFolderDeletionDocumentsEveryAnswer() throws IOException {
+    JsonNode path = readSpec().at("/paths/~1folders~1{folder_id}~1deletion");
+    assertAnswers(path.path("get"), "#/components/schemas/Plan",
+        "400", "401", "403", "404", "406", "409", "429", "500", "503");
+    assertAnswers(path.path("post"), "#/components/schemas/Outcome",
+        "400", "401", "403", "404", "406", "409", "415", "429", "500", "503");
+    assertTrue(path.at("/post/responses/409/description").asText().contains("objects.outcome"),
+        path.at("/post/responses/409").toString());
+  }
+
+  private static void assertAnswers(JsonNode operation, String success, String... refusals) {
+    JsonNode responses = operation.path("responses");
+    Set<String> documented = new TreeSet<>();
+    responses.fieldNames().forEachRemaining(documented::add);
+    Set<String> expected = new TreeSet<>(Set.of(refusals));
+    expected.add("200");
+    assertEquals(expected, documented);
+    assertEquals(success, responses.at("/200/content/application~1json/schema/$ref").asText());
+    for (String status : refusals) {
+      assertEquals("#/components/schemas/CedarError",
+          responses.at("/" + status + "/content/application~1json/schema/$ref").asText(), status);
+      assertFalse(responses.path(status).path("description").asText().isBlank(), status);
+    }
+  }
+
   private static void assertEnum(JsonNode schema, String... expectedValues) {
     assertEquals(java.util.Set.of(expectedValues),
         java.util.stream.StreamSupport.stream(schema.path("enum").spliterator(), false)

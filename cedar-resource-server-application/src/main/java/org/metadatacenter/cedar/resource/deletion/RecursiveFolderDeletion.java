@@ -21,7 +21,10 @@ public final class RecursiveFolderDeletion {
   public record Plan(String token, boolean allowed, Map<String, Long> counts, List<Item> items,
                      long restrictedItems, long protectedFolders, long templatesWithInstances,
                      long templatesWithOutsideInstances, long instancesOutside) {}
-  /** Stable protocol codes let hosts localise every operational message. */
+  /**
+   * Stable protocol codes let hosts localise every outcome. A refusal carries the reason's message in
+   * the shared error body, which names the refusal by its error key rather than by this code.
+   */
   public enum Reason {
     NOT_OWNER("Only the owner of this folder can delete it and its contents."),
     PROTECTED_ROOT("Home and system folders cannot be deleted."),
