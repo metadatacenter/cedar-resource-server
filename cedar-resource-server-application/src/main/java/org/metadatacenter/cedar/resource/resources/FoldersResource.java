@@ -251,10 +251,27 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
     CedarFolderId fid = CedarFolderId.build(id);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+
+    // A home or system folder can never be deleted, so nobody holds the capability to delete one.
+    // Someone who can see the folder is told why, as a rename or a recursive deletion of it tells
+    // them. Anyone else is refused below as for any folder they cannot delete, and learns nothing
+    // about it.
+    if (dataServices.getResourcePermissionServiceSession(c).userHasCapability(fid,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE)) {
+      FolderServerFolder seen = folderSession.findFolderById(fid);
+      if (seen != null && (seen.isUserHome() || seen.isSystem())) {
+        return CedarResponse.badRequest()
+            .id(id)
+            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
+            .errorReasonKey(seen.isUserHome() ? CedarErrorReasonKey.USER_HOME_FOLDER : CedarErrorReasonKey.SYSTEM_FOLDER)
+            .message(seen.isUserHome() ? "User home folders can not be deleted" : "System folders can not be deleted")
+            .build();
+      }
+    }
 
     userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.DELETE_RESOURCE);
 
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(fid);
 
     if (folder == null) {
@@ -271,20 +288,6 @@ public class FoldersResource extends AbstractResourceServerResource {
             .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
             .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_FOLDER)
             .message("Non-empty folders can not be deleted")
-            .build();
-      } else if (folder.isUserHome()) {
-        return CedarResponse.badRequest()
-            .id(id)
-            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
-            .errorReasonKey(CedarErrorReasonKey.USER_HOME_FOLDER)
-            .message("User home folders can not be deleted")
-            .build();
-      } else if (folder.isSystem()) {
-        return CedarResponse.badRequest()
-            .id(id)
-            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
-            .errorReasonKey(CedarErrorReasonKey.SYSTEM_FOLDER)
-            .message("System folders can not be deleted")
             .build();
       } else {
         String ifMatch = c.getIfMatchHeader();

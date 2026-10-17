@@ -333,6 +333,23 @@ public class FoldersResourceTest {
     request("DELETE", "/folders/" + encode(root), null, authHeaderUser1, "\"1\"");
   }
 
+  /**
+   * A home folder can never be deleted. Its owner is told why, as a rename or a recursive deletion of
+   * it tells them; someone who cannot see it is refused as for any folder, and learns nothing about it.
+   */
+  @Test
+  public void deletingAHomeFolderSaysWhyOnlyToSomeoneWhoCanSeeIt() throws Exception {
+    HttpResponse<String> owner = request("DELETE", "/folders/" + encode(homeFolderId), null, authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(400, owner.statusCode(), owner.body());
+    JsonNode refusal = JsonMapper.STRICT_MAPPER.readTree(owner.body());
+    Assertions.assertEquals("folderCanNotBeDeleted", refusal.path("errorKey").asText(), owner.body());
+    Assertions.assertEquals("userHomeFolder", refusal.path("errorReasonKey").asText(), owner.body());
+    HttpResponse<String> stranger = request("DELETE", "/folders/" + encode(homeFolderId), null, authHeaderUser2, "\"1\"");
+    Assertions.assertEquals(403, stranger.statusCode(), stranger.body());
+    Assertions.assertFalse(stranger.body().contains("userHomeFolder"), stranger.body());
+    Assertions.assertEquals(200, request("GET", "/folders/" + encode(homeFolderId), null, authHeaderUser1).statusCode());
+  }
+
   @Test
   public void recursiveDeletionRequiresRootOwnershipEvenWithManagerAccess() throws Exception {
     String root = createRecursiveTestFolder(homeFolderId);
