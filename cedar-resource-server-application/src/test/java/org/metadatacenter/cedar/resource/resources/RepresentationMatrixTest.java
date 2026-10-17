@@ -495,6 +495,13 @@ public class RepresentationMatrixTest {
       respond(exchange, 200, "application/json", "{\"validates\":\"true\",\"warnings\":[],\"errors\":[]}", null);
       return;
     }
+    if ("POST".equals(method) && path.endsWith("/replacement-judgement")) {
+      // Publishing with a new draft asks first whether the draft would accept its definition; this stub
+      // accepts every definition and, like the artifact server, stores nothing for the question.
+      exchange.sendResponseHeaders(204, -1);
+      exchange.close();
+      return;
+    }
     CedarResourceType kind = COLLECTIONS.stream().filter(k -> path.startsWith("/" + k.getPrefix())).findFirst()
         .orElse(null);
     if (kind == null) {
@@ -524,11 +531,13 @@ public class RepresentationMatrixTest {
       return;
     }
     if ("PUT".equals(method) && artifactId != null) {
+      // A PUT to an identifier nothing is stored at creates there, as the artifact server's does.
+      boolean creates = !DOCUMENTS.containsKey(artifactId);
       ObjectNode replacement = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       DOCUMENTS.put(artifactId, replacement);
       REVISIONS.put(artifactId, NEXT_REVISION.getAndIncrement());
       WRITES.add(method + " " + path);
-      respond(exchange, 200, "application/json", replacement.toString(), artifactId);
+      respond(exchange, creates ? 201 : 200, "application/json", replacement.toString(), artifactId);
       return;
     }
     if ("GET".equals(method) && artifactId != null && DOCUMENTS.containsKey(artifactId)) {

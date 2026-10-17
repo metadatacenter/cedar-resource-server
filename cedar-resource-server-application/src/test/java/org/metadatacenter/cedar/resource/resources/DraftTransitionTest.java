@@ -167,6 +167,68 @@ class DraftTransitionTest {
     } finally { releasePosts.countDown(); }
   }
   /**
+   * A caller that chose the draft's identity can lose the answer and ask again. The draft is created at
+   * that identity once; the retry finds the identity taken and answers 412, which a caller reads as "look
+   * again", before the rule that a drafted source cannot be drafted again answers with a refusal that
+   * would read as a failure.
+   */
+  @Test void aLostResponseAndRetryAtASuppliedDraftIdentityLeaveOneSuccessor() throws Exception {
+    String draftId = config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    String body = ((com.fasterxml.jackson.databind.node.ObjectNode) JsonMapper.STRICT_MAPPER.readTree(prepare(1)))
+        .put("draftId", draftId).toString();
+    var abandoned = client.sendAsync(request(body), HttpResponse.BodyHandlers.ofString());
+    try {
+      assertTrue(postsEntered.await(15, TimeUnit.SECONDS));
+      assertTrue(abandoned.cancel(true), "drop the client before the server can return its successful response");
+      releasePosts.countDown();
+      assertTrue(cloneQueued.await(15, TimeUnit.SECONDS), "the abandoned request must complete its graph write");
+      var retry = client.send(request(body), HttpResponse.BodyHandlers.ofString());
+      assertEquals(412, retry.statusCode(), retry.body());
+      assertEquals("nodeAlreadyPresent", JsonMapper.STRICT_MAPPER.readTree(retry.body()).path("errorKey").asText());
+      assertSingleSuccessor();
+      assertEquals(draftId, cloneTargets.get(0), "the draft was not created at the identity the caller chose");
+      assertEquals(1, writes.get()); assertTrue(deleted.isEmpty());
+    } finally { releasePosts.countDown(); }
+  }
+
+  /** An identity either store already holds is refused before anything is written. */
+  @ParameterizedTest(name = "held by the {0}")
+  @CsvSource({"graph", "artifact store"})
+  void anOccupiedDraftIdentityIsRefusedWithoutAWrite(String holder) throws Exception {
+    String body = prepare(1); releasePosts.countDown();
+    String occupied = config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    if (holder.equals("graph")) {
+      var node = new FolderServerTemplate(); node.setId(occupied); node.setName("Occupant " + occupied);
+      node.setVersion("0.0.1"); node.setPublicationStatus("bibo:draft");
+      node.setLatestVersion(true); node.setLatestDraftVersion(true); node.setLatestPublishedVersion(false);
+      assertNotNull(folders.createResourceAsChildOfId(node, home));
+    } else {
+      documents.put(occupied, new Stored(JsonMapper.STRICT_MAPPER.createObjectNode().put("@id", occupied), 3));
+    }
+    var reply = client.send(request(((com.fasterxml.jackson.databind.node.ObjectNode) JsonMapper.STRICT_MAPPER
+        .readTree(body)).put("draftId", occupied).toString()), HttpResponse.BodyHandlers.ofString());
+    assertEquals(412, reply.statusCode(), reply.body());
+    assertEquals("nodeAlreadyPresent", JsonMapper.STRICT_MAPPER.readTree(reply.body()).path("errorKey").asText());
+    assertEquals(0, writes.get(), "an occupied identity reached the artifact server");
+    assertTrue(cloneTargets.isEmpty());
+    assertEquals(1, folders.getVersionHistory(org.metadatacenter.id.CedarTemplateId.build(sourceId)).size());
+  }
+
+  /** An identity that is not a template identifier of this deployment is refused before anything is written. */
+  @ParameterizedTest(name = "{0}")
+  @CsvSource({"a field identifier", "not an identifier"})
+  void aDraftIdentityOutsideTheTemplatesCollectionIsRefused(String kind) throws Exception {
+    String body = prepare(1); releasePosts.countDown();
+    String draftId = kind.equals("a field identifier")
+        ? config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FIELD) : "draft-of-the-source";
+    var reply = client.send(request(((com.fasterxml.jackson.databind.node.ObjectNode) JsonMapper.STRICT_MAPPER
+        .readTree(body)).put("draftId", draftId).toString()), HttpResponse.BodyHandlers.ofString());
+    assertEquals(400, reply.statusCode(), reply.body());
+    assertEquals(0, writes.get());
+    assertEquals(1, folders.getVersionHistory(org.metadatacenter.id.CedarTemplateId.build(sourceId)).size());
+  }
+
+  /**
    * Workspace's Create Draft and the Designer's Create new draft both ask for the source's sharing, so a
    * draft is shared as its source is; without the request it is its owner's alone. The source's ACL is
    * the same afterwards either way. "none" is a source user 2 holds no grant on.
@@ -232,6 +294,17 @@ class DraftTransitionTest {
     String id = config.getLinkedDataUtil().resolveResourceId(
         CedarResourceType.forPrefix(path.split("/")[1]), path.substring(path.indexOf('/',1)+1));
     Stored stored = documents.get(id);
+    if (stored == null && exchange.getRequestMethod().equals("PUT")
+        && exchange.getRequestHeaders().getFirst("If-Match") == null) {
+      // A PUT naming an identifier nothing holds creates there, as the artifact server's does.
+      ObjectNode body = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody());
+      Stored created = new Stored(body,7); documents.put(id,created); writes.incrementAndGet();
+      postsEntered.countDown();
+      try { if (!releasePosts.await(20,TimeUnit.SECONDS)) throw new IOException("draft barrier timed out"); }
+      catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IOException(e); }
+      exchange.getResponseHeaders().set("Location",id);
+      respond(exchange,201,created); return;
+    }
     if (stored == null) { respond(exchange,404,null); return; }
     if (exchange.getRequestMethod().equals("GET")) { respond(exchange,200,stored); return; }
     if (!stored.etag().equals(exchange.getRequestHeaders().getFirst("If-Match"))) { respond(exchange,412,null); return; }

@@ -435,6 +435,44 @@ public class FoldersResourceTest {
     }
   }
 
+  /**
+   * A folder created at an identifier its caller chose, then the same request again, as after a lost
+   * answer. The repeat answers 428, which a retrying caller reads as "this identifier is taken", where it
+   * used to answer the 400 a malformed body gets. The folder stays as the first request created it, and
+   * a malformed body for an identifier nothing holds is still refused with 400.
+   */
+  @Test
+  public void aRepeatedCreateWithIdAnswers428AndChangesNothing() throws Exception {
+    var linkedData = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE))
+        .getLinkedDataUtil();
+    String folderId = linkedData.buildNewLinkedDataId(org.metadatacenter.model.CedarResourceType.FOLDER);
+    String name = "Chosen Identifier Folder " + UUID.randomUUID();
+    String body = "{\"@id\":\"" + folderId + "\",\"folderId\":\"" + homeFolderId + "\",\"name\":\"" + name
+        + "\",\"description\":\"Created at an identifier its caller chose\"}";
+
+    HttpResponse<String> created = request("PUT", "/folders/" + encode(folderId), body, authHeaderUser1);
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    Assertions.assertEquals(folderId, JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText());
+
+    HttpResponse<String> repeated = request("PUT", "/folders/" + encode(folderId), body, authHeaderUser1);
+    Assertions.assertEquals(428, repeated.statusCode(), repeated.body());
+
+    HttpResponse<String> found = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
+    Assertions.assertEquals(200, found.statusCode(), found.body());
+    Assertions.assertEquals("\"1\"", found.headers().firstValue("ETag").orElse(null), "the repeat changed the folder");
+    Assertions.assertEquals(name, JsonMapper.STRICT_MAPPER.readTree(found.body()).get("schema:name").asText());
+
+    String absentId = linkedData.buildNewLinkedDataId(org.metadatacenter.model.CedarResourceType.FOLDER);
+    HttpResponse<String> malformed = request("PUT", "/folders/" + encode(absentId),
+        "{\"@id\":\"" + absentId + "\",\"folderId\":\"" + homeFolderId + "\",\"name\":\"Malformed\","
+            + "\"description\":\"refused\",\"parentFolderId\":\"" + homeFolderId + "\"}", authHeaderUser1);
+    Assertions.assertEquals(400, malformed.statusCode(), malformed.body());
+    Assertions.assertEquals(404, request("GET", "/folders/" + encode(absentId), null, authHeaderUser1).statusCode());
+
+    Assertions.assertEquals(204, request("DELETE", "/folders/" + encode(folderId), null, authHeaderUser1, "\"1\"")
+        .statusCode());
+  }
+
   @Test
   public void concurrentFolderDeletesConvergeWithoutServerErrors() throws Exception {
     String name = "Concurrent Delete Folder " + UUID.randomUUID();

@@ -27,6 +27,13 @@ public class CreateDraftArtifactRequest {
   @Schema(name = "propagateSharing", description = "Copy sharing settings, or leave the new artifact unshared")
   private Boolean propagateSharing;
 
+  @Schema(name = "draftId", description = "The full identifier the draft is to have, in the source artifact's "
+      + "collection. Optional. A caller that may lose the answer chooses it, so that it can read the outcome by "
+      + "it rather than draft again: a repeat finds the identifier taken and answers 412. Example: "
+      + "https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e. Without it, the "
+      + "server chooses one.")
+  private String draftId;
+
   public String getId() {
     return id;
   }
@@ -57,5 +64,13 @@ public class CreateDraftArtifactRequest {
 
   public void setPropagateSharing(Boolean propagateSharing) {
     this.propagateSharing = propagateSharing;
+  }
+
+  public String getDraftId() {
+    return draftId;
+  }
+
+  public void setDraftId(String draftId) {
+    this.draftId = draftId;
   }
 }

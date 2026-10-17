@@ -202,6 +202,33 @@ public class TemplatesResourceWriteRejectionTest {
     }
   }
 
+  /**
+   * A create by PUT repeated after its answer was lost finds its identity taken in the graph and answers
+   * 428 before it writes. The artifact server is unreachable in this class, so had the repeat tried to
+   * write again it would have answered 503.
+   */
+  @Test
+  public void aRepeatedCreateByPutAnswers428BeforeItWrites() throws Exception {
+    CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+    FolderServiceSession folders = CedarDataServices.getInstance().getFolderServiceSession(user1Context);
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName("Created at a chosen identifier by TemplatesResourceWriteRejectionTest");
+    template.setDescription("The first attempt of a create whose answer was lost");
+    template.setVersion("0.0.1");
+    template.setPublicationStatus(BiboStatus.DRAFT.getValue());
+    template.setLatestVersion(true);
+    template.setLatestDraftVersion(true);
+    FolderServerArtifact created = folders.createResourceAsChildOfId(template, folders.findHomeFolderOf().getResourceId());
+    Assertions.assertNotNull(created);
+    String body = "{\"@id\":\"" + created.getId() + "\",\"schema:name\":\"Created at a chosen identifier\"}";
+
+    HttpResponse<String> response = putTemplate(created.getId(), "", body, "application/json", authHeaderUser1);
+
+    Assertions.assertEquals(428, response.statusCode(), response.body());
+    Assertions.assertTrue(response.body().contains("artifactPreconditionRequired"), response.body());
+  }
+
   @Test
   public void unavailableArtifactServerReturnsSanitizedServiceUnavailable() throws Exception {
     HttpResponse<String> response = post("", "{}", "application/json");

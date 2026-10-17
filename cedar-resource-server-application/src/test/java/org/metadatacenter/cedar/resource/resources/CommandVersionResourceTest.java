@@ -111,6 +111,8 @@ public class CommandVersionResourceTest {
   private static final AtomicInteger VERSION_RETRY_DRAFT_WRITES = new AtomicInteger();
   private static final AtomicInteger DRAFT_STATUS_GUARD_POSTS = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
+  /** Every request the artifact server received other than a read. */
+  private static final AtomicInteger ARTIFACT_WRITES = new AtomicInteger();
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -404,6 +406,31 @@ public class CommandVersionResourceTest {
         "the rejected draft source reached the artifact create endpoint");
   }
 
+  /**
+   * The identity a caller chooses for a draft is judged before anything else is: one outside the
+   * templates collection is refused with 400, and one the graph already holds with 412, and neither
+   * reaches the artifact server.
+   */
+  @Test
+  public void aSuppliedDraftIdentityThatIsMalformedOrTakenIsRefusedBeforeAnyWrite() throws Exception {
+    int writes = ARTIFACT_WRITES.get();
+    Map<String, Integer> answers = Map.of(
+        "https://repo.metadatacenter.orgx/template-fields/" + java.util.UUID.randomUUID(), 400,
+        "draft-of-the-fixture", 400,
+        templateId.getId(), 412);
+    for (Map.Entry<String, Integer> answer : answers.entrySet()) {
+      String body = "{\"@id\":\"" + draftStatusMismatchTemplateId.getId()
+          + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
+          + "\",\"propagateSharing\":false,\"newFolderName\":\"\",\"draftId\":\"" + answer.getKey() + "\"}";
+
+      HttpResponse<String> response = postVersionCommand("create-draft-artifact", body);
+
+      Assertions.assertEquals(answer.getValue(), response.statusCode(), answer.getKey() + ": " + response.body());
+    }
+    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a refused draft identity reached the artifact server");
+    Assertions.assertEquals(1, folderSession.getVersionHistory(draftStatusMismatchTemplateId).size());
+  }
+
   /** Ambiguous successful responses may be retried, but must not create another version. */
   @Test
   @Order(1)
@@ -611,6 +638,9 @@ public class CommandVersionResourceTest {
   }
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
+    if (!"GET".equals(exchange.getRequestMethod())) {
+      ARTIFACT_WRITES.incrementAndGet();
+    }
     if (refusingDelete) {
       if (exchange.getRequestMethod().equals("GET")) {
         sendArtifactResponse(exchange, JsonMapper.STRICT_MAPPER.createObjectNode(), "\"1\"");

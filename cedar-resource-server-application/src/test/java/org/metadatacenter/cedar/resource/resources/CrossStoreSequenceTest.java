@@ -236,6 +236,58 @@ class CrossStoreSequenceTest {
     assertTrue(documents.containsKey(source), "the source must survive compensation of its derivative");
   }
 
+  /**
+   * A copy or draft written at the identity its caller chose, whose graph registration then fails
+   * because the destination disappeared. The document is removed and the identity is left free, so the
+   * caller's retry with the same identity, into a folder that exists, creates there.
+   */
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"copy", "draft"})
+  void aGraphFailureAfterAWriteAtASuppliedIdentityLeavesTheIdentityFree(String operation) throws Exception {
+    String source = createTemplate("Supplied identity source for " + operation);
+    if (operation.equals("draft")) {
+      folders.updateArtifactById(artifactId(source), CedarResourceType.TEMPLATE,
+          Map.of(org.metadatacenter.server.neo4j.cypher.NodeProperty.PUBLICATION_STATUS, "bibo:published",
+              org.metadatacenter.server.neo4j.cypher.NodeProperty.VERSION, "0.0.1"));
+      documents.get(source).body().put("bibo:status", "bibo:published");
+    }
+    FolderServerFolder target = new FolderServerFolder();
+    target.setName("Destination removed under a supplied " + operation + " identity");
+    target.setDescription("Removed after the content write");
+    CedarFolderId targetId = config.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    assertNotNull(folders.createFolderAsChildOfId(target, home, targetId));
+    String identity = config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    afterPost = () -> assertTrue(folders.deleteFolderById(targetId));
+
+    var failed = send("POST", commandPath(operation), command(operation, source, targetId, identity).toString(), null);
+
+    assertTrue(failed.statusCode() >= 400, failed.body());
+    assertEquals(identity, copiedId, "the content was not written at the identity the caller chose");
+    assertNull(folders.findArtifactById(artifactId(identity)), "the failed write left a workspace node");
+    assertFalse(documents.containsKey(identity), "the failed write left its document behind");
+    assertNull(cleanupJob(identity), "the cleanup did not finish");
+
+    afterPost = null;
+    var retried = send("POST", commandPath(operation), command(operation, source, home, identity).toString(), null);
+
+    assertEquals(201, retried.statusCode(), retried.body());
+    assertEquals(identity, JsonMapper.STRICT_MAPPER.readTree(retried.body()).path("@id").asText());
+    assertNotNull(folders.findArtifactById(artifactId(identity)));
+    assertTrue(documents.containsKey(identity));
+  }
+
+  private static String commandPath(String operation) {
+    return operation.equals("copy") ? "/command/copy-artifact-to-folder" : "/command/create-draft-artifact";
+  }
+
+  private static ObjectNode command(String operation, String source, CedarFolderId folder, String identity) {
+    return operation.equals("copy")
+        ? JsonMapper.MAPPER.createObjectNode().put("@id", source).put("targetFolderId", folder.getId())
+            .put("nameTemplate", "Copy of {{name}}").put("copyId", identity)
+        : JsonMapper.MAPPER.createObjectNode().put("@id", source).put("folderId", folder.getId())
+            .put("newVersion", "0.0.2").put("draftId", identity);
+  }
+
   @Test
   void anIndexFailureAfterCopyRegistrationDoesNotDeleteSuccessfulContent() throws Exception {
     String source = createTemplate("Copy indexing outage source");
@@ -327,6 +379,18 @@ class CrossStoreSequenceTest {
       return;
     }
     Stored stored = id == null ? null : documents.get(id);
+    if (stored == null && method.equals("PUT") && exchange.getRequestHeaders().getFirst("If-Match") == null) {
+      // A PUT naming an identifier nothing holds creates there, as the artifact server's does.
+      ObjectNode body = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody());
+      copiedId = id;
+      Stored created = new Stored(body, 1);
+      documents.put(id, created);
+      Runnable hook = afterPost;
+      if (hook != null) hook.run();
+      exchange.getResponseHeaders().set("Location", id);
+      respond(exchange, 201, created);
+      return;
+    }
     if (stored == null) { respond(exchange, 404, null); return; }
     if (method.equals("GET")) { respond(exchange, 200, stored); return; }
     if (!stored.etag().equals(exchange.getRequestHeaders().getFirst("If-Match"))) {

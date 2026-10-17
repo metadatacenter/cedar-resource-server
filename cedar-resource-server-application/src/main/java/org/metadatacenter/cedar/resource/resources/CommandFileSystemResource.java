@@ -83,6 +83,9 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CommandFileSystemResource.class);
 
+  /** The body key under which a copy's caller may choose the copy's identity. */
+  private static final String COPY_ID = "copyId";
+
   public CommandFileSystemResource(CedarConfig cedarConfig) {
     super(cedarConfig);
   }
@@ -91,7 +94,10 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
   @Timed
   @Path("/copy-artifact-to-folder")
   @Operation(summary = "Copy artifact", description = "Copy artifact to a given folder. A copy of the given artifact will be created in the given folder, "
-          + "with a new name Only artifacts (fields, elements, templates, instances) can be copied.", tags = {"Command", "File Operations"})
+          + "with a new name. Only artifacts (fields, elements, templates, instances) can be copied. The caller may "
+          + "choose the copy's identifier in copyId; an identifier already in use is refused with 412 before "
+          + "anything is written, so repeating a copy whose answer was lost cannot make a second one.",
+      tags = {"Command", "File Operations"})
   @RequestBody(description = "Parameters of the copy operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CopyRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "201", description = "The copy, as the artifact server stored it",
@@ -105,6 +111,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "412", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The identifier in copyId already names an artifact; nothing was written"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error"),
       @ApiResponse(responseCode = "502", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Invalid response from artifact service")
   })
@@ -114,10 +122,11 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
 
     // Read through CedarParameter rather than straight off the JsonNode: a missing field used to be a
     // null dereference, which reached the caller as 500 for what is plainly a bad request.
-    c.request().getRequestBody().mustHaveOnly(LinkedData.ID, "targetFolderId", "nameTemplate");
+    c.request().getRequestBody().mustHaveOnly(LinkedData.ID, "targetFolderId", "nameTemplate", COPY_ID);
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter targetFolderParam = c.request().getRequestBody().get("targetFolderId");
     CedarParameter nameTemplateParam = c.request().getRequestBody().get("nameTemplate");
+    CedarParameter copyIdParam = c.request().getRequestBody().get(COPY_ID);
     c.must(idParam).be(NonEmpty);
     c.must(targetFolderParam).be(NonEmpty);
     c.must(nameTemplateParam).be(NonEmpty);
@@ -183,6 +192,17 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     userMustHaveCapabilityOnFolder(c, targetFolderId,
         org.metadatacenter.server.security.model.permission.resource.ResourceCapability.COPY_INTO_FOLDER);
 
+    // A copy at the identity the caller chose can be looked up when the answer is lost, and a repeat of
+    // the request finds the identity taken instead of making a second copy.
+    Optional<CedarArtifactId> copyId = Optional.empty();
+    if (!copyIdParam.isEmpty()) {
+      copyId = Optional.of(suppliedArtifactIdentity(COPY_ID, copyIdParam.stringValue(), resourceType));
+      Response occupied = occupiedIdentityRefusal(c, resourceType, copyId.get());
+      if (occupied != null) {
+        return occupied;
+      }
+    }
+
     String originalDocument;
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, sourceArtifactId);
@@ -210,6 +230,9 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       }
       JsonNode jsonNode = JsonMapper.STRICT_MAPPER.readTree(originalDocument);
       ArtifactCopyOperations.prepareDerivedBody((ObjectNode) jsonNode);
+      if (copyId.isPresent()) {
+        ((ObjectNode) jsonNode).put(LinkedData.ID, copyId.get().getId());
+      }
       String oldName = ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue();
       if (oldName == null) {
         oldName = "";
@@ -238,9 +261,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
 
     String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "copy");
     try {
-      String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
-
-      ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).post(url, c, originalDocument);
+      ClassicHttpResponse templateProxyResponse =
+          sendCreateToArtifactServer(c, resourceType, copyId, originalDocument, cleanupJob);
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
       int statusCode = templateProxyResponse.getCode();

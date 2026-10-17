@@ -26,6 +26,13 @@ public class CopyRequest {
           + "'{{name}}'. If no interpolatioin is needed, the new name should be passed.")
   private String nameTemplate;
 
+  @Schema(name = "copyId", description = "The full identifier the copy is to have, in the source artifact's "
+      + "collection. Optional. A caller that may lose the answer chooses it, so that it can read the outcome by "
+      + "it rather than copy again: a repeat finds the identifier taken and answers 412. Example: "
+      + "https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e. Without it, "
+      + "the server chooses one.")
+  private String copyId;
+
   public String getId() {
     return id;
   }
@@ -48,5 +55,13 @@ public class CopyRequest {
 
   public void setNameTemplate(String nameTemplate) {
     this.nameTemplate = nameTemplate;
+  }
+
+  public String getCopyId() {
+    return copyId;
+  }
+
+  public void setCopyId(String copyId) {
+    this.copyId = copyId;
   }
 }

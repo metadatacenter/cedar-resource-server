@@ -944,8 +944,11 @@ paths:
   /command/copy-artifact-to-folder:
     post:
       description: "Copy artifact to a given folder. A copy of the given artifact\
-        \ will be created in the given folder, with a new name Only artifacts (fields,\
-        \ elements, templates, instances) can be copied."
+        \ will be created in the given folder, with a new name. Only artifacts (fields,\
+        \ elements, templates, instances) can be copied. The caller may choose the\
+        \ copy's identifier in copyId; an identifier already in use is refused with\
+        \ 412 before anything is written, so repeating a copy whose answer was lost\
+        \ cannot make a second one."
       operationId: copyResourceToFolder
       requestBody:
         content:
@@ -994,6 +997,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The identifier in copyId already names an artifact; nothing
+            was written
         "500":
           content:
             application/json:
@@ -1017,7 +1027,10 @@ paths:
       description: "Create draft artifact out of a published artifact. A new artifact\
         \ will be created in the supplied folder. The version of the new artifact\
         \ must be set, and must follow the current published version. The sharing\
-        \ settings of the old artifact can be copied over to the new artifact.."
+        \ settings of the old artifact can be copied over to the new artifact. The\
+        \ caller may choose the draft's identifier in draftId; an identifier already\
+        \ in use is refused with 412 before anything is written, so repeating a request\
+        \ whose answer was lost cannot make a second draft."
       operationId: createDraftArtifact
       requestBody:
         content:
@@ -1066,6 +1079,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The identifier in draftId already names an artifact; nothing
+            was written
         "500":
           content:
             application/json:
@@ -2047,7 +2067,15 @@ paths:
     post:
       description: "Publish the given template, then create a new draft version from\
         \ it and apply the supplied template definition. Instances of the source template\
-        \ can be copied into a new folder."
+        \ can be copied into a new folder. The command succeeds or fails as a whole.\
+        \ What a later step would refuse is refused before the template is published:\
+        \ a parent folder the caller cannot create in, a draft identifier already\
+        \ in use and a definition the draft would not accept. If a step fails after\
+        \ publication, the command removes the draft it created and returns the template\
+        \ to the draft it was, then answers with the failing step's status, or 503\
+        \ when that step received no answer. Returning the template to a draft gives\
+        \ it a new ETag. A retry sends that ETag in If-Match and publishes the template\
+        \ at the same version."
       operationId: publishCreateDraftTemplate
       parameters:
       - $ref: "#/components/parameters/IfMatch"
@@ -2060,6 +2088,14 @@ paths:
       - description: Name of the folder to copy the template instances into.
         in: query
         name: folder_name
+        schema:
+          type: string
+      - description: "The full identifier the new draft is to have, chosen by the\
+          \ caller so that it can read the outcome by it if the answer is lost. Example:\
+          \ https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e.\
+          \ Without it, the server chooses one."
+        in: query
+        name: draft_id
         schema:
           type: string
       requestBody:
@@ -2081,7 +2117,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Bad request
+          description: "The definition, or the draft identifier, is refused; nothing\
+            \ was published"
         "401":
           content:
             application/json:
@@ -2093,7 +2130,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Forbidden
+          description: The caller may not version the template or create in its folder;
+            nothing was published
         "404":
           content:
             application/json:
@@ -2105,7 +2143,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: The source template changed; no draft was created
+          description: "The source template changed, or the draft identifier already\
+            \ names an artifact; nothing was published and no draft was created"
         "428":
           content:
             application/json:
@@ -2118,6 +2157,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: A step received no answer from the artifact server; whatever
+            the command had done was undone
       security:
       - api_key: []
       summary: Publish a template and create a new draft
@@ -2860,7 +2906,11 @@ paths:
       tags:
       - Folders
     put:
-      description: Update a folder.
+      description: "Update a folder, or create one under the supplied identifier.\
+        \ An existing folder is updated only with the ETag returned by GET in If-Match.\
+        \ Without If-Match the request can only create, so on an existing folder it\
+        \ answers 428 whatever its body, and a create repeated after its answer was\
+        \ lost cannot make a second folder."
       operationId: createOrUpdateFolder
       parameters:
       - $ref: "#/components/parameters/IfMatchForCreateOrReplace"
@@ -8671,6 +8721,13 @@ components:
         '@id':
           type: string
           description: Unique URL identifier representing the source artifact.
+        copyId:
+          type: string
+          description: "The full identifier the copy is to have, in the source artifact's\
+            \ collection. Optional. A caller that may lose the answer chooses it,\
+            \ so that it can read the outcome by it rather than copy again: a repeat\
+            \ finds the identifier taken and answers 412. Example: https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e.\
+            \ Without it, the server chooses one."
         nameTemplate:
           type: string
           description: "Template that will be used to name the new artifact. The variables\
@@ -8689,6 +8746,13 @@ components:
         '@id':
           type: string
           description: Unique URL identifier representing the source artifact.
+        draftId:
+          type: string
+          description: "The full identifier the draft is to have, in the source artifact's\
+            \ collection. Optional. A caller that may lose the answer chooses it,\
+            \ so that it can read the outcome by it rather than draft again: a repeat\
+            \ finds the identifier taken and answers 412. Example: https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e.\
+            \ Without it, the server chooses one."
         folderId:
           type: string
           description: Unique URL identifier representing the target folder that the

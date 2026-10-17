@@ -146,7 +146,10 @@ public class FoldersResource extends AbstractResourceServerResource {
   @PUT
   @Timed
   @Path("/{folder_id}")
-  @Operation(summary = "Update a folder", description = "Update a folder.",
+  @Operation(summary = "Update a folder", description = "Update a folder, or create one under the supplied "
+      + "identifier. An existing folder is updated only with the ETag returned by GET in If-Match. Without "
+      + "If-Match the request can only create, so on an existing folder it answers 428 whatever its body, and "
+      + "a create repeated after its answer was lost cannot make a second folder.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatchForCreateOrReplace"))
   @RequestBody(description = "The new name and description of the folder, or the folder to create under the supplied identifier.",
       required = true, content = @Content(schema = @Schema(ref = "#/components/schemas/FolderReplaceRequest")))
@@ -181,6 +184,16 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(folderId);
     if (folder != null) {
+      // Without If-Match this PUT cannot be an update, so a body shaped for creating the folder is a
+      // create of an identifier already in use. The answer says so, as the artifact routes do, rather than
+      // calling the body malformed: a caller retrying a create it is unsure of then reads 428 as "this
+      // identifier is taken, look again" without parsing a message.
+      if (RevisionPreconditionParser.isAbsent(c.getIfMatchHeader())) {
+        return CedarResponse.preconditionRequired()
+            .id(folderId)
+            .message("The folder already exists; updating it requires the ETag returned by GET in If-Match")
+            .build();
+      }
       c.request().getRequestBody().mustHaveOnly(SCHEMA_ORG_NAME, SCHEMA_ORG_DESCRIPTION);
       return updateFolderNameAndDescriptionInGraphDb(c, folderId);
     } else {
