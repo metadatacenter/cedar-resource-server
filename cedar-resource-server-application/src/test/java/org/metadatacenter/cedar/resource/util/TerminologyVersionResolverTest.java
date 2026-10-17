@@ -97,6 +97,17 @@ class TerminologyVersionResolverTest {
     assertEquals(1, resolver.getSkippedResolutionCount());
   }
 
+  // Two cases.
+  @ParameterizedTest
+  @ValueSource(strings = {"", "   "})
+  void anEmptyOrBlankIdIsAnUnresolvedVersion(String id) {
+    TerminologyVersionResolver resolver = resolver("https://terms.example", null,
+        new AtomicReference<>(), 200, "{\"id\":\"" + id + "\",\"effectiveDate\":\"2026-07-01\"}");
+
+    assertTrue(resolver.currentVersionByAcronym("DOID").isEmpty());
+    assertEquals(1, resolver.getSkippedResolutionCount());
+  }
+
   @Test
   void nonTextualOptionalFieldsAreIgnoredWithoutDiscardingAValidId() {
     TerminologyVersionResolver resolver = resolver("https://terms.example", null,
