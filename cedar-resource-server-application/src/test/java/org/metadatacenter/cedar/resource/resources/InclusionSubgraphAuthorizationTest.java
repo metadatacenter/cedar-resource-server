@@ -266,6 +266,27 @@ public class InclusionSubgraphAuthorizationTest {
         response.body());
   }
 
+  /**
+   * Two selectors that name one artifact are refused, and the shared error body names the second. The
+   * refusal was a BadRequestException without an entity, which reached the client as a 400 whose body
+   * carried no message.
+   */
+  @Test
+  public void previewRefusesTwoSelectorsForOneArtifactNamingTheSecond() throws Exception {
+    String id = readableTemplate.getId();
+    String compact = "templates/" + id.substring(id.lastIndexOf('/') + 1);
+    String body = "{\"@id\":\"" + sourceElement.getId() + "\",\"templates\":{\"" + id + "\":{},\"" + compact
+        + "\":{}}}";
+
+    HttpResponse<String> response = post("/command/inclusions-subgraph-preview", body);
+
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    Assertions.assertEquals(400, error.path("statusCode").asInt(), response.body());
+    Assertions.assertEquals("Duplicate resource selector: " + compact, error.path("message").asText(),
+        response.body());
+  }
+
   // ── fixtures and helpers ───────────────────────────────────────────────────
 
   /** A propagation request rooted at the source element, marking the named templates for update. */

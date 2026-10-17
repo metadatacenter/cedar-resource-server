@@ -25,6 +25,8 @@ import org.metadatacenter.cedar.resource.model.InclusionSubgraphUpdateOutcome;
 import org.metadatacenter.cedar.resource.model.InclusionSubgraphUpdateReport;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorPack;
+import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarTypedSchemaArtifactId;
 import org.metadatacenter.id.CedarUntypedSchemaArtifactId;
@@ -313,14 +315,15 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     return !delta.getDestructiveChanges().isEmpty() || !delta.getNonDestructiveChanges().isEmpty();
   }
 
-  private void normalizeSelectors(InclusionSubgraphRequest request) {
+  private void normalizeSelectors(InclusionSubgraphRequest request) throws CedarBadRequestException {
     if (request.getId() != null) request.setId(linkedDataUtil.resolveResourceId(request.getId()));
     request.setElements(normalizeElements(request.getElements()));
     request.setTemplates(normalizeKeys(request.getTemplates(), CedarResourceType.TEMPLATE));
   }
 
   private Map<String, org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphElement> normalizeElements(
-      Map<String, org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphElement> elements) {
+      Map<String, org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphElement> elements)
+      throws CedarBadRequestException {
     var resolved = normalizeKeys(elements, CedarResourceType.ELEMENT);
     if (resolved != null) for (var element : resolved.values()) {
       if (element != null) {
@@ -331,14 +334,23 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     return resolved;
   }
 
-  private <T> Map<String, T> normalizeKeys(Map<String, T> selectors, CedarResourceType type) {
+  /**
+   * The selectors keyed by the identifiers they resolve to. Two selectors that name one artifact are
+   * refused in the shared error body, with the message naming the second. A BadRequestException
+   * without an entity reached the client as a 400 whose body carried no message.
+   */
+  private <T> Map<String, T> normalizeKeys(Map<String, T> selectors, CedarResourceType type)
+      throws CedarBadRequestException {
     if (selectors == null) return null;
     Map<String, T> resolved = new java.util.LinkedHashMap<>();
-    selectors.forEach((key, value) -> {
-      String id = linkedDataUtil.resolveResourceId(type, key);
-      if (resolved.containsKey(id)) throw new jakarta.ws.rs.BadRequestException("Duplicate resource selector: " + key);
-      resolved.put(id, value);
-    });
+    for (Map.Entry<String, T> selector : selectors.entrySet()) {
+      String id = linkedDataUtil.resolveResourceId(type, selector.getKey());
+      if (resolved.containsKey(id)) {
+        throw new CedarBadRequestException(new CedarErrorPack()
+            .message("Duplicate resource selector: " + selector.getKey()));
+      }
+      resolved.put(id, selector.getValue());
+    }
     return resolved;
   }
 
