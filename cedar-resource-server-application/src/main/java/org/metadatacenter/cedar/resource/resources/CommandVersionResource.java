@@ -543,7 +543,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
           String artifactServerPostRequestBodyAsString = JsonMapper.STRICT_MAPPER.writeValueAsString(newDocument);
 
-          String cleanupJob = artifactCreateCleanupService.prepare(artifactType, "draft");
+          String cleanupJob = artifactCreateCleanupService.prepare(artifactType, "draft", draftId);
           try {
             Response artifactServerPostResponse = executeResourceCreateOnArtifactServer(c, artifactType,
                 draftId, artifactServerPostRequestBodyAsString, cleanupJob);

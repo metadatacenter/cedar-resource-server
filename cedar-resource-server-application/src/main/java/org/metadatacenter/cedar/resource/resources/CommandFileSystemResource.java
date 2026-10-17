@@ -259,7 +259,7 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       throw new CedarProcessingException(e);
     }
 
-    String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "copy");
+    String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "copy", copyId);
     try {
       ClassicHttpResponse templateProxyResponse =
           sendCreateToArtifactServer(c, resourceType, copyId, originalDocument, cleanupJob);

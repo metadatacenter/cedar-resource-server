@@ -233,8 +233,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
    *
    * <p>The answer to a PUT can be lost after the document was stored. Its identity is known, so it is
    * read back, and a document found there is recorded against the create's cleanup job. The cleanup then
-   * removes it unless the graph registers it, as it does after any registration that did not happen. A
-   * POST whose answer is lost leaves nothing to read back by, as before.
+   * removes it unless the graph registers it, as it does after any registration that did not happen. The
+   * PUT can also be stored after the read found nothing. The cleanup job has held the identity since
+   * before the write, so its relay reads the identity again until no write can still land there, and
+   * removes a document it finds unless the graph registers it. A POST whose answer is lost leaves
+   * nothing to read back by, as before.
    */
   protected ClassicHttpResponse sendCreateToArtifactServer(CedarRequestContext context, CedarResourceType resourceType,
                                                            Optional<CedarArtifactId> identity, String content,
@@ -253,15 +256,15 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         if (stored.getCode() == HttpStatus.SC_OK && etag != null) {
           artifactCreateCleanupService.created(cleanupJob, identity.get().getId(), etag);
         } else {
-          // The PUT may still be stored after this read. Nothing would then register or remove that
-          // document, and every create at the identity would be refused as occupied. The cleanup job does
-          // not record the identity, so this line names it for whoever inspects the job.
-          log.warn("The create of {} lost its answer and reading it back answered {}; a document stored there "
-              + "later is unregistered and must be removed by hand", identity.get().getId(), stored.getCode());
+          // The PUT may still be stored after this read. Its cleanup job holds the identity, and the relay
+          // removes what is stored there later unless the graph registers it.
+          log.warn("The create of {} lost its answer and reading it back answered {}; its cleanup job reads "
+              + "the identity again and removes a document stored there later", identity.get().getId(),
+              stored.getCode());
         }
       } catch (Exception unreadable) {
-        log.warn("The create of {} lost its answer and could not be read back; its cleanup job needs inspection",
-            identity.get().getId(), unreadable);
+        log.warn("The create of {} lost its answer and could not be read back; its cleanup job reads the "
+            + "identity again", identity.get().getId(), unreadable);
       }
       throw lost;
     }
@@ -373,8 +376,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
     }
 
-    // Intent precedes the content request, including requests whose response never reaches us.
-    String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "create");
+    // Intent precedes the content request, including requests whose response never reaches us. A create
+    // by PUT records the identity it writes at, so the relay can find a document stored there after a lost
+    // answer, and fences this registration before it removes one.
+    String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "create",
+        artifactId.map(chosen -> CedarArtifactId.build(chosen, resourceType)));
     try {
       String url;
       ClassicHttpResponse templateProxyResponse;

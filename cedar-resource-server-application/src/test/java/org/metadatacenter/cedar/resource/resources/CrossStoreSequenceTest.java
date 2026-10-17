@@ -54,6 +54,9 @@ class CrossStoreSequenceTest {
   private static volatile String copiedId;
   private static volatile boolean refuseCleanup;
   private static volatile boolean compressedCreationValidator;
+  /** The next create by PUT loses its answer and is held back until a case stores it. */
+  private static volatile boolean holdingTheNextCreate;
+  private static final Map<String, ObjectNode> heldCreates = new ConcurrentHashMap<>();
   private static final HttpClient client = HttpClient.newHttpClient();
   private static final DropwizardTestSupport<ResourceServerConfiguration> server =
       new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
@@ -90,6 +93,7 @@ class CrossStoreSequenceTest {
     afterPost = null;
     refuseCleanup = false;
     compressedCreationValidator = false;
+    holdingTheNextCreate = false;
   }
 
   @AfterAll
@@ -276,6 +280,61 @@ class CrossStoreSequenceTest {
     assertTrue(documents.containsKey(identity));
   }
 
+  /**
+   * A create at the identity its caller chose loses its answer, reading the identity back finds
+   * nothing, and the document is stored only afterwards. The create's cleanup job has held the identity
+   * since before the write, so the relay removes the late document, and the caller's retry at the
+   * identity then creates there.
+   */
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"create", "copy", "draft"})
+  void aWriteStoredAfterItsLostAnswerWasReadBackIsRemovedByTheRelay(String operation) throws Exception {
+    String source = createTemplate("Late write source for " + operation);
+    if (operation.equals("draft")) {
+      folders.updateArtifactById(artifactId(source), CedarResourceType.TEMPLATE,
+          Map.of(org.metadatacenter.server.neo4j.cypher.NodeProperty.PUBLICATION_STATUS, "bibo:published",
+              org.metadatacenter.server.neo4j.cypher.NodeProperty.VERSION, "0.0.1"));
+      documents.get(source).body().put("bibo:status", "bibo:published");
+    }
+    String identity = config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    holdingTheNextCreate = true;
+
+    var lost = createAt(operation, source, identity);
+
+    assertTrue(lost.statusCode() >= 500, lost.body());
+    assertTrue(heldCreates.containsKey(identity), "the write never reached the artifact server");
+    assertFalse(documents.containsKey(identity), "reading the identity back found the write");
+    String job = cleanupJob(identity);
+    assertNotNull(job, "the create's cleanup job does not hold the identity it wrote at");
+
+    documents.put(identity, new Stored(heldCreates.remove(identity), 1));
+    try (var relay = new org.metadatacenter.server.resource.ArtifactCreateCleanupService(config,
+        CedarDataServices.getInstance().getNeoUserService())) {
+      relay.cleanupNow(job, CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config)));
+    }
+
+    assertFalse(documents.containsKey(identity), "the relay did not remove the unregistered document");
+    assertNull(cleanupJob(identity), "the cleanup did not finish");
+    assertNull(folders.findArtifactById(artifactId(identity)));
+
+    var retried = createAt(operation, source, identity);
+
+    assertEquals(201, retried.statusCode(), retried.body());
+    assertNotNull(folders.findArtifactById(artifactId(identity)));
+    assertTrue(documents.containsKey(identity));
+    assertNull(cleanupJob(identity), "registration did not retire the retry's cleanup job");
+  }
+
+  /** Creates at a chosen identity, by PUT or as the copy or draft of a source. */
+  private static HttpResponse<String> createAt(String operation, String source, String identity) throws Exception {
+    if (operation.equals("create")) {
+      ObjectNode body = documents.get(source).body().deepCopy().put("@id", identity)
+          .put("schema:name", "Created at a chosen identity");
+      return send("PUT", "/templates/" + enc(identity), body.toString(), null);
+    }
+    return send("POST", commandPath(operation), command(operation, source, home, identity).toString(), null);
+  }
+
   private static String commandPath(String operation) {
     return operation.equals("copy") ? "/command/copy-artifact-to-folder" : "/command/create-draft-artifact";
   }
@@ -382,6 +441,12 @@ class CrossStoreSequenceTest {
     if (stored == null && method.equals("PUT") && exchange.getRequestHeaders().getFirst("If-Match") == null) {
       // A PUT naming an identifier nothing holds creates there, as the artifact server's does.
       ObjectNode body = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody());
+      if (holdingTheNextCreate) {
+        holdingTheNextCreate = false;
+        heldCreates.put(id, body);
+        exchange.close();
+        return;
+      }
       copiedId = id;
       Stored created = new Stored(body, 1);
       documents.put(id, created);
@@ -424,6 +489,9 @@ class CrossStoreSequenceTest {
       exchange.getResponseHeaders().set("ETag", validator);
     }
     byte[] bytes = (stored == null ? "{}" : stored.body().toString()).getBytes(StandardCharsets.UTF_8);
+    // The next request on a connection that answered a 204 here gets no answer, which a PUT without
+    // If-Match cannot repeat. Closing the connection makes the client open another.
+    if (status == 204) exchange.getResponseHeaders().set("Connection", "close");
     exchange.sendResponseHeaders(status, status == 204 ? -1 : bytes.length);
     if (status != 204) exchange.getResponseBody().write(bytes);
     exchange.close();

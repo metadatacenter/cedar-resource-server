@@ -91,6 +91,12 @@ public class CommandFileSystemResourceTest {
       new java.util.concurrent.atomic.AtomicInteger();
   /** The next create at a chosen identity is stored, and its answer never sent. */
   private static volatile boolean losingTheNextCreateAnswer;
+  /**
+   * The next create at a chosen identity loses its answer and is held back, so that reading the
+   * identity finds nothing until a case stores what was held.
+   */
+  private static volatile boolean holdingTheNextCreate;
+  private static final Map<String, ObjectNode> HELD_CREATES = new java.util.concurrent.ConcurrentHashMap<>();
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -474,6 +480,50 @@ public class CommandFileSystemResourceTest {
     Assertions.assertNotNull(folderSession.findArtifactById(CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE)));
   }
 
+  /**
+   * The artifact server's answer to the copy is lost, reading the identity back finds nothing, and the
+   * copy is stored only afterwards. Nothing registers it, and while it is there a retry at the identity
+   * is refused as occupied. The create's cleanup job has held the identity since before the write, so
+   * the relay's next attempt finds the copy and removes it at the revision it read, and the retry then
+   * makes the one copy.
+   */
+  @Test
+  @Order(14)
+  public void aCopyStoredAfterItsLostAnswerWasReadBackIsRemovedByTheRelay() throws Exception {
+    String copyId = chooseIdentity(CedarResourceType.TEMPLATE);
+    holdingTheNextCreate = true;
+    int deletes = DELETES_AT_CHOSEN.get();
+
+    HttpResponse<String> lost = postCommand("copy-artifact-to-folder", copyBody(copyId));
+
+    Assertions.assertEquals(503, lost.statusCode(), lost.body());
+    Assertions.assertTrue(HELD_CREATES.containsKey(copyId), "the copy never reached the artifact server");
+    Assertions.assertFalse(STORED_AT_CHOSEN.containsKey(copyId));
+    String job = cleanupJob(copyId);
+    Assertions.assertNotNull(job, "the create's cleanup job does not hold the identity it wrote at");
+
+    STORED_AT_CHOSEN.put(copyId, HELD_CREATES.remove(copyId));
+    HttpResponse<String> blocked = postCommand("copy-artifact-to-folder", copyBody(copyId));
+    Assertions.assertEquals(412, blocked.statusCode(), blocked.body());
+
+    // The relay runs this step for each pending job. The case runs it now instead of waiting for the delay.
+    AbstractResourceServerResource.artifactCreateCleanupService.cleanupNow(job,
+        CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig)));
+
+    Assertions.assertEquals(deletes + 1, DELETES_AT_CHOSEN.get(), "the unregistered copy was not removed");
+    Assertions.assertFalse(STORED_AT_CHOSEN.containsKey(copyId));
+    Assertions.assertNull(cleanupJob(copyId), "the cleanup did not finish");
+    Assertions.assertNull(folderSession.findArtifactById(CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE)));
+
+    HttpResponse<String> retried = postCommand("copy-artifact-to-folder", copyBody(copyId));
+
+    Assertions.assertEquals(201, retried.statusCode(), retried.body());
+    Assertions.assertEquals(copyId, JsonMapper.STRICT_MAPPER.readTree(retried.body()).path("@id").asText());
+    Assertions.assertTrue(STORED_AT_CHOSEN.containsKey(copyId));
+    Assertions.assertNotNull(folderSession.findArtifactById(CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE)));
+    Assertions.assertNull(cleanupJob(copyId), "registration did not retire the retry's cleanup job");
+  }
+
   /** A copyId either store already holds is refused before anything is written. */
   @Test
   @Order(12)
@@ -509,6 +559,18 @@ public class CommandFileSystemResourceTest {
       Assertions.assertEquals(400, response.statusCode(), response.body());
       Assertions.assertNull(postedArtifact);
       Assertions.assertEquals(creates, CREATES_AT_CHOSEN.get());
+    }
+  }
+
+  /** The cleanup job that holds an identity, or null. */
+  private static String cleanupJob(String id) {
+    var neo = org.metadatacenter.server.neo4j.Neo4jConfig.fromCedarConfig(cedarConfig);
+    try (var driver = org.neo4j.driver.GraphDatabase.driver(neo.getUri(),
+        org.neo4j.driver.AuthTokens.basic(neo.getUserName(), neo.getUserPassword()));
+         var session = driver.session()) {
+      var result = session.run("MATCH (j:CedarArtifactCreateCleanup {resourceId:$id}) RETURN j.jobId AS job",
+          Map.of("id", id));
+      return result.hasNext() ? result.single().get("job").asString() : null;
     }
   }
 
@@ -550,6 +612,12 @@ public class CommandFileSystemResourceTest {
         exchange.sendResponseHeaders(412, -1);
       } else {
         ObjectNode created = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(request);
+        if (holdingTheNextCreate) {
+          holdingTheNextCreate = false;
+          HELD_CREATES.put(id, created);
+          exchange.close();
+          return true;
+        }
         postedArtifact = created;
         STORED_AT_CHOSEN.put(id, created);
         CREATES_AT_CHOSEN.incrementAndGet();
