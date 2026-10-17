@@ -136,6 +136,19 @@ class OpenApiContractTest {
         path.at("/post/responses/409").toString());
   }
 
+  /**
+   * An inclusion subgraph update documents every answer it gives, each refusal in the shared error body.
+   * A partly refused update still reports what became of each target, and the document says where.
+   */
+  @Test
+  void inclusionSubgraphUpdateDocumentsEveryAnswer() throws IOException {
+    JsonNode operation = readSpec().at("/paths/~1command~1inclusions-subgraph-update/post");
+    assertAnswers(operation, "#/components/schemas/InclusionSubgraphUpdateReport",
+        "400", "401", "403", "404", "406", "429", "500", "502", "503");
+    assertTrue(operation.at("/responses/502/description").asText().contains("objects.report"),
+        operation.at("/responses/502").toString());
+  }
+
   private static void assertAnswers(JsonNode operation, String success, String... refusals) {
     JsonNode responses = operation.path("responses");
     Set<String> documented = new TreeSet<>();

@@ -1382,31 +1382,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InclusionSubgraphUpdateReport"
-          description: Every target was written
+          description: "Every target was written, or needed no write"
         "400":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Bad request
+          description: "The body is not JSON in the form of an inclusion subgraph\
+            \ request (malformedJsonRequestBody), names no @id or a target that is\
+            \ not an artifact (invalidData), or names one artifact twice. A target\
+            \ that is published (publishedArtifactCanNotBeChanged), or a template\
+            \ whose instances the change would invalidate (invalidData), is refused\
+            \ too. Nothing was written."
         "401":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
+          description: The request carries no valid credentials
         "403":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Forbidden
+          description: "The caller cannot read the artifact that changed, or cannot\
+            \ update a target. Nothing was written."
         "404":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Not found
+          description: "The artifact that changed, or a target, does not exist"
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The request does not accept a JSON response
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The deployment limits each user's request rate, and the caller\
+            \ exceeded it"
         "500":
           content:
             application/json:
@@ -1417,9 +1436,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/InclusionSubgraphUpdateReport"
-          description: The artifact server refused at least one of the writes; the
-            body is the update report
+                $ref: "#/components/schemas/CedarError"
+          description: "The artifact server refused at least one of the writes (upstreamServerError).\
+            \ The targets it accepted were updated. The body's objects.report holds\
+            \ the update report, with the outcome of every target."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The graph database, the artifact server or another service\
+            \ the request depends on is unavailable"
       security:
       - api_key: []
       summary: Update the inclusion subgraph of an artifact
