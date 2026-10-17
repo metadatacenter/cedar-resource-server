@@ -134,7 +134,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "Only the artifact's owner may publish it, whatever role another user holds "
+              + "(versioningOnlyByOwner). A caller who cannot read the artifact, or lacks the permission to "
+              + "update artifacts of its type, is also refused."),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
@@ -187,10 +190,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     CurrentUserResourcePermissions currentUserResourcePermissions = folderServerResourceOld.getCurrentUserPermissions();
     if (!currentUserResourcePermissions.isCanPublish()) {
-      return CedarResponse.badRequest()
-          .errorKey(currentUserResourcePermissions.getPublishErrorKey())
-          .parameter("id", aid.getId())
-          .build();
+      return versioningRefusal(currentUserResourcePermissions.getPublishErrorKey(), aid);
     }
 
     CedarResourceType resourceType = folderServerResourceOld.getType();
@@ -401,7 +401,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               + "to return. The response carries no body."),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "Only the artifact's owner may create a draft from it, whatever role another user holds "
+              + "(versioningOnlyByOwner). A caller who cannot read the artifact, cannot create in the target "
+              + "folder, or lacks the permission to update artifacts of its type, is also refused."),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "412", content = @Content(schema = @Schema(implementation = CedarError.class)),
           description = "The identifier in draftId already names an artifact; nothing was written"),
@@ -475,10 +478,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     CurrentUserResourcePermissions currentUserResourcePermissions = folderServerResourceOld.getCurrentUserPermissions();
     if (!currentUserResourcePermissions.isCanCreateDraft()) {
-      return CedarResponse.badRequest()
-          .errorKey(currentUserResourcePermissions.getCreateDraftErrorKey())
-          .parameter("id", aid.getId())
-          .build();
+      return versioningRefusal(currentUserResourcePermissions.getCreateDraftErrorKey(), aid);
     }
 
     CedarResourceType artifactType = folderServerResourceOld.getType();
@@ -724,10 +724,12 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "200", description = "The new draft template",
           content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)),
-          description = "The definition, or the draft identifier, is refused; nothing was published"),
+          description = "The definition or the draft identifier is refused, or the template cannot be published, "
+              + "for example because it is already published; nothing was published"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
-          description = "The caller may not version the template or create in its folder; nothing was published"),
+          description = "Only the template's owner may version it, whatever role another user holds "
+              + "(versioningOnlyByOwner), and the caller must be able to create in its folder; nothing was published"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "412", content = @Content(schema = @Schema(implementation = CedarError.class)),
           description = "The source template changed, or the draft identifier already names an artifact; "
@@ -1088,6 +1090,18 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       }
       completeVersionProjections(c, relatedVersionIds(sourceId.getId()));
     }
+  }
+
+  /**
+   * The refusal of a publication or a draft that the caller's permission report does not allow, for the
+   * reason the report gives. Only an artifact's owner may version it, so a caller who is not the owner
+   * is forbidden whatever role they hold. Every other reason concerns the artifact rather than the
+   * caller, such as publishing an artifact that is already published, and is a bad request.
+   */
+  private static Response versioningRefusal(CedarErrorKey reason, CedarUntypedSchemaArtifactId aid) {
+    CedarResponse.CedarResponseBuilder refusal = reason == CedarErrorKey.VERSIONING_ONLY_BY_OWNER
+        ? CedarResponse.forbidden() : CedarResponse.badRequest();
+    return refusal.errorKey(reason).parameter("id", aid.getId()).build();
   }
 
   /**

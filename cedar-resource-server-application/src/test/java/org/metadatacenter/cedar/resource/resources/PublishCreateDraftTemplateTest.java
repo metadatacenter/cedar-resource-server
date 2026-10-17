@@ -216,12 +216,17 @@ public class PublishCreateDraftTemplateTest {
 
   private static HttpResponse<String> publishCreateDraft(CedarTemplateId sourceId, String body, String etag,
                                                          String draftId) throws Exception {
+    return publishCreateDraft(sourceId, body, etag, draftId, authHeader);
+  }
+
+  private static HttpResponse<String> publishCreateDraft(CedarTemplateId sourceId, String body, String etag,
+                                                         String draftId, String authorization) throws Exception {
     HttpRequest.Builder request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort()
             + "/command/publish-create-draft-template/"
             + URLEncoder.encode(sourceId.getId(), StandardCharsets.UTF_8)
             + (draftId == null ? "" : "?draft_id=" + URLEncoder.encode(draftId, StandardCharsets.UTF_8))))
-        .header("Authorization", authHeader)
+        .header("Authorization", authorization)
         .header("Content-Type", "application/json");
     if (etag != null) request.header("If-Match", etag);
     return CLIENT.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
@@ -292,6 +297,59 @@ public class PublishCreateDraftTemplateTest {
     }
 
     assertUntouched(sourceId, before, etagBefore, documents);
+  }
+
+  /**
+   * Only a template's owner may version it. A Manager who is not the owner, and who may create in the
+   * template's folder, is forbidden with the rule's own key, and nothing is published. The owner may
+   * version it, and asking again, of a template that is now published, is refused with a bad request.
+   * That reason concerns the template, not the caller.
+   */
+  @Test
+  public void aManagerWhoIsNotTheOwnerIsForbiddenToVersionTheTemplate() throws Exception {
+    org.metadatacenter.model.folderserver.basic.FolderServerFolder folder =
+        new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
+    folder.setName("Folder user 2 manages " + REVISIONS.incrementAndGet());
+    folder.setDescription("Owned by user 1");
+    CedarFolderId folderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    Assertions.assertNotNull(folderSession.createFolderAsChildOfId(folder, homeFolderId, folderId));
+    var grant = new org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest();
+    grant.setOwner(new org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser(
+        TestAuthUtil.getTestUser1(cedarConfig).getId()));
+    grant.getUserPermissions().add(
+        new org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair(
+            new org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser(
+                TestAuthUtil.getTestUser2(cedarConfig).getId()),
+            org.metadatacenter.server.security.model.permission.resource.ResourceRole.MANAGER));
+    Assertions.assertFalse(CedarDataServices.getInstance().getResourcePermissionServiceSession(
+        CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig)))
+        .updateResourcePermissions(folderId, grant).isError());
+    CedarTemplateId sourceId = createSourceTemplate("Template in a folder user 2 manages", null, folderId);
+    ObjectNode before = ARTIFACTS.get(sourceId.getId()).deepCopy();
+    Integer etagBefore = ETAGS.get(sourceId.getId());
+    int documents = ARTIFACTS.size();
+    String submitted = templateDocument("Template in a folder user 2 manages, edited", null).toString();
+
+    HttpResponse<String> manager = publishCreateDraft(sourceId, submitted, "\"" + etagBefore + "\"", null,
+        TestAuthUtil.getTestUser2AuthHeader(cedarConfig));
+
+    Assertions.assertEquals(403, manager.statusCode(), manager.body());
+    Assertions.assertEquals("versioningOnlyByOwner",
+        JsonMapper.STRICT_MAPPER.readTree(manager.body()).path("errorKey").asText(), manager.body());
+    assertUntouched(sourceId, before, etagBefore, documents);
+
+    HttpResponse<String> owner = publishCreateDraft(sourceId, submitted);
+
+    Assertions.assertEquals(200, owner.statusCode(), owner.body());
+    int versioned = ARTIFACTS.size();
+
+    HttpResponse<String> again = publishCreateDraft(sourceId, submitted);
+
+    Assertions.assertEquals(400, again.statusCode(), again.body());
+    Assertions.assertEquals("publishOnlyDraft",
+        JsonMapper.STRICT_MAPPER.readTree(again.body()).path("errorKey").asText(), again.body());
+    Assertions.assertEquals(versioned, ARTIFACTS.size(), "a refused request made another draft");
+    Assertions.assertEquals(2, folderSession.getVersionHistory(sourceId).size());
   }
 
   /**

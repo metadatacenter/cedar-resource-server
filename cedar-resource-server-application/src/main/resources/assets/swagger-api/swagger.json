@@ -1572,7 +1572,7 @@
                 }
               }
             },
-            "description" : "Forbidden"
+            "description" : "Only the artifact's owner may create a draft from it, whatever role another user holds (versioningOnlyByOwner). A caller who cannot read the artifact, cannot create in the target folder, or lacks the permission to update artifacts of its type, is also refused."
           },
           "404" : {
             "content" : {
@@ -2996,7 +2996,7 @@
                 }
               }
             },
-            "description" : "Forbidden"
+            "description" : "Only the artifact's owner may publish it, whatever role another user holds (versioningOnlyByOwner). A caller who cannot read the artifact, or lacks the permission to update artifacts of its type, is also refused."
           },
           "404" : {
             "content" : {
@@ -3085,7 +3085,7 @@
                 }
               }
             },
-            "description" : "The definition, or the draft identifier, is refused; nothing was published"
+            "description" : "The definition or the draft identifier is refused, or the template cannot be published, for example because it is already published; nothing was published"
           },
           "401" : {
             "content" : {
@@ -3105,7 +3105,7 @@
                 }
               }
             },
-            "description" : "The caller may not version the template or create in its folder; nothing was published"
+            "description" : "Only the template's owner may version it, whatever role another user holds (versioningOnlyByOwner), and the caller must be able to create in its folder; nothing was published"
           },
           "404" : {
             "content" : {
