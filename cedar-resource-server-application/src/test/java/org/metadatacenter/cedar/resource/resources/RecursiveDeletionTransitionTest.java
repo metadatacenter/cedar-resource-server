@@ -218,35 +218,38 @@ class RecursiveDeletionTransitionTest {
   }
   /**
    * An inventory that cannot be completed is refused, and nothing is deleted. The inventory answers 409
-   * in the shared error body with the reason's message. A confirmation answers the shared 500, since the
-   * inventory it repeats fails the same way.
+   * in the shared error body with the reason's message and no outcome. A confirmation repeats the
+   * inventory before it deletes anything, so it is refused the same way, even with the token of a
+   * complete inventory.
    */
   @Test
   void anInventoryThatCannotBeCheckedIsRefusedInTheSharedErrorBody() throws Exception {
     documents.clear(); deleted.clear(); refuse = false;
     var root = folder("Unchecked root ",home);
     String kept = template("kept-",root);
+    String token = plan(root).path("token").asText();
     referencesDown = true;
     try {
-      var inventory = call(root,null);
-      assertEquals(409,inventory.statusCode(),inventory.body());
-      var body = JsonMapper.STRICT_MAPPER.readTree(inventory.body());
-      assertEquals(409,body.path("statusCode").asInt(),inventory.body());
-      assertTrue(body.path("errorKey").isNull(),inventory.body());
-      assertEquals("The complete inventory could not be checked. Refresh and try again.",
-          body.path("message").asText(),inventory.body());
-      assertTrue(body.path("objects").isEmpty(),inventory.body());
-      assertEquals("no-store",inventory.headers().firstValue("Cache-Control").orElse(""));
-      var confirmation = call(root,"a".repeat(64));
-      assertEquals(500,confirmation.statusCode(),confirmation.body());
-      assertEquals(500,JsonMapper.STRICT_MAPPER.readTree(confirmation.body()).path("statusCode").asInt());
+      assertInventoryUnavailable(call(root,null));
+      assertInventoryUnavailable(call(root,token));
     } finally {
       referencesDown = false;
     }
     assertTrue(deleted.isEmpty(),"a refused inventory deletes nothing");
     assertTrue(documents.containsKey(kept)); assertNotNull(folders.findFolderById(root));
-    var reply = call(root,plan(root).path("token").asText());
+    var reply = call(root,token);
     assertEquals("completed",JsonMapper.STRICT_MAPPER.readTree(reply.body()).path("status").asText(),reply.body());
+  }
+  private static void assertInventoryUnavailable(HttpResponse<String> reply) throws IOException {
+    assertEquals(409,reply.statusCode(),reply.body());
+    var body = JsonMapper.STRICT_MAPPER.readTree(reply.body());
+    assertEquals(409,body.path("statusCode").asInt(),reply.body());
+    assertEquals("CONFLICT",body.path("status").asText(),reply.body());
+    assertTrue(body.path("errorKey").isNull(),reply.body());
+    assertEquals("The complete inventory could not be checked. Refresh and try again.",
+        body.path("message").asText(),reply.body());
+    assertTrue(body.path("objects").isEmpty(),reply.body());
+    assertEquals("no-store",reply.headers().firstValue("Cache-Control").orElse(""));
   }
   private static void handleArtifact(HttpExchange exchange) throws IOException {
     String path = exchange.getRequestURI().getPath();

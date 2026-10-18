@@ -4861,7 +4861,7 @@
                 }
               }
             },
-            "description" : "The folder changed after the confirmed inventory, or a blocker stops its deletion (folderCanNotBeDeleted). Nothing was deleted. The body's objects.outcome holds the outcome, with the status changed or blocked, the counts and the reason."
+            "description" : "Nothing was deleted. If the folder changed after the confirmed inventory, or a blocker stops its deletion (folderCanNotBeDeleted), the body's objects.outcome holds the outcome, with the status changed or blocked, the counts and the reason. If the inventory the confirmation repeats before deleting could not be completed, because the folder changed while it was read or a revision or template reference could not be read, the body carries no outcome."
           },
           "415" : {
             "content" : {

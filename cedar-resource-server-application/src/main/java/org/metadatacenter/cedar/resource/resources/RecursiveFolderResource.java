@@ -52,8 +52,8 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
           content = @Content(schema = @Schema(implementation = CedarError.class))),
       @ApiResponse(responseCode = "406", description = NOT_ACCEPTABLE,
           content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "409", description = "The complete inventory could not be checked, because the "
-          + "folder changed while it was read or a revision or template reference could not be read",
+      @ApiResponse(responseCode = "409", description = "The complete inventory could not be checked, "
+          + INVENTORY_INCOMPLETE,
           content = @Content(schema = @Schema(implementation = CedarError.class))),
       @ApiResponse(responseCode = "429", description = RATE_LIMITED,
           content = @Content(schema = @Schema(implementation = CedarError.class))),
@@ -91,9 +91,11 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
           content = @Content(schema = @Schema(implementation = CedarError.class))),
       @ApiResponse(responseCode = "406", description = NOT_ACCEPTABLE,
           content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "409", description = "The folder changed after the confirmed inventory, or a "
-          + "blocker stops its deletion (folderCanNotBeDeleted). Nothing was deleted. The body's objects.outcome "
-          + "holds the outcome, with the status changed or blocked, the counts and the reason.",
+      @ApiResponse(responseCode = "409", description = "Nothing was deleted. If the folder changed after the "
+          + "confirmed inventory, or a blocker stops its deletion (folderCanNotBeDeleted), the body's objects.outcome "
+          + "holds the outcome, with the status changed or blocked, the counts and the reason. If the inventory the "
+          + "confirmation repeats before deleting could not be completed, " + INVENTORY_INCOMPLETE + ", the body "
+          + "carries no outcome.",
           content = @Content(schema = @Schema(implementation = CedarError.class))),
       @ApiResponse(responseCode = "415", description = "The body is not declared as JSON",
           content = @Content(schema = @Schema(implementation = CedarError.class))),
@@ -110,7 +112,13 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
     c.request().getRequestBody().mustHaveOnly("token");
     if (confirmation == null || confirmation.token() == null || !confirmation.token().matches("[a-f0-9]{64}"))
       return refused(CedarResponse.badRequest().errorKey(CedarErrorKey.INVALID_INPUT), Reason.INVALID_TOKEN);
-    Outcome outcome = service(c, id).execute(confirmation.token());
+    Outcome outcome;
+    try {
+      outcome = service(c, id).execute(confirmation.token());
+    } catch (IllegalStateException e) {
+      // The confirmation repeats the inventory before it deletes anything, and only that repeat fails this way.
+      return refused(CedarResponse.conflict(), Reason.INVENTORY_UNAVAILABLE);
+    }
     return switch (outcome.status()) {
       case "changed", "blocked" -> refused(outcome);
       default -> Response.ok(outcome).header("Cache-Control", "no-store").build();
@@ -122,6 +130,8 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
       + "role another user holds (folderCanNotBeDeleted). A caller who cannot read the folder, or who lacks the "
       + "permission to delete folders, is also refused.";
   private static final String UNAUTHORIZED = "The request carries no valid credentials";
+  private static final String INVENTORY_INCOMPLETE = "because the folder changed while it was read or a revision "
+      + "or template reference could not be read";
   private static final String NO_SUCH_FOLDER = "The folder does not exist";
   private static final String NOT_ACCEPTABLE = "The request does not accept a JSON response";
   private static final String RATE_LIMITED = "The deployment limits each user's request rate, and the caller "

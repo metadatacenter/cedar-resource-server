@@ -93,6 +93,25 @@ class RecursiveFolderDeletionTest {
     assertThrows(IllegalStateException.class, () -> new RecursiveFolderDeletion(store, "user", "root").plan());
     assertTrue(store.removed.isEmpty());
   }
+  /**
+   * A confirmation repeats its inventory before it deletes anything, and only that repeat fails with
+   * IllegalStateException. The same exception from a deletion stops the deletion and is reported in its
+   * outcome. The resource server answers the exception as an inventory that could not be completed,
+   * which is accurate only because nothing has been deleted by then.
+   */
+  @Test void anIncompleteInventoryRefusesTheConfirmationBeforeAnythingIsDeleted() throws Exception {
+    Fake store = new Fake(); var service = new RecursiveFolderDeletion(store, "user", "root");
+    String token = service.plan().token();
+    Inventory complete = store.current;
+    store.current = new Inventory(complete.entries(), Map.of());
+    assertThrows(IllegalStateException.class, () -> service.execute(token));
+    assertTrue(store.removed.isEmpty());
+    Store failing = new Store() {
+      public Inventory inventory() { return complete; }
+      public Step delete(Entry entry) { throw new IllegalStateException("The folder path changed while it was being checked"); }
+    };
+    assertEquals("stopped", new RecursiveFolderDeletion(failing, "user", "root").execute(token).status());
+  }
   @Test void aLostDeleteResponseRequiresAReinventoryBeforeRetryingTheSurvivors() throws Exception {
     var remaining = new LinkedHashMap<String,Entry>();
     for (Entry entry : List.of(ROOT,SUB,TEMPLATE,INSTANCE)) remaining.put(entry.id(),entry);

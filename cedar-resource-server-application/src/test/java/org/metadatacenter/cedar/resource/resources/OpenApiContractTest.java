@@ -123,7 +123,8 @@ class OpenApiContractTest {
 
   /**
    * A recursive folder deletion documents every answer it gives, each refusal in the shared error body.
-   * A refused confirmation still reports its outcome, and the document says where.
+   * A refused confirmation still reports its outcome, and the document says where. It also says that a
+   * confirmation whose repeated inventory could not be completed carries none.
    */
   @Test
   void recursiveFolderDeletionDocumentsEveryAnswer() throws IOException {
@@ -132,8 +133,9 @@ class OpenApiContractTest {
         "400", "401", "403", "404", "406", "409", "429", "500", "503");
     assertAnswers(path.path("post"), "#/components/schemas/Outcome",
         "400", "401", "403", "404", "406", "409", "415", "429", "500", "503");
-    assertTrue(path.at("/post/responses/409/description").asText().contains("objects.outcome"),
-        path.at("/post/responses/409").toString());
+    String conflict = path.at("/post/responses/409/description").asText();
+    assertTrue(conflict.contains("objects.outcome"), conflict);
+    assertTrue(conflict.contains("could not be completed") && conflict.contains("carries no outcome"), conflict);
   }
 
   /**
