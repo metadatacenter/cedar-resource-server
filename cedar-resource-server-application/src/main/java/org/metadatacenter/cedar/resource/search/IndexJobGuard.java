@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.search;
 
+import java.util.Locale;
+
 import org.metadatacenter.server.search.util.IndexRebuildRegistry;
 import org.metadatacenter.server.search.util.IndexingProgress;
 import org.metadatacenter.util.json.JsonMapper;
@@ -265,7 +267,7 @@ public final class IndexJobGuard {
     Entry entry = ENTRIES.get(index);
     if (entry.state() != State.RUNNING || entry.claim() != claim) {
       log.warn("A {} job reported on the {} index after its claim was taken away; ignoring the report",
-          claim.command(), index.name().toLowerCase());
+          claim.command(), index.name().toLowerCase(Locale.ROOT));
       return;
     }
     String message = failure == null ? null
@@ -305,7 +307,7 @@ public final class IndexJobGuard {
       return false;
     }
     log.warn("Resetting the {} index: the {} job claimed at {} has reported no progress for over {}"
-            + " minutes", index.name().toLowerCase(), entry.claim().command(), entry.claim().startedAt(),
+            + " minutes", index.name().toLowerCase(Locale.ROOT), entry.claim().command(), entry.claim().startedAt(),
         STALL_AFTER.toMinutes());
     hold(index, new Entry(State.ABANDONED, entry.claim(), now,
         "the job reported no progress for over " + STALL_AFTER.toMinutes() + " minutes and was reset",

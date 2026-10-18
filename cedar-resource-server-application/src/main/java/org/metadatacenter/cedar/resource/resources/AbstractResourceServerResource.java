@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import java.util.Locale;
+
 import org.metadatacenter.server.ArtifactGraphUpdateResult;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -1045,7 +1047,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         Map<NodeProperty, String> updateFields = new HashMap<>();
         updateFields.put(NodeProperty.DESCRIPTION, newDescription);
         updateFields.put(NodeProperty.NAME, newName);
-        updateFields.put(NodeProperty.NAME_LOWER, newName.toLowerCase());
+        updateFields.put(NodeProperty.NAME_LOWER, newName.toLowerCase(Locale.ROOT));
         updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
         if (resourceType == CedarResourceType.INSTANCE) {
           // The template an instance is based on is graph state, not merely something the document
@@ -1687,7 +1689,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
       if (nameV != null) {
         updateFields.put(NodeProperty.NAME, nameV);
-        updateFields.put(NodeProperty.NAME_LOWER, nameV.toLowerCase());
+        updateFields.put(NodeProperty.NAME_LOWER, nameV.toLowerCase(Locale.ROOT));
       }
       VersionedResource<FolderServerFolder> updatedSnapshot;
       try {

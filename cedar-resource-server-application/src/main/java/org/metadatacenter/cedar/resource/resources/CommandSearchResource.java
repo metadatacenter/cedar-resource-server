@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import java.util.Locale;
+
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -205,7 +207,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     return CedarResponse.conflict()
         .header(HttpHeaders.LOCATION, indexJobUri(status.jobId()))
         .message("A " + status.command() + " job started at " + status.startedAt()
-            + " is still running over the " + index.name().toLowerCase() + " index"
+            + " is still running over the " + index.name().toLowerCase(Locale.ROOT) + " index"
             + (status.overdue()
                ? ", and it has reported no progress for long enough to be believed stopped."
                  + " Reset it with POST " + resetPath(index)
@@ -347,8 +349,8 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     if (!IndexJobGuard.reset(index)) {
       IndexJobGuard.Status status = IndexJobGuard.status(index);
       return CedarResponse.conflict()
-          .message("Nothing to reset on the " + index.name().toLowerCase() + " index: it is "
-              + status.state().name().toLowerCase()
+          .message("Nothing to reset on the " + index.name().toLowerCase(Locale.ROOT) + " index: it is "
+              + status.state().name().toLowerCase(Locale.ROOT)
               + (status.state() == IndexJobGuard.State.RUNNING
                  ? " and still reporting progress; it would be believed stopped at "
                    + status.deadlineAt() : ""))
@@ -381,7 +383,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     if (!imports.reset()) {
       return CedarResponse.conflict()
           .message("Nothing to reset: the value sets ontology import is "
-              + imports.getImportStatus().name().toLowerCase()
+              + imports.getImportStatus().name().toLowerCase(Locale.ROOT)
               + (imports.getImportStatus() == ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS
                  ? " and within its deadline, which expires at " + imports.getDeadlineAt() : ""))
           .parameter("importStatus", imports.getImportStatus().name())
