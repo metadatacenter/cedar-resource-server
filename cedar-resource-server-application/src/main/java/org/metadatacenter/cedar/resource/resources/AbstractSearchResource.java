@@ -1,6 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import org.metadatacenter.model.request.ModifiedDateRange;
+import org.metadatacenter.model.request.SearchSharingFilter;
 import org.metadatacenter.util.http.ModifiedDateQuery;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.PathInfoBuilder;
@@ -70,7 +71,12 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     id = id.map(linkedDataUtil::resolveResourceId);
     isBasedOnParam = isBasedOnParam.map(value -> linkedDataUtil.resolveResourceId(CedarResourceType.TEMPLATE, value));
     NodeListQueryType nlqt = NodeListQueryTypeDetector.detect(q, id, isBasedOnParam, sharingParam, modeParam, categoryIdParam);
-
+    SearchSharingFilter sharing;
+    try {
+      sharing = SearchSharingFilter.fromQuery(sharingParam.orElse(null));
+    } catch (IllegalArgumentException e) {
+      throw new CedarAssertionException(e.getMessage()).parameter(QP_SHARING, sharingParam.orElse("")).badRequest();
+    }
 
     CedarURIBuilder builder = new CedarURIBuilder(uriInfo)
         .queryParam(QP_Q, q)
@@ -151,16 +157,16 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
       // The graph-backed branch above pages with SKIP and is bounded by none of them.
       if (continuationParam.isPresent()) {
         return continuationPage(c, pagedSearchQuery, continuationParam.get(), queryString, idString, resourceTypeList,
-            version, publicationStatus, categoryId, sortList, limit, absoluteUrl, nlqt);
+            version, publicationStatus, categoryId, sortList, limit, absoluteUrl, nlqt, sharing);
       }
       if (searchDeep) {
         pagedSearchQuery.validateDeepOffset();
         r = nodeSearchingService
-            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl, modified);
+            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl, modified, sharing);
       } else {
         pagedSearchQuery.validateShallowWindow(cedarConfig.getElasticsearchConfig().getMaxResultWindow());
         r = nodeSearchingService
-            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl, modified);
+            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl, modified, sharing);
       }
       authorizeIndexedHits(c, r);
     }
@@ -180,11 +186,12 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
                                     List<String> resourceTypeList, ResourceVersionFilter version,
                                     ResourcePublicationStatusFilter publicationStatus, String categoryId,
                                     List<String> sortList, int limit, String absoluteUrl,
-                                    NodeListQueryType nlqt) throws CedarException {
+                                    NodeListQueryType nlqt, SearchSharingFilter sharing) throws CedarException {
     ModifiedDateRange modified = pagedSearchQuery.getModified();
     String userId = c.getCedarUser().getId();
     String fingerprint = SearchContinuation.fingerprint(queryString, idString, resourceTypeList,
         pagedSearchQuery.getVersionAsString(), pagedSearchQuery.getPublicationStatusAsString(), categoryId, sortList, modified);
+    if (sharing != SearchSharingFilter.ALL) fingerprint += "|sharing=" + sharing.value();
 
     SearchContinuation current = SearchContinuation.isStart(continuationValue)
         ? null
@@ -196,7 +203,7 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         current == null ? 0 : current.getTotalCount(),
         current == null ? null : current.getPointInTimeId(),
         current == null ? null : current.getSearchAfterValues(),
-        absoluteUrl, modified);
+        absoluteUrl, modified, sharing);
 
     FolderServerNodeListResponse r = page.response();
     String nextContinuation = null;

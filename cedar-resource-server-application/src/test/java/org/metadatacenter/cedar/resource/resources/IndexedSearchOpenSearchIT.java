@@ -156,6 +156,38 @@ public class IndexedSearchOpenSearchIT {
     assertFalse(readerResults.contains(templateIri(PRIVATE_ID)));
   }
 
+  static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> sharingViews() {
+    return java.util.stream.Stream.of("", "shared-with-me", "shared-with-everybody").flatMap(sharing ->
+        java.util.stream.Stream.of(false, true).flatMap(owner ->
+            java.util.stream.Stream.of("/search?", "/search-deep?", "/search-deep?continuation=start&")
+                .map(route -> org.junit.jupiter.params.provider.Arguments.of(sharing, owner, route))));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest(name = "sharing={0}, owner={1}, route={2}")
+  @org.junit.jupiter.params.provider.MethodSource("sharingViews")
+  void sharingViewReachesEveryIndexedRoute(String sharing, boolean owner, String route) throws Exception {
+    Set<String> expected = sharing.equals("shared-with-everybody") || sharing.equals("shared-with-me") && owner
+        ? Set.of() : owner ? Set.of(templateIri(PRIVATE_ID), templateIri(SHARED_ID)) : Set.of(templateIri(SHARED_ID));
+    JsonNode result = get(route + "q=" + enc(TERM) + "&sharing=" + enc(sharing) + "&limit=20", owner ? user1Auth : user2Auth);
+    assertEquals(expected, resourceIds(result));
+    assertEquals(expected.size(), result.path("totalCount").asInt());
+  }
+
+  @Test
+  void continuationRejectsChangingItsSharingView() throws Exception {
+    JsonNode first = get("/search-deep?q=" + enc(WALK_TERM) + "&limit=1&continuation=start", user2Auth);
+    String continuation = first.path("continuation").asText();
+    org.junit.jupiter.api.Assertions.assertFalse(continuation.isBlank());
+    get("/search-deep?q=" + enc(WALK_TERM) + "&limit=1&continuation=" + enc(continuation)
+        + "&sharing=shared-with-me", user2Auth, 400);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"/search?", "/search-deep?", "/search-deep?continuation=start&"})
+  void unknownSharingViewIsRejected(String route) throws Exception {
+    get(route + "q=" + enc(TERM) + "&sharing=typo", user2Auth, 400);
+  }
+
   @Test
   void searchDeepContinuationReturnsEveryPermittedDocumentExactlyOnce() throws Exception {
     List<String> walked = new ArrayList<>();
@@ -273,13 +305,17 @@ public class IndexedSearchOpenSearchIT {
   }
 
   private static JsonNode get(String path, String authHeader) throws Exception {
+    return get(path, authHeader, 200);
+  }
+
+  private static JsonNode get(String path, String authHeader, int status) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
         .header("Authorization", authHeader)
         .GET()
         .build();
     HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
-    assertEquals(200, response.statusCode(), response.body());
+    assertEquals(status, response.statusCode(), response.body());
     return JsonMapper.STRICT_MAPPER.readTree(response.body());
   }
 
@@ -310,6 +346,7 @@ public class IndexedSearchOpenSearchIT {
     info.put("@id", cedarId);
     info.put("resourceType", "template");
     info.put("schema:name", name);
+    info.put("ownedBy", owner.getId());
 
     Map<String, Object> document = new LinkedHashMap<>();
     document.put("cid", cedarId);
@@ -351,6 +388,7 @@ public class IndexedSearchOpenSearchIT {
           "info":{"properties":{
             "@id":{"type":"keyword"},
             "resourceType":{"type":"keyword"},
+            "ownedBy":{"type":"keyword"},
             "schema:name":{"type":"keyword","fields":{"raw":{"type":"text","analyzer":"standard"}}}
           }}
         }}
