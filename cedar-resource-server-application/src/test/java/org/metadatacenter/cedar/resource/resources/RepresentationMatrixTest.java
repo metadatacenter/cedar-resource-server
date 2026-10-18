@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -74,6 +75,7 @@ import java.util.stream.Stream;
  * <p>The validate command must check the document a write would store, and a versioning command must
  * refuse a body that is not a template it can read rather than fail on it.
  */
+@Tag("integration")
 public class RepresentationMatrixTest {
 
   private static final Map<String, ObjectNode> DOCUMENTS = new ConcurrentHashMap<>();

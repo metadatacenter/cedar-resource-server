@@ -6,6 +6,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
@@ -71,6 +72,7 @@ import java.util.Map;
  * <p>No artifact server runs here, and none is needed: every case asserted below must be settled before
  * the first write goes out. A test that reached the artifact server would be recording the bug.
  */
+@Tag("integration")
 public class InclusionSubgraphAuthorizationTest {
 
   static {

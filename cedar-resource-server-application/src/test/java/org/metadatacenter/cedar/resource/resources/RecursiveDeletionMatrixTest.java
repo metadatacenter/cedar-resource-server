@@ -8,6 +8,7 @@ import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -67,6 +68,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * fall back to identifier order, delete the older version first, and then fail on the successor's
  * stale If-Match.
  */
+@Tag("integration")
 class RecursiveDeletionMatrixTest {
   /**
    * A version history, oldest first. Deletion does not branch on publication status, so one

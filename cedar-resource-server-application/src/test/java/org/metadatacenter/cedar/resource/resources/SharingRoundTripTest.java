@@ -5,6 +5,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
@@ -60,6 +61,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /** HTTP round trips for Viewer, Editor, Manager, grants, and ownership transfer. */
+@Tag("integration")
 public class SharingRoundTripTest {
 
   // A note for whoever adds the next test class here. This module runs its tests in one shared JVM,

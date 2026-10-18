@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@Tag("integration")
 class VersionProjectionServiceTest {
   @BeforeAll static void blank() { ScratchNeo4j.blank(); }
   @Test void failedDocumentAndIndexProjectionsSurviveRestartAndReadCurrentGraphState() throws Exception {

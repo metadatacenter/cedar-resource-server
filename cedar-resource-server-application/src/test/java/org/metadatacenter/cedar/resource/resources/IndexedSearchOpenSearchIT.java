@@ -6,6 +6,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.apache.http.HttpHost;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
@@ -59,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * resource tests deliberately inject a no-op index; this profile-only test proves that the HTTP
  * routes retain the permission filter and that a deep continuation survives real index semantics.
  */
+@Tag("integration")
 public class IndexedSearchOpenSearchIT {
 
   private static final String OPENSEARCH_HOST =

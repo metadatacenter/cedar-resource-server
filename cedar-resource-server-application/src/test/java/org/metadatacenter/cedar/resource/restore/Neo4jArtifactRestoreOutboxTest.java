@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource.restore;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The compensating write has to outlive the request that needed it, and the process that was
  * serving it. These cover the states it can be found in afterwards.
  */
+@Tag("integration")
 class Neo4jArtifactRestoreOutboxTest {
 
   @BeforeAll

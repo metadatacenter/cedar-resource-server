@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -76,6 +77,7 @@ import java.util.stream.Stream;
  * the draft its definition. The command must undo what it did, so the template ends as the draft it was,
  * with no successor and a version history of one.
  */
+@Tag("integration")
 public class ArtifactServerAnswerMatrixTest {
 
   private static final Map<String, ObjectNode> ARTIFACTS = new ConcurrentHashMap<>();

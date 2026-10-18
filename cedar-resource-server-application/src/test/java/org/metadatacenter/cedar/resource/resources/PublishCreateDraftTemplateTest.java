@@ -9,6 +9,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.artifacts.model.core.Annotations;
 import org.metadatacenter.artifacts.model.core.Status;
@@ -71,6 +72,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>The artifact server is a stub keyed by identifier, so the sequence of reads and writes runs
  * against documents that persist between them; the graph is embedded.
  */
+@Tag("integration")
 public class PublishCreateDraftTemplateTest {
 
   private static final String SOURCE_VERSION = "1.0.0";

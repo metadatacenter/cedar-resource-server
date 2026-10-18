@@ -6,6 +6,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
@@ -53,6 +54,7 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
  * than being asserted incidentally here. ADMIN is omitted throughout: whether an administrator may
  * read another user's home folder is a policy question this test should not silently answer.
  */
+@Tag("integration")
 public class FoldersAuthorizationMatrixTest {
 
   static {

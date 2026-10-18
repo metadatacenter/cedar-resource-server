@@ -9,6 +9,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.artifacts.model.core.TemplateInstanceArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
@@ -89,6 +90,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * through {@link InlineSearchPermissionRelay}. Runs under the {@code opensearch-it} profile, against
  * an index of its own that it deletes afterwards.
  */
+@Tag("integration")
 public class ResourceStateRoundTripIT {
 
   private static final String OPENSEARCH_HOST =

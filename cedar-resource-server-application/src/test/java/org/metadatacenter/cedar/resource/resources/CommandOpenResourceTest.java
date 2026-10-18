@@ -6,6 +6,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
@@ -41,6 +42,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 
 /** Integration coverage for conditional OpenView visibility changes against embedded Neo4j. */
+@Tag("integration")
 public class CommandOpenResourceTest {
 
   static {

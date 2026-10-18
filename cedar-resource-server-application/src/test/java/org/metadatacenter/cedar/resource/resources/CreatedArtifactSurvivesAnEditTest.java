@@ -9,6 +9,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.artifacts.model.core.Status;
 import org.metadatacenter.artifacts.model.core.TemplateInstanceArtifact;
@@ -64,6 +65,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * it back, and be served. It says nothing about which fields a path should carry, which is the point.
  * It fails whenever a creation path and the update path disagree about what a valid artifact is.
  */
+@Tag("integration")
 public class CreatedArtifactSurvivesAnEditTest {
 
   private static final Map<String, ObjectNode> ARTIFACTS = new ConcurrentHashMap<>();

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.bridge.CedarDataServices;
@@ -46,6 +47,7 @@ import java.util.Map;
  * so these tests run against the booted application with no live backend.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Tag("integration")
 public class TemplatesResourceWriteRejectionTest {
 
   static {

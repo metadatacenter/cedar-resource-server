@@ -9,6 +9,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.artifacts.model.core.Annotations;
 import org.metadatacenter.artifacts.model.core.Status;
@@ -74,6 +75,7 @@ import org.metadatacenter.util.test.TestHttpClient;
  * server is a stub keyed by identifier, so the document side is exactly what the resource server sent
  * it; the graph is embedded.
  */
+@Tag("integration")
 public class StoreConsistencyMatrixTest {
 
   private static final Map<String, ObjectNode> ARTIFACTS = new ConcurrentHashMap<>();

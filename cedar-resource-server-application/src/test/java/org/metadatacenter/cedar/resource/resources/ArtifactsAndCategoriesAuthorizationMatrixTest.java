@@ -6,6 +6,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
@@ -90,6 +91,7 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
  * inherited or direct role. Any Viewer may also read the category ACL. Only a Manager or owner may
  * change it.
  */
+@Tag("integration")
 public class ArtifactsAndCategoriesAuthorizationMatrixTest {
 
   static {

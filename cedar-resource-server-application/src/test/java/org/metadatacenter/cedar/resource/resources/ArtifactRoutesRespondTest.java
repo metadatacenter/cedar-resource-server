@@ -5,6 +5,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
@@ -37,6 +38,7 @@ import java.util.regex.Pattern;
  * Without credentials every route still answers 401. With them, every route that names an artifact or
  * a folder answers 400.
  */
+@Tag("integration")
 public class ArtifactRoutesRespondTest {
 
   static {

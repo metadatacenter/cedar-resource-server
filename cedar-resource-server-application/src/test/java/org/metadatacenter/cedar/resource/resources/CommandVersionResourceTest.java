@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
@@ -56,6 +57,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Failure classification tests for template-version commands. */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Tag("integration")
 public class CommandVersionResourceTest {
 
   private static final String TERMINOLOGY_VERSION_ID = "doid-version-hash";

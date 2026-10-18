@@ -38,6 +38,7 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Real resource HTTP and embedded graph, with a controllable content-store HTTP boundary. */
+@Tag("integration")
 class CrossStoreSequenceTest {
   private record Stored(ObjectNode body, long revision) { String etag() { return "\"" + revision + "\""; } }
   private static final Map<String, Stored> documents = new ConcurrentHashMap<>();

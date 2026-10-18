@@ -19,6 +19,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /** The downstream probes persist independently of the relay's transaction, like HTTP/Redis writes. */
+@Tag("integration")
 class ArtifactProjectionTransitionTest {
   private static Driver observer;
   private static final String ID="https://repo.metadatacenter.org/templates/11111111-1111-1111-1111-111111111111";

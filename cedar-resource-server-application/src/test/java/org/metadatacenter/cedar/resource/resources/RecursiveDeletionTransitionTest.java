@@ -38,6 +38,7 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Real resource HTTP and graph, with conditional document-store responses and ordered competing writes. */
+@Tag("integration")
 class RecursiveDeletionTransitionTest {
   private record Stored(ObjectNode body, long revision) { String etag() { return "\"" + revision + "\""; } }
   private static final Map<String, Stored> documents = new ConcurrentHashMap<>();
