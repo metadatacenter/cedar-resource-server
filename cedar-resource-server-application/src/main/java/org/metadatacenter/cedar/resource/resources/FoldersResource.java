@@ -139,7 +139,6 @@ public class FoldersResource extends AbstractResourceServerResource {
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
-    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     return findFolder(id);
   }
 
