@@ -232,6 +232,23 @@ public class SearchByIdPermissionTest {
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
+  @Test
+  public void identifierLookupHonorsOffsetAndRefusesAnUnusableContinuation() throws Exception {
+    for (String route : java.util.List.of("/search", "/search-deep")) {
+      String base = "http://localhost:" + SERVER.getLocalPort() + route + "?id="
+          + URLEncoder.encode(sharedTemplateId, StandardCharsets.UTF_8);
+      var page = CLIENT.send(HttpRequest.newBuilder(URI.create(base + "&offset=1"))
+          .header("Authorization", authHeaderUser2).GET().build(), HttpResponse.BodyHandlers.ofString());
+      Assertions.assertEquals(200, page.statusCode(), page.body());
+      JsonNode body = JsonMapper.STRICT_MAPPER.readTree(page.body());
+      Assertions.assertEquals(1, body.path("totalCount").asLong());
+      Assertions.assertEquals(0, body.path("resources").size());
+      var token = CLIENT.send(HttpRequest.newBuilder(URI.create(base + "&continuation=garbage"))
+          .header("Authorization", authHeaderUser2).GET().build(), HttpResponse.BodyHandlers.ofString());
+      Assertions.assertEquals(400, token.statusCode(), token.body());
+    }
+  }
+
   private static HttpResponse<String> search(String path, String id, String authHeader) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path

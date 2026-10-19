@@ -246,6 +246,32 @@ public class IndexedSearchOpenSearchIT {
     }
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"/search?", "/search-deep?", "/search-deep?continuation=start&"})
+  void literalPercentAndBracesSurviveRealHttpPagination(String route) throws Exception {
+    for (String query : List.of("\"C%2B%2B\"", "\"Rad%22\"", "\"Rad%2522\"", "\"{Rad}\"", "\"Rad dose\"")) {
+      JsonNode page = get(route + "q=" + enc(query) + "&limit=1", user2Auth);
+      for (JsonNode value : page.path("paging")) {
+        URI uri = URI.create(value.asText());
+        Map<String, String> params = java.util.Arrays.stream(uri.getRawQuery().split("&"))
+            .map(p -> p.split("=", 2)).collect(java.util.stream.Collectors.toMap(p -> p[0],
+                p -> java.net.URLDecoder.decode(p[1], StandardCharsets.UTF_8)));
+        assertEquals(query, params.get("q"));
+        if (params.containsKey("offset")) org.junit.jupiter.api.Assertions.assertTrue(Integer.parseInt(params.get("offset")) >= 0);
+        get(uri.getRawPath() + "?" + uri.getRawQuery(), user2Auth);
+      }
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"/search?", "/search-deep?", "/search-deep?continuation=start&"})
+  void templateSelectorCannotBeSilentlyDroppedByTextQuery(String route) throws Exception {
+    for (String query : List.of(TERM, "*")) {
+      get(route + "q=" + enc(query) + "&is_based_on="
+          + enc("https://repo.metadatacenter.org/templates/00000000-0000-0000-0000-000000000000"), user2Auth, 400);
+    }
+  }
+
   @Test
   void searchDeepContinuationReturnsEveryPermittedDocumentExactlyOnce() throws Exception {
     List<String> walked = new ArrayList<>();
