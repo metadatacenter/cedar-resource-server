@@ -1,6 +1,9 @@
 server:
   applicationConnectors:
-  - type: http 
+  - type: http
+    # The application port is private to the trusted proxy/internal network. nginx must overwrite
+    # forwarding headers; otherwise HTTPS searches emit HTTP pagination links after TLS termination.
+    useForwardedHeaders: true
   adminConnectors:
   - type: http
   # Every timeout in force was arithmetic against nginx's proxy_read_timeout rather than a
