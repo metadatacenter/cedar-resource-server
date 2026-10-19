@@ -190,6 +190,62 @@ public class IndexedSearchOpenSearchIT {
     get(route + "q=" + enc(TERM) + "&sharing=typo", user2Auth, 400);
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"/search?", "/search-deep?", "/search-deep?continuation=start&"})
+  void malformedExpressionsAreClientErrors(String route) throws Exception {
+    for (String query : List.of("\"Rad", "Rad AND (")) {
+      get(route + "q=" + enc(query), user2Auth, 400);
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"/search?", "/search-deep?", "/search-deep?continuation=start&"})
+  void returnedPaginationLinksPreserveTheExpression(String route) throws Exception {
+    String query = "\"" + WALK_TERM + "\" AND NOT nonexistent";
+    String path = route + "q=" + enc(query) + "&limit=2";
+    Set<String> walked = new HashSet<>();
+    int pages = 0;
+    while (path != null && pages++ < 5) {
+      JsonNode page = get(path, user2Auth);
+      assertEquals(5, page.path("totalCount").asInt());
+      for (String id : resourceIds(page)) {
+        org.junit.jupiter.api.Assertions.assertTrue(walked.add(id), "page must not repeat a result");
+      }
+      String next = page.path("paging").path("next").asText("");
+      if (next.isBlank()) {
+        path = null;
+      } else {
+        URI uri = URI.create(next);
+        String encodedQuery = java.util.Arrays.stream(uri.getRawQuery().split("&"))
+            .filter(part -> part.startsWith("q=")).findFirst().orElseThrow().substring(2);
+        assertEquals(query, java.net.URLDecoder.decode(encodedQuery, StandardCharsets.UTF_8));
+        path = uri.getRawPath() + "?" + uri.getRawQuery();
+      }
+    }
+    assertEquals(3, pages);
+    assertEquals(5, walked.size());
+  }
+
+  @Test
+  void trustedProxyHttpsIsRetainedInPaginationLinks() throws Exception {
+    var request = HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort()
+        + "/search?q=" + enc(WALK_TERM) + "&limit=1"))
+        .header("Authorization", user2Auth)
+        .header("X-Forwarded-Proto", "https")
+        .header("X-Forwarded-Host", "resource.example.org")
+        .header("X-Forwarded-Port", "443").GET().build();
+    var response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+    assertEquals(200, response.statusCode());
+    var paging = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("paging");
+    assertFalse(paging.path("next").asText().isBlank());
+    for (JsonNode link : paging) {
+      if (!link.isTextual() || link.asText().isBlank()) continue;
+      URI uri = URI.create(link.asText());
+      assertEquals("https", uri.getScheme());
+      assertEquals("resource.example.org", uri.getHost());
+    }
+  }
+
   @Test
   void searchDeepContinuationReturnsEveryPermittedDocumentExactlyOnce() throws Exception {
     List<String> walked = new ArrayList<>();
