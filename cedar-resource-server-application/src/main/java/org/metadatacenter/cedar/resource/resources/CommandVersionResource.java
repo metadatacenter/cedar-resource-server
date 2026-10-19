@@ -16,7 +16,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
@@ -39,6 +41,7 @@ import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.exception.CedarObjectNotFoundException;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.http.CedarResponseStatus;
+import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarSchemaArtifactId;
 import org.metadatacenter.id.CedarTemplateId;
@@ -66,7 +69,10 @@ import org.metadatacenter.server.security.model.permission.resource.ResourcePerm
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.ModelUtil;
+import org.metadatacenter.cedar.resource.restore.ArtifactRestoreJob;
+import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.http.CedarResponse;
+import org.metadatacenter.util.http.ProxyUtil;
 import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
@@ -79,10 +85,12 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_NAME;
@@ -98,6 +106,13 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 public class CommandVersionResource extends AbstractResourceServerResource {
 
   private static final Logger log = LoggerFactory.getLogger(CommandVersionResource.class);
+
+  /** The body key under which the caller of create-draft-artifact may choose the draft's identity. */
+  private static final String DRAFT_ID = "draftId";
+
+  /** The query parameter under which the caller of publish-create-draft-template may choose it. */
+  private static final String QP_DRAFT_ID = "draft_id";
+
   private static CloneInstancesEnqueueService cloneInstanceEnqueueService;
 
   public CommandVersionResource(CedarConfig cedarConfig) {
@@ -119,7 +134,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "Only the artifact's owner may publish it, whatever role another user holds "
+              + "(versioningOnlyByOwner). A caller who cannot read the artifact, or lacks the permission to "
+              + "update artifacts of its type, is also refused."),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
@@ -155,16 +173,24 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   private Response publishArtifact(CedarRequestContext c, CedarUntypedSchemaArtifactId aid,
                                    ResourceVersion newVersion, ArtifactServerUtil.ArtifactContent source) throws CedarException {
+    return publishArtifact(c, aid, newVersion, source, null);
+  }
+
+  /**
+   * As above. When {@code published} is given, it receives what putting the publication back would take,
+   * as soon as both stores describe the publication. A command that publishes on the way to a later step
+   * needs it if that step fails.
+   */
+  private Response publishArtifact(CedarRequestContext c, CedarUntypedSchemaArtifactId aid,
+                                   ResourceVersion newVersion, ArtifactServerUtil.ArtifactContent source,
+                                   AtomicReference<Publication> published) throws CedarException {
     userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     FolderServerArtifactCurrentUserReport folderServerResourceOld = getArtifactReport(c, aid);
 
     CurrentUserResourcePermissions currentUserResourcePermissions = folderServerResourceOld.getCurrentUserPermissions();
     if (!currentUserResourcePermissions.isCanPublish()) {
-      return CedarResponse.badRequest()
-          .errorKey(currentUserResourcePermissions.getPublishErrorKey())
-          .parameter("id", aid.getId())
-          .build();
+      return versioningRefusal(currentUserResourcePermissions.getPublishErrorKey(), aid);
     }
 
     CedarResourceType resourceType = folderServerResourceOld.getType();
@@ -289,6 +315,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 throw new CedarProcessingException("The published artifact could not be updated in the graph");
               }
               graphUpdated = true;
+              if (published != null) {
+                published.set(new Publication(getResponse,
+                    putResponse.getEntity() instanceof JsonNode stored ? stored.toString() : content,
+                    putResponse.getHeaderString(HttpHeaders.ETAG)));
+              }
 
               completeVersionProjections(c, relatedVersionIds(aid.getId()));
               FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
@@ -355,7 +386,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   @Path("/create-draft-artifact")
   @Operation(summary = "Create draft artifact.", description = "Create draft artifact out of a published artifact. A new artifact will be created in the supplied "
           + "folder. The version of the new artifact must be set, and must follow the current published version. "
-          + "The sharing settings of the old artifact can be copied over to the new artifact..", tags = {"Validation", "Command", "Versioning"})
+          + "The sharing settings of the old artifact can be copied over to the new artifact. The caller may "
+          + "choose the draft's identifier in draftId; an identifier already in use is refused with 412 before "
+          + "anything is written, so repeating a request whose answer was lost cannot make a second draft.",
+      tags = {"Validation", "Command", "Versioning"})
   @RequestBody(description = "Info about the creation process", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CreateDraftArtifactRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "201", description = "The draft artifact",
@@ -367,8 +401,13 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               + "to return. The response carries no body."),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "Only the artifact's owner may create a draft from it, whatever role another user holds "
+              + "(versioningOnlyByOwner). A caller who cannot read the artifact, cannot create in the target "
+              + "folder, or lacks the permission to update artifacts of its type, is also refused."),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "412", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The identifier in draftId already names an artifact; nothing was written"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response createDraftArtifact() throws CedarException {
@@ -376,12 +415,13 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     c.request().getRequestBody()
-        .mustHaveOnly("@id", "newVersion", "folderId", "propagateSharing", "newFolderName");
+        .mustHaveOnly("@id", "newVersion", "folderId", "propagateSharing", "newFolderName", DRAFT_ID);
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
     CedarParameter folderIdParam = c.request().getRequestBody().get("folderId");
     CedarParameter propagateSharingParam = c.request().getRequestBody().get("propagateSharing");
     CedarParameter newFolderNameParam = c.request().getRequestBody().get("newFolderName");
+    CedarParameter draftIdParam = c.request().getRequestBody().get(DRAFT_ID);
 
     String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
@@ -402,24 +442,43 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     }
 
     boolean propagateSharing = Boolean.parseBoolean(propagateSharingString);
+    Optional<String> draftId = draftIdParam.isEmpty() ? Optional.empty() : Optional.of(draftIdParam.stringValue());
 
-    return createDraftArtifact(c, aid, newVersion, fid, propagateSharing, newFolderNameString);
+    return createDraftArtifact(c, aid, newVersion, fid, propagateSharing, newFolderNameString, draftId, null);
   }
 
+  /**
+   * Creates the draft that succeeds a published artifact.
+   *
+   * @param requestedDraftId the identity the caller chose for the draft, if it chose one
+   * @param created          when given, set to the draft document and its ETag as soon as the artifact
+   *                         server has stored it, for a caller that may have to remove it again
+   */
   private Response createDraftArtifact(CedarRequestContext c, CedarUntypedSchemaArtifactId aid,
                                        ResourceVersion newVersion, CedarFolderId fid, boolean propagateSharing,
-                                       String newFolderName) throws CedarException {
+                                       String newFolderName, Optional<String> requestedDraftId,
+                                       AtomicReference<ArtifactServerUtil.ArtifactContent> created)
+      throws CedarException {
 
     userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
     FolderServerArtifactCurrentUserReport folderServerResourceOld = getArtifactReport(c, aid);
 
+    // A draft at the identity the caller chose can be looked up when the answer is lost. A repeat of the
+    // request finds the identity taken, and says so before anything else: the successor its first attempt
+    // made also stops the source being drafted again, and that refusal would read as a failure.
+    Optional<CedarArtifactId> draftId = Optional.empty();
+    if (requestedDraftId.isPresent()) {
+      draftId = Optional.of(suppliedArtifactIdentity(DRAFT_ID, requestedDraftId.get(), folderServerResourceOld.getType()));
+      Response occupied = occupiedIdentityRefusal(c, folderServerResourceOld.getType(), draftId.get());
+      if (occupied != null) {
+        return occupied;
+      }
+    }
+
     CurrentUserResourcePermissions currentUserResourcePermissions = folderServerResourceOld.getCurrentUserPermissions();
     if (!currentUserResourcePermissions.isCanCreateDraft()) {
-      return CedarResponse.badRequest()
-          .errorKey(currentUserResourcePermissions.getCreateDraftErrorKey())
-          .parameter("id", aid.getId())
-          .build();
+      return versioningRefusal(currentUserResourcePermissions.getCreateDraftErrorKey(), aid);
     }
 
     CedarResourceType artifactType = folderServerResourceOld.getType();
@@ -478,27 +537,25 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 .build();
           }
 
-          ObjectNode newDocument = (ObjectNode) getJsonNode;
-          newDocument.put(ModelNodeNames.PAV_VERSION, newVersion.getValue());
-          newDocument.put(ModelNodeNames.BIBO_STATUS, BiboStatus.DRAFT.getValue());
-          newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, aid.getId());
-          // A draft is the same intellectual artifact at a new version, so it keeps schema:identifier
-          // where a copy drops it, but it is a new document to the artifact server all the same.
-          ArtifactCopyOperations.prepareDerivedBody(newDocument);
+          ObjectNode newDocument = draftDocumentOf(getJsonNode, aid, newVersion, draftId);
 
           userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
 
           String artifactServerPostRequestBodyAsString = JsonMapper.STRICT_MAPPER.writeValueAsString(newDocument);
 
-          String cleanupJob = artifactCreateCleanupService.prepare(artifactType, "draft");
+          String cleanupJob = artifactCreateCleanupService.prepare(artifactType, "draft", draftId);
           try {
-            Response artifactServerPostResponse = executeResourcePostToArtifactServer(c, artifactType,
-                artifactServerPostRequestBodyAsString, cleanupJob);
+            Response artifactServerPostResponse = executeResourceCreateOnArtifactServer(c, artifactType,
+                draftId, artifactServerPostRequestBodyAsString, cleanupJob);
 
             int artifactServerPostStatus = artifactServerPostResponse.getStatus();
             InputStream is = (InputStream) artifactServerPostResponse.getEntity();
             JsonNode artifactServerPostResponseNode = JsonMapper.STRICT_MAPPER.readTree(is);
             if (artifactServerPostStatus == CedarResponseStatus.CREATED.getStatusCode()) {
+              if (created != null) {
+                created.set(new ArtifactServerUtil.ArtifactContent(artifactServerPostResponseNode.toString(),
+                    artifactServerPostResponse.getHeaderString(HttpHeaders.ETAG)));
+              }
               JsonNode atId = artifactServerPostResponseNode.at(AT_ID);
               String newIdString = atId.asText();
               CedarUntypedSchemaArtifactId newId = CedarUntypedSchemaArtifactId.build(newIdString);
@@ -652,27 +709,45 @@ public class CommandVersionResource extends AbstractResourceServerResource {
   @Timed
   @Path("/publish-create-draft-template/{template_id}")
   @Operation(summary = "Publish a template and create a new draft", description = "Publish the given template, then create a new draft version from it and apply the supplied template "
-          + "definition. Instances of the source template can be copied into a new folder.", tags = {"Command", "Versioning"},
+          + "definition. Instances of the source template can be copied into a new folder. The command succeeds "
+          + "or fails as a whole. What a later step would refuse is refused before the template is published: "
+          + "a parent folder the caller cannot create in, a draft identifier already in use and a definition "
+          + "the draft would not accept. If a step fails after publication, the command removes the draft it "
+          + "created and returns the template to the draft it was, then answers with the failing step's status, "
+          + "or 503 when that step received no answer. Returning the template to a draft gives it a new ETag. "
+          + "A retry sends that ETag in If-Match and publishes the template at the same version.",
+      tags = {"Command", "Versioning"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "The template definition to apply to the new draft", required = true,
       content = @Content(schema = @Schema(implementation = SchemaArtifactDocument.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The new draft template",
           content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The definition or the draft identifier is refused, or the template cannot be published, "
+              + "for example because it is already published; nothing was published"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "Only the template's owner may version it, whatever role another user holds "
+              + "(versioningOnlyByOwner), and the caller must be able to create in its folder; nothing was published"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "412", content = @Content(schema = @Schema(implementation = CedarError.class)),
-          description = "The source template changed; no draft was created"),
+          description = "The source template changed, or the draft identifier already names an artifact; "
+              + "nothing was published and no draft was created"),
       @ApiResponse(responseCode = "428", content = @Content(schema = @Schema(implementation = CedarError.class)),
           description = "The source template ETag is required in If-Match"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error"),
+      @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "A step received no answer from the artifact server; whatever the command had done was undone")
   })
   public Response publishCreateDraftTemplate(
       @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
       @Parameter(description = "Name of the folder to copy the template instances into.")
-      @QueryParam(QP_FOLDER_NAME) Optional<String> folderName) throws CedarException {
+      @QueryParam(QP_FOLDER_NAME) Optional<String> folderName,
+      @Parameter(description = "The full identifier the new draft is to have, chosen by the caller so that it "
+          + "can read the outcome by it if the answer is lost. Example: https://repo.metadatacenter.org/templates/"
+          + "8bc64ab5-df6b-48c8-8c61-6c016245918e. Without it, the server chooses one.")
+      @QueryParam(QP_DRAFT_ID) Optional<String> draftIdParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(CedarResourceType.TEMPLATE, id);
@@ -690,6 +765,12 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           .build();
     }
     ObjectNode newTemplateJsonNode = submittedTemplate(c);
+    // The draft's identity is settled before anything is read, so that the definition can be judged at
+    // the identity it will have and whatever is created there can be found again if a step fails.
+    CedarArtifactId draftId = draftIdParam.isPresent() && !draftIdParam.get().isBlank()
+        ? suppliedArtifactIdentity(QP_DRAFT_ID, draftIdParam.get(), CedarResourceType.TEMPLATE)
+        : CedarArtifactId.build(linkedDataUtil.buildNewLinkedDataId(CedarResourceType.TEMPLATE),
+            CedarResourceType.TEMPLATE);
     var source = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
         CedarResourceType.TEMPLATE, tid, c, cedarConfig, response);
     if (source.etag() == null || source.etag().isBlank()) {
@@ -727,41 +808,66 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           FolderServerResourceExtract parentFolderExtract = pathInfo.get(pathInfo.size() - 2);
 
           CedarFolderId fid = CedarFolderId.build(parentFolderExtract.getId());
+          CedarUntypedSchemaArtifactId sourceId = CedarUntypedSchemaArtifactId.build(tid.getId());
 
-          Response publishResponse = publishArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()), oldVersion, source);
-          if (publishResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
-            return publishResponse;
+          // Refuse now what a later step would refuse, while nothing has changed and the ETag the author
+          // opened still holds, so that a corrected request can succeed.
+          userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.CREATE_IN_FOLDER);
+          Response occupied = occupiedIdentityRefusal(c, CedarResourceType.TEMPLATE, draftId);
+          if (occupied != null) {
+            return occupied;
+          }
+          Response refusedDefinition = refusalOfTheDefinition(c, draftId,
+              draftDocumentOf(oldTemplateJsonNode, sourceId, newVersion, Optional.of(draftId)), newTemplateJsonNode);
+          if (refusedDefinition != null) {
+            return refusedDefinition;
           }
 
-          Response createResponse = createDraftArtifact(c, CedarUntypedSchemaArtifactId.build(tid.getId()),
-              newVersion, fid, true, null);
-          if (createResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
-            return createResponse;
-          }
+          AtomicReference<Publication> publication = new AtomicReference<>();
+          AtomicReference<ArtifactServerUtil.ArtifactContent> createdDraft = new AtomicReference<>();
+          ArtifactServerUtil.ArtifactContent storedDraft = null;
+          boolean complete = false;
+          try {
+            Response publishResponse = publishArtifact(c, sourceId, oldVersion, source, publication);
+            if (publishResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+              return publishResponse;
+            }
 
-          if (!(createResponse.getEntity() instanceof FolderServerTemplate entity)) {
-            log.error("Draft creation for template {} returned a successful response without a template entity", tid);
-            return CedarResponse.internalServerError()
-                .message("Draft creation returned an invalid response")
-                .parameter("id", tid)
-                .build();
-          }
-          String newTemplateIdString = entity.getId();
-          CedarTemplateId newTemplateId = CedarTemplateId.build(newTemplateIdString);
+            Response createResponse = createDraftArtifact(c, sourceId, newVersion, fid, true, null,
+                Optional.of(draftId.getId()), createdDraft);
+            if (createResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+              return createResponse;
+            }
 
-          ArtifactServerUtil.ArtifactContent storedDraft =
-              ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
-                  CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null);
-          applyDefinitionToDraft(newTemplateJsonNode,
-              JsonMapper.STRICT_MAPPER.readTree(storedDraft.content()));
-          Response updateResponse = executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
-              JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, storedDraft.etag());
-          // The worker must see the final definition, including renamed fields, before copying instances.
-          if (updateResponse.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL
-              && folderName.isPresent() && !folderName.get().isBlank()) {
-            createCopyOfInstancesWithNewTemplate(c, tid, newTemplateId, folderName.get());
+            if (!(createResponse.getEntity() instanceof FolderServerTemplate entity)) {
+              log.error("Draft creation for template {} returned a successful response without a template entity", tid);
+              return CedarResponse.internalServerError()
+                  .message("Draft creation returned an invalid response")
+                  .parameter("id", tid)
+                  .build();
+            }
+            CedarTemplateId newTemplateId = CedarTemplateId.build(entity.getId());
+
+            storedDraft = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
+                CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null);
+            applyDefinitionToDraft(newTemplateJsonNode,
+                JsonMapper.STRICT_MAPPER.readTree(storedDraft.content()));
+            Response updateResponse = executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
+                JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, storedDraft.etag());
+            if (updateResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+              return updateResponse;
+            }
+            complete = true;
+            // The worker must see the final definition, including renamed fields, before copying instances.
+            if (folderName.isPresent() && !folderName.get().isBlank()) {
+              createCopyOfInstancesWithNewTemplate(c, tid, newTemplateId, folderName.get());
+            }
+            return updateResponse;
+          } finally {
+            if (!complete) {
+              undoPublicationAndDraft(c, tid, oldVersion, publication.get(), draftId, createdDraft.get(), storedDraft);
+            }
           }
-          return updateResponse;
         }
       } catch (CedarException e) {
         throw e;
@@ -777,6 +883,225 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         .message("There was an error while publishing the template and creating its draft")
         .parameter("id", tid)
         .build();
+  }
+
+  /** What a publication changed in the artifact store, so a command that fails later can put it back. */
+  private record Publication(String preImage, String publishedDocument, String publishedEtag) {
+  }
+
+  /**
+   * The document a draft of a published artifact is created from: the published document at the next
+   * version, as a draft naming it as predecessor, at the identity the caller chose if it chose one.
+   */
+  private static ObjectNode draftDocumentOf(JsonNode source, CedarSchemaArtifactId sourceId,
+                                            ResourceVersion newVersion, Optional<CedarArtifactId> draftId) {
+    ObjectNode newDocument = (ObjectNode) source.deepCopy();
+    newDocument.put(ModelNodeNames.PAV_VERSION, newVersion.getValue());
+    newDocument.put(ModelNodeNames.BIBO_STATUS, BiboStatus.DRAFT.getValue());
+    newDocument.put(ModelNodeNames.PAV_PREVIOUS_VERSION, sourceId.getId());
+    // A draft is the same intellectual artifact at a new version, so it keeps schema:identifier
+    // where a copy drops it, but it is a new document to the artifact server all the same.
+    ArtifactCopyOperations.prepareDerivedBody(newDocument);
+    draftId.ifPresent(identity -> newDocument.put(JSON_LD_ID, identity.getId()));
+    return newDocument;
+  }
+
+  /**
+   * Asks the artifact server how the PUT that gives the draft its definition will judge it, before
+   * anything has been published or created. Null when the PUT would accept it; otherwise the PUT's own
+   * refusal, relayed as the PUT's would be.
+   *
+   * <p>The draft does not exist yet, so the artifact server is given the document the draft will be
+   * created from and the definition as it will be sent, and runs the create's preparation and then the
+   * PUT's on them, storing nothing. A cheaper check, such as the validate command, judges the bare
+   * definition and so disagrees with the PUT about a field the PUT would give an identifier.
+   */
+  private Response refusalOfTheDefinition(CedarRequestContext c, CedarArtifactId draftId, ObjectNode draftDocument,
+                                          ObjectNode submitted) throws CedarException {
+    ObjectNode replacement = submitted.deepCopy();
+    applyDefinitionToDraft(replacement, draftDocument);
+    ObjectNode question = JsonMapper.STRICT_MAPPER.createObjectNode();
+    question.set("created", draftDocument);
+    question.set("replacement", replacement);
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.TEMPLATE, draftId)
+        + "/replacement-judgement";
+    try (ClassicHttpResponse judged = new ArtifactServiceClient(cedarConfig).post(url, c, question.toString())) {
+      int status = judged.getCode();
+      String content = judged.getEntity() == null ? "" : EntityUtils.toString(judged.getEntity(), StandardCharsets.UTF_8);
+      if (status >= 200 && status < 300) {
+        return null;
+      }
+      ProxyUtil.proxyResponseHeaders(judged, response);
+      return CedarResponse.status(status).entity(content).build();
+    } catch (CedarException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new CedarProcessingException(e);
+    }
+  }
+
+  /**
+   * Undoes what a failed publish-create-draft-template committed: the draft it created, then the
+   * publication. It is best effort and never throws, so the caller still answers with the failing step's
+   * own status. Whatever it cannot put back is logged with the identifiers needed to find it.
+   */
+  private void undoPublicationAndDraft(CedarRequestContext c, CedarTemplateId sourceId, ResourceVersion version,
+                                       Publication publication, CedarArtifactId draftId,
+                                       ArtifactServerUtil.ArtifactContent createdDraft,
+                                       ArtifactServerUtil.ArtifactContent storedDraft) {
+    try {
+      if (!removeDraftOfFailedCommand(c, draftId, createdDraft, storedDraft)) {
+        log.error("Publishing {} and drafting {} failed, and the draft could not be removed; the template "
+            + "stays published", sourceId, draftId);
+        return;
+      }
+      if (publication != null) {
+        returnSourceToDraft(c, sourceId, version, publication);
+      }
+    } catch (Exception failure) {
+      log.error("Undoing the failed publication of {} and its draft {} did not finish", sourceId, draftId, failure);
+    }
+  }
+
+  /**
+   * Removes the draft a failed command registered, from both stores, and reports whether the graph is
+   * free of it. A document the graph never registered belongs to the create's cleanup job, which removes
+   * it. A registered one is removed only while it still holds what this command stored in it, by a
+   * deletion conditional on the revision that was read with that content, so nothing anyone else wrote
+   * is lost.
+   */
+  private boolean removeDraftOfFailedCommand(CedarRequestContext c, CedarArtifactId draftId,
+                                             ArtifactServerUtil.ArtifactContent createdDraft,
+                                             ArtifactServerUtil.ArtifactContent storedDraft) throws CedarException {
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+    if (folderSession.findArtifactById(draftId) == null) {
+      return true;
+    }
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(CedarResourceType.TEMPLATE, draftId);
+    String condition;
+    try (ClassicHttpResponse current = new ArtifactServiceClient(cedarConfig).get(url, c)) {
+      int status = current.getCode();
+      String content = current.getEntity() == null ? null : EntityUtils.toString(current.getEntity(), StandardCharsets.UTF_8);
+      if (status == HttpStatus.SC_NOT_FOUND) {
+        // The document is gone already; only the graph still names the draft.
+        condition = createdDraft != null ? createdDraft.etag() : storedDraft != null ? storedDraft.etag() : null;
+      } else if (status == HttpStatus.SC_OK && (sameDraft(content, createdDraft) || sameDraft(content, storedDraft))) {
+        condition = AbstractResourceServerResource.headerValue(current, HttpHeaders.ETAG);
+      } else {
+        return false;
+      }
+    } catch (Exception e) {
+      log.warn("The draft {} of a failed command could not be read before its removal", draftId, e);
+      return false;
+    }
+    if (RevisionPreconditionParser.isAbsent(condition)) {
+      return false;
+    }
+    Response deleted = executeArtifactDelete(c, CedarResourceType.TEMPLATE, draftId, condition);
+    if (deleted.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+      log.warn("The draft {} of a failed command was not removed: its deletion answered {}", draftId,
+          deleted.getStatus());
+    }
+    return folderSession.findArtifactById(draftId) == null;
+  }
+
+  /**
+   * Whether a stored document is the draft this command created. When an update of the draft reaches the
+   * artifact store and its graph write fails, the draft is put back by an ordinary write. That write
+   * stamps the draft's modification time and author. It also stamps each child the update had changed,
+   * and gives a full creation record to each child the update had removed. The comparison leaves out
+   * those provenance values and keeps everything an author could have written.
+   */
+  private static boolean sameDraft(String content, ArtifactServerUtil.ArtifactContent known) {
+    if (content == null || known == null || known.content() == null) {
+      return false;
+    }
+    try {
+      JsonNode stored = JsonMapper.STRICT_MAPPER.readTree(content);
+      JsonNode created = JsonMapper.STRICT_MAPPER.readTree(known.content());
+      if (!(stored instanceof ObjectNode) || !(created instanceof ObjectNode)) {
+        return false;
+      }
+      withoutWriteStamps(stored, true);
+      withoutWriteStamps(created, true);
+      return stored.equals(created);
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
+  /**
+   * Removes the provenance values a write stamps. The draft keeps its creation record through any write,
+   * so only its two modification stamps go. A child can be stamped with all four. The schema also
+   * declares these four properties, as objects, and those declarations stay.
+   */
+  private static void withoutWriteStamps(JsonNode node, boolean draft) {
+    if (node instanceof ObjectNode object) {
+      List<String> stamped = draft ? List.of(PAV_LAST_UPDATED_ON, OSLC_MODIFIED_BY)
+          : List.of(PAV_CREATED_ON, PAV_CREATED_BY, PAV_LAST_UPDATED_ON, OSLC_MODIFIED_BY);
+      for (String key : stamped) {
+        JsonNode value = object.get(key);
+        if (value != null && !value.isContainerNode()) {
+          object.remove(key);
+        }
+      }
+      object.elements().forEachRemaining(child -> withoutWriteStamps(child, false));
+    } else if (node != null && node.isArray()) {
+      node.elements().forEachRemaining(child -> withoutWriteStamps(child, false));
+    }
+  }
+
+  /**
+   * Returns a template a failed command published to the draft it was. The document goes back first,
+   * conditional on the published ETag, so a write since the publication stands. The graph follows,
+   * fenced by a durable restore that puts the published document back if the graph does not commit, so
+   * the two stores end describing the same state either way.
+   */
+  private void returnSourceToDraft(CedarRequestContext c, CedarTemplateId sourceId, ResourceVersion version,
+                                   Publication publication) throws CedarException {
+    Response restored = ArtifactServerUtil.putSchemaArtifactToArtifactServer(CedarResourceType.TEMPLATE, sourceId, c,
+        publication.preImage(), cedarConfig, publication.publishedEtag());
+    if (restored.getStatus() != HttpStatus.SC_OK) {
+      log.error("The failed publication of {} could not be undone: putting its draft document back answered {}",
+          sourceId, restored.getStatus());
+      return;
+    }
+    String restoredEtag = restored.getHeaderString(HttpHeaders.ETAG);
+    ArtifactRestoreJob restoreJob = artifactRestoreCompletionService == null ? null
+        : artifactRestoreCompletionService.prepare(sourceId, CedarResourceType.TEMPLATE,
+            publication.publishedDocument(), restoredEtag, false);
+    boolean returned = false;
+    try {
+      returned = artifactRestoreCompletionService != null && artifactRestoreCompletionService.returnToDraft(
+          restoreJob, sourceId, version.getValue(), version.getValue(), c.getCedarUser().getId());
+    } finally {
+      if (!returned) {
+        log.error("The failed publication of {} could not be undone in the graph; its published document is "
+            + "being put back", sourceId);
+        if (restoreJob != null) {
+          artifactRestoreCompletionService.restoreNow(restoreJob, c);
+        } else {
+          restorePublishedArtifact(c, CedarResourceType.TEMPLATE, sourceId, publication.publishedDocument(),
+              restoredEtag);
+        }
+      }
+      if (restoreJob != null && !returned) {
+        artifactRestoreCompletionService.forgetOutcome(restoreJob);
+      }
+      completeVersionProjections(c, relatedVersionIds(sourceId.getId()));
+    }
+  }
+
+  /**
+   * The refusal of a publication or a draft that the caller's permission report does not allow, for the
+   * reason the report gives. Only an artifact's owner may version it, so a caller who is not the owner
+   * is forbidden whatever role they hold. Every other reason concerns the artifact rather than the
+   * caller, such as publishing an artifact that is already published, and is a bad request.
+   */
+  private static Response versioningRefusal(CedarErrorKey reason, CedarUntypedSchemaArtifactId aid) {
+    CedarResponse.CedarResponseBuilder refusal = reason == CedarErrorKey.VERSIONING_ONLY_BY_OWNER
+        ? CedarResponse.forbidden() : CedarResponse.badRequest();
+    return refusal.errorKey(reason).parameter("id", aid.getId()).build();
   }
 
   /**

@@ -123,11 +123,37 @@ class InclusionTransitionTest {
       assertTrue(documents.get(targetId).body().toString().contains("New field"));
     } else {
       assertTrue(result.statusCode() >= 400, result.body());
+      if (!change.equals("published")) assertRefusedWrite(result);
       assertEquals(0, writes.get(), "a later publish, edit or first instance must not be overwritten");
       assertFalse(documents.get(targetId).body().toString().contains("New field"));
       if (change.equals("edited")) assertEquals("Concurrent edit", documents.get(targetId).body().path("schema:name").asText());
       if (change.equals("published")) assertEquals("bibo:published", documents.get(targetId).body().path("bibo:status").asText());
     }
+  }
+
+  /**
+   * A write the artifact server refused answers 502 in the shared error body. The update report is in
+   * objects.report, and it names the target, its failure and the artifact server's status.
+   */
+  private static void assertRefusedWrite(HttpResponse<String> result) throws IOException {
+    assertEquals(502, result.statusCode(), result.body());
+    assertTrue(result.headers().firstValue("Content-Type").orElse("").startsWith("application/json"),
+        result.headers().toString());
+    var body = JsonMapper.STRICT_MAPPER.readTree(result.body());
+    assertEquals(502, body.path("statusCode").asInt(), result.body());
+    assertEquals("BAD_GATEWAY", body.path("status").asText(), result.body());
+    assertEquals("upstreamServerError", body.path("errorKey").asText(), result.body());
+    assertEquals("The artifact server refused 1 of 1 propagation writes. The report lists what became of each "
+        + "target.", body.path("message").asText(), result.body());
+    var report = body.path("objects").path("report");
+    assertFalse(report.path("complete").asBoolean(true), result.body());
+    assertEquals(sourceId, report.path("tree").path("@id").asText(), result.body());
+    assertEquals(1, report.path("outcomes").size(), result.body());
+    var outcome = report.path("outcomes").path(0);
+    assertEquals("FAILED", outcome.path("status").asText(), result.body());
+    assertEquals(sourceId, outcome.path("sourceId").asText(), result.body());
+    assertEquals(targetId, outcome.path("targetId").asText(), result.body());
+    assertEquals(412, outcome.path("artifactServerStatus").asInt(), result.body());
   }
 
   private static HttpResponse<String> post(String path, String body) throws Exception {

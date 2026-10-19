@@ -19,7 +19,13 @@ import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
+import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
@@ -38,6 +44,7 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Real resource HTTP and graph, with conditional document-store responses and ordered competing writes. */
+@Tag("integration")
 class DraftTransitionTest {
   private record Stored(ObjectNode body, long revision) { String etag() { return "\"" + revision + "\""; } }
   private static final Map<String, Stored> documents = new ConcurrentHashMap<>();
@@ -160,6 +167,119 @@ class DraftTransitionTest {
       assertEquals(1,writes.get()); assertTrue(deleted.isEmpty());
     } finally { releasePosts.countDown(); }
   }
+  /**
+   * A caller that chose the draft's identity can lose the answer and ask again. The draft is created at
+   * that identity once; the retry finds the identity taken and answers 412, which a caller reads as "look
+   * again", before the rule that a drafted source cannot be drafted again answers with a refusal that
+   * would read as a failure.
+   */
+  @Test void aLostResponseAndRetryAtASuppliedDraftIdentityLeaveOneSuccessor() throws Exception {
+    String draftId = config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    String body = ((com.fasterxml.jackson.databind.node.ObjectNode) JsonMapper.STRICT_MAPPER.readTree(prepare(1)))
+        .put("draftId", draftId).toString();
+    var abandoned = client.sendAsync(request(body), HttpResponse.BodyHandlers.ofString());
+    try {
+      assertTrue(postsEntered.await(15, TimeUnit.SECONDS));
+      assertTrue(abandoned.cancel(true), "drop the client before the server can return its successful response");
+      releasePosts.countDown();
+      assertTrue(cloneQueued.await(15, TimeUnit.SECONDS), "the abandoned request must complete its graph write");
+      var retry = client.send(request(body), HttpResponse.BodyHandlers.ofString());
+      assertEquals(412, retry.statusCode(), retry.body());
+      assertEquals("nodeAlreadyPresent", JsonMapper.STRICT_MAPPER.readTree(retry.body()).path("errorKey").asText());
+      assertSingleSuccessor();
+      assertEquals(draftId, cloneTargets.get(0), "the draft was not created at the identity the caller chose");
+      assertEquals(1, writes.get()); assertTrue(deleted.isEmpty());
+    } finally { releasePosts.countDown(); }
+  }
+
+  /** An identity either store already holds is refused before anything is written. */
+  @ParameterizedTest(name = "held by the {0}")
+  @CsvSource({"graph", "artifact store"})
+  void anOccupiedDraftIdentityIsRefusedWithoutAWrite(String holder) throws Exception {
+    String body = prepare(1); releasePosts.countDown();
+    String occupied = config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    if (holder.equals("graph")) {
+      var node = new FolderServerTemplate(); node.setId(occupied); node.setName("Occupant " + occupied);
+      node.setVersion("0.0.1"); node.setPublicationStatus("bibo:draft");
+      node.setLatestVersion(true); node.setLatestDraftVersion(true); node.setLatestPublishedVersion(false);
+      assertNotNull(folders.createResourceAsChildOfId(node, home));
+    } else {
+      documents.put(occupied, new Stored(JsonMapper.STRICT_MAPPER.createObjectNode().put("@id", occupied), 3));
+    }
+    var reply = client.send(request(((com.fasterxml.jackson.databind.node.ObjectNode) JsonMapper.STRICT_MAPPER
+        .readTree(body)).put("draftId", occupied).toString()), HttpResponse.BodyHandlers.ofString());
+    assertEquals(412, reply.statusCode(), reply.body());
+    assertEquals("nodeAlreadyPresent", JsonMapper.STRICT_MAPPER.readTree(reply.body()).path("errorKey").asText());
+    assertEquals(0, writes.get(), "an occupied identity reached the artifact server");
+    assertTrue(cloneTargets.isEmpty());
+    assertEquals(1, folders.getVersionHistory(org.metadatacenter.id.CedarTemplateId.build(sourceId)).size());
+  }
+
+  /** An identity that is not a template identifier of this deployment is refused before anything is written. */
+  @ParameterizedTest(name = "{0}")
+  @CsvSource({"a field identifier", "not an identifier"})
+  void aDraftIdentityOutsideTheTemplatesCollectionIsRefused(String kind) throws Exception {
+    String body = prepare(1); releasePosts.countDown();
+    String draftId = kind.equals("a field identifier")
+        ? config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FIELD) : "draft-of-the-source";
+    var reply = client.send(request(((com.fasterxml.jackson.databind.node.ObjectNode) JsonMapper.STRICT_MAPPER
+        .readTree(body)).put("draftId", draftId).toString()), HttpResponse.BodyHandlers.ofString());
+    assertEquals(400, reply.statusCode(), reply.body());
+    assertEquals(0, writes.get());
+    assertEquals(1, folders.getVersionHistory(org.metadatacenter.id.CedarTemplateId.build(sourceId)).size());
+  }
+
+  /**
+   * Workspace's Create Draft and the Designer's Create new draft both ask for the source's sharing, so a
+   * draft is shared as its source is; without the request it is its owner's alone. The source's ACL is
+   * the same afterwards either way. "none" is a source user 2 holds no grant on.
+   */
+  @ParameterizedTest(name = "{0}, propagateSharing {1}")
+  @CsvSource({"viewer,true", "editor,true", "manager,true", "none,true", "viewer,false", "editor,false", "manager,false"})
+  void aDraftCarriesItsSourcesGrantsOnlyWhenAskedTo(String role, boolean propagate) throws Exception {
+    prepare(1); releasePosts.countDown();
+    var user1 = TestAuthUtil.getTestUser1(config); var user2 = TestAuthUtil.getTestUser2(config);
+    String user2Authorization = TestAuthUtil.getTestUser2AuthHeader(config);
+    if (!role.equals("none")) {
+      var grant = new ResourcePermissionsRequest();
+      grant.setOwner(new ResourcePermissionUser(user1.getId()));
+      grant.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
+          new ResourcePermissionUser(user2.getId()), ResourceRole.valueOf(role.toUpperCase())));
+      assertFalse(CedarDataServices.getInstance().getResourcePermissionServiceSession(
+          CedarRequestContextFactory.fromUser(user1)).updateResourcePermissions(
+          org.metadatacenter.id.CedarTemplateId.build(sourceId), grant).isError());
+    }
+    String sourceAcl = get("/templates/" + enc(sourceId) + "/permissions", authorization).body();
+    var body = JsonMapper.STRICT_MAPPER.createObjectNode().put("@id",sourceId).put("newVersion","1.0.1")
+        .put("folderId",home.getId()).put("propagateSharing",propagate).put("newFolderName","").toString();
+    var reply = client.send(request(body),HttpResponse.BodyHandlers.ofString());
+    assertEquals(201,reply.statusCode(),reply.body());
+    String draftId = JsonMapper.STRICT_MAPPER.readTree(reply.body()).path("@id").asText();
+    assertNotEquals(sourceId,draftId);
+
+    assertEquals(sourceAcl, get("/templates/" + enc(sourceId) + "/permissions", authorization).body(),
+        "drafting must leave the source's ACL as it was");
+    var draftAcl = JsonMapper.STRICT_MAPPER.readTree(get("/templates/" + enc(draftId) + "/permissions", authorization).body());
+    assertEquals(user1.getId(), draftAcl.path("owner").path("@id").asText(), "the draft belongs to the owner who drafted it");
+    var expected = propagate ? JsonMapper.STRICT_MAPPER.readTree(sourceAcl).path("userPermissions")
+        : JsonMapper.STRICT_MAPPER.createArrayNode();
+    assertEquals(expected, draftAcl.path("userPermissions"));
+
+    var details = get("/templates/" + enc(draftId) + "/details", user2Authorization);
+    if (!propagate || role.equals("none")) { assertEquals(403,details.statusCode(),details.body()); return; }
+    assertEquals(200,details.statusCode(),details.body());
+    var granted = JsonMapper.STRICT_MAPPER.readTree(details.body()).path("currentUserPermissions");
+    String capabilities = granted.path("capabilities").toString();
+    assertEquals(role, granted.path("role").asText());
+    assertTrue(capabilities.contains("readResource"), capabilities);
+    assertEquals(!role.equals("viewer"), capabilities.contains("updateResource"), capabilities);
+    assertEquals(role.equals("manager"), capabilities.contains("manageGrants"), capabilities);
+  }
+  private static HttpResponse<String> get(String path, String auth) throws Exception {
+    return client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + server.getLocalPort() + path))
+        .timeout(Duration.ofSeconds(25)).header("Authorization", auth).GET().build(), HttpResponse.BodyHandlers.ofString());
+  }
+  private static String enc(String id) { return URLEncoder.encode(id, StandardCharsets.UTF_8); }
   private static void handleArtifact(HttpExchange exchange) throws IOException {
     String path = exchange.getRequestURI().getPath();
     if (exchange.getRequestMethod().equals("POST") && path.equals("/templates")) {
@@ -175,6 +295,17 @@ class DraftTransitionTest {
     String id = config.getLinkedDataUtil().resolveResourceId(
         CedarResourceType.forPrefix(path.split("/")[1]), path.substring(path.indexOf('/',1)+1));
     Stored stored = documents.get(id);
+    if (stored == null && exchange.getRequestMethod().equals("PUT")
+        && exchange.getRequestHeaders().getFirst("If-Match") == null) {
+      // A PUT naming an identifier nothing holds creates there, as the artifact server's does.
+      ObjectNode body = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody());
+      Stored created = new Stored(body,7); documents.put(id,created); writes.incrementAndGet();
+      postsEntered.countDown();
+      try { if (!releasePosts.await(20,TimeUnit.SECONDS)) throw new IOException("draft barrier timed out"); }
+      catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IOException(e); }
+      exchange.getResponseHeaders().set("Location",id);
+      respond(exchange,201,created); return;
+    }
     if (stored == null) { respond(exchange,404,null); return; }
     if (exchange.getRequestMethod().equals("GET")) { respond(exchange,200,stored); return; }
     if (!stored.etag().equals(exchange.getRequestHeaders().getFirst("If-Match"))) { respond(exchange,412,null); return; }

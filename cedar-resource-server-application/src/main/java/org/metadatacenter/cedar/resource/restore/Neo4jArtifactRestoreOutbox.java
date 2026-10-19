@@ -278,6 +278,63 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
     }
   }
 
+  /**
+   * Returns a published version to the draft it was published from, in the graph.
+   *
+   * <p>A command that publishes and then fails at a later step puts the publication back, and the graph
+   * refuses that direction through its ordinary update, which only ever publishes. This is the one
+   * transition back: the status and version the version had before, then the series' latest flags and
+   * search projections recomputed from the result, as a publication recomputes them.
+   *
+   * <p>It is fenced like any graph completion. With a restore job, it commits only while that job is
+   * still pending and not started, and removes it in the same transaction, so the document the job
+   * would put back and the graph cannot both move. It also refuses a version that is no longer the
+   * published one it was told of, or that a successor or a pending deletion has since claimed.
+   *
+   * @return whether the graph now describes the draft
+   */
+  public boolean returnToDraft(String jobId, String resourceId, String publishedVersion, String draftVersion,
+                               String updatedBy) {
+    java.time.Instant now = java.time.Instant.now();
+    Map<String, Object> parameters = new HashMap<>();
+    parameters.put("id", resourceId);
+    parameters.put("version", draftVersion);
+    parameters.put("by", updatedBy);
+    parameters.put("on", org.metadatacenter.constant.CedarConstants.xsdDateTimeFormatter.format(now));
+    parameters.put("ts", now.getEpochSecond());
+    try (Session session = driver.session()) {
+      return session.writeTransaction(tx -> {
+        org.metadatacenter.server.neo4j.VersionChainTransaction.lock(tx);
+        if (jobId != null && ArtifactRestoreTransaction.graphDecision(tx, resourceId, jobId)
+            != ArtifactRestoreTransaction.GraphDecision.READY) {
+          return false;
+        }
+        Result found = tx.run("MATCH (a:Artifact {`_id`: $id}) RETURN a.bibo_status AS status, "
+            + "a.pav_version AS version", Map.of("id", resourceId));
+        if (!found.hasNext()) {
+          return false;
+        }
+        Record current = found.next();
+        if (!"bibo:published".equals(current.get("status").asString(null))
+            || !publishedVersion.equals(current.get("version").asString(null))) {
+          return false;
+        }
+        try {
+          org.metadatacenter.server.neo4j.VersionChainTransaction.requireHead(tx, resourceId);
+        } catch (org.metadatacenter.server.VersionTransitionConflictException superseded) {
+          return false;
+        }
+        tx.run("MATCH (a:Artifact {`_id`: $id}) SET a.bibo_status = 'bibo:draft', a.pav_version = $version, "
+            + "a.`oslc_modifiedBy` = $by, a.`pav_lastUpdatedOn` = $on, a.lastUpdatedOnTS = $ts", parameters).consume();
+        org.metadatacenter.server.neo4j.VersionChainTransaction.reconcile(tx, resourceId);
+        if (jobId != null) {
+          ArtifactRestoreTransaction.remove(tx, jobId);
+        }
+        return true;
+      });
+    }
+  }
+
   public void remove(String jobId) {
     try (Session session = driver.session()) {
       session.writeTransaction(tx -> {

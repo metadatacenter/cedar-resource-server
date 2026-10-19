@@ -25,6 +25,8 @@ import org.metadatacenter.cedar.resource.model.InclusionSubgraphUpdateOutcome;
 import org.metadatacenter.cedar.resource.model.InclusionSubgraphUpdateReport;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorPack;
+import org.metadatacenter.exception.CedarBadRequestException;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.CedarTypedSchemaArtifactId;
 import org.metadatacenter.id.CedarUntypedSchemaArtifactId;
@@ -123,15 +125,32 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
   @RequestBody(description = "The artifact that changed, and the elements and templates to consider", required = true,
       content = @Content(schema = @Schema(implementation = InclusionSubgraphRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Every target was written",
+      @ApiResponse(responseCode = "200", description = "Every target was written, or needed no write",
           content = @Content(schema = @Schema(implementation = InclusionSubgraphUpdateReport.class))),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error"),
-      @ApiResponse(responseCode = "502", description = "The artifact server refused at least one of the writes; the body is the update report",
-          content = @Content(schema = @Schema(implementation = InclusionSubgraphUpdateReport.class)))
+      @ApiResponse(responseCode = "400", description = "The body is not JSON in the form of an inclusion subgraph "
+          + "request (malformedJsonRequestBody), names no @id or a target that is not an artifact (invalidData), or "
+          + "names one artifact twice. A target that is published (publishedArtifactCanNotBeChanged), or a template "
+          + "whose instances the change would invalidate (invalidData), is refused too. Nothing was written.",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "401", description = UNAUTHORIZED,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "403", description = "The caller cannot read the artifact that changed, or cannot "
+          + "update a target. Nothing was written.",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "404", description = "The artifact that changed, or a target, does not exist",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "406", description = NOT_ACCEPTABLE,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "429", description = RATE_LIMITED,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "500", description = INTERNAL_ERROR,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "502", description = "The artifact server refused at least one of the writes "
+          + "(upstreamServerError). The targets it accepted were updated. The body's objects.report holds the update "
+          + "report, with the outcome of every target.",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "503", description = UNAVAILABLE,
+          content = @Content(schema = @Schema(implementation = CedarError.class)))
   })
   public Response updateInclusionSubgraph() throws CedarException, IOException {
     CedarRequestContext c = buildRequestContext();
@@ -263,12 +282,29 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     ProvenanceNameUtil.addProvenanceDisplayNames(treeResponse);
 
     InclusionSubgraphUpdateReport report = new InclusionSubgraphUpdateReport(treeResponse, outcomes);
+    if (report.isComplete()) {
+      return Response.ok(report).build();
+    }
     // A refused write is the artifact server's answer, not the caller's mistake, so it reports as a bad
-    // gateway. The per-target outcomes say which ones landed.
-    return Response.status(report.isComplete() ? Response.Status.OK : Response.Status.BAD_GATEWAY)
-        .entity(report)
+    // gateway. The shared error body carries the report, as it carries a validation refusal's findings,
+    // and the report's per-target outcomes say which writes landed.
+    long refused = outcomes.stream()
+        .filter(outcome -> outcome.getStatus() == InclusionSubgraphUpdateOutcome.Status.FAILED).count();
+    return CedarResponse.badGateway()
+        .errorKey(CedarErrorKey.UPSTREAM_SERVER_ERROR)
+        .message("The artifact server refused " + refused + " of " + prepared.size() + " propagation writes. "
+            + "The report lists what became of each target.")
+        .object("report", report)
         .build();
   }
+
+  private static final String UNAUTHORIZED = "The request carries no valid credentials";
+  private static final String NOT_ACCEPTABLE = "The request does not accept a JSON response";
+  private static final String RATE_LIMITED = "The deployment limits each user's request rate, and the caller "
+      + "exceeded it";
+  private static final String INTERNAL_ERROR = "Internal server error";
+  private static final String UNAVAILABLE = "The graph database, the artifact server or another service the "
+      + "request depends on is unavailable";
 
   static boolean requiresNewVersion(long instances, JsonNode stored, JsonNode proposed) {
     if (instances == 0) return false;
@@ -279,14 +315,15 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     return !delta.getDestructiveChanges().isEmpty() || !delta.getNonDestructiveChanges().isEmpty();
   }
 
-  private void normalizeSelectors(InclusionSubgraphRequest request) {
+  private void normalizeSelectors(InclusionSubgraphRequest request) throws CedarBadRequestException {
     if (request.getId() != null) request.setId(linkedDataUtil.resolveResourceId(request.getId()));
     request.setElements(normalizeElements(request.getElements()));
     request.setTemplates(normalizeKeys(request.getTemplates(), CedarResourceType.TEMPLATE));
   }
 
   private Map<String, org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphElement> normalizeElements(
-      Map<String, org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphElement> elements) {
+      Map<String, org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphElement> elements)
+      throws CedarBadRequestException {
     var resolved = normalizeKeys(elements, CedarResourceType.ELEMENT);
     if (resolved != null) for (var element : resolved.values()) {
       if (element != null) {
@@ -297,14 +334,23 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     return resolved;
   }
 
-  private <T> Map<String, T> normalizeKeys(Map<String, T> selectors, CedarResourceType type) {
+  /**
+   * The selectors keyed by the identifiers they resolve to. Two selectors that name one artifact are
+   * refused in the shared error body, with the message naming the second. A BadRequestException
+   * without an entity reached the client as a 400 whose body carried no message.
+   */
+  private <T> Map<String, T> normalizeKeys(Map<String, T> selectors, CedarResourceType type)
+      throws CedarBadRequestException {
     if (selectors == null) return null;
     Map<String, T> resolved = new java.util.LinkedHashMap<>();
-    selectors.forEach((key, value) -> {
-      String id = linkedDataUtil.resolveResourceId(type, key);
-      if (resolved.containsKey(id)) throw new jakarta.ws.rs.BadRequestException("Duplicate resource selector: " + key);
-      resolved.put(id, value);
-    });
+    for (Map.Entry<String, T> selector : selectors.entrySet()) {
+      String id = linkedDataUtil.resolveResourceId(type, selector.getKey());
+      if (resolved.containsKey(id)) {
+        throw new CedarBadRequestException(new CedarErrorPack()
+            .message("Duplicate resource selector: " + selector.getKey()));
+      }
+      resolved.put(id, selector.getValue());
+    }
     return resolved;
   }
 

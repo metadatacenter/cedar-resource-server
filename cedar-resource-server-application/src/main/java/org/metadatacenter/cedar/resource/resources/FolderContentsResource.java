@@ -98,10 +98,9 @@ public class FolderContentsResource extends AbstractResourceServerResource {
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
       @Parameter(description = "Paging offset")
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
-    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
-
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
 
     if (id != null) {
       id = id.trim();
@@ -213,10 +212,9 @@ public class FolderContentsResource extends AbstractResourceServerResource {
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
       @Parameter(description = "Field name list, separated by comma.")
       @QueryParam(QP_FIELD_NAMES) Optional<String> fieldNamesParam) throws CedarException {
-    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
-
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
 
     if (id != null) {
       id = id.trim();

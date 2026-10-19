@@ -3,12 +3,12 @@ package org.metadatacenter.cedar.resource.version;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.metadatacenter.cedar.resource.ScratchNeo4j;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.server.neo4j.VersionChainTransaction;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.neo4j.driver.*;
-import org.neo4j.harness.*;
 
 import java.util.Map;
 import java.util.concurrent.*;
@@ -19,8 +19,8 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /** The downstream probes persist independently of the relay's transaction, like HTTP/Redis writes. */
+@Tag("integration")
 class ArtifactProjectionTransitionTest {
-  private static Neo4j neo;
   private static Driver observer;
   private static final String ID="https://repo.metadatacenter.org/templates/11111111-1111-1111-1111-111111111111";
   private static final String INSTANCE="https://repo.metadatacenter.org/template-instances/22222222-2222-2222-2222-222222222222";
@@ -28,11 +28,11 @@ class ArtifactProjectionTransitionTest {
   private NodeIndexingService index;
 
   @BeforeAll static void start() {
-    neo=Neo4jBuilders.newInProcessBuilder().withDisabledServer().build();
-    observer=GraphDatabase.driver(neo.boltURI(),AuthTokens.none());
+    ScratchNeo4j.blank();
+    observer=GraphDatabase.driver(ScratchNeo4j.boltURI(),AuthTokens.none());
     VersionChainTransaction.initialize(observer);
   }
-  @AfterAll static void stop() { observer.close(); neo.close(); }
+  @AfterAll static void stop() { observer.close(); }
   @BeforeEach void reset() throws Exception {
     try(var s=observer.session()) {
       s.run("MATCH (n) WHERE NOT n:CedarVersionLock DETACH DELETE n").consume();
@@ -49,10 +49,11 @@ class ArtifactProjectionTransitionTest {
   }
 
   private VersionProjectionService relay() {
-    return new VersionProjectionService(GraphDatabase.driver(neo.boltURI(),AuthTokens.none()),index,
+    return new VersionProjectionService(GraphDatabase.driver(ScratchNeo4j.boltURI(),AuthTokens.none()),index,
         (a, previous) -> {
           if (failure.get().equals("link")) throw new IllegalStateException("document unavailable");
           persisted("link",a.getName());
+          persisted("previous",previous == null ? "<none>" : previous);
         }, (a, body, context) -> {
           if (failure.get().equals("inclusion")) throw new IllegalStateException("inclusion unavailable");
           persisted("inclusion",body.path("included").asText());
@@ -151,6 +152,36 @@ class ArtifactProjectionTransitionTest {
     save("Second"); failure.set("");
     try(var restarted=relay()) { restarted.completePending(index,null); }
     assertDerived("Second");
+  }
+
+  @Test void editingASurvivingDraftPreservesItsPendingPredecessorRepair() {
+    String first=ID+"-first", predecessor=ID+"-predecessor";
+    try(var s=observer.session()) {
+      s.run("MATCH (d:Artifact {_id:$draft}) "
+          + "CREATE (a:Artifact:Template {_id:$first,resourceType:'template',schema_name:'First',"
+          + "pav_version:'1.0.0',bibo_status:'bibo:published'}) "
+          + "CREATE (b:Artifact:Template {_id:$predecessor,resourceType:'template',schema_name:'Predecessor',"
+          + "pav_version:'2.0.0',bibo_status:'bibo:published',pav_previousVersion:$first}) "
+          + "SET d.pav_version='3.0.0',d.pav_previousVersion=$predecessor "
+          + "CREATE (d)-[:PREVIOUSVERSION]->(b)-[:PREVIOUSVERSION]->(a)",
+          Map.of("draft",ID,"first",first,"predecessor",predecessor)).consume();
+      s.writeTransaction(tx -> { VersionChainTransaction.delete(tx,predecessor); return null; });
+    }
+    persisted("previous",predecessor); // The document still has its old link while recovery is pending.
+    save("Edited after deletion");
+    try(var restarted=relay()) {
+      assertTrue(restarted.complete(first,index,null));
+      assertTrue(restarted.complete(ID,index,null));
+    }
+    assertDerived("Edited after deletion");
+    assertEquals(first,observed("previous"),"saving content must retain the outstanding document-link repair");
+    try(var s=observer.session()) {
+      var draft=s.run("MATCH (d:Artifact {_id:$id})-[:PREVIOUSVERSION]->(p) "
+          + "RETURN d.pav_previousVersion AS property,p._id AS edge,d.schema_name AS name",Map.of("id",ID)).single();
+      assertEquals(first,draft.get("property").asString());
+      assertEquals(first,draft.get("edge").asString());
+      assertEquals("Edited after deletion",draft.get("name").asString());
+    }
   }
 
   @Test void aSaveWaitsForAnInFlightProjectionAndThenLeavesItsOwnDurableWork() throws Exception {

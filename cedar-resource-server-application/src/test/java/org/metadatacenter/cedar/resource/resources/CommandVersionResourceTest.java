@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
@@ -34,6 +35,10 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
+import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
 import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -52,6 +57,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Failure classification tests for template-version commands. */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Tag("integration")
 public class CommandVersionResourceTest {
 
   private static final String TERMINOLOGY_VERSION_ID = "doid-version-hash";
@@ -65,6 +71,7 @@ public class CommandVersionResourceTest {
 
   private static HttpServer artifactServer;
   private static HttpServer terminologyServer;
+  private static CedarConfig cedarConfig;
   private static String authHeader;
   private static CedarTemplateId templateId;
   private static CedarTemplateId publishTemplateId;
@@ -111,6 +118,8 @@ public class CommandVersionResourceTest {
   private static final AtomicInteger VERSION_RETRY_DRAFT_WRITES = new AtomicInteger();
   private static final AtomicInteger DRAFT_STATUS_GUARD_POSTS = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
+  /** Every request the artifact server received other than a read. */
+  private static final AtomicInteger ARTIFACT_WRITES = new AtomicInteger();
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -135,7 +144,7 @@ public class CommandVersionResourceTest {
 
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
-    CedarConfig cedarConfig = CedarConfig.getInstance(environment);
+    cedarConfig = CedarConfig.getInstance(environment);
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     authHeader = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
@@ -404,6 +413,111 @@ public class CommandVersionResourceTest {
         "the rejected draft source reached the artifact create endpoint");
   }
 
+  /**
+   * The identity a caller chooses for a draft is judged before anything else is: one outside the
+   * templates collection is refused with 400, and one the graph already holds with 412, and neither
+   * reaches the artifact server.
+   */
+  @Test
+  public void aSuppliedDraftIdentityThatIsMalformedOrTakenIsRefusedBeforeAnyWrite() throws Exception {
+    int writes = ARTIFACT_WRITES.get();
+    Map<String, Integer> answers = Map.of(
+        "https://repo.metadatacenter.orgx/template-fields/" + java.util.UUID.randomUUID(), 400,
+        "draft-of-the-fixture", 400,
+        templateId.getId(), 412);
+    for (Map.Entry<String, Integer> answer : answers.entrySet()) {
+      String body = "{\"@id\":\"" + draftStatusMismatchTemplateId.getId()
+          + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
+          + "\",\"propagateSharing\":false,\"newFolderName\":\"\",\"draftId\":\"" + answer.getKey() + "\"}";
+
+      HttpResponse<String> response = postVersionCommand("create-draft-artifact", body);
+
+      Assertions.assertEquals(answer.getValue(), response.statusCode(), answer.getKey() + ": " + response.body());
+    }
+    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a refused draft identity reached the artifact server");
+    Assertions.assertEquals(1, folderSession.getVersionHistory(draftStatusMismatchTemplateId).size());
+  }
+
+  /**
+   * Only an artifact's owner may publish it. A Manager who is not the owner is forbidden, with the rule's
+   * own key, and nothing reaches the artifact server. The owner, asking to publish what is already
+   * published, is refused with a bad request. That reason concerns the artifact, not the caller.
+   */
+  @Test
+  public void aManagerWhoIsNotTheOwnerIsForbiddenToPublish() throws Exception {
+    CedarTemplateId draft = sharedWithAManager("Draft a Manager may not publish", "bibo:draft");
+    CedarTemplateId published = sharedWithAManager("Published template its owner may not publish again",
+        "bibo:published");
+    int writes = ARTIFACT_WRITES.get();
+
+    HttpResponse<String> manager = postVersionCommand("publish-artifact",
+        "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.0.0\"}",
+        TestAuthUtil.getTestUser2AuthHeader(cedarConfig));
+    HttpResponse<String> owner = postVersionCommand("publish-artifact",
+        "{\"@id\":\"" + published.getId() + "\",\"newVersion\":\"1.0.1\"}");
+
+    assertRefusal(manager, 403, "versioningOnlyByOwner");
+    assertRefusal(owner, 400, "publishOnlyDraft");
+    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a refused publication reached the artifact server");
+    Assertions.assertEquals("bibo:draft", folderSession.findSchemaArtifactById(draft).getPublicationStatus().getValue());
+  }
+
+  /**
+   * Only an artifact's owner may create a draft from it. A Manager who is not the owner is forbidden,
+   * with the rule's own key, and nothing reaches the artifact server. The owner, asking to draft a draft,
+   * is refused with a bad request. That reason concerns the artifact, not the caller.
+   */
+  @Test
+  public void aManagerWhoIsNotTheOwnerIsForbiddenToCreateADraft() throws Exception {
+    CedarTemplateId published = sharedWithAManager("Published template a Manager may not draft", "bibo:published");
+    CedarTemplateId draft = sharedWithAManager("Draft its owner may not draft", "bibo:draft");
+    int writes = ARTIFACT_WRITES.get();
+
+    HttpResponse<String> manager = postVersionCommand("create-draft-artifact", draftRequest(published),
+        TestAuthUtil.getTestUser2AuthHeader(cedarConfig));
+    HttpResponse<String> owner = postVersionCommand("create-draft-artifact", draftRequest(draft));
+
+    assertRefusal(manager, 403, "versioningOnlyByOwner");
+    assertRefusal(owner, 400, "createDraftOnlyFromPublished");
+    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a refused draft reached the artifact server");
+    Assertions.assertEquals(1, folderSession.getVersionHistory(published).size(), "a refused draft reached the graph");
+  }
+
+  /** A template in the test user's home folder at the given status, on which user 2 is a Manager. */
+  private static CedarTemplateId sharedWithAManager(String name, String status) throws Exception {
+    boolean draft = status.equals("bibo:draft");
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName(name);
+    template.setVersion("1.0.0");
+    template.setPublicationStatus(status);
+    template.setLatestVersion(true);
+    template.setLatestDraftVersion(draft);
+    template.setLatestPublishedVersion(!draft);
+    FolderServerArtifact created = folderSession.createResourceAsChildOfId(template, homeFolderId);
+    Assertions.assertNotNull(created);
+    CedarTemplateId id = CedarTemplateId.build(created.getId());
+    var owner = TestAuthUtil.getTestUser1(cedarConfig);
+    var grant = new ResourcePermissionsRequest();
+    grant.setOwner(new ResourcePermissionUser(owner.getId()));
+    grant.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
+        new ResourcePermissionUser(TestAuthUtil.getTestUser2(cedarConfig).getId()), ResourceRole.MANAGER));
+    Assertions.assertFalse(CedarDataServices.getInstance().getResourcePermissionServiceSession(
+        CedarRequestContextFactory.fromUser(owner)).updateResourcePermissions(id, grant).isError());
+    return id;
+  }
+
+  private static String draftRequest(CedarTemplateId source) {
+    return "{\"@id\":\"" + source.getId() + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
+        + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}";
+  }
+
+  private static void assertRefusal(HttpResponse<String> response, int status, String errorKey) throws IOException {
+    Assertions.assertEquals(status, response.statusCode(), response.body());
+    Assertions.assertEquals(errorKey, JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(),
+        response.body());
+  }
+
   /** Ambiguous successful responses may be retried, but must not create another version. */
   @Test
   @Order(1)
@@ -601,9 +715,14 @@ public class CommandVersionResourceTest {
   }
 
   private static HttpResponse<String> postVersionCommand(String command, String body) throws Exception {
+    return postVersionCommand(command, body, authHeader);
+  }
+
+  private static HttpResponse<String> postVersionCommand(String command, String body, String authorization)
+      throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/" + command))
-        .header("Authorization", authHeader)
+        .header("Authorization", authorization)
         .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build();
@@ -611,6 +730,9 @@ public class CommandVersionResourceTest {
   }
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
+    if (!"GET".equals(exchange.getRequestMethod())) {
+      ARTIFACT_WRITES.incrementAndGet();
+    }
     if (refusingDelete) {
       if (exchange.getRequestMethod().equals("GET")) {
         sendArtifactResponse(exchange, JsonMapper.STRICT_MAPPER.createObjectNode(), "\"1\"");

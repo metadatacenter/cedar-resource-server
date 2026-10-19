@@ -228,10 +228,9 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @Parameter(description = "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON. A published artifact may be replaced this way, since a verbatim write states the whole document rather than editing it.")
       @QueryParam(QP_VERBATIM) Optional<Boolean> verbatimParam,
       @Parameter(hidden = true) String requestBody) throws CedarException {
-    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
-
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
     CedarTemplateId tid = CedarTemplateId.build(id);
 
     rejectCompactOnWriteOperations(compactParam);

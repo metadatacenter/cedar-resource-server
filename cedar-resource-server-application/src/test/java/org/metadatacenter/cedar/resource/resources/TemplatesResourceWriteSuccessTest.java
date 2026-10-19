@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.bridge.CedarDataServices;
@@ -58,10 +59,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * says it does.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Tag("integration")
 public class TemplatesResourceWriteSuccessTest {
 
   private static final AtomicInteger ARTIFACT_POSTS = new AtomicInteger();
   private static final AtomicInteger ARTIFACT_PUTS = new AtomicInteger();
+  /** PUTs without If-Match, which the artifact server answers by creating at the identifier named. */
+  private static final AtomicInteger ARTIFACT_PUT_CREATES = new AtomicInteger();
   private static HttpServer artifactServer;
   private static volatile ObjectNode storedArtifact;
 
@@ -134,6 +138,12 @@ public class TemplatesResourceWriteSuccessTest {
       created.put("@id", "https://repo.metadatacenter.orgx/templates/" + java.util.UUID.randomUUID());
       storedArtifact = created;
       send(exchange, 201, created, created.get("@id").asText());
+      return;
+    }
+    if ("PUT".equals(method) && exchange.getRequestHeaders().getFirst("If-Match") == null) {
+      ARTIFACT_PUT_CREATES.incrementAndGet();
+      storedArtifact = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
+      send(exchange, 201, storedArtifact, storedArtifact.path("@id").asText());
       return;
     }
     if ("PUT".equals(method)) {
@@ -291,6 +301,50 @@ public class TemplatesResourceWriteSuccessTest {
       AbstractResourceServerResource.injectArtifactRestoreCompletionService(original);
     }
   }
+  /**
+   * A caller that may lose the answer creates at an identity it chose, by PUT without If-Match. The
+   * create answers 201 with an ETag, and the template is readable at that identity. Repeating the same
+   * request, as the caller would after a lost answer, answers 428 and writes nothing, so a retry can never
+   * make a second template.
+   */
+  @Test
+  @Order(6)
+  public void aCreateByPutAnswers201AndItsRepeatAnswers428WithoutASecondWrite() throws Exception {
+    CedarConfig config = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
+    String id = config.getLinkedDataUtil().buildNewLinkedDataId(org.metadatacenter.model.CedarResourceType.TEMPLATE);
+    String body = templateBody("Created at a chosen identifier").replace("\"@id\":null", "\"@id\":\"" + id + "\"");
+    HttpRequest create = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(id, StandardCharsets.UTF_8) + "?folder_id="
+            + URLEncoder.encode(homeFolderId.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .PUT(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+    int createsBefore = ARTIFACT_PUT_CREATES.get();
+
+    HttpResponse<String> created = CLIENT.send(create, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    Assertions.assertTrue(created.headers().firstValue("ETag").isPresent(), "a create must answer with an ETag");
+    Assertions.assertEquals(id, JsonMapper.STRICT_MAPPER.readTree(created.body()).path("@id").asText());
+    Assertions.assertEquals(createsBefore + 1, ARTIFACT_PUT_CREATES.get());
+    var context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config));
+    Assertions.assertNotNull(CedarDataServices.getInstance().getFolderServiceSession(context)
+        .findArtifactById(org.metadatacenter.id.CedarTemplateId.build(id)), "the created template has no graph node");
+
+    HttpResponse<String> repeated = CLIENT.send(create, HttpResponse.BodyHandlers.ofString());
+
+    Assertions.assertEquals(428, repeated.statusCode(), repeated.body());
+    Assertions.assertEquals(createsBefore + 1, ARTIFACT_PUT_CREATES.get(), "the repeat wrote again");
+    HttpResponse<String> read = CLIENT.send(HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(id, StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader).GET().build(), HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(200, read.statusCode(), read.body());
+    Assertions.assertEquals(id, JsonMapper.STRICT_MAPPER.readTree(read.body()).path("@id").asText());
+  }
+
   @Test
   @Order(5)
   public void verbatimRepairPreservesDisplayedProvenanceWithAndWithoutTheRestoreOutbox() throws Exception {

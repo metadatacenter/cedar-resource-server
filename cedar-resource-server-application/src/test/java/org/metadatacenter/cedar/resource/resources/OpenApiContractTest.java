@@ -121,6 +121,51 @@ class OpenApiContractTest {
         categoryAclPath.at("/put/responses/200/content/application~1json/schema/$ref").asText());
   }
 
+  /**
+   * A recursive folder deletion documents every answer it gives, each refusal in the shared error body.
+   * A refused confirmation still reports its outcome, and the document says where. It also says that a
+   * confirmation whose repeated inventory could not be completed carries none.
+   */
+  @Test
+  void recursiveFolderDeletionDocumentsEveryAnswer() throws IOException {
+    JsonNode path = readSpec().at("/paths/~1folders~1{folder_id}~1deletion");
+    assertAnswers(path.path("get"), "#/components/schemas/Plan",
+        "400", "401", "403", "404", "406", "409", "429", "500", "503");
+    assertAnswers(path.path("post"), "#/components/schemas/Outcome",
+        "400", "401", "403", "404", "406", "409", "415", "429", "500", "503");
+    String conflict = path.at("/post/responses/409/description").asText();
+    assertTrue(conflict.contains("objects.outcome"), conflict);
+    assertTrue(conflict.contains("could not be completed") && conflict.contains("carries no outcome"), conflict);
+  }
+
+  /**
+   * An inclusion subgraph update documents every answer it gives, each refusal in the shared error body.
+   * A partly refused update still reports what became of each target, and the document says where.
+   */
+  @Test
+  void inclusionSubgraphUpdateDocumentsEveryAnswer() throws IOException {
+    JsonNode operation = readSpec().at("/paths/~1command~1inclusions-subgraph-update/post");
+    assertAnswers(operation, "#/components/schemas/InclusionSubgraphUpdateReport",
+        "400", "401", "403", "404", "406", "429", "500", "502", "503");
+    assertTrue(operation.at("/responses/502/description").asText().contains("objects.report"),
+        operation.at("/responses/502").toString());
+  }
+
+  private static void assertAnswers(JsonNode operation, String success, String... refusals) {
+    JsonNode responses = operation.path("responses");
+    Set<String> documented = new TreeSet<>();
+    responses.fieldNames().forEachRemaining(documented::add);
+    Set<String> expected = new TreeSet<>(Set.of(refusals));
+    expected.add("200");
+    assertEquals(expected, documented);
+    assertEquals(success, responses.at("/200/content/application~1json/schema/$ref").asText());
+    for (String status : refusals) {
+      assertEquals("#/components/schemas/CedarError",
+          responses.at("/" + status + "/content/application~1json/schema/$ref").asText(), status);
+      assertFalse(responses.path(status).path("description").asText().isBlank(), status);
+    }
+  }
+
   private static void assertEnum(JsonNode schema, String... expectedValues) {
     assertEquals(java.util.Set.of(expectedValues),
         java.util.stream.StreamSupport.stream(schema.path("enum").spliterator(), false)

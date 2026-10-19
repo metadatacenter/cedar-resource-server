@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -69,16 +70,47 @@ import java.util.stream.Stream;
  *
  * <p>Each case fails one request a command makes. The command must answer with the artifact server's
  * status and reason, or with 503 when no answer came. It must also leave both stores as they were.
+ *
+ * <p>Publishing a template and drafting its successor is one command that makes several writes, and its
+ * later steps fail after the publication has committed. Those steps are failed one at a time: the
+ * judgement of the definition before anything is written, the draft's creation, and the write that gives
+ * the draft its definition. The command must undo what it did, so the template ends as the draft it was,
+ * with no successor and a version history of one.
  */
+@Tag("integration")
 public class ArtifactServerAnswerMatrixTest {
 
   private static final Map<String, ObjectNode> ARTIFACTS = new ConcurrentHashMap<>();
+  /** Each document's revision, which every answer about it carries as its ETag. */
+  private static final Map<String, Integer> REVISION_OF = new ConcurrentHashMap<>();
   private static final AtomicInteger REVISIONS = new AtomicInteger();
   private static final String EXPLANATION = "The artifact server explains its refusal";
+  /** The template a case runs its command on, so a fault can tell its writes from a successor's. */
+  private static volatile String source;
 
-  /** A request the stub refuses: its method, and the answer it gives, or no answer at all. */
-  private record Fault(String method, String collectionPath, Integer status) {
+  /**
+   * A request the stub refuses: its method, which of the requests of that method it is, and the answer it
+   * gives, or no answer at all. With no request named, every request of the method is refused.
+   */
+  private record Fault(String method, String request, String collectionPath, Integer status) {
+    boolean matches(String requestMethod, String path, String artifactId, boolean conditional) {
+      if (!method.equals(requestMethod) || !path.startsWith(collectionPath)) {
+        return false;
+      }
+      if (request == null) {
+        return true;
+      }
+      boolean successor = artifactId != null && !artifactId.equals(source);
+      return switch (request) {
+        case "judging the definition" -> path.endsWith(JUDGEMENT);
+        case "creating the draft" -> successor && !conditional && !path.endsWith(JUDGEMENT);
+        case "applying the definition" -> successor && conditional;
+        default -> throw new IllegalArgumentException(request);
+      };
+    }
   }
+
+  private static final String JUDGEMENT = "/replacement-judgement";
 
   private static final AtomicReference<Fault> FAULT = new AtomicReference<>();
   private static HttpServer artifactServer;
@@ -165,13 +197,21 @@ public class ArtifactServerAnswerMatrixTest {
       },
       "delete", id -> send("DELETE", "/templates/" + encode(id), null));
 
-  /** The request of a command that is failed, as the method the artifact server receives it under. */
+  /**
+   * The request of a command that is failed, as the method the artifact server receives it under. An
+   * update and a deletion each read the document first, so their GET is failed as well as their write.
+   */
   private static final List<Object[]> STEPS = List.of(
       new Object[]{"publish", "GET"}, new Object[]{"publish", "PUT"},
       new Object[]{"create a draft", "GET"}, new Object[]{"create a draft", "POST"},
       new Object[]{"publish and draft", "GET"}, new Object[]{"publish and draft", "PUT"},
+      new Object[]{"publish and draft", "POST judging the definition"},
+      new Object[]{"publish and draft", "PUT creating the draft"},
+      new Object[]{"publish and draft", "PUT applying the definition"},
       new Object[]{"copy", "GET"}, new Object[]{"copy", "POST"},
-      new Object[]{"read", "GET"}, new Object[]{"update", "PUT"}, new Object[]{"delete", "DELETE"});
+      new Object[]{"read", "GET"},
+      new Object[]{"update", "GET"}, new Object[]{"update", "PUT"},
+      new Object[]{"delete", "GET"}, new Object[]{"delete", "DELETE"});
 
   /** The artifact server's answers, as statuses; null is no answer at all. */
   private static final List<Integer> ANSWERS = java.util.Arrays.asList(400, 401, 403, 404, 409, 412, 422, 428, 429, 500, 502, 503, 504, null);
@@ -191,6 +231,7 @@ public class ArtifactServerAnswerMatrixTest {
   public void theCommandAnswersWithTheArtifactServersAnswerAndChangesNothing(String command, String method,
                                                                           String answer) throws Exception {
     String id = createTemplate();
+    source = id;
     // A draft is made from a published version, so that command starts from one.
     if (command.equals("create a draft")) {
       HttpResponse<String> published = COMMANDS.get("publish").run(id);
@@ -201,7 +242,9 @@ public class ArtifactServerAnswerMatrixTest {
     String nodeBefore = describe(id);
 
     Integer status = answer.equals("no answer") ? null : Integer.valueOf(answer);
-    FAULT.set(new Fault(method, "/templates", status));
+    int space = method.indexOf(' ');
+    FAULT.set(new Fault(space < 0 ? method : method.substring(0, space),
+        space < 0 ? null : method.substring(space + 1), "/templates", status));
     HttpResponse<String> response = COMMANDS.get(command).run(id);
     FAULT.set(null);
 
@@ -223,6 +266,9 @@ public class ArtifactServerAnswerMatrixTest {
     Assertions.assertEquals(documentBefore, ARTIFACTS.get(id), command + " changed the stored document");
     Assertions.assertEquals(documentsBefore, ARTIFACTS.size(), command + " left a new document behind");
     Assertions.assertEquals(nodeBefore, describe(id), command + " changed the graph node");
+    Assertions.assertEquals(1, folderSession.getVersionHistory(
+            org.metadatacenter.id.CedarTemplateId.build(id)).size(),
+        command + " left a successor in the template's version history");
   }
 
   /** What the graph says of a template, in the fields a failed command could have moved. */
@@ -278,8 +324,19 @@ public class ArtifactServerAnswerMatrixTest {
     String method = exchange.getRequestMethod();
     String path = exchange.getRequestURI().getPath();
 
+    String collection = "/templates/";
+    String named = path.startsWith(collection) && path.length() > collection.length()
+        ? path.substring(collection.length()) : null;
+    if (named != null && named.endsWith(JUDGEMENT)) {
+      named = named.substring(0, named.length() - JUDGEMENT.length());
+    }
+    String artifactId = named == null ? null : cedarConfig.getLinkedDataUtil().resolveResourceId(
+        CedarResourceType.TEMPLATE, URLDecoder.decode(named, StandardCharsets.UTF_8));
+    boolean names = artifactId != null && artifactId.startsWith("http");
+
     Fault fault = FAULT.get();
-    if (fault != null && fault.method().equals(method) && path.startsWith(fault.collectionPath())) {
+    if (fault != null && fault.matches(method, path, artifactId,
+        exchange.getRequestHeaders().getFirst("If-Match") != null)) {
       if (fault.status() == null) {
         // No answer: the connection closes before a status line, as a server that went down would.
         exchange.close();
@@ -292,25 +349,26 @@ public class ArtifactServerAnswerMatrixTest {
       return;
     }
 
-    String collection = "/templates/";
-    String artifactId = path.startsWith(collection) && path.length() > collection.length()
-        ? cedarConfig.getLinkedDataUtil().resolveResourceId(CedarResourceType.TEMPLATE,
-            URLDecoder.decode(path.substring(collection.length()), StandardCharsets.UTF_8))
-        : null;
-    boolean names = artifactId != null && artifactId.startsWith("http");
-
+    if ("POST".equals(method) && path.endsWith(JUDGEMENT)) {
+      // The judgement of a definition stores nothing, and the stub finds every definition acceptable.
+      exchange.sendResponseHeaders(204, -1);
+      exchange.close();
+      return;
+    }
     if ("POST".equals(method)) {
       ObjectNode created = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       String mintedId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
       created.put(ModelNodeNames.JSON_LD_ID, mintedId);
-      ARTIFACTS.put(mintedId, created);
+      store(mintedId, created);
       respond(exchange, 201, created, mintedId);
       return;
     }
     if ("PUT".equals(method) && names) {
+      // A PUT to an identifier nothing is stored at creates there, as the artifact server's does.
+      boolean creates = !ARTIFACTS.containsKey(artifactId);
       ObjectNode replacement = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
-      ARTIFACTS.put(artifactId, replacement);
-      respond(exchange, 200, replacement, null);
+      store(artifactId, replacement);
+      respond(exchange, creates ? 201 : 200, replacement, creates ? artifactId : null);
       return;
     }
     if ("GET".equals(method) && names && ARTIFACTS.containsKey(artifactId)) {
@@ -319,6 +377,7 @@ public class ArtifactServerAnswerMatrixTest {
     }
     if ("DELETE".equals(method) && names) {
       ARTIFACTS.remove(artifactId);
+      REVISION_OF.remove(artifactId);
       exchange.sendResponseHeaders(204, -1);
       exchange.close();
       return;
@@ -327,10 +386,17 @@ public class ArtifactServerAnswerMatrixTest {
     exchange.close();
   }
 
+  private static void store(String id, ObjectNode document) {
+    ARTIFACTS.put(id, document);
+    REVISION_OF.put(id, REVISIONS.incrementAndGet());
+  }
+
+  /** A document's answers carry its revision; a refusal, which names no stored document, a fresh one. */
   private static void respond(HttpExchange exchange, int status, JsonNode body, String location) throws IOException {
     byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
     exchange.getResponseHeaders().set("Content-Type", "application/json");
-    exchange.getResponseHeaders().set("ETag", "\"" + REVISIONS.incrementAndGet() + "\"");
+    Integer revision = REVISION_OF.get(body.path(ModelNodeNames.JSON_LD_ID).asText());
+    exchange.getResponseHeaders().set("ETag", "\"" + (revision != null ? revision : REVISIONS.incrementAndGet()) + "\"");
     if (location != null) {
       exchange.getResponseHeaders().set("Location", location);
     }

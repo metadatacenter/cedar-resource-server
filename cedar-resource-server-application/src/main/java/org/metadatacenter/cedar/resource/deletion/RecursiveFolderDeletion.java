@@ -21,7 +21,10 @@ public final class RecursiveFolderDeletion {
   public record Plan(String token, boolean allowed, Map<String, Long> counts, List<Item> items,
                      long restrictedItems, long protectedFolders, long templatesWithInstances,
                      long templatesWithOutsideInstances, long instancesOutside) {}
-  /** Stable protocol codes let hosts localise every operational message. */
+  /**
+   * Stable protocol codes let hosts localise every outcome. A refusal carries the reason's message in
+   * the shared error body, which names the refusal by its error key rather than by this code.
+   */
   public enum Reason {
     NOT_OWNER("Only the owner of this folder can delete it and its contents."),
     PROTECTED_ROOT("Home and system folders cannot be deleted."),
@@ -103,6 +106,11 @@ public final class RecursiveFolderDeletion {
     return new Plan(token, restricted == 0 && protectedFolders == 0 && blockedTemplates == 0,
         counts, items, restricted, protectedFolders, referenced, blockedTemplates, outsideCount);
   }
+  /**
+   * Deletes the confirmed inventory. The inventory is repeated first, and an IllegalStateException says
+   * that the repeat could not be completed. Nothing has been deleted by then, since a failure while
+   * deleting stops the deletion and is reported in the outcome.
+   */
   public Outcome execute(String token) throws Exception {
     Inventory inventory = store.inventory();
     Plan current = plan(inventory);

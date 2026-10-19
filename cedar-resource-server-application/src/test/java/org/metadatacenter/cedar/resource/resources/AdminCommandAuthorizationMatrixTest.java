@@ -4,6 +4,7 @@ import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
@@ -47,6 +48,7 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
  * logged-in user). Asserting a regular user's 200 and 404 there is what proves the 403s are about the
  * missing admin permission, not a blanket block on {@code /command}.
  */
+@Tag("integration")
 public class AdminCommandAuthorizationMatrixTest {
 
   static {

@@ -139,14 +139,16 @@ public class FoldersResource extends AbstractResourceServerResource {
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_FOLDER_ID) String id) throws CedarException {
-    id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     return findFolder(id);
   }
 
   @PUT
   @Timed
   @Path("/{folder_id}")
-  @Operation(summary = "Update a folder", description = "Update a folder.",
+  @Operation(summary = "Update a folder", description = "Update a folder, or create one under the supplied "
+      + "identifier. An existing folder is updated only with the ETag returned by GET in If-Match. Without "
+      + "If-Match the request can only create, so on an existing folder it answers 428 whatever its body, and "
+      + "a create repeated after its answer was lost cannot make a second folder.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatchForCreateOrReplace"))
   @RequestBody(description = "The new name and description of the folder, or the folder to create under the supplied identifier.",
       required = true, content = @Content(schema = @Schema(ref = "#/components/schemas/FolderReplaceRequest")))
@@ -181,6 +183,16 @@ public class FoldersResource extends AbstractResourceServerResource {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(folderId);
     if (folder != null) {
+      // Without If-Match this PUT cannot be an update, so a body shaped for creating the folder is a
+      // create of an identifier already in use. The answer says so, as the artifact routes do, rather than
+      // calling the body malformed: a caller retrying a create it is unsure of then reads 428 as "this
+      // identifier is taken, look again" without parsing a message.
+      if (RevisionPreconditionParser.isAbsent(c.getIfMatchHeader())) {
+        return CedarResponse.preconditionRequired()
+            .id(folderId)
+            .message("The folder already exists; updating it requires the ETag returned by GET in If-Match")
+            .build();
+      }
       c.request().getRequestBody().mustHaveOnly(SCHEMA_ORG_NAME, SCHEMA_ORG_DESCRIPTION);
       return updateFolderNameAndDescriptionInGraphDb(c, folderId);
     } else {
@@ -238,10 +250,27 @@ public class FoldersResource extends AbstractResourceServerResource {
 
     c.must(c.user()).have(CedarPermission.FOLDER_DELETE);
     CedarFolderId fid = CedarFolderId.build(id);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+
+    // A home or system folder can never be deleted, so nobody holds the capability to delete one.
+    // Someone who can see the folder is told why, as a rename or a recursive deletion of it tells
+    // them. Anyone else is refused below as for any folder they cannot delete, and learns nothing
+    // about it.
+    if (dataServices.getResourcePermissionServiceSession(c).userHasCapability(fid,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE)) {
+      FolderServerFolder seen = folderSession.findFolderById(fid);
+      if (seen != null && (seen.isUserHome() || seen.isSystem())) {
+        return CedarResponse.badRequest()
+            .id(id)
+            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
+            .errorReasonKey(seen.isUserHome() ? CedarErrorReasonKey.USER_HOME_FOLDER : CedarErrorReasonKey.SYSTEM_FOLDER)
+            .message(seen.isUserHome() ? "User home folders can not be deleted" : "System folders can not be deleted")
+            .build();
+      }
+    }
 
     userMustHaveCapabilityOnFolder(c, fid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.DELETE_RESOURCE);
 
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     FolderServerFolder folder = folderSession.findFolderById(fid);
 
     if (folder == null) {
@@ -258,20 +287,6 @@ public class FoldersResource extends AbstractResourceServerResource {
             .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
             .errorReasonKey(CedarErrorReasonKey.NON_EMPTY_FOLDER)
             .message("Non-empty folders can not be deleted")
-            .build();
-      } else if (folder.isUserHome()) {
-        return CedarResponse.badRequest()
-            .id(id)
-            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
-            .errorReasonKey(CedarErrorReasonKey.USER_HOME_FOLDER)
-            .message("User home folders can not be deleted")
-            .build();
-      } else if (folder.isSystem()) {
-        return CedarResponse.badRequest()
-            .id(id)
-            .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
-            .errorReasonKey(CedarErrorReasonKey.SYSTEM_FOLDER)
-            .message("System folders can not be deleted")
             .build();
       } else {
         String ifMatch = c.getIfMatchHeader();

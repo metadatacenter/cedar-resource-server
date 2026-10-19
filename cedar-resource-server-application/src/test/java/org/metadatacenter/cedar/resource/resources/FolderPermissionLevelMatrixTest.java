@@ -5,6 +5,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
@@ -53,6 +54,7 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OTHER_USER;
 import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
 
 /** REST matrix for folder roles, capabilities, and source/destination authorization. */
+@Tag("integration")
 public class FolderPermissionLevelMatrixTest {
 
   static {

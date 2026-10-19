@@ -22,9 +22,11 @@ import java.util.Optional;
  * pin a template's controlled-term constraints at publish time.
  *
  * <b>Fail-safe by design.</b> Any non-200 response, timeout, or parse/network error yields empty, so
- * freeze-on-publish can never block or break a publish. When the terminology local store is off (the
- * production default), resolve-current returns 404 and nothing is pinned — the published artifact is
- * unchanged.
+ * freeze-on-publish can never block or break a publish. So does an answer whose {@code id} is missing,
+ * not a string, empty or blank. A published template cannot be changed, and readers refuse a pin with
+ * an empty id, so stamping one would leave the template unreadable. When the terminology local store
+ * is off (the production default), resolve-current returns 404 and nothing is pinned — the published
+ * artifact is unchanged.
  */
 public class TerminologyVersionResolver implements ControlledTermVersionFreezer.VersionResolver {
 
@@ -84,7 +86,7 @@ public class TerminologyVersionResolver implements ControlledTermVersionFreezer.
       }
       JsonNode triple = MAPPER.readTree(response.body());
       JsonNode id = triple.get("id");
-      if (id == null || !id.isTextual()) {
+      if (id == null || !id.isTextual() || id.asText().isBlank()) {
         skippedResolutionCount++;
         return Optional.empty();
       }

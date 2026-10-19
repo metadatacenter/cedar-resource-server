@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.bridge.CedarDataServices;
@@ -49,10 +50,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 /** Endpoint tests for commands that copy artifacts through the artifact service. */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Tag("integration")
 public class CommandFileSystemResourceTest {
 
   private static final String SOURCE_NAME = "Named source artifact";
@@ -78,6 +81,24 @@ public class CommandFileSystemResourceTest {
   private static int sourceGetStatus = 200;
   private static boolean omitSourceGetBody;
   private static String receivedPutIfMatch;
+  /**
+   * Identities a case chose for a copy. The stub answers for these as the artifact server does, from
+   * what is stored at them, and answers everything else as before.
+   */
+  private static final java.util.Set<String> CHOSEN = java.util.concurrent.ConcurrentHashMap.newKeySet();
+  private static final Map<String, ObjectNode> STORED_AT_CHOSEN = new java.util.concurrent.ConcurrentHashMap<>();
+  private static final java.util.concurrent.atomic.AtomicInteger CREATES_AT_CHOSEN =
+      new java.util.concurrent.atomic.AtomicInteger();
+  private static final java.util.concurrent.atomic.AtomicInteger DELETES_AT_CHOSEN =
+      new java.util.concurrent.atomic.AtomicInteger();
+  /** The next create at a chosen identity is stored, and its answer never sent. */
+  private static volatile boolean losingTheNextCreateAnswer;
+  /**
+   * The next create at a chosen identity loses its answer and is held back, so that reading the
+   * identity finds nothing until a case stores what was held.
+   */
+  private static volatile boolean holdingTheNextCreate;
+  private static final Map<String, ObjectNode> HELD_CREATES = new java.util.concurrent.ConcurrentHashMap<>();
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -362,7 +383,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(10)
+  @Order(20)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
     artifactServer.stop(0);
     artifactServer = null;
@@ -393,7 +414,7 @@ public class CommandFileSystemResourceTest {
    * fixture's artifact server is still up.
    */
   @Test
-  @Order(11)
+  @Order(21)
   public void aCommandRefusesPropertiesItDoesNotAccept() throws Exception {
     String withTheResourceType = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"resourceType\":\"template\","
@@ -407,6 +428,222 @@ public class CommandFileSystemResourceTest {
     HttpResponse<String> misspelled = postCommand("move-resource-to-folder", withAMisspelling, "*");
     Assertions.assertEquals(400, misspelled.statusCode(), misspelled.body());
     Assertions.assertTrue(misspelled.body().contains("targetFolderid"), misspelled.body());
+  }
+
+  /**
+   * A copy repeated at the identity its caller chose, as after a lost answer, finds the identity taken
+   * and answers 412 instead of making a second copy.
+   */
+  @Test
+  @Order(10)
+  public void aCopyRepeatedAtItsCopyIdFindsItTakenAndLeavesOneCopy() throws Exception {
+    String copyId = chooseIdentity(CedarResourceType.TEMPLATE);
+    int creates = CREATES_AT_CHOSEN.get();
+
+    HttpResponse<String> first = postCommand("copy-artifact-to-folder", copyBody(copyId));
+    HttpResponse<String> repeated = postCommand("copy-artifact-to-folder", copyBody(copyId));
+
+    Assertions.assertEquals(201, first.statusCode(), first.body());
+    Assertions.assertEquals(copyId, JsonMapper.STRICT_MAPPER.readTree(first.body()).path("@id").asText());
+    Assertions.assertEquals(412, repeated.statusCode(), repeated.body());
+    Assertions.assertEquals("nodeAlreadyPresent",
+        JsonMapper.STRICT_MAPPER.readTree(repeated.body()).path("errorKey").asText(), repeated.body());
+    Assertions.assertEquals(creates + 1, CREATES_AT_CHOSEN.get(), "the repeat wrote a second copy");
+    Assertions.assertEquals(sourceArtifact.getId(), STORED_AT_CHOSEN.get(copyId).path("pav:derivedFrom").asText());
+    Assertions.assertNotNull(folderSession.findArtifactById(CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE)));
+  }
+
+  /**
+   * The artifact server stores the copy and its answer is lost. The copy's identity is known, so the
+   * command finds the document and removes it, since the graph never registered it, and answers 503.
+   * The caller's retry with the same identity then creates the one copy.
+   */
+  @Test
+  @Order(11)
+  public void aCopyWhoseCreateAnswerIsLostIsRemovedAndItsRetryMakesOneCopy() throws Exception {
+    String copyId = chooseIdentity(CedarResourceType.TEMPLATE);
+    losingTheNextCreateAnswer = true;
+    int creates = CREATES_AT_CHOSEN.get();
+    int deletes = DELETES_AT_CHOSEN.get();
+
+    HttpResponse<String> lost = postCommand("copy-artifact-to-folder", copyBody(copyId));
+
+    Assertions.assertEquals(503, lost.statusCode(), lost.body());
+    Assertions.assertEquals(creates + 1, CREATES_AT_CHOSEN.get(), "the copy was never stored");
+    Assertions.assertEquals(deletes + 1, DELETES_AT_CHOSEN.get(), "the unregistered copy was not removed");
+    Assertions.assertFalse(STORED_AT_CHOSEN.containsKey(copyId));
+    Assertions.assertNull(folderSession.findArtifactById(CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE)));
+
+    HttpResponse<String> retried = postCommand("copy-artifact-to-folder", copyBody(copyId));
+
+    Assertions.assertEquals(201, retried.statusCode(), retried.body());
+    Assertions.assertEquals(creates + 2, CREATES_AT_CHOSEN.get());
+    Assertions.assertTrue(STORED_AT_CHOSEN.containsKey(copyId));
+    Assertions.assertNotNull(folderSession.findArtifactById(CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE)));
+  }
+
+  /**
+   * The artifact server's answer to the copy is lost, reading the identity back finds nothing, and the
+   * copy is stored only afterwards. Nothing registers it, and while it is there a retry at the identity
+   * is refused as occupied. The create's cleanup job has held the identity since before the write, so
+   * the relay's next attempt finds the copy and removes it at the revision it read, and the retry then
+   * makes the one copy.
+   */
+  @Test
+  @Order(14)
+  public void aCopyStoredAfterItsLostAnswerWasReadBackIsRemovedByTheRelay() throws Exception {
+    String copyId = chooseIdentity(CedarResourceType.TEMPLATE);
+    holdingTheNextCreate = true;
+    int deletes = DELETES_AT_CHOSEN.get();
+
+    HttpResponse<String> lost = postCommand("copy-artifact-to-folder", copyBody(copyId));
+
+    Assertions.assertEquals(503, lost.statusCode(), lost.body());
+    Assertions.assertTrue(HELD_CREATES.containsKey(copyId), "the copy never reached the artifact server");
+    Assertions.assertFalse(STORED_AT_CHOSEN.containsKey(copyId));
+    String job = cleanupJob(copyId);
+    Assertions.assertNotNull(job, "the create's cleanup job does not hold the identity it wrote at");
+
+    STORED_AT_CHOSEN.put(copyId, HELD_CREATES.remove(copyId));
+    HttpResponse<String> blocked = postCommand("copy-artifact-to-folder", copyBody(copyId));
+    Assertions.assertEquals(412, blocked.statusCode(), blocked.body());
+
+    // The relay runs this step for each pending job. The case runs it now instead of waiting for the delay.
+    AbstractResourceServerResource.artifactCreateCleanupService.cleanupNow(job,
+        CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig)));
+
+    Assertions.assertEquals(deletes + 1, DELETES_AT_CHOSEN.get(), "the unregistered copy was not removed");
+    Assertions.assertFalse(STORED_AT_CHOSEN.containsKey(copyId));
+    Assertions.assertNull(cleanupJob(copyId), "the cleanup did not finish");
+    Assertions.assertNull(folderSession.findArtifactById(CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE)));
+
+    HttpResponse<String> retried = postCommand("copy-artifact-to-folder", copyBody(copyId));
+
+    Assertions.assertEquals(201, retried.statusCode(), retried.body());
+    Assertions.assertEquals(copyId, JsonMapper.STRICT_MAPPER.readTree(retried.body()).path("@id").asText());
+    Assertions.assertTrue(STORED_AT_CHOSEN.containsKey(copyId));
+    Assertions.assertNotNull(folderSession.findArtifactById(CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE)));
+    Assertions.assertNull(cleanupJob(copyId), "registration did not retire the retry's cleanup job");
+  }
+
+  /** A copyId either store already holds is refused before anything is written. */
+  @Test
+  @Order(12)
+  public void anOccupiedCopyIdIsRefusedWithoutAWrite() throws Exception {
+    String heldByTheArtifactStore = chooseIdentity(CedarResourceType.TEMPLATE);
+    STORED_AT_CHOSEN.put(heldByTheArtifactStore, JsonMapper.STRICT_MAPPER.createObjectNode()
+        .put("@id", heldByTheArtifactStore));
+    int creates = CREATES_AT_CHOSEN.get();
+    for (String occupied : List.of(sourceArtifact.getId(), heldByTheArtifactStore)) {
+      postedArtifact = null;
+
+      HttpResponse<String> response = postCommand("copy-artifact-to-folder", copyBody(occupied));
+
+      Assertions.assertEquals(412, response.statusCode(), response.body());
+      Assertions.assertEquals("nodeAlreadyPresent",
+          JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(), response.body());
+      Assertions.assertNull(postedArtifact, "an occupied identity reached the artifact server's create");
+      Assertions.assertEquals(creates, CREATES_AT_CHOSEN.get());
+    }
+  }
+
+  /** A copyId that is not an identifier of the source's collection is refused before anything is written. */
+  @Test
+  @Order(13)
+  public void aCopyIdOutsideTheSourcesCollectionIsRefused() throws Exception {
+    int creates = CREATES_AT_CHOSEN.get();
+    for (String copyId : List.of(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FIELD),
+        "copy-of-the-source")) {
+      postedArtifact = null;
+
+      HttpResponse<String> response = postCommand("copy-artifact-to-folder", copyBody(copyId));
+
+      Assertions.assertEquals(400, response.statusCode(), response.body());
+      Assertions.assertNull(postedArtifact);
+      Assertions.assertEquals(creates, CREATES_AT_CHOSEN.get());
+    }
+  }
+
+  /** The cleanup job that holds an identity, or null. */
+  private static String cleanupJob(String id) {
+    var neo = org.metadatacenter.server.neo4j.Neo4jConfig.fromCedarConfig(cedarConfig);
+    try (var driver = org.neo4j.driver.GraphDatabase.driver(neo.getUri(),
+        org.neo4j.driver.AuthTokens.basic(neo.getUserName(), neo.getUserPassword()));
+         var session = driver.session()) {
+      var result = session.run("MATCH (j:CedarArtifactCreateCleanup {resourceId:$id}) RETURN j.jobId AS job",
+          Map.of("id", id));
+      return result.hasNext() ? result.single().get("job").asString() : null;
+    }
+  }
+
+  private static String chooseIdentity(CedarResourceType type) {
+    String id = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(type);
+    CHOSEN.add(id);
+    return id;
+  }
+
+  private static String copyBody(String copyId) {
+    return "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\","
+        + "\"nameTemplate\":\"Copy of {{name}}\","
+        + "\"copyId\":\"" + copyId + "\"}";
+  }
+
+  /** The stub's answer for an identity a case chose, or false when the request names no such identity. */
+  private static boolean answeredAtAChosenIdentity(HttpExchange exchange) throws IOException {
+    String path = exchange.getRequestURI().getPath();
+    if (!path.startsWith("/templates/")) {
+      return false;
+    }
+    String id = cedarConfig.getLinkedDataUtil().resolveResourceId(CedarResourceType.TEMPLATE,
+        java.net.URLDecoder.decode(path.substring("/templates/".length()), StandardCharsets.UTF_8));
+    if (!CHOSEN.contains(id)) {
+      return false;
+    }
+    String method = exchange.getRequestMethod();
+    byte[] request = exchange.getRequestBody().readAllBytes();
+    ObjectNode stored = STORED_AT_CHOSEN.get(id);
+    exchange.getResponseHeaders().set("Content-Type", "application/json");
+    if (method.equals("GET") && stored != null) {
+      exchange.getResponseHeaders().set("ETag", "\"5\"");
+      byte[] body = stored.toString().getBytes(StandardCharsets.UTF_8);
+      exchange.sendResponseHeaders(200, body.length);
+      exchange.getResponseBody().write(body);
+    } else if (method.equals("PUT") && exchange.getRequestHeaders().getFirst("If-Match") == null) {
+      if (stored != null) {
+        exchange.sendResponseHeaders(412, -1);
+      } else {
+        ObjectNode created = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(request);
+        if (holdingTheNextCreate) {
+          holdingTheNextCreate = false;
+          HELD_CREATES.put(id, created);
+          exchange.close();
+          return true;
+        }
+        postedArtifact = created;
+        STORED_AT_CHOSEN.put(id, created);
+        CREATES_AT_CHOSEN.incrementAndGet();
+        if (losingTheNextCreateAnswer) {
+          losingTheNextCreateAnswer = false;
+          exchange.close();
+          return true;
+        }
+        exchange.getResponseHeaders().set("ETag", "\"5\"");
+        exchange.getResponseHeaders().set("Location", id);
+        byte[] body = created.toString().getBytes(StandardCharsets.UTF_8);
+        exchange.sendResponseHeaders(201, body.length);
+        exchange.getResponseBody().write(body);
+      }
+    } else if (method.equals("DELETE") && stored != null
+        && "\"5\"".equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
+      STORED_AT_CHOSEN.remove(id);
+      DELETES_AT_CHOSEN.incrementAndGet();
+      exchange.sendResponseHeaders(204, -1);
+    } else {
+      exchange.sendResponseHeaders(stored == null ? 404 : 412, -1);
+    }
+    exchange.close();
+    return true;
   }
 
   private static void assertServiceUnavailable(HttpResponse<String> response) throws IOException {
@@ -439,6 +676,9 @@ public class CommandFileSystemResourceTest {
   }
 
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
+    if (answeredAtAChosenIdentity(exchange)) {
+      return;
+    }
     byte[] response;
     int status;
     if ("GET".equals(exchange.getRequestMethod())) {

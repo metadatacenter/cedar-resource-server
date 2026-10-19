@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import java.util.Locale;
+
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -408,7 +410,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     Map<NodeProperty, String> updateFields = new HashMap<>();
     updateFields.put(NodeProperty.NAME, categoryName.stringValue());
-    updateFields.put(NodeProperty.NAME_LOWER, categoryName.stringValue().toLowerCase());
+    updateFields.put(NodeProperty.NAME_LOWER, categoryName.stringValue().toLowerCase(Locale.ROOT));
     updateFields.put(NodeProperty.DESCRIPTION, categoryDescription.stringValue());
     updateFields.put(NodeProperty.IDENTIFIER, categoryIdentifier.stringValue());
     VersionedResource<FolderServerCategory> updatedCategory;

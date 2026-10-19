@@ -6,6 +6,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
@@ -51,6 +52,7 @@ import java.util.concurrent.Callable;
  * the folder and permission checks below run against the real Cypher layer. Indexing is a no-op,
  * since these tests run without OpenSearch.
  */
+@Tag("integration")
 public class FoldersResourceTest {
 
   static {
@@ -312,7 +314,13 @@ public class FoldersResourceTest {
     String added = createRecursiveTestFolder(root);
     HttpResponse<String> changed = request("POST", url,
         JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("token", plan.get("token").asText())), authHeaderUser1);
-    Assertions.assertEquals(409, changed.statusCode(), changed.body());
+    JsonNode outcome = assertRefusal(changed, 409, null, null, FOLDER_CHANGED).at("/objects/outcome");
+    Assertions.assertEquals("changed", outcome.path("status").asText(), changed.body());
+    Assertions.assertEquals("FOLDER_DELETE_CHANGED", outcome.path("code").asText(), changed.body());
+    Assertions.assertEquals(FOLDER_CHANGED, outcome.path("message").asText(), changed.body());
+    Assertions.assertEquals(Map.of("folder", 0, "template", 0, "element", 0, "field", 0, "instance", 0),
+        JsonMapper.STRICT_MAPPER.convertValue(outcome.path("deleted"), Map.class), changed.body());
+    Assertions.assertEquals(4, outcome.path("remaining").asInt(), changed.body());
     Assertions.assertEquals(200, request("GET", "/folders/" + encode(grandchild), null, authHeaderUser1).statusCode());
     JsonNode fresh = JsonMapper.STRICT_MAPPER.readTree(request("GET", url, null, authHeaderUser1).body());
     Assertions.assertEquals(4, fresh.at("/counts/folder").asInt());
@@ -327,10 +335,69 @@ public class FoldersResourceTest {
   @Test
   public void recursiveDeletionRefusesHomesAndUnauthorizedInventories() throws Exception {
     String root = createRecursiveTestFolder(homeFolderId);
-    Assertions.assertEquals(403, request("GET", "/folders/" + encode(root) + "/deletion", null, authHeaderUser2).statusCode());
-    HttpResponse<String> home = request("GET", "/folders/" + encode(homeFolderId) + "/deletion", null, authHeaderUser1);
-    Assertions.assertEquals(400, home.statusCode(), home.body());
+    assertRefusal(request("GET", "/folders/" + encode(root) + "/deletion", null, authHeaderUser2),
+        403, "noReadAccessToFolder", null, null);
+    String endpoint = "/folders/" + encode(homeFolderId) + "/deletion";
+    assertRefusal(request("GET", endpoint, null, authHeaderUser1), 400, "folderCanNotBeDeleted", "userHomeFolder",
+        PROTECTED_ROOT);
+    assertRefusal(request("POST", endpoint, "{\"token\":\"" + "a".repeat(64) + "\"}", authHeaderUser1),
+        400, "folderCanNotBeDeleted", "userHomeFolder", PROTECTED_ROOT);
     request("DELETE", "/folders/" + encode(root), null, authHeaderUser1, "\"1\"");
+  }
+
+  /**
+   * Every refusal of a recursive deletion answers the shared error body, so a client reads one shape
+   * whichever check refused it: the endpoint's own, the request assertions, or the framework's.
+   */
+  @Test
+  public void recursiveDeletionRefusalsAnswerTheSharedErrorBody() throws Exception {
+    String root = createRecursiveTestFolder(homeFolderId);
+    String endpoint = "/folders/" + encode(root) + "/deletion";
+    for (String body : List.of("{\"token\":\"not-a-token\"}", "{\"token\":null}", "{}",
+        "{\"token\":\"" + "A".repeat(64) + "\"}"))
+      assertRefusal(request("POST", endpoint, body, authHeaderUser1), 400, "invalidInput", null, INVALID_TOKEN);
+    assertRefusal(request("POST", endpoint, "{\"token\":\"" + "a".repeat(64) + "\",\"force\":true}",
+        authHeaderUser1), 400, "malformedJsonRequestBody", null, null);
+    assertRefusal(request("POST", endpoint, "{\"token\":", authHeaderUser1), 400, "malformedJsonRequestBody", null,
+        null);
+    assertRefusal(CLIENT.send(HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + endpoint))
+        .header("Authorization", authHeaderUser1).header("Content-Type", "text/plain")
+        .POST(HttpRequest.BodyPublishers.ofString("a".repeat(64))).build(), HttpResponse.BodyHandlers.ofString()),
+        415, null, null, null);
+    assertRefusal(CLIENT.send(HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + endpoint))
+        .header("Authorization", authHeaderUser1).header("Accept", "text/html").GET().build(),
+        HttpResponse.BodyHandlers.ofString()), 406, null, null, null);
+    assertRefusal(request("GET", endpoint, null, null), 401, "authorizationNotFound", null, null);
+    CedarConfig config =
+        CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
+    String missing = config.getLinkedDataUtil().buildNewLinkedDataId(org.metadatacenter.model.CedarResourceType.FOLDER);
+    assertRefusal(request("GET", "/folders/" + encode(missing) + "/deletion", null, authHeaderUser1),
+        404, "folderNotFound", null, null);
+    CedarRequestContext user1 = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config));
+    String top = CedarDataServices.getInstance().getFolderServiceSession(user1).findFolderByPath("/").getId();
+    // The root is a system folder. Only an administrator can read it, and a caller who cannot read a folder is
+    // refused before its protection is checked.
+    assertRefusal(request("GET", "/folders/" + encode(top) + "/deletion", null,
+        TestAuthUtil.getAdminUserAuthHeader(config)), 400, "folderCanNotBeDeleted", "systemFolder", PROTECTED_ROOT);
+    Assertions.assertEquals(200, request("GET", "/folders/" + encode(root), null, authHeaderUser1).statusCode());
+    request("DELETE", "/folders/" + encode(root), null, authHeaderUser1, "\"1\"");
+  }
+
+  /**
+   * A home folder can never be deleted. Its owner is told why, as a rename or a recursive deletion of
+   * it tells them; someone who cannot see it is refused as for any folder, and learns nothing about it.
+   */
+  @Test
+  public void deletingAHomeFolderSaysWhyOnlyToSomeoneWhoCanSeeIt() throws Exception {
+    HttpResponse<String> owner = request("DELETE", "/folders/" + encode(homeFolderId), null, authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(400, owner.statusCode(), owner.body());
+    JsonNode refusal = JsonMapper.STRICT_MAPPER.readTree(owner.body());
+    Assertions.assertEquals("folderCanNotBeDeleted", refusal.path("errorKey").asText(), owner.body());
+    Assertions.assertEquals("userHomeFolder", refusal.path("errorReasonKey").asText(), owner.body());
+    HttpResponse<String> stranger = request("DELETE", "/folders/" + encode(homeFolderId), null, authHeaderUser2, "\"1\"");
+    Assertions.assertEquals(403, stranger.statusCode(), stranger.body());
+    Assertions.assertFalse(stranger.body().contains("userHomeFolder"), stranger.body());
+    Assertions.assertEquals(200, request("GET", "/folders/" + encode(homeFolderId), null, authHeaderUser1).statusCode());
   }
 
   @Test
@@ -347,8 +414,7 @@ public class FoldersResourceTest {
           acl.headers().firstValue("ETag").orElseThrow()).statusCode());
       for (String method : List.of("GET", "POST")) {
         var denied = request(method, endpoint, method.equals("POST") ? "{\"token\":\"" + "a".repeat(64) + "\"}" : null, authHeaderUser2);
-        Assertions.assertEquals(403, denied.statusCode(), denied.body());
-        Assertions.assertEquals("FOLDER_DELETE_NOT_OWNER", JsonMapper.STRICT_MAPPER.readTree(denied.body()).get("code").asText());
+        assertRefusal(denied, 403, "folderCanNotBeDeleted", null, NOT_OWNER);
       }
     }
     var plan = JsonMapper.STRICT_MAPPER.readTree(request("GET", endpoint, null, authHeaderUser1).body());
@@ -363,14 +429,50 @@ public class FoldersResourceTest {
         authHeaderUser2, acl.headers().firstValue("ETag").orElseThrow());
     Assertions.assertEquals(200, grant.statusCode(), grant.body());
     var denied = request("POST", endpoint, JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("token", plan.get("token").asText())), authHeaderUser1);
-    Assertions.assertEquals(403, denied.statusCode(), denied.body());
-    Assertions.assertEquals("FOLDER_DELETE_NOT_OWNER", JsonMapper.STRICT_MAPPER.readTree(denied.body()).get("code").asText());
+    assertRefusal(denied, 403, "folderCanNotBeDeleted", null, NOT_OWNER);
     Assertions.assertEquals(200, request("GET", "/folders/" + encode(child), null, authHeaderUser2).statusCode());
     // Owning the root is sufficient; the child remains owned by user 1.
     var fresh = JsonMapper.STRICT_MAPPER.readTree(request("GET", endpoint, null, authHeaderUser2).body());
     Assertions.assertTrue(fresh.get("allowed").asBoolean());
     var deleted = request("POST", endpoint, JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("token", fresh.get("token").asText())), authHeaderUser2);
     Assertions.assertEquals("completed", JsonMapper.STRICT_MAPPER.readTree(deleted.body()).get("status").asText(), deleted.body());
+  }
+
+  private static final String NOT_OWNER = "Only the owner of this folder can delete it and its contents.";
+  private static final String PROTECTED_ROOT = "Home and system folders cannot be deleted.";
+  private static final String INVALID_TOKEN = "A current deletion inventory token is required.";
+  private static final String FOLDER_CHANGED = "The folder changed. Review a new inventory before deleting.";
+
+  /**
+   * Asserts the shared error body: both forms of the status, the error key and reason, and the message
+   * when one is expected. A null key or reason is asserted absent. An expected message is a refusal of
+   * the deletion endpoint's own, which no cache may keep. Returns the body.
+   */
+  private static JsonNode assertRefusal(HttpResponse<String> response, int status, String errorKey,
+                                        String errorReasonKey, String message) throws Exception {
+    Assertions.assertEquals(status, response.statusCode(), response.body());
+    Assertions.assertTrue(response.headers().firstValue("Content-Type").orElse("").startsWith("application/json"),
+        response.headers().toString());
+    JsonNode body = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    Assertions.assertEquals(status, body.path("statusCode").asInt(), response.body());
+    Assertions.assertTrue(body.path("status").isTextual(), response.body());
+    Assertions.assertFalse(body.has("code"), response.body());
+    if (errorKey == null) {
+      Assertions.assertTrue(body.path("errorKey").isNull() || body.path("errorKey").isMissingNode(), response.body());
+    } else {
+      Assertions.assertEquals(errorKey, body.path("errorKey").asText(), response.body());
+    }
+    if (errorReasonKey == null) {
+      Assertions.assertTrue(body.path("errorReasonKey").isNull() || body.path("errorReasonKey").isMissingNode(),
+          response.body());
+    } else {
+      Assertions.assertEquals(errorReasonKey, body.path("errorReasonKey").asText(), response.body());
+    }
+    if (message != null) {
+      Assertions.assertEquals(message, body.path("message").asText(), response.body());
+      Assertions.assertEquals("no-store", response.headers().firstValue("Cache-Control").orElse(""), response.body());
+    }
+    return body;
   }
 
   private String createRecursiveTestFolder(String parent) throws Exception {
@@ -433,6 +535,44 @@ public class FoldersResourceTest {
       HttpResponse<String> stillGone = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
       Assertions.assertEquals(404, stillGone.statusCode());
     }
+  }
+
+  /**
+   * A folder created at an identifier its caller chose, then the same request again, as after a lost
+   * answer. The repeat answers 428, which a retrying caller reads as "this identifier is taken", where it
+   * used to answer the 400 a malformed body gets. The folder stays as the first request created it, and
+   * a malformed body for an identifier nothing holds is still refused with 400.
+   */
+  @Test
+  public void aRepeatedCreateWithIdAnswers428AndChangesNothing() throws Exception {
+    var linkedData = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE))
+        .getLinkedDataUtil();
+    String folderId = linkedData.buildNewLinkedDataId(org.metadatacenter.model.CedarResourceType.FOLDER);
+    String name = "Chosen Identifier Folder " + UUID.randomUUID();
+    String body = "{\"@id\":\"" + folderId + "\",\"folderId\":\"" + homeFolderId + "\",\"name\":\"" + name
+        + "\",\"description\":\"Created at an identifier its caller chose\"}";
+
+    HttpResponse<String> created = request("PUT", "/folders/" + encode(folderId), body, authHeaderUser1);
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    Assertions.assertEquals(folderId, JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText());
+
+    HttpResponse<String> repeated = request("PUT", "/folders/" + encode(folderId), body, authHeaderUser1);
+    Assertions.assertEquals(428, repeated.statusCode(), repeated.body());
+
+    HttpResponse<String> found = request("GET", "/folders/" + encode(folderId), null, authHeaderUser1);
+    Assertions.assertEquals(200, found.statusCode(), found.body());
+    Assertions.assertEquals("\"1\"", found.headers().firstValue("ETag").orElse(null), "the repeat changed the folder");
+    Assertions.assertEquals(name, JsonMapper.STRICT_MAPPER.readTree(found.body()).get("schema:name").asText());
+
+    String absentId = linkedData.buildNewLinkedDataId(org.metadatacenter.model.CedarResourceType.FOLDER);
+    HttpResponse<String> malformed = request("PUT", "/folders/" + encode(absentId),
+        "{\"@id\":\"" + absentId + "\",\"folderId\":\"" + homeFolderId + "\",\"name\":\"Malformed\","
+            + "\"description\":\"refused\",\"parentFolderId\":\"" + homeFolderId + "\"}", authHeaderUser1);
+    Assertions.assertEquals(400, malformed.statusCode(), malformed.body());
+    Assertions.assertEquals(404, request("GET", "/folders/" + encode(absentId), null, authHeaderUser1).statusCode());
+
+    Assertions.assertEquals(204, request("DELETE", "/folders/" + encode(folderId), null, authHeaderUser1, "\"1\"")
+        .statusCode());
   }
 
   @Test

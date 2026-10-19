@@ -137,6 +137,20 @@ public final class ArtifactRestoreCompletionService implements AutoCloseable {
     }
   }
 
+  /**
+   * Returns a published version to the draft it was published from, in the graph, once its document
+   * has been put back. {@code job} is the restore that would put the published document back again if
+   * this does not commit; it is retired in the same transaction when this does. See
+   * {@link Neo4jArtifactRestoreOutbox#returnToDraft} for what is checked first.
+   *
+   * @return whether the graph now describes the draft
+   */
+  public boolean returnToDraft(ArtifactRestoreJob job, CedarArtifactId id, String publishedVersion,
+                               String draftVersion, String updatedBy) {
+    return outbox.returnToDraft(job == null ? null : job.jobId(), id.getId(), publishedVersion, draftVersion,
+        updatedBy);
+  }
+
   public void forgetOutcome(ArtifactRestoreJob job) {
     if (job == null) return;
     try {

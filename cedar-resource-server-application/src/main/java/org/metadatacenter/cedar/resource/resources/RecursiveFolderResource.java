@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.ws.rs.*;
@@ -13,6 +14,8 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.cedar.resource.deletion.RecursiveFolderDeletion;
 import org.metadatacenter.cedar.resource.deletion.RecursiveFolderDeletion.*;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarException;
 import org.metadatacenter.id.*;
 import org.metadatacenter.model.CedarResourceType;
@@ -36,14 +39,36 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
 
   @GET
   @Operation(summary = "Inventory and check a recursive folder deletion")
-  @ApiResponse(responseCode = "200", description = "Complete deletion inventory and blockers", content = @Content(schema = @Schema(implementation = Plan.class)))
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "Complete deletion inventory and blockers",
+          content = @Content(schema = @Schema(implementation = Plan.class))),
+      @ApiResponse(responseCode = "400", description = HOME_OR_SYSTEM_FOLDER,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "401", description = UNAUTHORIZED,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "403", description = NOT_THE_OWNER,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "404", description = NO_SUCH_FOLDER,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "406", description = NOT_ACCEPTABLE,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "409", description = "The complete inventory could not be checked, "
+          + INVENTORY_INCOMPLETE,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "429", description = RATE_LIMITED,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "500", description = INTERNAL_ERROR,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "503", description = UNAVAILABLE,
+          content = @Content(schema = @Schema(implementation = CedarError.class)))
+  })
   public Response preview(@PathParam("folder_id") String id) throws Exception {
     CedarRequestContext c = context(id);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     try {
       return Response.ok(service(c, id).plan()).header("Cache-Control", "no-store").build();
     } catch (IllegalStateException e) {
-      return problem(409, Reason.INVENTORY_UNAVAILABLE);
+      return refused(CedarResponse.conflict(), Reason.INVENTORY_UNAVAILABLE);
     }
   }
   @Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -51,17 +76,69 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
   @POST
   @Consumes("application/json")
   @Operation(summary = "Delete exactly the confirmed eligible folder inventory")
-  @ApiResponse(responseCode = "200", description = "Completed or stopped deletion with confirmed progress", content = @Content(schema = @Schema(implementation = Outcome.class)))
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "Completed or stopped deletion with confirmed progress",
+          content = @Content(schema = @Schema(implementation = Outcome.class))),
+      @ApiResponse(responseCode = "400", description = "The body carries no token in the form an inventory issues "
+          + "(invalidInput), or is not JSON holding only a token (malformedJsonRequestBody). " + HOME_OR_SYSTEM_FOLDER
+          + ". Nothing was deleted.",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "401", description = UNAUTHORIZED,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "403", description = NOT_THE_OWNER + " Nothing was deleted.",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "404", description = NO_SUCH_FOLDER,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "406", description = NOT_ACCEPTABLE,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "409", description = "Nothing was deleted. If the folder changed after the "
+          + "confirmed inventory, or a blocker stops its deletion (folderCanNotBeDeleted), the body's objects.outcome "
+          + "holds the outcome, with the status changed or blocked, the counts and the reason. If the inventory the "
+          + "confirmation repeats before deleting could not be completed, " + INVENTORY_INCOMPLETE + ", the body "
+          + "carries no outcome.",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "415", description = "The body is not declared as JSON",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "429", description = RATE_LIMITED,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "500", description = INTERNAL_ERROR,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "503", description = UNAVAILABLE,
+          content = @Content(schema = @Schema(implementation = CedarError.class)))
+  })
   public Response delete(@PathParam("folder_id") String id, Confirmation confirmation) throws Exception {
     CedarRequestContext c = context(id);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     c.request().getRequestBody().mustHaveOnly("token");
     if (confirmation == null || confirmation.token() == null || !confirmation.token().matches("[a-f0-9]{64}"))
-      return problem(400, Reason.INVALID_TOKEN);
-    Outcome outcome = service(c, id).execute(confirmation.token());
-    int status = switch (outcome.status()) { case "changed", "blocked" -> 409; default -> 200; };
-    return Response.status(status).entity(outcome).header("Cache-Control", "no-store").build();
+      return refused(CedarResponse.badRequest().errorKey(CedarErrorKey.INVALID_INPUT), Reason.INVALID_TOKEN);
+    Outcome outcome;
+    try {
+      outcome = service(c, id).execute(confirmation.token());
+    } catch (IllegalStateException e) {
+      // The confirmation repeats the inventory before it deletes anything, and only that repeat fails this way.
+      return refused(CedarResponse.conflict(), Reason.INVENTORY_UNAVAILABLE);
+    }
+    return switch (outcome.status()) {
+      case "changed", "blocked" -> refused(outcome);
+      default -> Response.ok(outcome).header("Cache-Control", "no-store").build();
+    };
   }
+  private static final String HOME_OR_SYSTEM_FOLDER = "A home or system folder can never be deleted "
+      + "(folderCanNotBeDeleted, with the reason userHomeFolder or systemFolder)";
+  private static final String NOT_THE_OWNER = "Only the folder's owner may delete it and its contents, whatever "
+      + "role another user holds (folderCanNotBeDeleted). A caller who cannot read the folder, or who lacks the "
+      + "permission to delete folders, is also refused.";
+  private static final String UNAUTHORIZED = "The request carries no valid credentials";
+  private static final String INVENTORY_INCOMPLETE = "because the folder changed while it was read or a revision "
+      + "or template reference could not be read";
+  private static final String NO_SUCH_FOLDER = "The folder does not exist";
+  private static final String NOT_ACCEPTABLE = "The request does not accept a JSON response";
+  private static final String RATE_LIMITED = "The deployment limits each user's request rate, and the caller "
+      + "exceeded it";
+  private static final String INTERNAL_ERROR = "Internal server error";
+  private static final String UNAVAILABLE = "The graph database, the artifact server or another service the "
+      + "request depends on is unavailable";
   private CedarRequestContext context(String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -70,17 +147,33 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
     userMustHaveCapabilityOnFolder(c, CedarFolderId.build(id), ResourceCapability.READ_RESOURCE);
     FolderServerFolder root = dataServices.getFolderServiceSession(c).findFolderById(CedarFolderId.build(id));
     if (root.isRoot() || root.isSystem() || root.isUserHome())
-      throw new WebApplicationException(problem(400, Reason.PROTECTED_ROOT));
+      throw new WebApplicationException(refused(CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED)
+          .errorReasonKey(root.isUserHome() ? CedarErrorReasonKey.USER_HOME_FOLDER
+              : CedarErrorReasonKey.SYSTEM_FOLDER), Reason.PROTECTED_ROOT));
     requireOwner(dataServices.getResourcePermissionServiceSession(c), id);
     return c;
   }
-  private static Response problem(int status, Reason reason) {
-    return Response.status(status).entity(Map.of("code", reason.code(), "message", reason.message()))
-        .header("Cache-Control", "no-store").build();
+  /**
+   * A refusal in the shared error body, with the reason's message. Its error key names the kind of
+   * refusal. The reason's protocol code is reported only by an outcome.
+   */
+  private static Response refused(CedarResponse.CedarResponseBuilder refusal, Reason reason) {
+    return refusal.message(reason.message()).header("Cache-Control", "no-store").build();
+  }
+  /**
+   * A refused confirmation reports its outcome in the shared error body, as a validation refusal
+   * reports its findings.
+   */
+  private static Response refused(Outcome outcome) {
+    CedarResponse.CedarResponseBuilder conflict = CedarResponse.conflict().object("outcome", outcome);
+    if (outcome.status().equals("blocked")) conflict.errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED);
+    return conflict.message(outcome.message()).header("Cache-Control", "no-store").build();
   }
   private static void requireOwner(ResourcePermissionServiceSession permissions, String root) {
     if (!permissions.userIsOwnerOfResource(CedarFolderId.build(root)))
-      throw new WebApplicationException(problem(403, Reason.NOT_OWNER));
+      throw new WebApplicationException(refused(CedarResponse.forbidden()
+          .errorKey(CedarErrorKey.FOLDER_CAN_NOT_BE_DELETED), Reason.NOT_OWNER));
   }
   private RecursiveFolderDeletion service(CedarRequestContext c, String root) {
     FolderServiceSession folders = dataServices.getFolderServiceSession(c);

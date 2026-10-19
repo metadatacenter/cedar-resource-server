@@ -9,6 +9,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.artifacts.model.core.TemplateInstanceArtifact;
 import org.metadatacenter.artifacts.model.renderer.JsonArtifactRenderer;
@@ -56,6 +57,7 @@ import java.util.Map;
  * <p>The artifact server is a stub on an OS-assigned port and the graph is embedded, so the graph is
  * the only side under test.
  */
+@Tag("integration")
 public class InstanceTemplateChangeTest {
 
   private static HttpServer artifactServer;

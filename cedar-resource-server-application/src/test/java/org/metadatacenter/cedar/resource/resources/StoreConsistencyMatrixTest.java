@@ -9,6 +9,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.artifacts.model.core.Annotations;
 import org.metadatacenter.artifacts.model.core.Status;
@@ -74,6 +75,7 @@ import org.metadatacenter.util.test.TestHttpClient;
  * server is a stub keyed by identifier, so the document side is exactly what the resource server sent
  * it; the graph is embedded.
  */
+@Tag("integration")
 public class StoreConsistencyMatrixTest {
 
   private static final Map<String, ObjectNode> ARTIFACTS = new ConcurrentHashMap<>();
@@ -392,6 +394,13 @@ public class StoreConsistencyMatrixTest {
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
     String method = exchange.getRequestMethod();
     String path = exchange.getRequestURI().getPath();
+    if ("POST".equals(method) && path.endsWith("/replacement-judgement")) {
+      // Publishing with a new draft asks first whether the draft would accept its definition; this stub
+      // accepts every definition and, like the artifact server, stores nothing for the question.
+      exchange.sendResponseHeaders(204, -1);
+      exchange.close();
+      return;
+    }
     // The identifier is an absolute IRI carrying slashes of its own, so it is everything after the
     // collection, not everything after the last slash.
     String artifactId = null;
@@ -414,9 +423,11 @@ public class StoreConsistencyMatrixTest {
       return;
     }
     if ("PUT".equals(method) && names) {
+      // A PUT to an identifier nothing is stored at creates there, as the artifact server's does.
+      boolean creates = !ARTIFACTS.containsKey(artifactId);
       ObjectNode replacement = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       ARTIFACTS.put(artifactId, replacement);
-      respond(exchange, 200, replacement, null);
+      respond(exchange, creates ? 201 : 200, replacement, creates ? artifactId : null);
       return;
     }
     if ("GET".equals(method) && names && ARTIFACTS.containsKey(artifactId)) {

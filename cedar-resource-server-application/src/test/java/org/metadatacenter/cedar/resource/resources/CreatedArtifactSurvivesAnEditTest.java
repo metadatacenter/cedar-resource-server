@@ -9,6 +9,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.artifacts.model.core.Status;
 import org.metadatacenter.artifacts.model.core.TemplateInstanceArtifact;
@@ -64,6 +65,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * it back, and be served. It says nothing about which fields a path should carry, which is the point.
  * It fails whenever a creation path and the update path disagree about what a valid artifact is.
  */
+@Tag("integration")
 public class CreatedArtifactSurvivesAnEditTest {
 
   private static final Map<String, ObjectNode> ARTIFACTS = new ConcurrentHashMap<>();
@@ -271,6 +273,13 @@ public class CreatedArtifactSurvivesAnEditTest {
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
     String method = exchange.getRequestMethod();
     String path = exchange.getRequestURI().getPath();
+    if ("POST".equals(method) && path.endsWith("/replacement-judgement")) {
+      // Publishing with a new draft asks first whether the draft would accept its definition; this stub
+      // accepts every definition and, like the artifact server, stores nothing for the question.
+      exchange.sendResponseHeaders(204, -1);
+      exchange.close();
+      return;
+    }
     String artifactId = null;
     for (String collection : List.of("/template-instances/", "/templates/")) {
       if (path.startsWith(collection) && path.length() > collection.length()) {
@@ -292,9 +301,11 @@ public class CreatedArtifactSurvivesAnEditTest {
       return;
     }
     if ("PUT".equals(method) && names) {
+      // A PUT to an identifier nothing is stored at creates there, as the artifact server's does.
+      boolean creates = !ARTIFACTS.containsKey(artifactId);
       ObjectNode replacement = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       ARTIFACTS.put(artifactId, replacement);
-      respond(exchange, 200, replacement, null);
+      respond(exchange, creates ? 201 : 200, replacement, creates ? artifactId : null);
       return;
     }
     if ("GET".equals(method) && names && ARTIFACTS.containsKey(artifactId)) {

@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-resource-server</artifactId>
-    <version>2.9.24</version>
+    <version>2.9.25</version>
   </parent>
 
   <artifactId>cedar-resource-server-application</artifactId>
@@ -261,6 +261,31 @@
       <id>opensearch-it</id>
       <build>
         <plugins>
+          <!--
+            The OpenSearch the integration tests read is started beside the build rather than before
+            it, so it boots while Maven compiles and runs the unit suites. Wait for it, bounded,
+            before the first integration test reads it.
+          -->
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>await-opensearch</id>
+                <phase>pre-integration-test</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>sh</executable>
+                  <arguments>
+                    <argument>-c</argument>
+                    <argument>host=$CEDAR_OPENSEARCH_HOST; [ -n "$host" ] || host=127.0.0.1; port=$CEDAR_OPENSEARCH_REST_PORT; [ -n "$port" ] || port=9200; curl --silent --show-error --fail --output /dev/null --max-time 10 --retry 30 --retry-delay 5 --retry-all-errors "http://$host:$port/_cluster/health?wait_for_status=yellow&amp;timeout=5s"</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-failsafe-plugin</artifactId>

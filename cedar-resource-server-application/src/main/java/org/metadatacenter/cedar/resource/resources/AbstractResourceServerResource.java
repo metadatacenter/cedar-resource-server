@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import java.util.Locale;
+
 import org.metadatacenter.server.ArtifactGraphUpdateResult;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -13,6 +15,7 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.bridge.GraphDbPermissionReader;
 import org.metadatacenter.bridge.PathInfoBuilder;
+import org.metadatacenter.cedar.resource.artifact.ArtifactServerRefusal;
 import org.metadatacenter.cedar.resource.artifact.ArtifactServerUtil;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
 import org.metadatacenter.cedar.resource.restore.ArtifactRestoreCompletionService;
@@ -185,11 +188,16 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     ((ObjectNode) jsonNode).put(ModelNodeNames.SCHEMA_ORG_DESCRIPTION, description);
   }
 
-  protected Response executeResourcePostToArtifactServer(CedarRequestContext context, CedarResourceType resourceType, String content, String cleanupJob) throws CedarProcessingException {
+  /**
+   * Creates a document on the artifact server for a command, at the identity its caller chose when there
+   * is one, and records the outcome against the command's cleanup job.
+   */
+  protected Response executeResourceCreateOnArtifactServer(CedarRequestContext context, CedarResourceType resourceType,
+                                                           Optional<CedarArtifactId> identity, String content,
+                                                           String cleanupJob) throws CedarProcessingException {
     try {
-      String url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
-
-      ClassicHttpResponse templateProxyResponse = new ArtifactServiceClient(cedarConfig).post(url, context, content);
+      ClassicHttpResponse templateProxyResponse =
+          sendCreateToArtifactServer(context, resourceType, identity, content, cleanupJob);
       if (templateProxyResponse.getCode() == HttpStatus.SC_CREATED && templateProxyResponse.getEntity() != null) {
         String body = EntityUtils.toString(templateProxyResponse.getEntity(), StandardCharsets.UTF_8);
         templateProxyResponse.setEntity(new org.apache.hc.core5.http.io.entity.StringEntity(body,
@@ -206,9 +214,10 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       } else {
         HttpEntity entity = templateProxyResponse.getEntity();
         String mediaType = entity.getContentType();
-        String location = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION).getValue();
-        URI locationURI = new URI(location);
-        return Response.created(locationURI).type(mediaType)
+        URI locationURI = CedarUrlUtil.getLocationURI(templateProxyResponse);
+        Response.ResponseBuilder created = locationURI == null ? Response.status(Response.Status.CREATED)
+            : Response.created(locationURI);
+        return created.type(mediaType)
             .header(HttpHeaders.ETAG, headerValue(templateProxyResponse, HttpHeaders.ETAG))
             .entity(entity.getContent()).build();
       }
@@ -217,6 +226,105 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     } catch (Exception e) {
       throw new CedarProcessingException(e);
     }
+  }
+
+  /**
+   * Sends a document to the artifact server to be created: by POST, which mints its identifier, or by PUT
+   * at the identity a caller chose. The PUT carries no If-Match, since it asserts that nothing is stored
+   * there yet, and the artifact server refuses it if something is.
+   *
+   * <p>The answer to a PUT can be lost after the document was stored. Its identity is known, so it is
+   * read back, and a document found there is recorded against the create's cleanup job. The cleanup then
+   * removes it unless the graph registers it, as it does after any registration that did not happen. The
+   * PUT can also be stored after the read found nothing. The cleanup job has held the identity since
+   * before the write, so its relay reads the identity again until no write can still land there, and
+   * removes a document it finds unless the graph registers it. A POST whose answer is lost leaves
+   * nothing to read back by, as before.
+   */
+  protected ClassicHttpResponse sendCreateToArtifactServer(CedarRequestContext context, CedarResourceType resourceType,
+                                                           Optional<CedarArtifactId> identity, String content,
+                                                           String cleanupJob) throws CedarProcessingException {
+    ArtifactServiceClient client = new ArtifactServiceClient(cedarConfig);
+    if (identity.isEmpty()) {
+      return client.post(microserviceUrlUtil.getArtifact().getResourceType(resourceType), context, content);
+    }
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, identity.get());
+    try {
+      return client.put(url, context, content, null);
+    } catch (CedarDependencyUnavailableException lost) {
+      try (ClassicHttpResponse stored = client.get(url, context)) {
+        String etag = headerValue(stored, HttpHeaders.ETAG);
+        EntityUtils.consume(stored.getEntity());
+        if (stored.getCode() == HttpStatus.SC_OK && etag != null) {
+          artifactCreateCleanupService.created(cleanupJob, identity.get().getId(), etag);
+        } else {
+          // The PUT may still be stored after this read. Its cleanup job holds the identity, and the relay
+          // removes what is stored there later unless the graph registers it.
+          log.warn("The create of {} lost its answer and reading it back answered {}; its cleanup job reads "
+              + "the identity again and removes a document stored there later", identity.get().getId(),
+              stored.getCode());
+        }
+      } catch (Exception unreadable) {
+        log.warn("The create of {} lost its answer and could not be read back; its cleanup job reads the "
+            + "identity again", identity.get().getId(), unreadable);
+      }
+      throw lost;
+    }
+  }
+
+  /**
+   * The identity a caller chose for an artifact a command is about to create.
+   *
+   * <p>A caller that may lose the answer chooses the identity itself, so that afterwards it can read the
+   * identity to learn the outcome rather than repeat the write. The identity must be one this deployment
+   * mints for the collection the new artifact belongs to. Anything else is refused before the command
+   * reads or writes anything.
+   */
+  protected CedarArtifactId suppliedArtifactIdentity(String parameter, String value, CedarResourceType resourceType)
+      throws CedarBadRequestException {
+    String collection = linkedDataUtil.getLinkedDataId(resourceType, "");
+    if (value == null || !value.startsWith(collection) || !linkedDataUtil.isValidId(value)) {
+      throw new CedarBadRequestException(new CedarErrorPack()
+          .errorKey(CedarErrorKey.INVALID_DATA)
+          .message("The " + parameter + " must be a full " + resourceType.getValue() + " identifier: "
+              + collection + " followed by an identifier of the caller's choosing")
+          .parameter(parameter, value));
+    }
+    return CedarArtifactId.build(value, resourceType);
+  }
+
+  /**
+   * Refuses an identity that either store already holds, before anything is written; null when it is
+   * free. A caller retrying a create it is unsure of reads this answer as "look again", since the
+   * artifact there may be the one its earlier attempt created.
+   */
+  protected Response occupiedIdentityRefusal(CedarRequestContext context, CedarResourceType resourceType,
+                                             CedarArtifactId identity) throws CedarException {
+    boolean occupied = dataServices.getFolderServiceSession(context).findArtifactById(identity) != null;
+    if (!occupied) {
+      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, identity);
+      try (ClassicHttpResponse stored = new ArtifactServiceClient(cedarConfig).get(url, context)) {
+        String body = stored.getEntity() == null ? null : EntityUtils.toString(stored.getEntity(), StandardCharsets.UTF_8);
+        if (stored.getCode() == HttpStatus.SC_OK) {
+          occupied = true;
+        } else if (stored.getCode() != HttpStatus.SC_NOT_FOUND) {
+          throw new ArtifactServerRefusal(stored.getCode(), body);
+        }
+      } catch (CedarException e) {
+        throw e;
+      } catch (Exception e) {
+        throw new CedarProcessingException(e);
+      }
+    }
+    if (!occupied) {
+      return null;
+    }
+    return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+        .id(identity)
+        .errorKey(CedarErrorKey.NODE_ALREADY_PRESENT)
+        .message("The identifier already names an artifact; nothing was written")
+        .parameter("@id", identity.getId())
+        .build();
   }
 
   // Proxy methods for artifact types
@@ -270,8 +378,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
     }
 
-    // Intent precedes the content request, including requests whose response never reaches us.
-    String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "create");
+    // Intent precedes the content request, including requests whose response never reaches us. A create
+    // by PUT records the identity it writes at, so the relay can find a document stored there after a lost
+    // answer, and fences this registration before it removes one.
+    String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "create",
+        artifactId.map(chosen -> CedarArtifactId.build(chosen, resourceType)));
     try {
       String url;
       ClassicHttpResponse templateProxyResponse;
@@ -936,7 +1047,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         Map<NodeProperty, String> updateFields = new HashMap<>();
         updateFields.put(NodeProperty.DESCRIPTION, newDescription);
         updateFields.put(NodeProperty.NAME, newName);
-        updateFields.put(NodeProperty.NAME_LOWER, newName.toLowerCase());
+        updateFields.put(NodeProperty.NAME_LOWER, newName.toLowerCase(Locale.ROOT));
         updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
         if (resourceType == CedarResourceType.INSTANCE) {
           // The template an instance is based on is graph state, not merely something the document
@@ -1578,7 +1689,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
       if (nameV != null) {
         updateFields.put(NodeProperty.NAME, nameV);
-        updateFields.put(NodeProperty.NAME_LOWER, nameV.toLowerCase());
+        updateFields.put(NodeProperty.NAME_LOWER, nameV.toLowerCase(Locale.ROOT));
       }
       VersionedResource<FolderServerFolder> updatedSnapshot;
       try {

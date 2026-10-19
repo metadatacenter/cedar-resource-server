@@ -38,6 +38,7 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Real resource HTTP and graph, with conditional document-store responses and ordered competing writes. */
+@Tag("integration")
 class RecursiveDeletionTransitionTest {
   private record Stored(ObjectNode body, long revision) { String etag() { return "\"" + revision + "\""; } }
   private static final Map<String, Stored> documents = new ConcurrentHashMap<>();
@@ -51,6 +52,7 @@ class RecursiveDeletionTransitionTest {
   private static String authorization;
   private static volatile String refusedId;
   private static volatile boolean refuse;
+  private static volatile boolean referencesDown;
   private static final java.util.List<String> deleted = new CopyOnWriteArrayList<>();
   private static org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService completion;
   private static final java.util.concurrent.atomic.AtomicInteger writes = new java.util.concurrent.atomic.AtomicInteger();
@@ -172,13 +174,17 @@ class RecursiveDeletionTransitionTest {
       documents.compute(survivor,(id,old) -> new Stored(old.body().deepCopy().put("schema:name","New content"),2));
     }
     refuse = false;
-    var stale = call(root,token);
-    assertEquals(409,stale.statusCode(),stale.body());
-    assertEquals("changed",JsonMapper.STRICT_MAPPER.readTree(stale.body()).path("status").asText());
+    var stale = refusedOutcome(call(root,token),null);
+    assertEquals("changed",stale.path("status").asText());
+    assertEquals("FOLDER_DELETE_CHANGED",stale.path("code").asText());
+    assertEquals(0,stale.path("deleted").path("instance").asInt(),"a stale confirmation reports nothing deleted");
     assertEquals(java.util.List.of(removedInstance),deleted,"stale confirmation must delete nothing more");
     var fresh = plan(root); var retry = call(root,fresh.path("token").asText());
     if (change.equals("outside-reference")) {
-      assertFalse(fresh.path("allowed").asBoolean()); assertEquals(409,retry.statusCode(),retry.body());
+      assertFalse(fresh.path("allowed").asBoolean());
+      var blocked = refusedOutcome(retry,"folderCanNotBeDeleted");
+      assertEquals("blocked",blocked.path("status").asText());
+      assertEquals("FOLDER_DELETE_BLOCKED",blocked.path("code").asText());
       assertEquals(1,fresh.path("instancesOutside").asInt());
       assertTrue(documents.containsKey(added)); assertTrue(documents.containsKey(refusedId));
       assertEquals(java.util.List.of(removedInstance),deleted);
@@ -193,8 +199,64 @@ class RecursiveDeletionTransitionTest {
       assertEquals(deleted.size(),new java.util.HashSet<>(deleted).size(),"retry must not repeat successful deletions");
     }
   }
+  /**
+   * A confirmation the server refuses answers 409 in the shared error body. The outcome it reports is
+   * in objects.outcome, its message is the body's own, and the error key says whether a blocker stopped
+   * it. Returns the outcome.
+   */
+  private static com.fasterxml.jackson.databind.JsonNode refusedOutcome(HttpResponse<String> reply,String errorKey)
+      throws IOException {
+    assertEquals(409,reply.statusCode(),reply.body());
+    var body = JsonMapper.STRICT_MAPPER.readTree(reply.body());
+    assertEquals(409,body.path("statusCode").asInt(),reply.body());
+    assertEquals("CONFLICT",body.path("status").asText(),reply.body());
+    if (errorKey == null) assertTrue(body.path("errorKey").isNull(),reply.body());
+    else assertEquals(errorKey,body.path("errorKey").asText(),reply.body());
+    var outcome = body.path("objects").path("outcome");
+    assertTrue(outcome.isObject(),reply.body());
+    assertEquals(outcome.path("message").asText(),body.path("message").asText(),reply.body());
+    return outcome;
+  }
+  /**
+   * An inventory that cannot be completed is refused, and nothing is deleted. The inventory answers 409
+   * in the shared error body with the reason's message and no outcome. A confirmation repeats the
+   * inventory before it deletes anything, so it is refused the same way, even with the token of a
+   * complete inventory.
+   */
+  @Test
+  void anInventoryThatCannotBeCheckedIsRefusedInTheSharedErrorBody() throws Exception {
+    documents.clear(); deleted.clear(); refuse = false;
+    var root = folder("Unchecked root ",home);
+    String kept = template("kept-",root);
+    String token = plan(root).path("token").asText();
+    referencesDown = true;
+    try {
+      assertInventoryUnavailable(call(root,null));
+      assertInventoryUnavailable(call(root,token));
+    } finally {
+      referencesDown = false;
+    }
+    assertTrue(deleted.isEmpty(),"a refused inventory deletes nothing");
+    assertTrue(documents.containsKey(kept)); assertNotNull(folders.findFolderById(root));
+    var reply = call(root,token);
+    assertEquals("completed",JsonMapper.STRICT_MAPPER.readTree(reply.body()).path("status").asText(),reply.body());
+  }
+  private static void assertInventoryUnavailable(HttpResponse<String> reply) throws IOException {
+    assertEquals(409,reply.statusCode(),reply.body());
+    var body = JsonMapper.STRICT_MAPPER.readTree(reply.body());
+    assertEquals(409,body.path("statusCode").asInt(),reply.body());
+    assertEquals("CONFLICT",body.path("status").asText(),reply.body());
+    assertTrue(body.path("errorKey").isNull(),reply.body());
+    assertEquals("The complete inventory could not be checked. Refresh and try again.",
+        body.path("message").asText(),reply.body());
+    assertTrue(body.path("objects").isEmpty(),reply.body());
+    assertEquals("no-store",reply.headers().firstValue("Cache-Control").orElse(""));
+  }
   private static void handleArtifact(HttpExchange exchange) throws IOException {
     String path = exchange.getRequestURI().getPath();
+    if (path.equals("/templates/deletion-references") && referencesDown) {
+      respond(exchange,500,null); return;
+    }
     if (path.equals("/templates/deletion-references")) {
       var references = JsonMapper.STRICT_MAPPER.createObjectNode();
       for (var template : JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody())) {

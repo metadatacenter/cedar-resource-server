@@ -19,6 +19,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("integration")
 class ArtifactCountsResourceTest {
   private static HttpServer artifact;
   private static final AtomicInteger calls = new AtomicInteger();

@@ -11,7 +11,7 @@ class OpenApiErrorContractTest {
   @Test
   void errorResponsesPublishTheCommonSchema() throws IOException {
     try (InputStream input = getClass().getResourceAsStream("/assets/swagger-api/swagger.json")) {
-      OpenApiErrorContract.assertDocumented(input, "POST /command/inclusions-subgraph-update 502");
+      OpenApiErrorContract.assertDocumented(input);
     }
   }
 }

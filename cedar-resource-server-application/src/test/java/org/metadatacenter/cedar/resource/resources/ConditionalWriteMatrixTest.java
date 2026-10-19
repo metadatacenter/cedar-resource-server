@@ -6,6 +6,7 @@ import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
@@ -49,6 +50,7 @@ import java.util.function.Function;
  * visibility answer 404. Publishing and drafting go through the artifact server, whose answers
  * {@code ArtifactServerAnswerMatrixTest} holds.
  */
+@Tag("integration")
 public class ConditionalWriteMatrixTest {
 
   static {

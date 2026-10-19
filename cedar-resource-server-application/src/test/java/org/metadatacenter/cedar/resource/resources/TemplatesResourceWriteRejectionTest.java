@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.bridge.CedarDataServices;
@@ -46,6 +47,7 @@ import java.util.Map;
  * so these tests run against the booted application with no live backend.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Tag("integration")
 public class TemplatesResourceWriteRejectionTest {
 
   static {
@@ -200,6 +202,56 @@ public class TemplatesResourceWriteRejectionTest {
           authHeaderUser1, ifMatch);
       Assertions.assertEquals(412, response.statusCode(), response.body());
     }
+  }
+
+  /**
+   * A create by PUT repeated after its answer was lost finds its identity taken in the graph and answers
+   * 428 before it writes. The artifact server is unreachable in this class, so had the repeat tried to
+   * write again it would have answered 503.
+   */
+  @Test
+  public void aRepeatedCreateByPutAnswers428BeforeItWrites() throws Exception {
+    CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+    FolderServiceSession folders = CedarDataServices.getInstance().getFolderServiceSession(user1Context);
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName("Created at a chosen identifier by TemplatesResourceWriteRejectionTest");
+    template.setDescription("The first attempt of a create whose answer was lost");
+    template.setVersion("0.0.1");
+    template.setPublicationStatus(BiboStatus.DRAFT.getValue());
+    template.setLatestVersion(true);
+    template.setLatestDraftVersion(true);
+    FolderServerArtifact created = folders.createResourceAsChildOfId(template, folders.findHomeFolderOf().getResourceId());
+    Assertions.assertNotNull(created);
+    String body = "{\"@id\":\"" + created.getId() + "\",\"schema:name\":\"Created at a chosen identifier\"}";
+
+    HttpResponse<String> response = putTemplate(created.getId(), "", body, "application/json", authHeaderUser1);
+
+    Assertions.assertEquals(428, response.statusCode(), response.body());
+    Assertions.assertTrue(response.body().contains("artifactPreconditionRequired"), response.body());
+  }
+
+  /**
+   * An identifier the request supplies that cannot be resolved is refused in the shared error body,
+   * with a message saying what was wrong. The refusal had no entity, so it reached the client as a 400
+   * whose body carried no message.
+   */
+  @Test
+  public void anUnresolvableIdentifierIsRefusedWithItsMessage() throws Exception {
+    assertIdentifierRefusal(putTemplate("not-a-uuid", "", "{}", "application/json", authHeaderUser1),
+        "Invalid template identifier");
+    assertIdentifierRefusal(search("?is_based_on=%20"), "A resource identifier is required");
+    assertIdentifierRefusal(search("?id=users%2F11111111-2222-3333-4444-555555555555"),
+        "Expected a folder or artifact type");
+  }
+
+  private static void assertIdentifierRefusal(HttpResponse<String> response, String message) throws Exception {
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    Assertions.assertEquals("BAD_REQUEST", error.path("status").asText(), response.body());
+    Assertions.assertEquals(400, error.path("statusCode").asInt(), response.body());
+    Assertions.assertEquals("invalidInput", error.path("errorKey").asText(), response.body());
+    Assertions.assertEquals(message, error.path("message").asText(), response.body());
   }
 
   @Test

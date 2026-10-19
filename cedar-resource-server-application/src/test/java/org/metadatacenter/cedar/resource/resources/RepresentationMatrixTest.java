@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -74,6 +75,7 @@ import java.util.stream.Stream;
  * <p>The validate command must check the document a write would store, and a versioning command must
  * refuse a body that is not a template it can read rather than fail on it.
  */
+@Tag("integration")
 public class RepresentationMatrixTest {
 
   private static final Map<String, ObjectNode> DOCUMENTS = new ConcurrentHashMap<>();
@@ -495,6 +497,13 @@ public class RepresentationMatrixTest {
       respond(exchange, 200, "application/json", "{\"validates\":\"true\",\"warnings\":[],\"errors\":[]}", null);
       return;
     }
+    if ("POST".equals(method) && path.endsWith("/replacement-judgement")) {
+      // Publishing with a new draft asks first whether the draft would accept its definition; this stub
+      // accepts every definition and, like the artifact server, stores nothing for the question.
+      exchange.sendResponseHeaders(204, -1);
+      exchange.close();
+      return;
+    }
     CedarResourceType kind = COLLECTIONS.stream().filter(k -> path.startsWith("/" + k.getPrefix())).findFirst()
         .orElse(null);
     if (kind == null) {
@@ -524,11 +533,13 @@ public class RepresentationMatrixTest {
       return;
     }
     if ("PUT".equals(method) && artifactId != null) {
+      // A PUT to an identifier nothing is stored at creates there, as the artifact server's does.
+      boolean creates = !DOCUMENTS.containsKey(artifactId);
       ObjectNode replacement = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       DOCUMENTS.put(artifactId, replacement);
       REVISIONS.put(artifactId, NEXT_REVISION.getAndIncrement());
       WRITES.add(method + " " + path);
-      respond(exchange, 200, "application/json", replacement.toString(), artifactId);
+      respond(exchange, creates ? 201 : 200, "application/json", replacement.toString(), artifactId);
       return;
     }
     if ("GET".equals(method) && artifactId != null && DOCUMENTS.containsKey(artifactId)) {
