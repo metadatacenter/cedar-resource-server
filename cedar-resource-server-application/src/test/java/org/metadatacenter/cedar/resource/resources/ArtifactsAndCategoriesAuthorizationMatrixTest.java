@@ -125,6 +125,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   private static CedarCategoryId rootCategoryId;
   private static CedarCategoryId inaccessibleCategoryId;
   private static CedarRequestContext user1Context;
+  private static CedarConfig cedarConfig;
 
   /**
    * One artifact fixture: where its endpoints live, what it is called, and whether it is versioned.
@@ -142,7 +143,7 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   public static void oneTimeSetUp() throws Exception {
     SERVER.before();
     Map<String, String> environment = CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE);
-    CedarConfig cedarConfig = CedarConfig.getInstance(environment);
+    cedarConfig = CedarConfig.getInstance(environment);
 
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     actors = Map.of(
@@ -680,18 +681,35 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
    * folders holding many artifacts. Each entry carries its identifier and type, the named graph
    * properties and nothing else, and naming {@code categories} adds the attached categories, which
    * are not a property of the node and are looked up per artifact.
+   *
+   * <p>The test lists a folder of its own. The home folder is shared with every class in the JVM,
+   * which fill it past the first page.
    */
   @Test
   public void theContentsExtractCarriesOnlyTheNamedFields() throws Exception {
+    var folders = CedarDataServices.getInstance().getFolderServiceSession(user1Context);
+    org.metadatacenter.model.folderserver.basic.FolderServerFolder folder =
+        new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
+    folder.setName("Extract Folder");
+    folder.setDescription("Listed by theContentsExtractCarriesOnlyTheNamedFields");
+    CedarFolderId folderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    Assertions.assertNotNull(folders.createFolderAsChildOfId(folder, folders.findHomeFolderOf().getResourceId(), folderId));
+    List<Artifact> listedArtifacts = List.of(
+        createSchemaArtifact(cedarConfig, user1Context, folderId,
+            new FolderServerTemplate(), CedarResourceType.TEMPLATE, "/templates", "template"),
+        createSchemaArtifact(cedarConfig, user1Context, folderId,
+            new FolderServerElement(), CedarResourceType.ELEMENT, "/template-elements", "element"),
+        createSchemaArtifact(cedarConfig, user1Context, folderId,
+            new FolderServerField(), CedarResourceType.FIELD, "/template-fields", "field"),
+        createInstanceArtifact(cedarConfig, user1Context, folderId, "/template-instances", "instance"));
+
     var categories = CedarDataServices.getInstance().getCategoryServiceSession(user1Context);
     FolderServerCategory listed = categories.createCategory(rootCategoryId, "Extract Category",
         "Attached for theContentsExtractCarriesOnlyTheNamedFields", null);
-    Artifact tagged = artifacts.get(3);
+    Artifact tagged = listedArtifacts.get(3);
     CedarUntypedArtifactId taggedId = CedarUntypedArtifactId.build(tagged.id());
     Assertions.assertTrue(categories.attachCategoryToArtifact(listed.getResourceId(), taggedId));
-    String homeFolderId = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
-        .findHomeFolderOf().getId();
-    String extractPath = "/folders/" + URLEncoder.encode(homeFolderId, StandardCharsets.UTF_8)
+    String extractPath = "/folders/" + URLEncoder.encode(folderId.getId(), StandardCharsets.UTF_8)
         + "/contents-extract?field_names=" + URLEncoder.encode("schema:name,categories", StandardCharsets.UTF_8);
 
     try {
@@ -700,7 +718,8 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
       Map<String, JsonNode> byId = new java.util.HashMap<>();
       JsonMapper.STRICT_MAPPER.readTree(response.body()).get("resources")
           .forEach(entry -> byId.put(entry.get("@id").asText(), entry));
-      for (Artifact artifact : artifacts) {
+      Assertions.assertEquals(listedArtifacts.size(), byId.size(), "the folder holds only the four artifacts");
+      for (Artifact artifact : listedArtifacts) {
         JsonNode entry = byId.get(artifact.id());
         Assertions.assertNotNull(entry, "the extract should list the " + artifact.label() + ": " + response.body());
         List<String> keys = new ArrayList<>();
