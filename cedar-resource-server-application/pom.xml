@@ -18,8 +18,8 @@
     <cedar.shade.phase>package</cedar.shade.phase>
     <cedar.shade.main.class>org.metadatacenter.cedar.resource.ResourceServerApplication</cedar.shade.main.class>
     <cedar.resource.test.forks>2</cedar.resource.test.forks>
-    <!-- Line coverage measured on 2026-10-19: 75.9%. The build fails below this floor. -->
-    <cedar.coverage.line.minimum>0.73</cedar.coverage.line.minimum>
+    <!-- Line coverage measured on 2026-10-19: 78.4%. The build fails below this floor. -->
+    <cedar.coverage.line.minimum>0.76</cedar.coverage.line.minimum>
   </properties>
 
   <dependencies>

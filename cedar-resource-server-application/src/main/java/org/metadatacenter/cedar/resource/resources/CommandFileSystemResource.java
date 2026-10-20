@@ -139,20 +139,24 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     CedarUntypedArtifactId untypedSourceArtifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     CedarResourceType resourceType = folderSession.getResourceType(untypedSourceArtifactId);
+
+    // A folder is not an artifact, so the artifact check below would answer that it does not exist. The folder's
+    // own check still comes first, so the refusal tells nobody about a folder they cannot see.
+    if (resourceType == CedarResourceType.FOLDER) {
+      userMustHaveCapabilityOnFolder(c, CedarFolderId.build(id),
+          org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.FOLDER_COPY_NOT_ALLOWED)
+          .message("Folder copy is not allowed")
+          .build();
+    }
+
     CedarArtifactId sourceArtifactId = CedarArtifactId.build(id, resourceType);
 
     CedarFolderId targetFolderId = CedarFolderId.build(folderId);
 
     userMustHaveCapabilityOnArtifact(c, sourceArtifactId,
         org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
-
-
-    if (resourceType == CedarResourceType.FOLDER) {
-      return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.FOLDER_COPY_NOT_ALLOWED)
-          .message("Folder copy is not allowed")
-          .build();
-    }
 
     CedarPermission permission1 = null;
     CedarPermission permission2 = null;
