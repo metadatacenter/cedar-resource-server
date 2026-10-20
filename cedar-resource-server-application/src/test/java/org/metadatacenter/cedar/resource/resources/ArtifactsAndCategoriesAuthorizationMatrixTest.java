@@ -638,6 +638,12 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     HttpResponse<String> detached = request("POST", "/command/detach-category", body, actors.get(OWNER));
     Assertions.assertEquals(200, detached.statusCode(), detached.body());
     Assertions.assertFalse(categories.getAttachedCategoryIds(artifactId).contains(single.getResourceId()));
+
+    // Detaching a category that is no longer attached is the caller's mistake, so it is not found.
+    HttpResponse<String> notAttached = request("POST", "/command/detach-category", body, actors.get(OWNER));
+    Assertions.assertEquals(404, notAttached.statusCode(), notAttached.body());
+    Assertions.assertEquals("unableToDetachCategory",
+        JsonMapper.STRICT_MAPPER.readTree(notAttached.body()).get("errorKey").asText());
   }
 
   /**
