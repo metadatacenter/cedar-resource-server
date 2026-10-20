@@ -249,7 +249,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
   @Path("/{template_id}")
   @Operation(summary = "Delete a template", description = "Conditionally delete a template using its current ETag. "
       + "CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted "
-      + "workspace-graph, search-index, or value-recommender cleanup.",
+      + "workspace-graph or search-index cleanup.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "Content deleted; durable downstream cleanup is pending. "

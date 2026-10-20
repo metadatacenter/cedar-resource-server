@@ -27,10 +27,8 @@ class OpenApiSuccessContractTest {
     try (InputStream input = getClass().getResourceAsStream("/assets/swagger-api/swagger.json")) {
       OpenApiSuccessContract.assertDescribed(input,
           // Administrative commands whose only input is the index or import they claim.
-          "POST /command/generate-empty-rules-index",
           "POST /command/generate-empty-search-index",
           "POST /command/load-valuesets-ontology",
-          "POST /command/reset-rules-index-job",
           "POST /command/reset-search-index-job",
           "POST /command/reset-valuesets-import",
           // Reads the artifact named in the path. The POST exists for callers that predate the GET.

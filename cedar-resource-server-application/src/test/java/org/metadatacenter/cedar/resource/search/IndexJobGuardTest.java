@@ -99,20 +99,12 @@ public class IndexJobGuardTest {
         "emptying the search index must wait for a regeneration of the same index");
   }
 
-  /** The two indexes are independent, so a job on one must not block the other. */
-  @Test
-  public void theRulesIndexIsNotBlockedByTheSearchIndex() {
-    assertTrue(claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").isPresent());
-    assertTrue(claim(IndexJobGuard.Index.RULES, "regenerate-rules-index").isPresent(),
-        "the rules index has its own guard");
-  }
-
   @Test
   public void finishingReleasesTheIndexForTheNextJob() {
-    JobClaim claim = claim(IndexJobGuard.Index.RULES, "regenerate-rules-index").orElseThrow();
-    IndexJobGuard.finish(IndexJobGuard.Index.RULES, claim, null);
-    assertEquals(IndexJobGuard.State.COMPLETE, IndexJobGuard.status(IndexJobGuard.Index.RULES).state());
-    assertTrue(claim(IndexJobGuard.Index.RULES, "generate-empty-rules-index").isPresent());
+    JobClaim claim = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+    IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, claim, null);
+    assertEquals(IndexJobGuard.State.COMPLETE, IndexJobGuard.status(IndexJobGuard.Index.SEARCH).state());
+    assertTrue(claim(IndexJobGuard.Index.SEARCH, "generate-empty-search-index").isPresent());
   }
 
   /**
@@ -150,8 +142,9 @@ public class IndexJobGuardTest {
   /** Nothing has run for an index until something does, and that reads as idle rather than as complete. */
   @Test
   public void anIndexNobodyHasRebuiltReportsIdle() {
-    // RULES is untouched by this test method, and every test releases what it claims.
-    IndexJobGuard.Status status = IndexJobGuard.status(IndexJobGuard.Index.RULES);
+    // Every test releases what it claims, so nothing is running here, and an index no earlier test has
+    // rebuilt reads as idle.
+    IndexJobGuard.Status status = IndexJobGuard.status(IndexJobGuard.Index.SEARCH);
     assertNotEqualsRunning(status);
   }
 
@@ -236,12 +229,12 @@ public class IndexJobGuardTest {
 
   @Test
   public void thereIsNothingToResetOnAnIndexNobodyIsRebuilding() {
-    JobClaim claim = claim(IndexJobGuard.Index.RULES, "regenerate-rules-index").orElseThrow();
-    IndexJobGuard.finish(IndexJobGuard.Index.RULES, claim, null);
+    JobClaim claim = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+    IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, claim, null);
 
-    assertFalse(IndexJobGuard.reset(IndexJobGuard.Index.RULES, PAST_DEADLINE),
+    assertFalse(IndexJobGuard.reset(IndexJobGuard.Index.SEARCH, PAST_DEADLINE),
         "a finished job left no claim to take back");
-    assertEquals(IndexJobGuard.State.COMPLETE, IndexJobGuard.status(IndexJobGuard.Index.RULES).state());
+    assertEquals(IndexJobGuard.State.COMPLETE, IndexJobGuard.status(IndexJobGuard.Index.SEARCH).state());
   }
 
   /**
@@ -322,12 +315,10 @@ public class IndexJobGuardTest {
 
   /**
    * Jobs are held in memory, so the window on them is bounded. A job pushed out of it is no longer
-   * known, and a running job is never the one pushed out: it is the job most likely to be polled, and
-   * evicting it would answer "no such job" about a rebuild that is under way.
+   * known.
    */
   @Test
-  public void theWindowOnFinishedJobsIsBoundedAndKeepsTheRunningOne() {
-    JobClaim running = claim(IndexJobGuard.Index.RULES, "regenerate-rules-index").orElseThrow();
+  public void theWindowOnFinishedJobsIsBounded() {
     JobClaim oldest = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
     IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, oldest, null);
 
@@ -337,9 +328,6 @@ public class IndexJobGuardTest {
     }
 
     assertTrue(IndexJobGuard.find(oldest.id()).isEmpty(), "the oldest finished job is forgotten");
-    assertEquals(IndexJobGuard.State.RUNNING, IndexJobGuard.find(running.id()).orElseThrow().state(),
-        "a running job is not pushed out by the jobs that finish around it");
-    IndexJobGuard.finish(IndexJobGuard.Index.RULES, running, null);
   }
 
   /** Every claim in this class is taken at the same instant, so the deadline constants apply to all of them. */

@@ -11,11 +11,9 @@ import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
  * authorization gate itself.
  *
  * <p>Each command used to carry its own inline {@code c.must(c.user()).be(LoggedIn); c.must(c.user())
- * .have(...)} pair, and that per-route copy has slipped three times: {@code load-valuesets-ontology} once
- * shipped with the check commented out (open to any logged-in user), {@code generate-empty-rules-index}
- * once demanded {@code SEARCH_INDEX_REINDEX} instead of {@code RULES_INDEX_REINDEX}, and
- * {@code auth-user-callback} asserted only {@code LoggedIn} while carrying a TODO about the check it was
- * missing. Binding the command to its permission in one table, and running the assertion from one method,
+ * .have(...)} pair, and that per-route copy slipped more than once: {@code load-valuesets-ontology} once
+ * shipped with the check commented out (open to any logged-in user), and {@code auth-user-callback}
+ * asserted only {@code LoggedIn} while carrying a TODO about the check it was missing. Binding the command to its permission in one table, and running the assertion from one method,
  * removes the place those slips lived: the whole gate is visible here rather than scattered, and a route
  * authorizes with a single self-describing call.
  *
@@ -29,15 +27,12 @@ public enum AdminCommand {
   LOAD_VALUESETS_ONTOLOGY(CedarPermission.SEARCH_INDEX_REINDEX),
   REGENERATE_SEARCH_INDEX(CedarPermission.SEARCH_INDEX_REINDEX),
   GENERATE_EMPTY_SEARCH_INDEX(CedarPermission.SEARCH_INDEX_REINDEX),
-  REGENERATE_RULES_INDEX(CedarPermission.RULES_INDEX_REINDEX),
-  GENERATE_EMPTY_RULES_INDEX(CedarPermission.RULES_INDEX_REINDEX),
 
   /**
    * Taking back a claim that passed its deadline frees the index for the next rebuild, so it asks for the
    * same permission as the rebuild it unblocks rather than one of its own.
    */
   RESET_SEARCH_INDEX_JOB(CedarPermission.SEARCH_INDEX_REINDEX),
-  RESET_RULES_INDEX_JOB(CedarPermission.RULES_INDEX_REINDEX),
   RESET_VALUESETS_IMPORT(CedarPermission.SEARCH_INDEX_REINDEX),
 
   /**

@@ -22,7 +22,6 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
@@ -88,14 +87,11 @@ class RecursiveDeletionTransitionTest {
     folders = CedarDataServices.getInstance().getFolderServiceSession(
         CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config)));
     home = folders.findHomeFolderOf().getResourceId();
-    var queue = org.mockito.Mockito.mock(ValuerecommenderReindexQueueService.class);
-    org.mockito.Mockito.when(queue.enqueueEventWithResult(org.mockito.ArgumentMatchers.any())).thenReturn(true);
     completion = new org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService(config,
-        CedarDataServices.getInstance().getNeoUserService(), new NoOpNodeIndexingService(config), queue);
+        CedarDataServices.getInstance().getNeoUserService(), new NoOpNodeIndexingService(config));
     AbstractResourceServerResource.injectArtifactDeletionCompletionService(completion);
     AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config),
-        new ValuerecommenderReindexQueueService(config.getCacheConfig().getPersistent()));
+        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
   }
 
   @AfterAll

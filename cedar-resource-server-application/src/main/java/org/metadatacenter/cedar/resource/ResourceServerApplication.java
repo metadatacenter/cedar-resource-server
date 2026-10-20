@@ -21,7 +21,6 @@ import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingServic
 import org.metadatacenter.server.search.elasticsearch.service.NodeSearchingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 
 public class ResourceServerApplication extends CedarMicroserviceApplication<ResourceServerConfiguration> {
 
@@ -56,10 +55,8 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     CloneInstancesEnqueueService cloneInstanceEnqueueService = new CloneInstancesEnqueueService(cedarConfig);
 
-    ValuerecommenderReindexQueueService valuerecommenderReindexQueueService =
-        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent());
     artifactDeletionCompletionService = new ArtifactDeletionCompletionService(
-        cedarConfig, userService, nodeIndexingService, valuerecommenderReindexQueueService);
+        cedarConfig, userService, nodeIndexingService);
     artifactRestoreCompletionService = new ArtifactRestoreCompletionService(cedarConfig, userService);
     artifactCreateCleanupService = new org.metadatacenter.server.resource.ArtifactCreateCleanupService(cedarConfig, userService);
     AbstractResourceServerResource.injectArtifactCreateCleanupService(artifactCreateCleanupService);
@@ -69,7 +66,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     CommandGenericResource.injectUserService(userService);
     CommandSearchResource.injectUserService(userService);
     SearchResource.injectServices(nodeIndexingService, nodeSearchingService,
-        searchPermissionEnqueueService, valuerecommenderReindexQueueService);
+        searchPermissionEnqueueService);
     AbstractResourceServerResource.injectArtifactDeletionCompletionService(artifactDeletionCompletionService);
     AbstractResourceServerResource.injectArtifactRestoreCompletionService(artifactRestoreCompletionService);
 
@@ -83,7 +80,6 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     IndexJobGuard.recoverFromStore();
 
     IndexCreator.ensureSearchIndexExists(cedarConfig);
-    IndexCreator.ensureRulesIndexExists(cedarConfig);
   }
 
   @Override

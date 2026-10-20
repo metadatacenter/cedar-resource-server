@@ -22,7 +22,6 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
@@ -73,8 +72,7 @@ class InclusionTransitionTest {
         CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config)));
     home = folders.findHomeFolderOf().getResourceId();
     AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config),
-        new ValuerecommenderReindexQueueService(config.getCacheConfig().getPersistent()));
+        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
   }
 
   @AfterAll

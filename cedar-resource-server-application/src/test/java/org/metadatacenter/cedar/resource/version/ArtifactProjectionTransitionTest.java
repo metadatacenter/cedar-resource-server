@@ -57,10 +57,6 @@ class ArtifactProjectionTransitionTest {
         }, (a, body, context) -> {
           if (failure.get().equals("inclusion")) throw new IllegalStateException("inclusion unavailable");
           persisted("inclusion",body.path("included").asText());
-        }, a -> {
-          if (failure.get().equals("notification")) throw new IllegalStateException("Redis unavailable");
-          persisted("notification",a.getName());
-          if (failure.get().equals("acknowledgement")) throw new IllegalStateException("reply lost after enqueue");
         });
   }
   private void persisted(String surface,String value) {
@@ -91,11 +87,10 @@ class ArtifactProjectionTransitionTest {
   private void assertDerived(String name) {
     assertEquals(name,observed("inclusion"));
     assertEquals(name,observed("index"));
-    assertEquals(name,observed("notification"));
     assertEquals(0,pending());
   }
 
-  @ParameterizedTest @ValueSource(strings={"link","inclusion","index","notification","acknowledgement"})
+  @ParameterizedTest @ValueSource(strings={"link","inclusion","index"})
   void partialCompletionSurvivesRestartAndConverges(String failedAt) {
     save("Saved");
     try(var s=observer.session()) { s.writeTransaction(tx -> { VersionChainTransaction.lock(tx); VersionChainTransaction.enqueue(tx,ID,true); return null; }); }
@@ -110,10 +105,9 @@ class ArtifactProjectionTransitionTest {
     assertEquals("Saved",observed("link"));
   }
 
-  @ParameterizedTest @ValueSource(booleans={false,true})
-  void aLifecycleRequestRefreshesItsWholeChainDespiteABlockedNotification(boolean blockedInSameChain) throws Exception {
-    save("Blocked older save"); failure.set("notification");
-    String release=blockedInSameChain?ID:ID+"-release", draft=ID+"-draft";
+  @Test void aLifecycleRequestRefreshesItsWholeChainDespiteABlockedProjection() throws Exception {
+    save("Blocked older save"); failure.set("inclusion");
+    String release=ID+"-release", draft=ID+"-draft";
     try(var session=observer.session()) {
       session.writeTransaction(tx -> {
         VersionChainTransaction.lock(tx);
@@ -129,8 +123,8 @@ class ArtifactProjectionTransitionTest {
     try(var request=relay()) { request.completeRelated(request.relatedIds(draft),index,null); }
     verify(index).indexDocumentForProjection(argThat(a -> a.getId().equals(release)),isNull());
     verify(index).indexDocumentForProjection(argThat(a -> a.getId().equals(draft)),isNull());
-    if(!blockedInSameChain) verify(index,never()).indexDocumentForProjection(argThat(a -> a.getId().equals(ID)),isNull());
-    assertEquals(1,pending(),"The failed notification stays durable, without blocking either version's index");
+    verify(index,never()).indexDocumentForProjection(argThat(a -> a.getId().equals(ID)),isNull());
+    assertEquals(1,pending(),"The blocked projection stays durable, without blocking either version's index");
   }
 
   @Test void aLateEarlierRequestProjectsOnlyTheSuccessorsSnapshot() throws Exception {
@@ -143,15 +137,6 @@ class ArtifactProjectionTransitionTest {
       assertDerived("Second");
       verify(index,times(1)).indexDocumentForProjection(any(),isNull());
     }
-  }
-
-  @Test void aNewSaveSupersedesPartiallyAppliedWorkAcrossRestart() {
-    save("First"); failure.set("notification");
-    try(var first=relay()) { assertFalse(first.complete(ID,index,null)); }
-    assertEquals("First",observed("index"));
-    save("Second"); failure.set("");
-    try(var restarted=relay()) { restarted.completePending(index,null); }
-    assertDerived("Second");
   }
 
   @Test void editingASurvivingDraftPreservesItsPendingPredecessorRepair() {
@@ -211,7 +196,7 @@ class ArtifactProjectionTransitionTest {
     try(var s=observer.session()) { s.writeTransaction(tx -> { VersionChainTransaction.delete(tx,ID); return null; }); }
     try(var restarted=relay()) { assertTrue(restarted.complete(ID,index,null)); }
     assertEquals(0,pending()); assertNull(observed("inclusion")); assertNull(observed("index"));
-    assertNull(observed("notification")); verifyNoInteractions(index);
+    verifyNoInteractions(index);
   }
 
   @Test void rollbackPreservesThePreviousCommittedSnapshotAndItsPendingWork() {

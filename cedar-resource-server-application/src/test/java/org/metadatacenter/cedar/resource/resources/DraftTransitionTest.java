@@ -28,7 +28,6 @@ import org.metadatacenter.server.security.model.permission.resource.ResourcePerm
 import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
@@ -91,8 +90,7 @@ class DraftTransitionTest {
         org.mockito.ArgumentMatchers.anyString());
     CommandVersionResource.injectCloneInstancesEnqueueServices(queue);
     AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config),
-        new ValuerecommenderReindexQueueService(config.getCacheConfig().getPersistent()));
+        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
   }
 
   @AfterAll

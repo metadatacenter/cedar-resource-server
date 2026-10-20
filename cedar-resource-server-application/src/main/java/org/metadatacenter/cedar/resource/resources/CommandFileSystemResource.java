@@ -300,7 +300,6 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         if (templateProxyResponse.getEntity() != null) {
           // index the artifact that has been created
           createIndexArtifact(folderServerCreatedResource, c);
-          createValuerecommenderResource(folderServerCreatedResource);
           URI location = CedarUrlUtil.getLocationURI(templateProxyResponse);
           return Response.created(location).entity(templateProxyResponse.getEntity().getContent()).build();
         } else {

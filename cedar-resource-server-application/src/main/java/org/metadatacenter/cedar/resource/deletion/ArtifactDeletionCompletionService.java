@@ -12,11 +12,8 @@ import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
-import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.service.UserService;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
-import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
 import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
@@ -40,27 +37,22 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
   private final CedarConfig cedarConfig;
   private final UserService userService;
   private final NodeIndexingService nodeIndexingService;
-  private final ValuerecommenderReindexQueueService valuerecommenderQueueService;
   private final Neo4jArtifactDeletionOutbox outbox;
   private ScheduledExecutorService executor;
 
   public ArtifactDeletionCompletionService(CedarConfig cedarConfig,
                                            UserService userService,
-                                           NodeIndexingService nodeIndexingService,
-                                           ValuerecommenderReindexQueueService valuerecommenderQueueService) {
-    this(cedarConfig, userService, nodeIndexingService, valuerecommenderQueueService,
-        new Neo4jArtifactDeletionOutbox(cedarConfig));
+                                           NodeIndexingService nodeIndexingService) {
+    this(cedarConfig, userService, nodeIndexingService, new Neo4jArtifactDeletionOutbox(cedarConfig));
   }
 
   ArtifactDeletionCompletionService(CedarConfig cedarConfig,
                                     UserService userService,
                                     NodeIndexingService nodeIndexingService,
-                                    ValuerecommenderReindexQueueService valuerecommenderQueueService,
                                     Neo4jArtifactDeletionOutbox outbox) {
     this.cedarConfig = cedarConfig;
     this.userService = userService;
     this.nodeIndexingService = nodeIndexingService;
-    this.valuerecommenderQueueService = valuerecommenderQueueService;
     this.outbox = outbox;
   }
 
@@ -116,14 +108,7 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
 
   private void finishProjections(ArtifactDeletionJob job, CedarRequestContext context) throws Exception {
     CedarArtifactId id = CedarArtifactId.build(job.resourceId(), job.resourceType());
-    FolderServerArtifact deleted = JsonMapper.TOLERANT_MAPPER.readValue(
-        job.graphSnapshotJson(), FolderServerArtifact.class);
     nodeIndexingService.removeDocumentFromIndex(id);
-    if (!ArtifactCopyOperations.enqueueValuerecommenderUpdateWithResult(valuerecommenderQueueService, deleted,
-        ValuerecommenderReindexMessageActionType.DELETED)) {
-      throw new IllegalStateException("The value-recommender deletion event could not be persisted");
-    }
-
   }
 
   public synchronized void start() {

@@ -49,7 +49,6 @@ import org.metadatacenter.server.security.model.permission.resource.ResourcePerm
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
 import org.metadatacenter.server.security.model.user.CedarUser;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -164,8 +163,7 @@ public class ResourceStateRoundTripIT {
     NodeSearchingService searching = indexUtils.getNodeSearchingService();
     CedarRequestContext admin = CedarRequestContextFactory.fromUser(TestAuthUtil.getAdminUser(cedarConfig));
     relay = InlineSearchPermissionRelay.projectingAs(cedarConfig, admin, indexUtils, searching, indexing);
-    AbstractResourceServerResource.injectServices(indexing, searching, relay.enqueueService(),
-        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+    AbstractResourceServerResource.injectServices(indexing, searching, relay.enqueueService());
 
     user1Home = CedarDataServices.getInstance().getFolderServiceSession(CedarRequestContextFactory.fromUser(user1))
         .findHomeFolderOf().getId();
