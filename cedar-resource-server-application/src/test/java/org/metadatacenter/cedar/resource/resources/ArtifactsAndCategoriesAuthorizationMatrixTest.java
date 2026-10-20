@@ -608,6 +608,120 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
         "the permitted category must not be attached when a later category fails preflight");
   }
 
+  /**
+   * The single-category commands, which attach or detach one category at a time. Attaching is a
+   * graph MERGE, so attaching a second time leaves one attachment rather than failing. The category
+   * is this test's own and ends detached, because the batch test above expects the shared category
+   * to stay off the shared artifact.
+   */
+  @Test
+  public void anOwnerAttachesAndDetachesOneCategory() throws Exception {
+    var categories = CedarDataServices.getInstance().getCategoryServiceSession(user1Context);
+    FolderServerCategory single = categories.createCategory(rootCategoryId, "Single Attach Category",
+        "Attached and detached by anOwnerAttachesAndDetachesOneCategory", null);
+    Artifact artifact = artifacts.get(1);
+    CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(artifact.id());
+    String body = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryId\":\"" + single.getId() + "\"}";
+
+    HttpResponse<String> attached = request("POST", "/command/attach-category", body, actors.get(OWNER));
+    Assertions.assertEquals(200, attached.statusCode(), attached.body());
+    Assertions.assertEquals(artifact.id(), JsonMapper.STRICT_MAPPER.readTree(attached.body()).get("@id").asText(),
+        "the response should describe the artifact the category was attached to");
+    Assertions.assertTrue(categories.getAttachedCategoryIds(artifactId).contains(single.getResourceId()));
+
+    HttpResponse<String> again = request("POST", "/command/attach-category", body, actors.get(OWNER));
+    Assertions.assertEquals(200, again.statusCode(), again.body());
+    Assertions.assertEquals(1, categories.getAttachedCategoryIds(artifactId).stream()
+        .filter(single.getResourceId()::equals).count(), "a second attach must not duplicate the attachment");
+
+    HttpResponse<String> detached = request("POST", "/command/detach-category", body, actors.get(OWNER));
+    Assertions.assertEquals(200, detached.statusCode(), detached.body());
+    Assertions.assertFalse(categories.getAttachedCategoryIds(artifactId).contains(single.getResourceId()));
+  }
+
+  /**
+   * Attaching needs the updateResource capability on the artifact and attachCategory on the category,
+   * and detaching the same with detachCategory. Each refusal must leave the graph as it was.
+   */
+  @Test
+  public void theSingleCategoryCommandsRefuseCallersWithoutBothCapabilities() throws Exception {
+    var categories = CedarDataServices.getInstance().getCategoryServiceSession(user1Context);
+    Artifact artifact = artifacts.get(2);
+    CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(artifact.id());
+    String ownCategory = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryId\":\"" + categoryId.getId() + "\"}";
+    String othersCategory = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryId\":\""
+        + inaccessibleCategoryId.getId() + "\"}";
+
+    for (String command : List.of("/command/attach-category", "/command/detach-category")) {
+      HttpResponse<String> anonymous = request("POST", command, ownCategory, null);
+      Assertions.assertEquals(401, anonymous.statusCode(), command + ": " + anonymous.body());
+
+      // User 2 has no grant on user 1's artifact.
+      HttpResponse<String> stranger = request("POST", command, ownCategory, actors.get(OTHER_USER));
+      Assertions.assertEquals(403, stranger.statusCode(), command + ": " + stranger.body());
+
+      // The owner of the artifact, but not of the category, which belongs to user 2.
+      HttpResponse<String> notTheCategoryOwner = request("POST", command, othersCategory, actors.get(OWNER));
+      Assertions.assertEquals(403, notTheCategoryOwner.statusCode(), command + ": " + notTheCategoryOwner.body());
+
+      // The body may carry the two identifiers and nothing else.
+      HttpResponse<String> extraKey = request("POST", command,
+          ownCategory.replace("}", ",\"categoryIds\":[]}"), actors.get(OWNER));
+      Assertions.assertEquals(400, extraKey.statusCode(), command + ": " + extraKey.body());
+    }
+
+    List<CedarCategoryId> attached = categories.getAttachedCategoryIds(artifactId);
+    Assertions.assertFalse(attached.contains(categoryId), "a refused attach must not attach");
+    Assertions.assertFalse(attached.contains(inaccessibleCategoryId), "a refused attach must not attach");
+  }
+
+  /**
+   * The folder contents extract: the folder listing with only the fields a caller names, meant for
+   * folders holding many artifacts. Each entry carries its identifier and type, the named graph
+   * properties and nothing else, and naming {@code categories} adds the attached categories, which
+   * are not a property of the node and are looked up per artifact.
+   */
+  @Test
+  public void theContentsExtractCarriesOnlyTheNamedFields() throws Exception {
+    var categories = CedarDataServices.getInstance().getCategoryServiceSession(user1Context);
+    FolderServerCategory listed = categories.createCategory(rootCategoryId, "Extract Category",
+        "Attached for theContentsExtractCarriesOnlyTheNamedFields", null);
+    Artifact tagged = artifacts.get(3);
+    CedarUntypedArtifactId taggedId = CedarUntypedArtifactId.build(tagged.id());
+    Assertions.assertTrue(categories.attachCategoryToArtifact(listed.getResourceId(), taggedId));
+    String homeFolderId = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
+        .findHomeFolderOf().getId();
+    String extractPath = "/folders/" + URLEncoder.encode(homeFolderId, StandardCharsets.UTF_8)
+        + "/contents-extract?field_names=" + URLEncoder.encode("schema:name,categories", StandardCharsets.UTF_8);
+
+    try {
+      HttpResponse<String> response = request("GET", extractPath, null, actors.get(OWNER));
+      Assertions.assertEquals(200, response.statusCode(), response.body());
+      Map<String, JsonNode> byId = new java.util.HashMap<>();
+      JsonMapper.STRICT_MAPPER.readTree(response.body()).get("resources")
+          .forEach(entry -> byId.put(entry.get("@id").asText(), entry));
+      for (Artifact artifact : artifacts) {
+        JsonNode entry = byId.get(artifact.id());
+        Assertions.assertNotNull(entry, "the extract should list the " + artifact.label() + ": " + response.body());
+        List<String> keys = new ArrayList<>();
+        entry.fieldNames().forEachRemaining(keys::add);
+        Assertions.assertEquals(java.util.Set.of("@id", "resourceType", "schema:name", "categories"),
+            java.util.Set.copyOf(keys), artifact.label() + " should carry only the named fields");
+        Assertions.assertEquals(artifact.name(), entry.get("schema:name").asText());
+      }
+      Assertions.assertTrue(containsText(byId.get(tagged.id()).get("categories"), listed.getId()),
+          "the attached category should be listed: " + byId.get(tagged.id()));
+
+      Assertions.assertEquals(401, request("GET", extractPath, null, null).statusCode());
+      Assertions.assertEquals(403, request("GET", extractPath, null, actors.get(OTHER_USER)).statusCode());
+      String missing = "/folders/" + URLEncoder.encode(
+          "https://repo.metadatacenter.orgx/folders/" + UUID.randomUUID(), StandardCharsets.UTF_8) + "/contents-extract";
+      Assertions.assertEquals(404, request("GET", missing, null, actors.get(OWNER)).statusCode());
+    } finally {
+      categories.detachCategoryFromArtifact(listed.getResourceId(), taggedId);
+    }
+  }
+
   private HttpResponse<String> request(String method, String path, String body, String authHeader) throws Exception {
     return request(method, path, body, authHeader, null);
   }

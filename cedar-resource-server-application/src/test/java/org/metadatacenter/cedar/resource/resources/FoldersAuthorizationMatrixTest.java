@@ -131,6 +131,12 @@ public class FoldersAuthorizationMatrixTest {
         .expect(OWNER, 200)
         .expect(OTHER_USER, 403);
 
+    // The same listing with only the named fields, which must gate exactly as the full one does.
+    matrix.when("GET", folderPath + "/contents-extract?field_names=schema%3Aname")
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 200)
+        .expect(OTHER_USER, 403);
+
     // The ACL itself must not leak: who a folder is shared with is as sensitive as its contents.
     matrix.when("GET", folderPath + "/permissions")
         .expect(ANONYMOUS, 401)
