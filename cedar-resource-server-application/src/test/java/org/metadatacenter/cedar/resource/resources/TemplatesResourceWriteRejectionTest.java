@@ -1,6 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.AfterAll;
@@ -357,6 +358,56 @@ public class TemplatesResourceWriteRejectionTest {
 
     Assertions.assertFalse(response.body().contains("publishedArtifactCanNotBeChanged"), response.body());
     Assertions.assertEquals(503, response.statusCode(), response.body());
+  }
+
+  /**
+   * Version, publication status and predecessor change only through the lifecycle commands, which keep
+   * both stores and the version chain in step. An ordinary update that states any of the three otherwise
+   * than the graph holds it is refused before the artifact server is asked. One that states all three as
+   * they are gets past the check and fails on the unreachable artifact server.
+   */
+  @Test
+  public void anOrdinaryUpdateCannotChangeWhatTheLifecycleCommandsMaintain() throws Exception {
+    String id = draftTemplateId();
+    ObjectNode unchanged = JsonMapper.STRICT_MAPPER.createObjectNode()
+        .put("@id", id)
+        .put("pav:version", "1.0.0")
+        .put("bibo:status", BiboStatus.DRAFT.getValue());
+    ObjectNode withoutAVersion = unchanged.deepCopy();
+    withoutAVersion.remove("pav:version");
+    List<ObjectNode> lifecycleChanges = List.of(
+        unchanged.deepCopy().put("pav:version", "2.0.0"),
+        withoutAVersion,
+        unchanged.deepCopy().put("bibo:status", BiboStatus.PUBLISHED.getValue()),
+        unchanged.deepCopy().put("pav:previousVersion",
+            cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE)));
+
+    for (ObjectNode body : lifecycleChanges) {
+      HttpResponse<String> response = putTemplate(id, "", body.toString(), "application/json", authHeaderUser1, "*");
+
+      Assertions.assertEquals(400, response.statusCode(), body + ": " + response.body());
+      Assertions.assertEquals("invalidData",
+          JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(), response.body());
+    }
+    HttpResponse<String> response = putTemplate(id, "", unchanged.toString(), "application/json", authHeaderUser1, "*");
+    Assertions.assertEquals(503, response.statusCode(), response.body());
+  }
+
+  /** A draft template at 1.0.0 in the test user's home folder, with no predecessor. */
+  private String draftTemplateId() throws Exception {
+    CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
+    FolderServiceSession folders = CedarDataServices.getInstance().getFolderServiceSession(user1Context);
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName("Draft by TemplatesResourceWriteRejectionTest");
+    template.setVersion("1.0.0");
+    template.setPublicationStatus(BiboStatus.DRAFT.getValue());
+    template.setLatestVersion(true);
+    template.setLatestDraftVersion(true);
+    template.setLatestPublishedVersion(false);
+    FolderServerArtifact created = folders.createResourceAsChildOfId(template, folders.findHomeFolderOf().getResourceId());
+    Assertions.assertNotNull(created, "the draft template should be created");
+    return created.getId();
   }
 
   @Test
