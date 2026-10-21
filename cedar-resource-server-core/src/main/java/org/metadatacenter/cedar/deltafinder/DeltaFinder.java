@@ -1,8 +1,11 @@
 package org.metadatacenter.cedar.deltafinder;
 
+import org.metadatacenter.artifacts.model.core.ChildSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.ElementSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.FieldSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
+import org.metadatacenter.artifacts.model.core.fields.TemporalGranularity;
+import org.metadatacenter.artifacts.model.core.fields.XsdTemporalDatatype;
 import org.metadatacenter.artifacts.model.core.fields.constraints.ControlledTermValueConstraints;
 import org.metadatacenter.artifacts.model.core.fields.constraints.LiteralValueConstraint;
 import org.metadatacenter.artifacts.model.core.fields.constraints.ValueConstraints;
@@ -130,7 +133,7 @@ public class DeltaFinder {
         delta.addDestructiveChange(new TypeChange(key, oldType, newType, true));
       }
 
-      detectValueConstraintsChange(oldField, newField, key, delta);
+      detectFieldChange(oldField, newField, key, delta);
     }
 
     // Step 5: Recursively handle elements
@@ -139,6 +142,9 @@ public class DeltaFinder {
     for (String key : commonElementKeys) {
       ElementSchemaArtifact oldElem = oldElements.get(key);
       ElementSchemaArtifact newElem = newElements.get(key);
+      List<String> elementChanges = new ArrayList<>();
+      boolean elementDestructive = detectCardinalityChange(oldElem, newElem, elementChanges);
+      reportChanges(key, elementChanges, elementDestructive, delta);
       compareSchemas(
           oldElem.fieldSchemas(), oldElem.elementSchemas(),
           newElem.fieldSchemas(), newElem.elementSchemas(),
@@ -262,32 +268,106 @@ public class DeltaFinder {
     return oldVC.equals(newVC);
   }
 
-  private void detectValueConstraintsChange(FieldSchemaArtifact oldField,
-                                            FieldSchemaArtifact newField,
-                                            String key,
-                                            Delta delta) {
+  /**
+   * Reports every change to a field that keeps its name, other than its type, as one change. It is destructive
+   * when a value stored under the old field can fail the new one.
+   */
+  private void detectFieldChange(FieldSchemaArtifact oldField,
+                                 FieldSchemaArtifact newField,
+                                 String key,
+                                 Delta delta) {
+    List<String> changes = new ArrayList<>();
+    boolean destructive = detectCardinalityChange(oldField, newField, changes);
+
+    if (!Objects.equals(oldField.propertyUri(), newField.propertyUri())) {
+      changes.add("propertyUri changed");
+      // A stored instance maps the field's name to the property IRI it was written with. The template's context
+      // admits only the IRI it declares, requires it, and refuses a mapping it does not declare.
+      destructive = true;
+    }
+
+    if (oldField.fieldUi().isTemporal() && newField.fieldUi().isTemporal()) {
+      var oldUi = oldField.fieldUi().asTemporalFieldUi();
+      var newUi = newField.fieldUi().asTemporalFieldUi();
+
+      if (oldUi.temporalGranularity() != newUi.temporalGranularity()) {
+        changes.add("temporalGranularity changed");
+        destructive |= !admitsEveryValueOf(oldUi.temporalGranularity(), newUi.temporalGranularity(),
+            temporalType(oldField));
+      }
+      boolean oldTimezoneEnabled = oldUi.timezoneEnabled().orElse(false);
+      boolean newTimezoneEnabled = newUi.timezoneEnabled().orElse(false);
+      if (oldTimezoneEnabled != newTimezoneEnabled) {
+        changes.add("timezoneEnabled changed");
+        // A stored value may carry a timezone offset
+        destructive |= !newTimezoneEnabled;
+      }
+    }
+
+    destructive |= detectValueConstraintsChange(oldField, newField, changes);
+    reportChanges(key, changes, destructive, delta);
+  }
+
+  /**
+   * Records a change to how many values a field or an element holds, and returns whether a stored instance can
+   * fail it. A cardinality bound that narrows is destructive, and one that widens is not.
+   */
+  private static boolean detectCardinalityChange(ChildSchemaArtifact oldChild, ChildSchemaArtifact newChild,
+                                                 List<String> changes) {
+    if (oldChild.isMultiple() != newChild.isMultiple()) {
+      changes.add("isMultiple changed");
+      // A stored value is one value where a list is now expected, or the other way round
+      return true;
+    }
+    boolean destructive = false;
+    // An absent lower bound means zero
+    int oldMinItems = oldChild.minItems().orElse(ChildSchemaArtifact.DEFAULT_MIN_ITEMS);
+    int newMinItems = newChild.minItems().orElse(ChildSchemaArtifact.DEFAULT_MIN_ITEMS);
+    if (oldMinItems != newMinItems) {
+      changes.add("minItems changed");
+      destructive |= newMinItems > oldMinItems;
+    }
+    if (!Objects.equals(oldChild.maxItems(), newChild.maxItems())) {
+      changes.add("maxItems changed");
+      destructive |= lowersUpperBound(oldChild.maxItems(), newChild.maxItems());
+    }
+    return destructive;
+  }
+
+  private static void reportChanges(String key, List<String> changes, boolean destructive, Delta delta) {
+    if (!changes.isEmpty()) {
+      if (destructive) {
+        delta.addDestructiveChange(new ConstraintChange(key, "Changed: " + String.join(", ", changes), "", true));
+      } else {
+        delta.addNonDestructiveChange(new ConstraintChange(key, "Changed: " + String.join(", ", changes), "", false));
+      }
+    }
+  }
+
+  /** Records each change to a field's value constraints, and returns whether a stored value can fail it. */
+  private boolean detectValueConstraintsChange(FieldSchemaArtifact oldField,
+                                               FieldSchemaArtifact newField,
+                                               List<String> changes) {
     Optional<ValueConstraints> oldVCOpt = oldField.valueConstraints();
     Optional<ValueConstraints> newVCOpt = newField.valueConstraints();
 
     if (oldVCOpt.isEmpty() && newVCOpt.isEmpty()) {
-      return; // No constraint changes
+      return false; // No constraint changes
     }
     if (oldVCOpt.isEmpty() || newVCOpt.isEmpty()) {
-      delta.addDestructiveChange(new ConstraintChange(key, "Presence/absence of valueConstraints", "Presence/absence " +
-          "of valueConstraints", true));
-      return;
+      changes.add("Presence/absence of valueConstraints");
+      return true;
     }
 
     ValueConstraints oldVC = oldVCOpt.get();
     ValueConstraints newVC = newVCOpt.get();
 
     if (!oldVC.getClass().equals(newVC.getClass())) {
-      delta.addDestructiveChange(new ConstraintChange(key, "Constraint type changed", "Constraint type changed", true));
-      return;
+      changes.add("Constraint type changed");
+      return true;
     }
 
     boolean destructive = false;
-    List<String> changes = new ArrayList<>();
 
     // A change is destructive when a value stored under the old constraints can fail the new ones.
     // Base fields
@@ -400,13 +480,55 @@ public class DeltaFinder {
       }
     }
 
-    if (!changes.isEmpty()) {
-      if (destructive) {
-        delta.addDestructiveChange(new ConstraintChange(key, "Changed: " + String.join(", ", changes), "", true));
-      } else {
-        delta.addNonDestructiveChange(new ConstraintChange(key, "Changed: " + String.join(", ", changes), "", false));
-      }
-    }
+    return destructive;
+  }
+
+  /** The temporal datatype a field's stored values carry. A field that states none may hold a date and a time. */
+  private static XsdTemporalDatatype temporalType(FieldSchemaArtifact field) {
+    return field.valueConstraints()
+        .filter(ValueConstraints::isTemporalValueConstraint)
+        .map(constraints -> constraints.asTemporalValueConstraints().temporalType())
+        .orElse(XsdTemporalDatatype.DATETIME);
+  }
+
+  /**
+   * Whether every value the old granularity admits also meets the new one. The validator checks the date and the
+   * time of a value apart. A coarser date granularity admits fewer dates. A time granularity either rounds a time,
+   * to midnight, a whole hour or a whole minute, and lets it leave its seconds out, or requires its seconds, with a
+   * fraction or without one. A finer rounding admits every time a coarser one does, and no other change of time
+   * granularity keeps every stored time valid.
+   */
+  private static boolean admitsEveryValueOf(TemporalGranularity oldGranularity, TemporalGranularity newGranularity,
+                                            XsdTemporalDatatype type) {
+    boolean datesAdmitted = type == XsdTemporalDatatype.TIME
+        || dateLatitude(oldGranularity) <= dateLatitude(newGranularity);
+    boolean timesAdmitted = type == XsdTemporalDatatype.DATE
+        || oldGranularity == newGranularity
+        || (roundedTimeLatitude(oldGranularity) >= 0
+            && roundedTimeLatitude(oldGranularity) <= roundedTimeLatitude(newGranularity));
+    return datesAdmitted && timesAdmitted;
+  }
+
+  /** How freely a granularity lets a date vary: only January 1, only the first of a month, or any day. */
+  private static int dateLatitude(TemporalGranularity granularity) {
+    return switch (granularity) {
+      case YEAR -> 0;
+      case MONTH -> 1;
+      default -> 2;
+    };
+  }
+
+  /**
+   * How freely a granularity lets a rounded time vary: only midnight, any whole hour, or any whole minute. A
+   * granularity of seconds rounds nothing and gives -1.
+   */
+  private static int roundedTimeLatitude(TemporalGranularity granularity) {
+    return switch (granularity) {
+      case YEAR, MONTH, DAY -> 0;
+      case HOUR -> 1;
+      case MINUTE -> 2;
+      case SECOND, DECIMAL_SECOND -> -1;
+    };
   }
 
   /** Whether a lower bound now refuses a value the old one admitted: it is new, or it is higher. */

@@ -103,6 +103,7 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         .isBasedOn(isBasedOnParam)
         .categoryId(categoryIdParam)
         .mode(modeParam)
+        .sharing(sharingParam)
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);

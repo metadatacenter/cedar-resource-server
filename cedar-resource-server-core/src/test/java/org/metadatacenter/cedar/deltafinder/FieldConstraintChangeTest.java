@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.metadatacenter.artifacts.model.core.ChildSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.ControlledTermField;
+import org.metadatacenter.artifacts.model.core.ElementSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.FieldSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.LinkField;
 import org.metadatacenter.artifacts.model.core.ListField;
@@ -33,11 +35,14 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * A template with instances is updated in place only when its delta is empty. A change to the constraints
  * of a field that keeps its name must therefore be reported, whatever kind of field it is, or the stored
- * instances fall out of step with their template. The delta then classes the change as destructive when a
- * value stored under the old template can fail the new one.
+ * instances fall out of step with their template. So must a change to how many values a field or an element
+ * holds, to the granularity or timezone of a temporal field, and to a field's property IRI. The delta then
+ * classes the change as destructive when a value stored under the old template can fail the new one.
  */
 public class FieldConstraintChangeTest {
 
+  private static final URI DESCRIPTION = URI.create("http://purl.org/dc/terms/description");
+  private static final URI COMMENT = URI.create("http://www.w3.org/2000/01/rdf-schema#comment");
   private static final URI DOID = URI.create("https://data.bioontology.org/ontologies/DOID");
   private static final URI NCIT = URI.create("https://data.bioontology.org/ontologies/NCIT");
   private static final URI DISEASE = URI.create("http://purl.obolibrary.org/obo/DOID_4");
@@ -120,14 +125,57 @@ public class FieldConstraintChangeTest {
             ControlledTermField.builder().withName("Disease")
                 .withValueSetValueConstraint(VALUE_SET, "CADSR-VS", "Disease Type")
                 .withValueConstraintsAction(CANCER, "CADSR-VS", ValueType.VALUE, ValueConstraintsActionType.DELETE,
-                    VALUE_SET, 0).build()));
+                    VALUE_SET, 0).build()),
+        Arguments.of("a multi-instance field whose minimum count rises",
+            repeatedNotes().withMinItems(1).build(),
+            repeatedNotes().withMinItems(2).build()),
+        Arguments.of("a multi-instance field given a maximum count",
+            repeatedNotes().build(),
+            repeatedNotes().withMaxItems(3).build()),
+        Arguments.of("a multi-instance field whose maximum count falls",
+            repeatedNotes().withMaxItems(5).build(),
+            repeatedNotes().withMaxItems(3).build()),
+        Arguments.of("a date field whose granularity becomes the month",
+            visit().withTemporalType(XsdTemporalDatatype.DATE).build(),
+            visit().withTemporalType(XsdTemporalDatatype.DATE).withTemporalGranularity(TemporalGranularity.MONTH).build()),
+        // A value at minute granularity may leave its seconds out, and one at second granularity must state them
+        Arguments.of("a date and time field whose granularity becomes the second",
+            visit().withTemporalType(XsdTemporalDatatype.DATETIME).withTemporalGranularity(TemporalGranularity.MINUTE).build(),
+            visit().withTemporalType(XsdTemporalDatatype.DATETIME).withTemporalGranularity(TemporalGranularity.SECOND).build()),
+        Arguments.of("a time field whose seconds must now carry a fraction",
+            visit().withTemporalType(XsdTemporalDatatype.TIME).withTemporalGranularity(TemporalGranularity.SECOND).build(),
+            visit().withTemporalType(XsdTemporalDatatype.TIME).withTemporalGranularity(TemporalGranularity.DECIMAL_SECOND).build()),
+        Arguments.of("a temporal field whose timezone is disabled",
+            appointment().withTimeZoneEnabled(true).build(),
+            appointment().withTimeZoneEnabled(false).build()),
+        Arguments.of("a field whose property IRI is replaced",
+            TextField.builder().withName("Notes").withPropertyUri(DESCRIPTION).build(),
+            TextField.builder().withName("Notes").withPropertyUri(COMMENT).build()),
+        Arguments.of("a field given a property IRI",
+            TextField.builder().withName("Notes").build(),
+            TextField.builder().withName("Notes").withPropertyUri(DESCRIPTION).build()),
+        Arguments.of("a field whose property IRI is removed",
+            TextField.builder().withName("Notes").withPropertyUri(DESCRIPTION).build(),
+            TextField.builder().withName("Notes").build()),
+        Arguments.of("an element that becomes multi-instance",
+            sample().build(),
+            sample().withIsMultiple(true).build()),
+        Arguments.of("a multi-instance element made single",
+            sample().withIsMultiple(true).build(),
+            sample().build()),
+        Arguments.of("a multi-instance element whose minimum count rises",
+            sample().withIsMultiple(true).withMinItems(0).build(),
+            sample().withIsMultiple(true).withMinItems(1).build()),
+        Arguments.of("a multi-instance element whose maximum count falls",
+            sample().withIsMultiple(true).withMaxItems(4).build(),
+            sample().withIsMultiple(true).withMaxItems(2).build()));
   }
 
   /** A stored instance may hold no value, or one the new rule refuses, so each change is destructive. */
   @ParameterizedTest(name = "{0}")
   @MethodSource("changesAStoredValueMayFail")
-  public void aConstraintStoredValuesMayFailIsADestructiveChange(String change, FieldSchemaArtifact before,
-                                                                FieldSchemaArtifact after) {
+  public void aConstraintStoredValuesMayFailIsADestructiveChange(String change, ChildSchemaArtifact before,
+                                                                ChildSchemaArtifact after) {
     Delta delta = findDelta(before, after);
 
     assertTrue(delta.getNonDestructiveChanges().isEmpty(), delta.toString());
@@ -167,18 +215,58 @@ public class FieldConstraintChangeTest {
                 .withOntologyValueConstraint(NCIT, "NCIT", "NCI Thesaurus").build()),
         Arguments.of("a link field given a default",
             LinkField.builder().withName("Homepage").build(),
-            LinkField.builder().withName("Homepage").withDefaultValue(URI.create("https://example.org/")).build()));
+            LinkField.builder().withName("Homepage").withDefaultValue(URI.create("https://example.org/")).build()),
+        Arguments.of("a multi-instance field whose minimum count falls",
+            repeatedNotes().withMinItems(2).build(),
+            repeatedNotes().withMinItems(1).build()),
+        Arguments.of("a multi-instance field whose maximum count rises",
+            repeatedNotes().withMaxItems(3).build(),
+            repeatedNotes().withMaxItems(5).build()),
+        Arguments.of("a multi-instance field whose maximum count is removed",
+            repeatedNotes().withMaxItems(3).build(),
+            repeatedNotes().build()),
+        Arguments.of("a date field whose granularity becomes the day",
+            visit().withTemporalType(XsdTemporalDatatype.DATE).withTemporalGranularity(TemporalGranularity.MONTH).build(),
+            visit().withTemporalType(XsdTemporalDatatype.DATE).build()),
+        Arguments.of("a date and time field whose granularity becomes the minute",
+            visit().withTemporalType(XsdTemporalDatatype.DATETIME).withTemporalGranularity(TemporalGranularity.HOUR).build(),
+            visit().withTemporalType(XsdTemporalDatatype.DATETIME).withTemporalGranularity(TemporalGranularity.MINUTE).build()),
+        Arguments.of("a temporal field whose timezone is enabled",
+            appointment().build(),
+            appointment().withTimeZoneEnabled(true).build()),
+        Arguments.of("a multi-instance element whose minimum count falls",
+            sample().withIsMultiple(true).withMinItems(1).build(),
+            sample().withIsMultiple(true).withMinItems(0).build()),
+        Arguments.of("a multi-instance element whose maximum count is removed",
+            sample().withIsMultiple(true).withMaxItems(2).build(),
+            sample().withIsMultiple(true).build()));
   }
 
   /** A change every stored value still satisfies is reported, so the update is still seen, but as safe. */
   @ParameterizedTest(name = "{0}")
   @MethodSource("changesNoStoredValueCanFail")
-  public void aConstraintEveryStoredValueSatisfiesIsANonDestructiveChange(String change, FieldSchemaArtifact before,
-                                                                         FieldSchemaArtifact after) {
+  public void aConstraintEveryStoredValueSatisfiesIsANonDestructiveChange(String change, ChildSchemaArtifact before,
+                                                                         ChildSchemaArtifact after) {
     Delta delta = findDelta(before, after);
 
     assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
     assertOneConstraintChange(delta.getNonDestructiveChanges(), before.name(), false);
+  }
+
+  /**
+   * An absent lower bound means zero, so stating zero changes nothing. The JSON form always states the
+   * bound, so the templates are compared as built rather than read back.
+   */
+  @Test
+  public void aLowerBoundOfZeroIsTheBoundAnAbsentOneMeans() {
+    Delta delta = new DeltaFinder().findDelta(
+        TemplateSchemaArtifact.builder().withName("Constraint change fixture")
+            .withFieldSchema(repeatedNotes().build()).build(),
+        TemplateSchemaArtifact.builder().withName("Constraint change fixture")
+            .withFieldSchema(repeatedNotes().withMinItems(0).build()).build());
+
+    assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
+    assertTrue(delta.getNonDestructiveChanges().isEmpty(), delta.toString());
   }
 
   /**
@@ -200,9 +288,24 @@ public class FieldConstraintChangeTest {
     return TemporalField.builder().withName("Visit").withTemporalGranularity(TemporalGranularity.DAY);
   }
 
+  /** A timezone applies only to a time, so the model drops it from a field whose granularity is a date. */
+  private static TemporalField.TemporalFieldBuilder appointment() {
+    return TemporalField.builder().withName("Appointment").withTemporalType(XsdTemporalDatatype.DATETIME)
+        .withTemporalGranularity(TemporalGranularity.MINUTE);
+  }
+
   /** A numeric field needs a datatype. Decimal is the one a field gets when it states none. */
   private static NumericField.NumericFieldBuilder age() {
     return NumericField.builder().withName("Age").withNumericType(XsdNumericDatatype.DECIMAL);
+  }
+
+  private static TextField.TextFieldBuilder repeatedNotes() {
+    return TextField.builder().withName("Notes").withIsMultiple(true);
+  }
+
+  private static ElementSchemaArtifact.Builder sample() {
+    return ElementSchemaArtifact.builder().withName("Sample")
+        .withFieldSchema(TextField.builder().withName("Notes").build());
   }
 
   private static void assertOneConstraintChange(List<Change> changes, String fieldName, boolean destructive) {
@@ -213,16 +316,16 @@ public class FieldConstraintChangeTest {
     assertEquals(destructive, reported.isDestructive());
   }
 
-  private static Delta findDelta(FieldSchemaArtifact before, FieldSchemaArtifact after) {
+  private static Delta findDelta(ChildSchemaArtifact before, ChildSchemaArtifact after) {
     return new DeltaFinder().findDelta(templateWith(before), templateWith(after));
   }
 
-  /** A template holding the one field, read back as the resource server reads a stored template. */
-  private static TemplateSchemaArtifact templateWith(FieldSchemaArtifact field) {
-    TemplateSchemaArtifact template = TemplateSchemaArtifact.builder()
-        .withName("Constraint change fixture")
-        .withFieldSchema(field)
-        .build();
+  /** A template holding the one field or element, read back as the resource server reads a stored template. */
+  private static TemplateSchemaArtifact templateWith(ChildSchemaArtifact child) {
+    TemplateSchemaArtifact.Builder builder = TemplateSchemaArtifact.builder().withName("Constraint change fixture");
+    if (child instanceof ElementSchemaArtifact element) builder.withElementSchema(element);
+    if (child instanceof FieldSchemaArtifact field) builder.withFieldSchema(field);
+    TemplateSchemaArtifact template = builder.build();
     return new JsonArtifactReader().readTemplateSchemaArtifact(
         new JsonArtifactRenderer().renderTemplateSchemaArtifact(template));
   }

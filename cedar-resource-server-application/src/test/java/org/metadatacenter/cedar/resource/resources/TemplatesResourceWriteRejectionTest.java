@@ -275,6 +275,22 @@ public class TemplatesResourceWriteRejectionTest {
     }
   }
 
+  /**
+   * A search by template applies no sharing view, so a request combining the two is refused rather than
+   * answered as though it named no view. The route parses the view for its own use, and the library's query
+   * does the refusing, so the route has to hand the query the view as well.
+   */
+  @Test
+  public void aSearchByTemplateRefusesASharingView() throws Exception {
+    String query = "?is_based_on=templates%2F00000000-0000-0000-0000-000000000000&sharing=shared-with-me";
+    for (HttpResponse<String> response : List.of(search(query), searchDeep(query))) {
+      Assertions.assertEquals(400, response.statusCode(), response.body());
+      JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      Assertions.assertEquals("BAD_REQUEST", error.path("status").asText(), response.body());
+      Assertions.assertTrue(error.path("message").asText().contains("'sharing=shared-with-me'"), response.body());
+    }
+  }
+
   private static void assertIdentifierRefusal(HttpResponse<String> response, String message) throws Exception {
     Assertions.assertEquals(400, response.statusCode(), response.body());
     JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
