@@ -210,7 +210,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
             + " is still running over the " + index.name().toLowerCase(Locale.ROOT) + " index"
             + (status.overdue()
                ? ", and it has reported no progress for long enough to be believed stopped."
-                 + " Reset it with POST " + resetPath(index)
+                 + " Reset it with POST /command/reset-search-index-job"
                : ""))
         .parameter("jobId", status.jobId())
         .parameter("index", index.name())
@@ -300,11 +300,6 @@ public class CommandSearchResource extends AbstractResourceServerResource {
         .build();
   }
 
-  /** Each index is claimed on its own, so each is taken back on its own and under its own permission. */
-  private static String resetPath(IndexJobGuard.Index index) {
-    return index == IndexJobGuard.Index.SEARCH ? "/command/reset-search-index-job" : "/command/reset-rules-index-job";
-  }
-
   @POST
   @Timed
   @Path("/reset-search-index-job")
@@ -323,26 +318,6 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     AdminCommand.RESET_SEARCH_INDEX_JOB.enforce(c);
 
     return resetIndexJob(IndexJobGuard.Index.SEARCH);
-  }
-
-  @POST
-  @Timed
-  @Path("/reset-rules-index-job")
-  @Operation(summary = "Take back a rules index rebuild that passed its deadline.", description = RESET_DESCRIPTION,
-      tags = {"Command", "Administration"})
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The claim was reset, and the index is free",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus"))),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Nothing is running, or the running job is within its deadline"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response resetRulesIndexJob() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    AdminCommand.RESET_RULES_INDEX_JOB.enforce(c);
-
-    return resetIndexJob(IndexJobGuard.Index.RULES);
   }
 
   private Response resetIndexJob(IndexJobGuard.Index index) {
@@ -505,96 +480,6 @@ public class CommandSearchResource extends AbstractResourceServerResource {
     });
 
     return queued(IndexJobGuard.Index.SEARCH, claim.get());
-  }
-
-  @POST
-  @Timed
-  @Path("/regenerate-rules-index")
-  @Operation(summary = "Regenerate rules index. Deprecated: this command empties the rules index.", description =
-      "Deprecated, and does not do what its name says. The rules index holds association rules mined by the value "
-          + "recommender from template instances; the resource server cannot produce those documents. This command "
-          + "creates an empty index, points the alias at it and deletes the old index, so it discards every rule in "
-          + "the system and recommendations stop returning results. The force parameter is read but has no effect. "
-          + "Use /command/generate-empty-rules-index if emptying the index is what you want. To repopulate the "
-          + "index, call the value recommender's /command/generate-rules/{template_id} for each template."
-          + QUEUED_DESCRIPTION, deprecated = true, tags = {"Command", "Administration"})
-  @RequestBody(description = "Force or not", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.ForceRequest.class)))
-  @ApiResponses({
-      @ApiResponse(responseCode = "202", description = "The rebuild was queued",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus")),
-          headers = @Header(name = "Location", description = "Where to poll this job's status.",
-              schema = @Schema(type = "string"))),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "A rebuild of this index is already running",
-          headers = @Header(name = "Location", description = "Where to poll the running job's status.",
-              schema = @Schema(type = "string"))),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  @Deprecated
-  public Response regenerateRulesIndex() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    AdminCommand.REGENERATE_RULES_INDEX.enforce(c);
-
-    log.warn("/command/regenerate-rules-index is deprecated: it empties the rules index instead of rebuilding it. "
-        + "Rules must be regenerated through the value recommender.");
-
-    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("force");
-    CedarParameter forceParam = requestBody.get("force");
-    final boolean force = forceParam.booleanValue();
-    Optional<JobClaim> claim = IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "regenerate-rules-index");
-    if (claim.isEmpty()) {
-      return alreadyRunning(IndexJobGuard.Index.RULES);
-    }
-
-    submitClaimedIndexJob(IndexJobGuard.Index.RULES, claim.get(), "rules index regeneration", () -> {
-      RegenerateRulesIndexTask task = new RegenerateRulesIndexTask(cedarConfig);
-      CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-      task.regenerateRulesIndex(force, cedarAdminRequestContext);
-    });
-
-    return queued(IndexJobGuard.Index.RULES, claim.get());
-  }
-
-  @POST
-  @Timed
-  @Path("/generate-empty-rules-index")
-  @Operation(summary = "Empty rules index.", description = "Regenerate rules index. This is an administrative command, you need special permission to run it. "
-          + "The old index will be deleted and replaced by a new empty one. The recommendations will work, but "
-          + "will not return results, since the index will be empty." + QUEUED_DESCRIPTION,
-      tags = {"Command", "Administration"})
-  @ApiResponses({
-      @ApiResponse(responseCode = "202", description = "The rebuild was queued",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus")),
-          headers = @Header(name = "Location", description = "Where to poll this job's status.",
-              schema = @Schema(type = "string"))),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "A rebuild of this index is already running",
-          headers = @Header(name = "Location", description = "Where to poll the running job's status.",
-              schema = @Schema(type = "string"))),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response generateEmptyRulesIndex() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    AdminCommand.GENERATE_EMPTY_RULES_INDEX.enforce(c);
-
-    Optional<JobClaim> claim = IndexJobGuard.tryStart(IndexJobGuard.Index.RULES, "generate-empty-rules-index");
-    if (claim.isEmpty()) {
-      return alreadyRunning(IndexJobGuard.Index.RULES);
-    }
-
-    submitClaimedIndexJob(IndexJobGuard.Index.RULES, claim.get(), "empty rules index generation", () -> {
-      GenerateEmptyRulesIndexTask task = new GenerateEmptyRulesIndexTask(cedarConfig);
-      CedarRequestContext cedarAdminRequestContext = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
-      task.generateEmptyRulesIndex(cedarAdminRequestContext);
-    });
-
-    return queued(IndexJobGuard.Index.RULES, claim.get());
   }
 
   /**

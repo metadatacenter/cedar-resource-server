@@ -173,9 +173,11 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
       updateIndexResource(updatedResource, c, true);
       return Response.ok().entity(folderServerResource).build();
     } else {
-      return CedarResponse.internalServerError()
+      // The checks above found both the artifact and the category, so a detach that changed nothing
+      // means the category was not attached. That is the caller's mistake, not the server's.
+      return CedarResponse.notFound()
           .errorKey(CedarErrorKey.UNABLE_TO_DETACH_CATEGORY)
-          .message("The category was not detached from the artifact")
+          .message("The category is not attached to the artifact")
           .parameter("categoryId", categoryId)
           .parameter("artifactId", artifactId)
           .build();

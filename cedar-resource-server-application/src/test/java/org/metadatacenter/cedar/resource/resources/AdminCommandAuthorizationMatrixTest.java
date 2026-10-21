@@ -14,7 +14,6 @@ import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.PermissionMatrix;
 import org.metadatacenter.util.test.TestAuthUtil;
@@ -30,18 +29,16 @@ import static org.metadatacenter.util.test.PermissionMatrix.Actor.OWNER;
  * command can quietly lose its gate.
  *
  * <p>Each of these commands carried its own inline {@code c.must(c.user()).have(...)} check rather than
- * sharing one policy, and that per-route pattern has already slipped three times:
+ * sharing one policy, and that per-route pattern has already slipped more than once:
  * {@code load-valuesets-ontology} once shipped with its check commented out (reachable by any logged-in
- * user), {@code generate-empty-rules-index} once asked for {@code SEARCH_INDEX_REINDEX} instead of
- * {@code RULES_INDEX_REINDEX}, and {@code auth-user-callback} asserted only {@code LoggedIn}, leaving the
- * Keycloak provisioning path open to any logged-in caller. All three are fixed; this table is the
- * regression net that fails the moment a gate is dropped or points at the wrong permission again.
+ * user), and {@code auth-user-callback} asserted only {@code LoggedIn}, leaving the Keycloak
+ * provisioning path open to any logged-in caller. Both are fixed; this table is the regression net that
+ * fails the moment a gate is dropped or points at the wrong permission again.
  *
  * <p>Every mutating command must refuse an anonymous caller with 401 and an authenticated non-admin with
- * 403. The three admin permissions ({@code SEARCH_INDEX_REINDEX}, {@code RULES_INDEX_REINDEX},
- * {@code USER_UPDATE}) come only from the {@code SEARCH_REINDEXER} and {@code USER_ADMINISTRATOR} roles,
- * which the test users do not hold, so both regular users are genuinely unprivileged here. ADMIN is
- * deliberately never probed: it would pass the gate, and the point is to assert the gate without ever
+ * 403. The two admin permissions ({@code SEARCH_INDEX_REINDEX} and {@code USER_UPDATE}) come only from
+ * the {@code SEARCH_REINDEXER} and {@code USER_ADMINISTRATOR} roles, which the test users do not hold, so
+ * both regular users are genuinely unprivileged here. ADMIN is deliberately never probed: it would pass the gate, and the point is to assert the gate without ever
  * letting a command that wipes an index or provisions a user actually run.
  *
  * <p>The non-mutating rows — the status polls — are intentionally not admin-gated (they need only a
@@ -87,8 +84,7 @@ public class AdminCommandAuthorizationMatrixTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig),
-        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+        new SearchPermissionEnqueueService(cedarConfig));
   }
 
   @AfterAll
@@ -111,10 +107,7 @@ public class AdminCommandAuthorizationMatrixTest {
         "/command/load-valuesets-ontology",
         "/command/regenerate-search-index",
         "/command/generate-empty-search-index",
-        "/command/regenerate-rules-index",
-        "/command/generate-empty-rules-index",
         "/command/reset-search-index-job",
-        "/command/reset-rules-index-job",
         "/command/reset-valuesets-import",
         "/command/auth-user-callback"}) {
       matrix.when("POST", path)

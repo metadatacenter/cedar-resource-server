@@ -39,7 +39,6 @@ import org.metadatacenter.server.security.model.permission.resource.ResourcePerm
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
@@ -152,8 +151,7 @@ public class CommandVersionResourceTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig),
-        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+        new SearchPermissionEnqueueService(cedarConfig));
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
@@ -584,11 +582,11 @@ public class CommandVersionResourceTest {
     HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
     Assertions.assertEquals(202, response.statusCode(),
-        "the graph delete should finish while the unavailable value-recommender queue remains durably pending");
+        "the graph delete should finish while the unavailable search-index cleanup remains durably pending");
     Assertions.assertNull(folderSession.findArtifactById(deleteRetryTemplateId),
         "the resumed delete left the stale graph node behind");
     Assertions.assertTrue(AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount() > 0,
-        "the unavailable projection queue should leave a durable completion job");
+        "the unavailable search index should leave a durable completion job");
     Assertions.assertEquals(0, DELETE_RETRY_ARTIFACT_CALLS.get(),
         "a preflight 404 should skip the redundant artifact DELETE");
   }

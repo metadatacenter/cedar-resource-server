@@ -652,6 +652,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
     long instanceCount = folderSession.getNumberOfInstances(CedarTemplateId.build(id));
+    resp.put("numberOfInstances", instanceCount);
 
     if (instanceCount == 0) {
       resp.put("canBeUpdated", true);

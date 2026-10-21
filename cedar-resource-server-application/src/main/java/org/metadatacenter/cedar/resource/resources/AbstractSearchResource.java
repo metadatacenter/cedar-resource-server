@@ -145,6 +145,10 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         nlqt == NodeListQueryType.VIEW_ALL || nlqt == NodeListQueryType.SEARCH_ID ||
         nlqt == NodeListQueryType.SEARCH_IS_BASED_ON || nlqt == NodeListQueryType.VIEW_SPECIAL_FOLDERS) {
 
+      if (continuationParam.isPresent() && !SearchContinuation.isStart(continuationParam.get())) {
+        throw new CedarAssertionException("This graph-backed search uses offset pagination and cannot resume a continuation.")
+            .badRequest();
+      }
       r = performGraphDbSearch(c, pagedSearchQuery, nlqt, queryString, idString, version, publicationStatus, isBasedOn, mode, sortList, limit, offset);
 
     } else {
@@ -333,6 +337,7 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         }
       }
       total = resources.size();
+      if (offset > 0) resources.clear();
     } else {
       throw new CedarProcessingException("Search type not supported!")
           .parameter("resolvedSearchType", nlqt.getValue());

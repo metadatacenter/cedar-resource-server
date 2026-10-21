@@ -19,7 +19,6 @@ import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.PermissionMatrix;
@@ -95,8 +94,7 @@ public class FoldersAuthorizationMatrixTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig),
-        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+        new SearchPermissionEnqueueService(cedarConfig));
 
     CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     homeFolderId = CedarDataServices.getInstance().getFolderServiceSession(user1Context).findHomeFolderOf().getId();
@@ -127,6 +125,12 @@ public class FoldersAuthorizationMatrixTest {
         .expect(OTHER_USER, 403);
 
     matrix.when("GET", folderPath + "/contents")
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 200)
+        .expect(OTHER_USER, 403);
+
+    // The same listing with only the named fields, which must gate exactly as the full one does.
+    matrix.when("GET", folderPath + "/contents-extract?field_names=schema%3Aname")
         .expect(ANONYMOUS, 401)
         .expect(OWNER, 200)
         .expect(OTHER_USER, 403);

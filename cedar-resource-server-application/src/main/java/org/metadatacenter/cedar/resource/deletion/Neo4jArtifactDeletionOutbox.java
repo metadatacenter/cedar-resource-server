@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
  * A durable saga record for cross-store artifact deletion.
  *
  * <p>The record is independent of the workspace resource node: deleting that node cannot delete the
- * evidence that search and value-recommender cleanup still have to run.</p>
+ * evidence that search cleanup still has to run.</p>
  */
 public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
 

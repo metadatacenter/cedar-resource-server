@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>The guard is per index rather than per command because it is the index that cannot take two
  * writers. Regenerating the search index and emptying it are different commands over the same alias,
- * so they exclude each other; the search and rules indexes are independent, so they do not.
+ * so they exclude each other.
  *
  * <p>{@link #tryStart} decides and claims in one synchronized step. Reading a status and then setting
  * it would leave a window between the two calls in which multiple jobs could start.
@@ -58,7 +58,7 @@ public final class IndexJobGuard {
 
   /** The indexes a rebuild can contend over. */
   public enum Index {
-    SEARCH, RULES
+    SEARCH
   }
 
   public enum State {

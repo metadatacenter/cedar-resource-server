@@ -36,7 +36,6 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
@@ -155,8 +154,7 @@ public class ArtifactServerAnswerMatrixTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig),
-        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+        new SearchPermissionEnqueueService(cedarConfig));
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);

@@ -60,8 +60,6 @@ import org.metadatacenter.server.security.model.auth.CedarPermission;
 import org.metadatacenter.server.security.model.permission.category.CategoryCapability;
 import org.metadatacenter.server.security.model.permission.resource.ResourceCapability;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
-import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
 import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.JsonPointerValuePair;
 import org.metadatacenter.util.ModelUtil;
@@ -104,7 +102,6 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected static NodeIndexingService nodeIndexingService;
   protected static NodeSearchingService nodeSearchingService;
   protected static SearchPermissionEnqueueService searchPermissionEnqueueService;
-  protected static ValuerecommenderReindexQueueService valuerecommenderReindexQueueService;
   protected static ArtifactDeletionCompletionService artifactDeletionCompletionService;
   protected static ArtifactRestoreCompletionService artifactRestoreCompletionService;
   protected static org.metadatacenter.server.resource.ArtifactCreateCleanupService artifactCreateCleanupService;
@@ -151,12 +148,10 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
   public static void injectServices(NodeIndexingService nodeIndexingService,
                                     NodeSearchingService nodeSearchingService,
-                                    SearchPermissionEnqueueService searchPermissionEnqueueService,
-                                    ValuerecommenderReindexQueueService valuerecommenderReindexQueueService) {
+                                    SearchPermissionEnqueueService searchPermissionEnqueueService) {
     AbstractResourceServerResource.nodeIndexingService = nodeIndexingService;
     AbstractResourceServerResource.nodeSearchingService = nodeSearchingService;
     AbstractResourceServerResource.searchPermissionEnqueueService = searchPermissionEnqueueService;
-    AbstractResourceServerResource.valuerecommenderReindexQueueService = valuerecommenderReindexQueueService;
   }
 
   public static void injectArtifactRestoreCompletionService(
@@ -495,7 +490,6 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           URI uri = builder.path(CedarUrlUtil.urlEncode(linkedDataUtil.resourcePathId(resourceType, id))).build();
           updateInclusionSubgraphIfNeeded(context, newResource, templateJsonNode);
           createIndexArtifact(newResource, context);
-          createValuerecommenderResource(newResource);
           return Response.created(uri).entity(templateJsonNode).build();
         } else {
           return CedarResponse.internalServerError().errorKey(CedarErrorKey.RESOURCE_NOT_CREATED).build();
@@ -827,7 +821,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     }
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     FolderServerArtifactCurrentUserReport resource = GraphDbPermissionReader.getArtifactCurrentUserReport(
-        context, folderSession, permissionSession, cedarConfig, id);
+        context, folderSession, permissionSession, id);
     ProvenanceNameUtil.addProvenanceDisplayName(resource);
     return CedarResponse.ok()
         .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(snapshot.revision()))
@@ -1051,8 +1045,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         updateFields.put(NodeProperty.IDENTIFIER, newIdentifier);
         if (resourceType == CedarResourceType.INSTANCE) {
           // The template an instance is based on is graph state, not merely something the document
-          // says: instance counts, the template's instance listing and the value recommender all read
-          // it from the node. A write that moves an instance to another template and leaves the node
+          // says: instance counts and the template's instance listing both read it from the node. A write that moves an instance to another template and leaves the node
           // naming the old one puts every one of those at odds with the stored document.
           CedarParameter isBasedOn = new CedarInPlaceParameter("isBasedOn",
               ModelUtil.extractIsBasedOnFromInstance(templateJsonNode).getValue());
@@ -1390,9 +1383,9 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       log.error("Artifact {} was removed from the content store; durable cleanup remains pending", id, e);
       return Response.accepted().build();
     } finally {
-      // The surviving versions' index documents depend on the graph alone. A later cleanup step that
-      // fails, such as queueing the value-recommender event, must not leave search describing them as
-      // they stood before the deletion until the background relay catches up.
+      // The surviving versions' index documents depend on the graph alone. A cleanup step that fails
+      // must not leave search describing them as they stood before the deletion until the background
+      // relay catches up.
       completeVersionProjections(c, affectedVersionIds);
     }
 
@@ -1578,11 +1571,6 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     nodeIndexingService.indexDocument(folderServerFolder, c);
   }
 
-  protected void createValuerecommenderResource(FolderServerArtifact folderServerArtifact) {
-    ArtifactCopyOperations.enqueueValuerecommenderUpdate(valuerecommenderReindexQueueService,
-        folderServerArtifact, ValuerecommenderReindexMessageActionType.CREATED);
-  }
-
   protected void updateIndexResource(FolderServerArtifact artifact, CedarRequestContext c) throws CedarProcessingException {
     if (versionProjectionService == null) throw new CedarProcessingException("Artifact projection service unavailable");
     versionProjectionService.refresh(artifact.getId(), nodeIndexingService, c);
@@ -1597,18 +1585,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     nodeIndexingService.indexDocument(folderServerFolder, c);
   }
 
-  protected void updateValuerecommenderResource(FolderServerArtifact folderServerArtifact) {
-    ArtifactCopyOperations.enqueueValuerecommenderUpdate(valuerecommenderReindexQueueService,
-        folderServerArtifact, ValuerecommenderReindexMessageActionType.UPDATED);
-  }
-
   protected void removeIndexDocument(CedarFilesystemResourceId resourceId) throws CedarProcessingException {
     nodeIndexingService.removeDocumentFromIndex(resourceId);
-  }
-
-  protected void removeValuerecommenderResource(FolderServerArtifact folderServerArtifact) {
-    ArtifactCopyOperations.enqueueValuerecommenderUpdate(valuerecommenderReindexQueueService,
-        folderServerArtifact, ValuerecommenderReindexMessageActionType.DELETED);
   }
 
   protected Response updateFolderNameAndDescriptionInGraphDb(CedarRequestContext c, CedarFolderId folderId) throws CedarException {
@@ -1803,7 +1781,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
     artifact.setPathInfo(PathInfoBuilder.getResourcePathExtract(c, folderSession, permissionSession, artifact));
 
-    FolderServerArtifactReport resourceReport = ArtifactReportUtil.getArtifactReport(c, cedarConfig, artifact, folderSession, permissionSession,
+    FolderServerArtifactReport resourceReport = ArtifactReportUtil.getArtifactReport(c, artifact, folderSession, permissionSession,
         categorySession);
 
     ProvenanceNameUtil.addProvenanceDisplayName(resourceReport);
@@ -1847,7 +1825,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
   protected FolderServerArtifactCurrentUserReport getArtifactReport(CedarRequestContext context, CedarArtifactId artifactId) throws CedarException {
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
-    return GraphDbPermissionReader.getArtifactCurrentUserReport(context, folderSession, permissionSession, cedarConfig, artifactId);
+    return GraphDbPermissionReader.getArtifactCurrentUserReport(context, folderSession, permissionSession, artifactId);
   }
 
   protected FolderServerFolderCurrentUserReport getFolderReport(CedarRequestContext context, CedarFolderId folderId) throws CedarException {

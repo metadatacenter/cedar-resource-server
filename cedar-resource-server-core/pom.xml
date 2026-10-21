@@ -5,13 +5,18 @@
   <parent>
     <groupId>org.metadatacenter</groupId>
     <artifactId>cedar-resource-server</artifactId>
-    <version>2.9.26</version>
+    <version>2.9.27</version>
   </parent>
 
   <groupId>org.metadatacenter</groupId>
   <artifactId>cedar-resource-server-core</artifactId>
   <packaging>jar</packaging>
   <name>CEDAR Resource Server Core</name>
+
+  <properties>
+    <!-- Line coverage measured on 2026-10-19: 50.7%. The build fails below this floor. -->
+    <cedar.coverage.line.minimum>0.48</cedar.coverage.line.minimum>
+  </properties>
 
   <dependencies>
 

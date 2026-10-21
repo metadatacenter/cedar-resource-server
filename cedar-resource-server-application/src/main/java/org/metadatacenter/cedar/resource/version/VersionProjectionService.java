@@ -5,10 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
-import org.metadatacenter.server.resource.ArtifactCopyOperations;
 import org.metadatacenter.server.search.util.InclusionSubgraphUtil;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
-import org.metadatacenter.server.valuerecommender.model.ValuerecommenderReindexMessageActionType;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
@@ -37,24 +34,21 @@ public final class VersionProjectionService implements AutoCloseable {
   private ScheduledExecutorService executor;
   private final LinkWriter links;
   private final ContentWriter contents;
-  private final NotificationWriter notifications;
 
   @FunctionalInterface
   interface ContentWriter { void write(FolderServerArtifact artifact, JsonNode content, CedarRequestContext context) throws Exception; }
-  @FunctionalInterface
-  interface NotificationWriter { void write(FolderServerArtifact artifact) throws Exception; }
 
   @FunctionalInterface
   interface LinkWriter { void write(FolderServerArtifact artifact, String previous) throws Exception; }
 
   VersionProjectionService(Driver driver, NodeIndexingService index, LinkWriter links) {
-    this(driver, index, links, (artifact, content, context) -> {}, artifact -> {});
+    this(driver, index, links, (artifact, content, context) -> {});
   }
 
   VersionProjectionService(Driver driver, NodeIndexingService index, LinkWriter links,
-                           ContentWriter contents, NotificationWriter notifications) {
+                           ContentWriter contents) {
     this.config=null; this.users=null; this.driver=driver; this.index=index; this.links=links;
-    this.contents=contents; this.notifications=notifications;
+    this.contents=contents;
     VersionChainTransaction.initialize(driver);
   }
 
@@ -65,13 +59,6 @@ public final class VersionProjectionService implements AutoCloseable {
       if (artifact.getType() == CedarResourceType.TEMPLATE || artifact.getType() == CedarResourceType.ELEMENT) {
         InclusionSubgraphUtil.updateResourceInclusionInfo(FolderServerResourceExtract.fromNode(artifact),
             CedarDataServices.getInstance().getInclusionSubgraphServiceSession(context), content);
-      }
-    };
-    var queue = new ValuerecommenderReindexQueueService(config.getCacheConfig().getPersistent());
-    this.notifications=artifact -> {
-      if (!ArtifactCopyOperations.enqueueValuerecommenderUpdateWithResult(queue, artifact,
-          ValuerecommenderReindexMessageActionType.UPDATED)) {
-        throw new IllegalStateException("Value recommender queue unavailable");
       }
     };
     var neo=Neo4jConfig.fromCedarConfig(config);
@@ -140,7 +127,6 @@ public final class VersionProjectionService implements AutoCloseable {
           if (job.get("content") instanceof String content) contents.write(artifact,JsonMapper.STRICT_MAPPER.readTree(content),context);
           // Replace by stable ID, without the previous delete-then-index visibility gap.
           indexing.indexDocumentForProjection(artifact,context);
-          if (job.containsKey("content")) notifications.write(artifact);
         }
         tx.run("MATCH (j:CedarVersionProjection {resourceId:$id}) DELETE j",Map.of("id",id)).consume();
         tx.commit();

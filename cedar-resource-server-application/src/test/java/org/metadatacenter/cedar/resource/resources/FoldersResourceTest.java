@@ -24,7 +24,6 @@ import org.metadatacenter.server.neo4j.cypher.NodeProperty;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
@@ -108,8 +107,7 @@ public class FoldersResourceTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig),
-        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+        new SearchPermissionEnqueueService(cedarConfig));
 
     CedarRequestContext user1Context = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     var folderSession = CedarDataServices.getInstance().getFolderServiceSession(user1Context);
@@ -694,4 +692,98 @@ public class FoldersResourceTest {
     Assertions.assertEquals("\"3\"", wildcard.headers().firstValue("ETag").orElse(null));
   }
 
+
+  /**
+   * A folder is created under a parent named either by its identifier or by its path, never both, and the path must
+   * be in normalized form. Each refusal names what is wrong with its own error key, which the Workspace translates.
+   */
+  @Test
+  public void folderCreationRefusalsNameWhatIsWrong() throws Exception {
+    String name = "Refusal " + UUID.randomUUID();
+    assertRefusal(request("POST", "/folders", json(Map.of("name", name, "description", "d")), authHeaderUser1),
+        400, "parentFolderNotSpecified", null, null);
+    assertRefusal(request("POST", "/folders", json(Map.of("folderId", homeFolderId, "path", homeFolderPath,
+        "name", name, "description", "d")), authHeaderUser1), 400, "parentFolderSpecifiedTwice", null, null);
+    assertRefusal(request("POST", "/folders", json(Map.of("path", homeFolderPath + "/", "name", name,
+        "description", "d")), authHeaderUser1), 400, "pathNotNormalized", null, null);
+    assertRefusal(request("POST", "/folders", json(Map.of("path", "/No/Such/Folder", "name", name,
+        "description", "d")), authHeaderUser1), 400, "parentFolderNotFound", null, null);
+    assertRefusal(request("POST", "/folders", json(Map.of("path", homeFolderPath, "name", "a/b",
+        "description", "d")), authHeaderUser1), 400, "createInvalidFolderName", null, null);
+
+    HttpResponse<String> byPath = request("POST", "/folders", json(Map.of("path", homeFolderPath, "name", name,
+        "description", "Created under its parent's path")), authHeaderUser1);
+    Assertions.assertEquals(201, byPath.statusCode(), byPath.body());
+    String createdId = JsonMapper.STRICT_MAPPER.readTree(byPath.body()).get("@id").asText();
+    JsonNode read = JsonMapper.STRICT_MAPPER.readTree(
+        request("GET", "/folders/" + encode(createdId), null, authHeaderUser1).body());
+    Assertions.assertEquals(homeFolderPath, read.path("parentPath").asText(), read.toString());
+    assertRefusal(request("POST", "/folders", json(Map.of("path", homeFolderPath, "name", name,
+        "description", "d")), authHeaderUser2), 403, "noWriteAccessToFolder", null, null);
+  }
+
+  /** A folder created under an identifier its creator chose carries that identifier in the body as well. */
+  @Test
+  public void aFolderCreatedUnderAChosenIdentifierNamesItInTheBodyToo() throws Exception {
+    String chosen = chosenFolderId();
+    String body = json(Map.of("folderId", homeFolderId, "name", "Chosen " + UUID.randomUUID(), "description", "d"));
+    assertRefusal(request("PUT", "/folders/" + encode(chosen), body, authHeaderUser1), 400, "missingData", null,
+        null);
+    String otherId = chosenFolderId();
+    assertRefusal(request("PUT", "/folders/" + encode(chosen), json(Map.of("@id", otherId, "folderId", homeFolderId,
+        "name", "Chosen " + UUID.randomUUID(), "description", "d")), authHeaderUser1), 400, "invalidData", null, null);
+
+    HttpResponse<String> created = request("PUT", "/folders/" + encode(chosen), json(Map.of("@id", chosen,
+        "folderId", homeFolderId, "name", "Chosen " + UUID.randomUUID(), "description", "d")), authHeaderUser1);
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    Assertions.assertEquals(chosen, JsonMapper.STRICT_MAPPER.readTree(created.body()).get("@id").asText());
+  }
+
+  @Test
+  public void aFolderWithContentsIsNotDeleted() throws Exception {
+    String parent = createRecursiveTestFolder(homeFolderId);
+    createRecursiveTestFolder(parent);
+
+    assertRefusal(request("DELETE", "/folders/" + encode(parent), null, authHeaderUser1, "\"1\""), 400,
+        "folderCanNotBeDeleted", "nonEmptyFolder", null);
+    Assertions.assertEquals(200, request("GET", "/folders/" + encode(parent), null, authHeaderUser1).statusCode());
+  }
+
+  /**
+   * A folder's name and description change under its current ETag, through the folder route or the rename
+   * command. Each refusal names what is wrong, and a home folder keeps its name.
+   */
+  @Test
+  public void folderUpdateRefusalsNameWhatIsWrong() throws Exception {
+    String first = createRecursiveTestFolder(homeFolderId);
+    String second = createRecursiveTestFolder(homeFolderId);
+    String secondName = JsonMapper.STRICT_MAPPER.readTree(
+        request("GET", "/folders/" + encode(second), null, authHeaderUser1).body()).get("schema:name").asText();
+
+    assertRefusal(request("PUT", "/folders/" + encode(first), json(Map.of("schema:name", "a/b",
+        "schema:description", "d")), authHeaderUser1, "\"1\""), 400, "updateInvalidFolderName", null, null);
+    assertRefusal(request("PUT", "/folders/" + encode(first), json(Map.of("schema:name", " ",
+        "schema:description", " ")), authHeaderUser1, "\"1\""), 400, "missingNameAndDescription", null, null);
+    assertRefusal(request("PUT", "/folders/" + encode(first), json(Map.of("schema:name", secondName,
+        "schema:description", "d")), authHeaderUser1, "\"1\""), 409, "uniqueConstraintCollision", null, null);
+    String homeETag = request("GET", "/folders/" + encode(homeFolderId), null, authHeaderUser1).headers()
+        .firstValue("ETag").orElseThrow();
+    assertRefusal(request("PUT", "/folders/" + encode(homeFolderId), json(Map.of("schema:name", "Renamed home",
+        "schema:description", "d")), authHeaderUser1, homeETag), 400, "folderCanNotBeChanged", "userHomeFolder", null);
+
+    String rename = json(Map.of("@id", first, "schema:name", "Renamed " + UUID.randomUUID()));
+    Assertions.assertEquals(428, request("POST", "/command/rename-resource", rename, authHeaderUser1).statusCode());
+    HttpResponse<String> renamed = request("POST", "/command/rename-resource", rename, authHeaderUser1, "\"1\"");
+    Assertions.assertEquals(200, renamed.statusCode(), renamed.body());
+    Assertions.assertEquals("\"2\"", renamed.headers().firstValue("ETag").orElse(null));
+  }
+
+  /** A new identifier in this deployment's folder namespace. */
+  private static String chosenFolderId() {
+    return homeFolderId.substring(0, homeFolderId.lastIndexOf('/') + 1) + UUID.randomUUID();
+  }
+
+  private static String json(Map<String, String> fields) throws Exception {
+    return JsonMapper.STRICT_MAPPER.writeValueAsString(fields);
+  }
 }

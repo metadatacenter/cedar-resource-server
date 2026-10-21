@@ -39,7 +39,6 @@ import org.metadatacenter.server.security.model.permission.resource.ResourcePerm
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.server.security.model.user.CedarUser;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.PermissionMatrix;
@@ -120,8 +119,7 @@ public class FolderPermissionLevelMatrixTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig),
-        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+        new SearchPermissionEnqueueService(cedarConfig));
 
     user1 = TestAuthUtil.getTestUser1(cedarConfig);
     user2 = TestAuthUtil.getTestUser2(cedarConfig);

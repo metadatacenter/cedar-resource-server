@@ -38,7 +38,6 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
-import org.metadatacenter.server.valuerecommender.ValuerecommenderReindexQueueService;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
@@ -128,8 +127,7 @@ public class CommandFileSystemResourceTest {
     AbstractResourceServerResource.injectServices(
         nodeIndexingService,
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig),
-        new ValuerecommenderReindexQueueService(cedarConfig.getCacheConfig().getPersistent()));
+        new SearchPermissionEnqueueService(cedarConfig));
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
@@ -380,6 +378,76 @@ public class CommandFileSystemResourceTest {
           artifact.getKey() + "/" + createdId.substring(createdId.lastIndexOf('/') + 1)),
           artifact.getKey() + " should return Resource's created-artifact location");
     }
+  }
+
+  /** Fields, elements, instances and folders each move under the permissions of their own kind. */
+  @Test
+  @Order(10)
+  public void everyKindOfResourceMovesToAnotherFolder() throws Exception {
+    List<org.metadatacenter.model.folderserver.basic.FileSystemResource> resources = List.of(
+        artifact(new org.metadatacenter.model.folderserver.basic.FolderServerField(), CedarResourceType.FIELD),
+        artifact(new org.metadatacenter.model.folderserver.basic.FolderServerElement(), CedarResourceType.ELEMENT),
+        artifact(new org.metadatacenter.model.folderserver.basic.FolderServerInstance(), CedarResourceType.INSTANCE),
+        childFolder("Moved folder " + java.util.UUID.randomUUID()));
+
+    for (var resource : resources) {
+      HttpResponse<String> moved = postCommand("move-resource-to-folder", "{\"@id\":\"" + resource.getId() + "\","
+          + "\"targetFolderId\":\"" + moveDestinationId.getId() + "\"}", "*");
+      Assertions.assertEquals(201, moved.statusCode(), resource.getType() + ": " + moved.body());
+      Assertions.assertTrue(parentPathOf(resource).endsWith("/Move command destination"),
+          resource.getType() + " is now in the destination: " + parentPathOf(resource));
+    }
+  }
+
+  @Test
+  @Order(11)
+  public void aMoveOrCopyNamesTheFolderItCannotFindAndAFolderIsNotCopied() throws Exception {
+    String missingFolder = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FOLDER);
+    JsonNode noTarget = refusal(postCommand("move-resource-to-folder", "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"targetFolderId\":\"" + missingFolder + "\"}", "*"), 400);
+    Assertions.assertEquals("targetFolderNotFound", noTarget.path("errorKey").asText(), noTarget.toString());
+
+    var folder = childFolder("Uncopyable folder " + java.util.UUID.randomUUID());
+    JsonNode folderCopy = refusal(postCommand("copy-artifact-to-folder", "{\"@id\":\"" + folder.getId() + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\",\"nameTemplate\":\"Copy of {{name}}\"}"), 400);
+    Assertions.assertEquals("folderCopyNotAllowed", folderCopy.path("errorKey").asText(), folderCopy.toString());
+  }
+
+  private static org.metadatacenter.model.folderserver.basic.FileSystemResource artifact(
+      org.metadatacenter.model.folderserver.basic.FolderServerArtifact artifact, CedarResourceType type) {
+    artifact.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(type));
+    artifact.setName("Moved " + type.getValue() + " " + java.util.UUID.randomUUID());
+    artifact.setDescription("Move command fixture");
+    org.metadatacenter.model.folderserver.basic.FileSystemResource created =
+        folderSession.createResourceAsChildOfId(artifact, homeFolderId);
+    Assertions.assertNotNull(created, type.getValue());
+    return created;
+  }
+
+  private static org.metadatacenter.model.folderserver.basic.FolderServerFolder childFolder(String name) {
+    var folder = new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
+    folder.setName(name);
+    folder.setDescription("Command fixture");
+    CedarFolderId id = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    var created = folderSession.createFolderAsChildOfId(folder, homeFolderId, id);
+    Assertions.assertNotNull(created);
+    return created;
+  }
+
+  private static String parentPathOf(org.metadatacenter.model.folderserver.basic.FileSystemResource resource) {
+    if (resource.getType() == CedarResourceType.FOLDER) {
+      var folder = folderSession.findFolderById(CedarFolderId.build(resource.getId()));
+      folderSession.addPathAndParentId(folder);
+      return folder.getParentPath();
+    }
+    var artifact = folderSession.findArtifactById(CedarArtifactId.build(resource.getId(), resource.getType()));
+    folderSession.addPathAndParentId(artifact);
+    return artifact.getParentPath();
+  }
+
+  private static JsonNode refusal(HttpResponse<String> response, int status) throws Exception {
+    Assertions.assertEquals(status, response.statusCode(), response.body());
+    return JsonMapper.STRICT_MAPPER.readTree(response.body());
   }
 
   @Test
