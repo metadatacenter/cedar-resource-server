@@ -112,6 +112,16 @@ public class TemplatesResourceWriteRejectionTest {
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
+  private HttpResponse<String> searchDeep(String query) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/search-deep" + query))
+        .timeout(Duration.ofSeconds(5))
+        .header("Authorization", authHeaderUser1)
+        .GET()
+        .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
   private HttpResponse<String> postCommand(String command, String body) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/" + command))
@@ -244,6 +254,25 @@ public class TemplatesResourceWriteRejectionTest {
     assertIdentifierRefusal(search("?is_based_on=%20"), "A resource identifier is required");
     assertIdentifierRefusal(search("?id=users%2F11111111-2222-3333-4444-555555555555"),
         "Expected a folder or artifact type");
+  }
+
+  /**
+   * A continuation says where a walk carries on, and an offset says how far in a page starts, so a request
+   * holding both asks for two different pages. It is refused before anything is read: a refusal that came
+   * later would meet the dead index port of this class and answer 503, or the graph and answer a page.
+   */
+  @Test
+  public void aContinuationWithAnOffsetIsRefused() throws Exception {
+    for (String query : List.of("?q=kidney&continuation=start&offset=1",
+        "?q=kidney&continuation=resume-token&offset=0",
+        "?mode=special-folders&continuation=start&offset=1")) {
+      HttpResponse<String> response = searchDeep(query);
+      Assertions.assertEquals(400, response.statusCode(), query + ": " + response.body());
+      JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      Assertions.assertEquals("BAD_REQUEST", error.path("status").asText(), response.body());
+      Assertions.assertEquals("Pass a continuation or an offset, not both!", error.path("message").asText(),
+          response.body());
+    }
   }
 
   private static void assertIdentifierRefusal(HttpResponse<String> response, String message) throws Exception {

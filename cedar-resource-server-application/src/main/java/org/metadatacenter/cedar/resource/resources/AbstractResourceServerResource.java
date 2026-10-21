@@ -34,7 +34,6 @@ import org.metadatacenter.model.*;
 import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerCategoryCurrentUserReport;
-import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerFolderCurrentUserReport;
 import org.metadatacenter.model.folderserver.extract.FolderServerArtifactExtract;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.model.folderserver.report.FolderServerArtifactReport;
@@ -1826,12 +1825,6 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     return GraphDbPermissionReader.getArtifactCurrentUserReport(context, folderSession, permissionSession, artifactId);
-  }
-
-  protected FolderServerFolderCurrentUserReport getFolderReport(CedarRequestContext context, CedarFolderId folderId) throws CedarException {
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
-    ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
-    return GraphDbPermissionReader.getFolderCurrentUserReport(context, folderSession, permissionSession, folderId);
   }
 
 }

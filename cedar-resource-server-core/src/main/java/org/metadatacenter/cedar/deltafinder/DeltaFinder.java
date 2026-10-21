@@ -3,9 +3,13 @@ package org.metadatacenter.cedar.deltafinder;
 import org.metadatacenter.artifacts.model.core.ElementSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.FieldSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
+import org.metadatacenter.artifacts.model.core.fields.constraints.ControlledTermValueConstraints;
+import org.metadatacenter.artifacts.model.core.fields.constraints.LiteralValueConstraint;
 import org.metadatacenter.artifacts.model.core.fields.constraints.ValueConstraints;
+import org.metadatacenter.artifacts.model.core.fields.constraints.ValueConstraintsActionType;
 import org.metadatacenter.cedar.deltafinder.change.*;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 public class DeltaFinder {
@@ -253,8 +257,9 @@ public class DeltaFinder {
           Objects.equals(oldTextVC.literals(), newTextVC.literals());
     }
 
-    // 4. Otherwise, if not TextValueConstraints, assume they are equal now
-    return true;
+    // 4. Otherwise compare every constraint the type has. A numeric, temporal or controlled-term field was
+    // once assumed unchanged here, so a field renamed and constrained at once was reported as a rename.
+    return oldVC.equals(newVC);
   }
 
   private void detectValueConstraintsChange(FieldSchemaArtifact oldField,
@@ -284,16 +289,20 @@ public class DeltaFinder {
     boolean destructive = false;
     List<String> changes = new ArrayList<>();
 
+    // A change is destructive when a value stored under the old constraints can fail the new ones.
     // Base fields
     if (oldVC.requiredValue() != newVC.requiredValue()) {
       changes.add("requiredValue changed");
-      destructive = true;
+      // A stored instance may hold no value
+      destructive |= newVC.requiredValue();
     }
     if (oldVC.recommendedValue() != newVC.recommendedValue()) {
       changes.add("recommendedValue changed");
     }
     if (oldVC.multipleChoice() != newVC.multipleChoice()) {
       changes.add("multipleChoice changed");
+      // A stored value is one value where a list is now expected, or the other way round
+      destructive = true;
     }
 
     // Default value (safe)
@@ -308,18 +317,86 @@ public class DeltaFinder {
 
       if (!Objects.equals(oldTextVC.minLength(), newTextVC.minLength())) {
         changes.add("minLength changed");
-        destructive = true;
+        destructive |= raisesLowerBound(oldTextVC.minLength(), newTextVC.minLength());
       }
       if (!Objects.equals(oldTextVC.maxLength(), newTextVC.maxLength())) {
         changes.add("maxLength changed");
-        destructive = true;
+        destructive |= lowersUpperBound(oldTextVC.maxLength(), newTextVC.maxLength());
       }
       if (!Objects.equals(oldTextVC.regex(), newTextVC.regex())) {
         changes.add("regex changed");
-        destructive = true;
+        destructive |= newTextVC.regex().isPresent();
       }
       if (!Objects.equals(oldTextVC.literals(), newTextVC.literals())) {
         changes.add("literals changed");
+        // A stored choice may no longer be offered
+        destructive |= !newTextVC.literals().isEmpty()
+            && (oldTextVC.literals().isEmpty() || !labels(newTextVC.literals()).containsAll(labels(oldTextVC.literals())));
+      }
+    }
+
+    // Numeric-specific. A stored value carries its datatype, so any change of datatype fails it.
+    if (oldVC.isNumericValueConstraint() && newVC.isNumericValueConstraint()) {
+      var oldNumericVC = oldVC.asNumericValueConstraints();
+      var newNumericVC = newVC.asNumericValueConstraints();
+
+      if (oldNumericVC.numberType() != newNumericVC.numberType()) {
+        changes.add("numberType changed");
+        destructive = true;
+      }
+      if (!Objects.equals(oldNumericVC.minValue(), newNumericVC.minValue())) {
+        changes.add("minValue changed");
+        destructive |= raisesLowerBound(oldNumericVC.minValue(), newNumericVC.minValue());
+      }
+      if (!Objects.equals(oldNumericVC.maxValue(), newNumericVC.maxValue())) {
+        changes.add("maxValue changed");
+        destructive |= lowersUpperBound(oldNumericVC.maxValue(), newNumericVC.maxValue());
+      }
+      if (!Objects.equals(oldNumericVC.decimalPlace(), newNumericVC.decimalPlace())) {
+        changes.add("decimalPlace changed");
+        destructive |= lowersUpperBound(oldNumericVC.decimalPlace(), newNumericVC.decimalPlace());
+      }
+      if (!Objects.equals(oldNumericVC.unitOfMeasure(), newNumericVC.unitOfMeasure())) {
+        changes.add("unitOfMeasure changed");
+      }
+    }
+
+    // Temporal-specific. A stored value carries its datatype, so any change of datatype fails it.
+    if (oldVC.isTemporalValueConstraint() && newVC.isTemporalValueConstraint()
+        && oldVC.asTemporalValueConstraints().temporalType() != newVC.asTemporalValueConstraints().temporalType()) {
+      changes.add("temporalType changed");
+      destructive = true;
+    }
+
+    // Controlled-term-specific. A stored term may lie outside every value space the field now offers. A value
+    // space that changes in any way counts as one taken away, and a field that offers none accepts any term.
+    if (oldVC.isControlledTermValueConstraint() && newVC.isControlledTermValueConstraint()) {
+      var oldTermVC = oldVC.asControlledTermValueConstraints();
+      var newTermVC = newVC.asControlledTermValueConstraints();
+      boolean oldOffersAnyTerm = offersAnyTerm(oldTermVC);
+      boolean newOffersAnyTerm = offersAnyTerm(newTermVC);
+
+      if (!Objects.equals(oldTermVC.ontologies(), newTermVC.ontologies())) {
+        changes.add("ontologies changed");
+        destructive |= !newOffersAnyTerm && (oldOffersAnyTerm || !newTermVC.ontologies().containsAll(oldTermVC.ontologies()));
+      }
+      if (!Objects.equals(oldTermVC.valueSets(), newTermVC.valueSets())) {
+        changes.add("valueSets changed");
+        destructive |= !newOffersAnyTerm && (oldOffersAnyTerm || !newTermVC.valueSets().containsAll(oldTermVC.valueSets()));
+      }
+      if (!Objects.equals(oldTermVC.classes(), newTermVC.classes())) {
+        changes.add("classes changed");
+        destructive |= !newOffersAnyTerm && (oldOffersAnyTerm || !newTermVC.classes().containsAll(oldTermVC.classes()));
+      }
+      if (!Objects.equals(oldTermVC.branches(), newTermVC.branches())) {
+        changes.add("branches changed");
+        destructive |= !newOffersAnyTerm && (oldOffersAnyTerm || !newTermVC.branches().containsAll(oldTermVC.branches()));
+      }
+      if (!Objects.equals(oldTermVC.actions(), newTermVC.actions())) {
+        changes.add("actions changed");
+        // A new deletion takes a term out of a value set
+        destructive |= newTermVC.actions().stream().anyMatch(action ->
+            action.action() == ValueConstraintsActionType.DELETE && !oldTermVC.actions().contains(action));
       }
     }
 
@@ -330,6 +407,31 @@ public class DeltaFinder {
         delta.addNonDestructiveChange(new ConstraintChange(key, "Changed: " + String.join(", ", changes), "", false));
       }
     }
+  }
+
+  /** Whether a lower bound now refuses a value the old one admitted: it is new, or it is higher. */
+  private static boolean raisesLowerBound(Optional<? extends Number> oldBound, Optional<? extends Number> newBound) {
+    return newBound.isPresent()
+        && (oldBound.isEmpty() || decimal(newBound.get()).compareTo(decimal(oldBound.get())) > 0);
+  }
+
+  /** Whether an upper bound now refuses a value the old one admitted: it is new, or it is lower. */
+  private static boolean lowersUpperBound(Optional<? extends Number> oldBound, Optional<? extends Number> newBound) {
+    return newBound.isPresent()
+        && (oldBound.isEmpty() || decimal(newBound.get()).compareTo(decimal(oldBound.get())) < 0);
+  }
+
+  private static BigDecimal decimal(Number number) {
+    return new BigDecimal(number.toString());
+  }
+
+  private static List<String> labels(List<LiteralValueConstraint> literals) {
+    return literals.stream().map(LiteralValueConstraint::label).toList();
+  }
+
+  private static boolean offersAnyTerm(ControlledTermValueConstraints constraints) {
+    return constraints.ontologies().isEmpty() && constraints.valueSets().isEmpty()
+        && constraints.classes().isEmpty() && constraints.branches().isEmpty();
   }
 
 

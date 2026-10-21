@@ -125,6 +125,13 @@ class ArtifactDeletionCompletionServiceTest {
       Thread.sleep(250);
     }
     assertTrue(attempts(unavailable) >= 2, "the relay did not retry the deletion the artifact server was away for");
+    // The index this server is given cannot be reached, so a deletion the artifact server answered stays
+    // recorded until its index entry is removed. A pass is one attempt at it, as it is at the deletion the
+    // artifact server was away for, so both are parked after the same number of passes. The relay takes
+    // them in the order they were recorded, so the counts are read once both have had the same passes.
+    for (String id : List.of(deleted, alreadyGone)) {
+      assertEquals(attempts(unavailable), attempts(id), "a pass counted more than one attempt at " + id);
+    }
 
     for (String id : List.of(deleted, alreadyGone, editedSince, refused, unavailable)) {
       assertTrue(DELETIONS.containsKey(uuidOf(id)), "the relay never asked to delete " + id);

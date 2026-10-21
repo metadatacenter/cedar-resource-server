@@ -57,12 +57,6 @@ public class ArtifactServerUtil {
     return new ArtifactContent(content, etag);
   }
 
-  public static Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id, CedarRequestContext context, String content,
-                                                           CedarConfig cedarConfig) throws CedarProcessingException {
-    return putSchemaArtifactToArtifactServer(resourceType, id, context, content, cedarConfig,
-        context.getIfMatchHeader());
-  }
-
   public static Response putSchemaArtifactToArtifactServer(CedarResourceType resourceType, CedarSchemaArtifactId id,
                                                            CedarRequestContext context, String content,
                                                            CedarConfig cedarConfig, String expectedEtag)

@@ -81,13 +81,7 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
                                             CedarRequestContext context) throws CedarProcessingException {
     ArtifactDeletionJob job = prepared.artifactDeleted() ? prepared : prepared.withArtifactDeleted();
     try {
-      if (!job.graphDeleted()) {
-        finishGraph(job, context);
-        outbox.markGraphDeleted(job.jobId());
-        job = job.withGraphDeleted();
-      }
-      finishProjections(job, context);
-      outbox.remove(job.jobId());
+      complete(job, context);
     } catch (Exception e) {
       outbox.defer(job.jobId());
       if (e instanceof CedarProcessingException processingException) {
@@ -95,6 +89,20 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
       }
       throw new CedarProcessingException("The durable artifact deletion is pending completion", e);
     }
+  }
+
+  /**
+   * Finishes the graph and the projections of a deletion whose artifact is gone. A failure is left to the
+   * caller, which counts it as one attempt.
+   */
+  private void complete(ArtifactDeletionJob job, CedarRequestContext context) throws Exception {
+    if (!job.graphDeleted()) {
+      finishGraph(job, context);
+      outbox.markGraphDeleted(job.jobId());
+      job = job.withGraphDeleted();
+    }
+    finishProjections(job, context);
+    outbox.remove(job.jobId());
   }
 
   private void finishGraph(ArtifactDeletionJob job, CedarRequestContext context) {
@@ -158,7 +166,9 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
             outbox.markArtifactDeleted(job.jobId());
             job = job.withArtifactDeleted();
           }
-          completeAfterArtifactDeletion(job, admin);
+          // Not completeAfterArtifactDeletion, which defers a failed job itself. The catch below defers it
+          // too, and deferring it twice spent two attempts of its budget on every pass.
+          complete(job, admin);
         } catch (Exception e) {
           long attempts = outbox.defer(job.jobId());
           if (attempts >= MAX_ATTEMPTS) {

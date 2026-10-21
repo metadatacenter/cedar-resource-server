@@ -150,11 +150,6 @@
       <artifactId>jackson-module-afterburner</artifactId>
     </dependency>
 
-    <dependency>
-      <groupId>me.xdrop</groupId>
-      <artifactId>fuzzywuzzy</artifactId>
-    </dependency>
-
     <!-- Swagger v3 annotations (@Operation, @Tag, @ApiResponse, ...) used to generate the OpenAPI 3.0 spec at build time -->
     <dependency>
       <groupId>io.swagger.core.v3</groupId>

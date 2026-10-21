@@ -1,17 +1,30 @@
 package org.metadatacenter.cedar.deltafinder;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.metadatacenter.artifacts.model.core.ControlledTermField;
 import org.metadatacenter.artifacts.model.core.FieldSchemaArtifact;
+import org.metadatacenter.artifacts.model.core.LinkField;
 import org.metadatacenter.artifacts.model.core.ListField;
+import org.metadatacenter.artifacts.model.core.NumericField;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
+import org.metadatacenter.artifacts.model.core.TemporalField;
 import org.metadatacenter.artifacts.model.core.TextField;
+import org.metadatacenter.artifacts.model.core.fields.TemporalGranularity;
+import org.metadatacenter.artifacts.model.core.fields.XsdNumericDatatype;
+import org.metadatacenter.artifacts.model.core.fields.XsdTemporalDatatype;
+import org.metadatacenter.artifacts.model.core.fields.constraints.ValueConstraintsActionType;
+import org.metadatacenter.artifacts.model.core.fields.constraints.ValueType;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
 import org.metadatacenter.artifacts.model.renderer.JsonArtifactRenderer;
 import org.metadatacenter.cedar.deltafinder.change.Change;
 import org.metadatacenter.cedar.deltafinder.change.ConstraintChange;
+import org.metadatacenter.cedar.deltafinder.change.Deletion;
+import org.metadatacenter.cedar.deltafinder.change.Rename;
 
+import java.net.URI;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -19,58 +32,189 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A template with instances is updated in place only when its delta is empty. A change to the constraints
- * of a field that keeps its name must therefore be reported, or the stored instances fall out of step
- * with their template.
+ * of a field that keeps its name must therefore be reported, whatever kind of field it is, or the stored
+ * instances fall out of step with their template. The delta then classes the change as destructive when a
+ * value stored under the old template can fail the new one.
  */
 public class FieldConstraintChangeTest {
 
-  static Stream<Arguments> tighteningChanges() {
+  private static final URI DOID = URI.create("https://data.bioontology.org/ontologies/DOID");
+  private static final URI NCIT = URI.create("https://data.bioontology.org/ontologies/NCIT");
+  private static final URI DISEASE = URI.create("http://purl.obolibrary.org/obo/DOID_4");
+  private static final URI CANCER = URI.create("http://purl.obolibrary.org/obo/DOID_162");
+  private static final URI VALUE_SET = URI.create("https://cadsr.nci.nih.gov/metadata/CADSR-VS/ae9ba5ab");
+
+  static Stream<Arguments> changesAStoredValueMayFail() {
     return Stream.of(
-        Arguments.of("made required",
+        Arguments.of("a text field made required",
             TextField.builder().withName("Notes").build(),
             TextField.builder().withName("Notes").withRequiredValue(true).build()),
-        Arguments.of("given a pattern",
+        Arguments.of("a text field given a pattern",
             TextField.builder().withName("Notes").build(),
-            TextField.builder().withName("Notes").withRegex("[A-Z]+").build()));
+            TextField.builder().withName("Notes").withRegex("[A-Z]+").build()),
+        Arguments.of("a text field whose pattern changes",
+            TextField.builder().withName("Notes").withRegex("[A-Z]+").build(),
+            TextField.builder().withName("Notes").withRegex("[a-z]+").build()),
+        Arguments.of("a text field whose minimum length rises",
+            TextField.builder().withName("Notes").withMinLength(2).build(),
+            TextField.builder().withName("Notes").withMinLength(5).build()),
+        Arguments.of("a text field whose maximum length falls",
+            TextField.builder().withName("Notes").withMaxLength(20).build(),
+            TextField.builder().withName("Notes").withMaxLength(10).build()),
+        Arguments.of("a text field that becomes multi-instance",
+            TextField.builder().withName("Notes").build(),
+            TextField.builder().withName("Notes").withIsMultiple(true).build()),
+        Arguments.of("a list field that loses an option",
+            ListField.builder().withName("Colour").withOption("Red").withOption("Blue").build(),
+            ListField.builder().withName("Colour").withOption("Red").build()),
+        Arguments.of("a list field whose option is renamed",
+            ListField.builder().withName("Colour").withOption("Red").withOption("Blue").build(),
+            ListField.builder().withName("Colour").withOption("Red").withOption("Navy").build()),
+        Arguments.of("a list field made multiple choice",
+            ListField.builder().withName("Colour").withOption("Red").withOption("Blue").withMultipleChoice(false).build(),
+            ListField.builder().withName("Colour").withOption("Red").withOption("Blue").withMultipleChoice(true).build()),
+        Arguments.of("a numeric field whose minimum rises",
+            age().withMinValue(0).build(),
+            age().withMinValue(18).build()),
+        Arguments.of("a numeric field given a maximum",
+            age().build(),
+            age().withMaxValue(65).build()),
+        Arguments.of("a numeric field allowing fewer decimal places",
+            age().withDecimalPlaces(2).build(),
+            age().withDecimalPlaces(0).build()),
+        Arguments.of("a numeric field changed from decimal to integer",
+            age().build(),
+            age().withNumericType(XsdNumericDatatype.INT).build()),
+        Arguments.of("a numeric field changed from integer to decimal",
+            age().withNumericType(XsdNumericDatatype.INT).build(),
+            age().build()),
+        Arguments.of("a temporal field changed from date to date and time",
+            visit().withTemporalType(XsdTemporalDatatype.DATE).build(),
+            visit().withTemporalType(XsdTemporalDatatype.DATETIME).build()),
+        Arguments.of("a controlled term field whose ontology is replaced",
+            ControlledTermField.builder().withName("Disease").withOntologyValueConstraint(DOID, "DOID", "Human Disease Ontology").build(),
+            ControlledTermField.builder().withName("Disease").withOntologyValueConstraint(NCIT, "NCIT", "NCI Thesaurus").build()),
+        Arguments.of("a controlled term field that loses a class",
+            ControlledTermField.builder().withName("Disease")
+                .withClassValueConstraint(DISEASE, "DOID", "disease", "disease", ValueType.ONTOLOGY_CLASS)
+                .withClassValueConstraint(CANCER, "DOID", "cancer", "cancer", ValueType.ONTOLOGY_CLASS).build(),
+            ControlledTermField.builder().withName("Disease")
+                .withClassValueConstraint(DISEASE, "DOID", "disease", "disease", ValueType.ONTOLOGY_CLASS).build()),
+        Arguments.of("a controlled term field whose branch is made shallower",
+            ControlledTermField.builder().withName("Disease")
+                .withBranchValueConstraint(DISEASE, "Human Disease Ontology (DOID)", "DOID", "disease", 3).build(),
+            ControlledTermField.builder().withName("Disease")
+                .withBranchValueConstraint(DISEASE, "Human Disease Ontology (DOID)", "DOID", "disease", 1).build()),
+        Arguments.of("a controlled term field that loses a value set",
+            ControlledTermField.builder().withName("Disease")
+                .withOntologyValueConstraint(DOID, "DOID", "Human Disease Ontology")
+                .withValueSetValueConstraint(VALUE_SET, "CADSR-VS", "Disease Type").build(),
+            ControlledTermField.builder().withName("Disease")
+                .withOntologyValueConstraint(DOID, "DOID", "Human Disease Ontology").build()),
+        Arguments.of("an unconstrained controlled term field given an ontology",
+            ControlledTermField.builder().withName("Disease").build(),
+            ControlledTermField.builder().withName("Disease").withOntologyValueConstraint(DOID, "DOID", "Human Disease Ontology").build()),
+        Arguments.of("a controlled term field that removes a term from its value set",
+            ControlledTermField.builder().withName("Disease")
+                .withValueSetValueConstraint(VALUE_SET, "CADSR-VS", "Disease Type").build(),
+            ControlledTermField.builder().withName("Disease")
+                .withValueSetValueConstraint(VALUE_SET, "CADSR-VS", "Disease Type")
+                .withValueConstraintsAction(CANCER, "CADSR-VS", ValueType.VALUE, ValueConstraintsActionType.DELETE,
+                    VALUE_SET, 0).build()));
   }
 
   /** A stored instance may hold no value, or one the new rule refuses, so each change is destructive. */
-  @ParameterizedTest(name = "a field {0}")
-  @MethodSource("tighteningChanges")
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("changesAStoredValueMayFail")
   public void aConstraintStoredValuesMayFailIsADestructiveChange(String change, FieldSchemaArtifact before,
                                                                 FieldSchemaArtifact after) {
-    Delta delta = new DeltaFinder().findDelta(templateWith(before), templateWith(after));
+    Delta delta = findDelta(before, after);
 
     assertTrue(delta.getNonDestructiveChanges().isEmpty(), delta.toString());
-    assertEquals(1, delta.getDestructiveChanges().size(), delta.toString());
-    Change reported = delta.getDestructiveChanges().get(0);
-    assertInstanceOf(ConstraintChange.class, reported);
-    assertEquals("Notes", reported.getFieldName());
-    assertTrue(((ConstraintChange) reported).isDestructive());
+    assertOneConstraintChange(delta.getDestructiveChanges(), before.name(), true);
   }
 
-  static Stream<Arguments> choiceChanges() {
+  static Stream<Arguments> changesNoStoredValueCanFail() {
     return Stream.of(
-        Arguments.of("loses an option",
-            ListField.builder().withName("Colour").withOption("Red").withOption("Blue").build(),
-            ListField.builder().withName("Colour").withOption("Red").build()),
-        Arguments.of("becomes multiple choice",
-            ListField.builder().withName("Colour").withOption("Red").withOption("Blue").withMultipleChoice(false).build(),
-            ListField.builder().withName("Colour").withOption("Red").withOption("Blue").withMultipleChoice(true).build()));
+        Arguments.of("a text field made optional",
+            TextField.builder().withName("Notes").withRequiredValue(true).build(),
+            TextField.builder().withName("Notes").build()),
+        Arguments.of("a text field whose pattern is removed",
+            TextField.builder().withName("Notes").withRegex("[A-Z]+").build(),
+            TextField.builder().withName("Notes").build()),
+        Arguments.of("a text field whose maximum length rises",
+            TextField.builder().withName("Notes").withMaxLength(10).build(),
+            TextField.builder().withName("Notes").withMaxLength(20).build()),
+        Arguments.of("a list field that gains an option",
+            ListField.builder().withName("Colour").withOption("Red").build(),
+            ListField.builder().withName("Colour").withOption("Red").withOption("Blue").build()),
+        Arguments.of("a numeric field whose minimum falls",
+            age().withMinValue(18).build(),
+            age().withMinValue(0).build()),
+        Arguments.of("a numeric field whose maximum is removed",
+            age().withMaxValue(65).build(),
+            age().build()),
+        Arguments.of("a numeric field whose unit changes",
+            age().withUnitOfMeasure("years").build(),
+            age().withUnitOfMeasure("months").build()),
+        Arguments.of("a temporal field given a default",
+            visit().withTemporalType(XsdTemporalDatatype.DATE).build(),
+            visit().withTemporalType(XsdTemporalDatatype.DATE)
+                .withDefaultValue("2026-01-01").build()),
+        Arguments.of("a controlled term field that gains an ontology",
+            ControlledTermField.builder().withName("Disease").withOntologyValueConstraint(DOID, "DOID", "Human Disease Ontology").build(),
+            ControlledTermField.builder().withName("Disease").withOntologyValueConstraint(DOID, "DOID", "Human Disease Ontology")
+                .withOntologyValueConstraint(NCIT, "NCIT", "NCI Thesaurus").build()),
+        Arguments.of("a link field given a default",
+            LinkField.builder().withName("Homepage").build(),
+            LinkField.builder().withName("Homepage").withDefaultValue(URI.create("https://example.org/")).build()));
   }
 
-  /** A stored choice may no longer be offered, or may no longer have the shape the field expects. */
-  @ParameterizedTest(name = "a list field that {0}")
-  @MethodSource("choiceChanges")
-  public void aChangeToTheChoicesOnOfferIsReported(String change, FieldSchemaArtifact before,
-                                                   FieldSchemaArtifact after) {
-    Delta delta = new DeltaFinder().findDelta(templateWith(before), templateWith(after));
+  /** A change every stored value still satisfies is reported, so the update is still seen, but as safe. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("changesNoStoredValueCanFail")
+  public void aConstraintEveryStoredValueSatisfiesIsANonDestructiveChange(String change, FieldSchemaArtifact before,
+                                                                         FieldSchemaArtifact after) {
+    Delta delta = findDelta(before, after);
 
-    List<Change> reported = Stream.concat(delta.getDestructiveChanges().stream(),
-        delta.getNonDestructiveChanges().stream()).toList();
-    assertEquals(1, reported.size(), delta.toString());
-    assertInstanceOf(ConstraintChange.class, reported.get(0));
-    assertEquals("Colour", reported.get(0).getFieldName());
+    assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
+    assertOneConstraintChange(delta.getNonDestructiveChanges(), before.name(), false);
+  }
+
+  /**
+   * A renamed field is matched to its old name only when nothing else about it changed, so a field renamed
+   * and constrained at once is reported as the old field deleted and a new one added.
+   */
+  @Test
+  public void aFieldRenamedAndConstrainedAtOnceIsNotReportedAsARename() {
+    Delta delta = findDelta(age().withMinValue(0).build(),
+        age().withName("Age in years").withMinValue(18).build());
+
+    assertTrue(delta.getNonDestructiveChanges().stream().noneMatch(Rename.class::isInstance), delta.toString());
+    assertTrue(delta.getDestructiveChanges().stream()
+        .anyMatch(change -> change instanceof Deletion && "Age".equals(change.getFieldName())), delta.toString());
+  }
+
+  /** A temporal field needs a granularity, and a day suits a date and a date and time alike. */
+  private static TemporalField.TemporalFieldBuilder visit() {
+    return TemporalField.builder().withName("Visit").withTemporalGranularity(TemporalGranularity.DAY);
+  }
+
+  /** A numeric field needs a datatype. Decimal is the one a field gets when it states none. */
+  private static NumericField.NumericFieldBuilder age() {
+    return NumericField.builder().withName("Age").withNumericType(XsdNumericDatatype.DECIMAL);
+  }
+
+  private static void assertOneConstraintChange(List<Change> changes, String fieldName, boolean destructive) {
+    assertEquals(1, changes.size(), changes.toString());
+    Change reported = changes.get(0);
+    assertInstanceOf(ConstraintChange.class, reported);
+    assertEquals(fieldName, reported.getFieldName());
+    assertEquals(destructive, reported.isDestructive());
+  }
+
+  private static Delta findDelta(FieldSchemaArtifact before, FieldSchemaArtifact after) {
+    return new DeltaFinder().findDelta(templateWith(before), templateWith(after));
   }
 
   /** A template holding the one field, read back as the resource server reads a stored template. */
