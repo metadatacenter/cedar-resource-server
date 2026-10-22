@@ -17,8 +17,10 @@ public class TestTemplate15 extends SimpleTemplateTest {
     List<Change> destructive = delta.getDestructiveChanges();
     List<Change> nonDestructive = delta.getNonDestructiveChanges();
 
-    // Assert no destructive changes
-    assertTrue(destructive.isEmpty(), "Should not contain destructive changes");
+    // The element's property IRI differs between the two versions, and a stored instance maps the
+    // element's name to the IRI it was written with
+    assertEquals(1, destructive.size(), "Should contain exactly one destructive change");
+    assertPropertyIriChange(destructive.get(0), "element-15");
 
     // Assert one addition of element-151 as an element
     boolean hasAddition = nonDestructive.stream().anyMatch(c ->

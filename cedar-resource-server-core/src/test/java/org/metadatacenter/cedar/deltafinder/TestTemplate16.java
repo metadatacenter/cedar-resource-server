@@ -17,13 +17,17 @@ public class TestTemplate16 extends SimpleTemplateTest {
     List<Change> destructive = delta.getDestructiveChanges();
     List<Change> nonDestructive = delta.getNonDestructiveChanges();
 
-    // Assert exactly one destructive change
-    assertEquals(1, destructive.size(), "Should have exactly one destructive change");
+    // Assert exactly two destructive changes
+    assertEquals(2, destructive.size(), "Should have exactly two destructive changes");
     assertTrue(destructive.get(0) instanceof Deletion, "The change should be a Deletion");
 
     Deletion deletion = (Deletion) destructive.get(0);
     assertEquals("element-151", deletion.getFieldName());
     assertEquals("element", deletion.getArtifactType());
+
+    // The element's property IRI differs between the two versions, and a stored instance maps the
+    // element's name to the IRI it was written with
+    assertPropertyIriChange(destructive.get(1), "element-15");
 
     // Assert no non-destructive changes
     assertTrue(nonDestructive.isEmpty(), "Should have no non-destructive changes");

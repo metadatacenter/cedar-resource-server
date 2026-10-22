@@ -37,26 +37,34 @@ public class DeltaFinder {
     // Step 1: Detect Renames
     Set<String> matchedOldKeys = new HashSet<>();
     Set<String> matchedNewKeys = new HashSet<>();
+    Map<String, String> renamedFields = new LinkedHashMap<>();
 
-    for (String oldKey : oldFields.keySet()) {
-      if (newFields.containsKey(oldKey)) {
-        continue;
-      }
-      FieldSchemaArtifact oldField = oldFields.get(oldKey);
-      for (String newKey : newFields.keySet()) {
-        if (oldFields.containsKey(newKey)) {
+    // A field renamed and changed at once keeps its kind. A removed field is matched first to a new field that is
+    // the same but for its name, and only then to one of the same kind, so that renaming two fields at once does
+    // not swap their values. A new field takes the values of one removed field at most.
+    for (boolean sameButForName : new boolean[]{true, false}) {
+      for (String oldKey : oldFields.keySet()) {
+        if (newFields.containsKey(oldKey) || matchedOldKeys.contains(oldKey)) {
           continue;
         }
+        FieldSchemaArtifact oldField = oldFields.get(oldKey);
+        for (String newKey : newFields.keySet()) {
+          if (oldFields.containsKey(newKey) || matchedNewKeys.contains(newKey)) {
+            continue;
+          }
 
-        FieldSchemaArtifact newField = newFields.get(newKey);
-        if (oldField.getClass().equals(newField.getClass()) &&
-            Objects.equals(oldField.fieldUi(), newField.fieldUi()) &&
-            areValueConstraintsEqual(oldField, newField)) {
+          FieldSchemaArtifact newField = newFields.get(newKey);
+          if (oldField.getClass().equals(newField.getClass()) &&
+              oldField.fieldUi().inputType() == newField.fieldUi().inputType() &&
+              (!sameButForName || (Objects.equals(oldField.fieldUi(), newField.fieldUi()) &&
+                  areValueConstraintsEqual(oldField, newField)))) {
 
-          matchedOldKeys.add(oldKey);
-          matchedNewKeys.add(newKey);
-          delta.addNonDestructiveChange(new Rename(oldKey, newKey));
-          break;
+            matchedOldKeys.add(oldKey);
+            matchedNewKeys.add(newKey);
+            renamedFields.put(oldKey, newKey);
+            delta.addNonDestructiveChange(new Rename(oldKey, newKey));
+            break;
+          }
         }
       }
     }
@@ -133,8 +141,12 @@ public class DeltaFinder {
         delta.addDestructiveChange(new TypeChange(key, oldType, newType, true));
       }
 
-      detectFieldChange(oldField, newField, key, delta);
+      detectFieldChange(oldField, newField, key, false, delta);
     }
+
+    // Step 4b: Field changes for renamed fields, whose stored values move to the new name
+    renamedFields.forEach((oldKey, newKey) ->
+        detectFieldChange(oldFields.get(oldKey), newFields.get(newKey), newKey, true, delta));
 
     // Step 5: Recursively handle elements
     Set<String> commonElementKeys = new HashSet<>(oldElements.keySet());
@@ -144,6 +156,7 @@ public class DeltaFinder {
       ElementSchemaArtifact newElem = newElements.get(key);
       List<String> elementChanges = new ArrayList<>();
       boolean elementDestructive = detectCardinalityChange(oldElem, newElem, elementChanges);
+      elementDestructive |= detectPropertyChange(oldElem, newElem, elementChanges);
       reportChanges(key, elementChanges, elementDestructive, delta);
       compareSchemas(
           oldElem.fieldSchemas(), oldElem.elementSchemas(),
@@ -264,26 +277,25 @@ public class DeltaFinder {
     }
 
     // 4. Otherwise compare every constraint the type has. A numeric, temporal or controlled-term field was
-    // once assumed unchanged here, so a field renamed and constrained at once was reported as a rename.
+    // once assumed unchanged here, so a field renamed and constrained at once was reported as a rename alone.
     return oldVC.equals(newVC);
   }
 
   /**
-   * Reports every change to a field that keeps its name, other than its type, as one change. It is destructive
-   * when a value stored under the old field can fail the new one.
+   * Reports every change to a field, other than its type and its name, as one change under the name it now has. It is
+   * destructive when a value stored under the old field can fail the new one. A renamed field's stored values move
+   * to its new name, which the template maps to a property IRI of its own, so its property IRI is not compared.
    */
   private void detectFieldChange(FieldSchemaArtifact oldField,
                                  FieldSchemaArtifact newField,
                                  String key,
+                                 boolean renamed,
                                  Delta delta) {
     List<String> changes = new ArrayList<>();
     boolean destructive = detectCardinalityChange(oldField, newField, changes);
 
-    if (!Objects.equals(oldField.propertyUri(), newField.propertyUri())) {
-      changes.add("propertyUri changed");
-      // A stored instance maps the field's name to the property IRI it was written with. The template's context
-      // admits only the IRI it declares, requires it, and refuses a mapping it does not declare.
-      destructive = true;
+    if (!renamed) {
+      destructive |= detectPropertyChange(oldField, newField, changes);
     }
 
     if (oldField.fieldUi().isTemporal() && newField.fieldUi().isTemporal()) {
@@ -332,6 +344,18 @@ public class DeltaFinder {
       destructive |= lowersUpperBound(oldChild.maxItems(), newChild.maxItems());
     }
     return destructive;
+  }
+
+  /** Records a change to the property IRI of a field or an element that keeps its name. Any change is destructive. */
+  private static boolean detectPropertyChange(ChildSchemaArtifact oldChild, ChildSchemaArtifact newChild,
+                                              List<String> changes) {
+    if (Objects.equals(oldChild.propertyUri(), newChild.propertyUri())) {
+      return false;
+    }
+    changes.add("propertyUri changed");
+    // A stored instance maps the child's name to the property IRI it was written with. The template's context
+    // admits only the IRI it declares, requires it, and refuses a mapping it does not declare.
+    return true;
   }
 
   private static void reportChanges(String key, List<String> changes, boolean destructive, Delta delta) {

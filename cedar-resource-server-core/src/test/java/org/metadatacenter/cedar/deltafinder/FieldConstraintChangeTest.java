@@ -36,13 +36,16 @@ import static org.junit.jupiter.api.Assertions.*;
  * A template with instances is updated in place only when its delta is empty. A change to the constraints
  * of a field that keeps its name must therefore be reported, whatever kind of field it is, or the stored
  * instances fall out of step with their template. So must a change to how many values a field or an element
- * holds, to the granularity or timezone of a temporal field, and to a field's property IRI. The delta then
- * classes the change as destructive when a value stored under the old template can fail the new one.
+ * holds, to the granularity or timezone of a temporal field, and to the property IRI of a field or an element.
+ * The delta then classes the change as destructive when a value stored under the old template can fail the new
+ * one. A field renamed and changed at once is reported as a rename and as a change to the renamed field.
  */
 public class FieldConstraintChangeTest {
 
   private static final URI DESCRIPTION = URI.create("http://purl.org/dc/terms/description");
   private static final URI COMMENT = URI.create("http://www.w3.org/2000/01/rdf-schema#comment");
+  private static final URI MATERIAL_SAMPLE = URI.create("http://purl.obolibrary.org/obo/OBI_0000747");
+  private static final URI SPECIMEN = URI.create("http://purl.obolibrary.org/obo/OBI_0100051");
   private static final URI DOID = URI.create("https://data.bioontology.org/ontologies/DOID");
   private static final URI NCIT = URI.create("https://data.bioontology.org/ontologies/NCIT");
   private static final URI DISEASE = URI.create("http://purl.obolibrary.org/obo/DOID_4");
@@ -168,7 +171,17 @@ public class FieldConstraintChangeTest {
             sample().withIsMultiple(true).withMinItems(1).build()),
         Arguments.of("a multi-instance element whose maximum count falls",
             sample().withIsMultiple(true).withMaxItems(4).build(),
-            sample().withIsMultiple(true).withMaxItems(2).build()));
+            sample().withIsMultiple(true).withMaxItems(2).build()),
+        // A stored instance maps the element's name to the property IRI it was written with
+        Arguments.of("an element whose property IRI is replaced",
+            sample().withPropertyUri(MATERIAL_SAMPLE).build(),
+            sample().withPropertyUri(SPECIMEN).build()),
+        Arguments.of("an element given a property IRI",
+            sample().build(),
+            sample().withPropertyUri(MATERIAL_SAMPLE).build()),
+        Arguments.of("an element whose property IRI is removed",
+            sample().withPropertyUri(MATERIAL_SAMPLE).build(),
+            sample().build()));
   }
 
   /** A stored instance may hold no value, or one the new rule refuses, so each change is destructive. */
@@ -269,18 +282,102 @@ public class FieldConstraintChangeTest {
     assertTrue(delta.getNonDestructiveChanges().isEmpty(), delta.toString());
   }
 
+  static Stream<Arguments> renamesThatNarrowTheField() {
+    return Stream.of(
+        Arguments.of("a numeric field renamed as its minimum rises",
+            age().withMinValue(0).build(),
+            age().withName("Age in years").withMinValue(18).build()),
+        Arguments.of("a text field renamed and given a pattern",
+            TextField.builder().withName("Notes").build(),
+            TextField.builder().withName("Code").withRegex("[A-Z]+").build()),
+        Arguments.of("a text field renamed and made multi-instance",
+            TextField.builder().withName("Notes").build(),
+            TextField.builder().withName("Comments").withIsMultiple(true).build()),
+        // The same field but for its name and its count, so the old one is matched to it before any other
+        Arguments.of("a multi-instance field renamed as its maximum count falls",
+            repeatedNotes().withMaxItems(5).build(),
+            repeatedNotes().withName("Comments").withMaxItems(3).build()),
+        Arguments.of("a date field renamed as its granularity becomes the month",
+            visit().withTemporalType(XsdTemporalDatatype.DATE).build(),
+            visit().withName("Visit month").withTemporalType(XsdTemporalDatatype.DATE)
+                .withTemporalGranularity(TemporalGranularity.MONTH).build()),
+        Arguments.of("a controlled term field renamed as its ontology is replaced",
+            ControlledTermField.builder().withName("Disease").withOntologyValueConstraint(DOID, "DOID", "Human Disease Ontology").build(),
+            ControlledTermField.builder().withName("Condition").withOntologyValueConstraint(NCIT, "NCIT", "NCI Thesaurus").build()));
+  }
+
   /**
-   * A renamed field is matched to its old name only when nothing else about it changed, so a field renamed
-   * and constrained at once is reported as the old field deleted and a new one added.
+   * A stored value moves to the field's new name with the rename, and may then fail the renamed field. The rename
+   * alone would let the template be read as unchanged but for a name.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("renamesThatNarrowTheField")
+  public void aFieldRenamedAndNarrowedAtOnceIsARenameAndADestructiveChange(String change, FieldSchemaArtifact before,
+                                                                          FieldSchemaArtifact after) {
+    Delta delta = findDelta(before, after);
+
+    assertEquals(1, delta.getNonDestructiveChanges().size(), delta.toString());
+    assertRename(delta.getNonDestructiveChanges().get(0), before.name(), after.name());
+    assertOneConstraintChange(delta.getDestructiveChanges(), after.name(), true);
+  }
+
+  @Test
+  public void aFieldRenamedAndWidenedAtOnceIsARenameAndASafeChange() {
+    Delta delta = findDelta(age().withMinValue(18).build(), age().withName("Age in years").withMinValue(0).build());
+
+    assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
+    List<Change> changes = delta.getNonDestructiveChanges();
+    assertEquals(2, changes.size(), delta.toString());
+    assertRename(changes.get(0), "Age", "Age in years");
+    assertOneConstraintChange(changes.subList(1, 2), "Age in years", false);
+  }
+
+  /**
+   * A renamed field's stored values move to its new name, which the template maps to a property IRI of its own.
+   * The template editor gives a renamed field a new IRI, so a rename that changes the IRI is a rename alone.
    */
   @Test
-  public void aFieldRenamedAndConstrainedAtOnceIsNotReportedAsARename() {
-    Delta delta = findDelta(age().withMinValue(0).build(),
-        age().withName("Age in years").withMinValue(18).build());
+  public void aRenamedFieldTakesThePropertyIriOfItsNewName() {
+    Delta delta = findDelta(TextField.builder().withName("Notes").withPropertyUri(DESCRIPTION).build(),
+        TextField.builder().withName("Comments").withPropertyUri(COMMENT).build());
 
-    assertTrue(delta.getNonDestructiveChanges().stream().noneMatch(Rename.class::isInstance), delta.toString());
-    assertTrue(delta.getDestructiveChanges().stream()
-        .anyMatch(change -> change instanceof Deletion && "Age".equals(change.getFieldName())), delta.toString());
+    assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
+    assertEquals(1, delta.getNonDestructiveChanges().size(), delta.toString());
+    assertRename(delta.getNonDestructiveChanges().get(0), "Notes", "Comments");
+  }
+
+  /**
+   * A removed field is matched first to a new field that is the same but for its name, and only then to one of the
+   * same kind, so two fields renamed at once each keep their own values.
+   */
+  @Test
+  public void aRemovedFieldIsMatchedFirstToANewFieldTheSameButForItsName() {
+    Delta delta = new DeltaFinder().findDelta(
+        templateWith(TextField.builder().withName("Notes").build(),
+            TextField.builder().withName("Code").withRequiredValue(true).build()),
+        templateWith(TextField.builder().withName("Identifier").withRequiredValue(true).build(),
+            TextField.builder().withName("Comments").build()));
+
+    assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
+    List<Change> changes = delta.getNonDestructiveChanges();
+    assertEquals(2, changes.size(), delta.toString());
+    assertRename(changes.get(0), "Notes", "Comments");
+    assertRename(changes.get(1), "Code", "Identifier");
+  }
+
+  /** A new field takes the values of one removed field, so a second removed field like it is a deletion. */
+  @Test
+  public void aNewFieldTakesTheValuesOfOneRemovedFieldOnly() {
+    Delta delta = new DeltaFinder().findDelta(
+        templateWith(TextField.builder().withName("Notes").build(), TextField.builder().withName("Remarks").build()),
+        templateWith(TextField.builder().withName("Comments").build()));
+
+    assertEquals(1, delta.getNonDestructiveChanges().size(), delta.toString());
+    assertRename(delta.getNonDestructiveChanges().get(0), "Notes", "Comments");
+    assertEquals(1, delta.getDestructiveChanges().size(), delta.toString());
+    Change deletion = delta.getDestructiveChanges().get(0);
+    assertInstanceOf(Deletion.class, deletion);
+    assertEquals("Remarks", deletion.getFieldName());
   }
 
   /** A temporal field needs a granularity, and a day suits a date and a date and time alike. */
@@ -316,15 +413,23 @@ public class FieldConstraintChangeTest {
     assertEquals(destructive, reported.isDestructive());
   }
 
+  private static void assertRename(Change change, String oldName, String newName) {
+    Rename rename = assertInstanceOf(Rename.class, change);
+    assertEquals(oldName, rename.getFieldName());
+    assertEquals(newName, rename.getNewFieldName());
+  }
+
   private static Delta findDelta(ChildSchemaArtifact before, ChildSchemaArtifact after) {
     return new DeltaFinder().findDelta(templateWith(before), templateWith(after));
   }
 
-  /** A template holding the one field or element, read back as the resource server reads a stored template. */
-  private static TemplateSchemaArtifact templateWith(ChildSchemaArtifact child) {
+  /** A template holding the fields and elements, read back as the resource server reads a stored template. */
+  private static TemplateSchemaArtifact templateWith(ChildSchemaArtifact... children) {
     TemplateSchemaArtifact.Builder builder = TemplateSchemaArtifact.builder().withName("Constraint change fixture");
-    if (child instanceof ElementSchemaArtifact element) builder.withElementSchema(element);
-    if (child instanceof FieldSchemaArtifact field) builder.withFieldSchema(field);
+    for (ChildSchemaArtifact child : children) {
+      if (child instanceof ElementSchemaArtifact element) builder.withElementSchema(element);
+      if (child instanceof FieldSchemaArtifact field) builder.withFieldSchema(field);
+    }
     TemplateSchemaArtifact template = builder.build();
     return new JsonArtifactReader().readTemplateSchemaArtifact(
         new JsonArtifactRenderer().renderTemplateSchemaArtifact(template));

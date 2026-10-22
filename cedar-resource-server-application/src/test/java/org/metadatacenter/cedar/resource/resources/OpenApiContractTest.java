@@ -151,6 +151,28 @@ class OpenApiContractTest {
         operation.at("/responses/502").toString());
   }
 
+  /**
+   * A search by template lists the template's instances and refuses every selector and filter it cannot apply. The
+   * parameter says which, on every route that takes it, so a client learns of a refusal before it meets one.
+   */
+  @Test
+  void searchByTemplateStatesItsRefusals() throws IOException {
+    Set<String> routes = new TreeSet<>();
+    readSpec().path("paths").fields().forEachRemaining(path -> path.getValue().forEach(operation ->
+        operation.path("parameters").forEach(parameter -> {
+          if ("is_based_on".equals(parameter.path("name").asText())) {
+            routes.add(path.getKey());
+            String description = parameter.path("description").asText();
+            for (String refused : new String[]{"'q'", "'resource_types'", "'id'", "'sharing'", "'mode'",
+                "'category_id'", "'version'", "'publication_status'", "'all'"}) {
+              assertTrue(description.contains(refused),
+                  path.getKey() + " does not name " + refused + ": " + description);
+            }
+          }
+        })));
+    assertEquals(Set.of("/search", "/search-deep"), routes);
+  }
+
   private static void assertAnswers(JsonNode operation, String success, String... refusals) {
     JsonNode responses = operation.path("responses");
     Set<String> documented = new TreeSet<>();

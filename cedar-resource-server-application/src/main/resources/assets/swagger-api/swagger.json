@@ -5560,7 +5560,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Template identifier. All the instances with this template id will be returned",
+          "description" : "Template identifier. The search returns the instances of this template. It applies no other selector or filter, so a request that also passes a text query in 'q', 'resource_types', an 'id', a 'sharing' view, a 'mode' or a 'category_id' is refused with a 400. So is one that passes a 'version' or 'publication_status' other than 'all'.",
           "in" : "query",
           "name" : "is_based_on",
           "schema" : {
@@ -5743,7 +5743,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Template identifier. All the instances with this template id will be returned",
+          "description" : "Template identifier. The search returns the instances of this template. It applies no other selector or filter, so a request that also passes a text query in 'q', 'resource_types', an 'id', a 'sharing' view, a 'mode' or a 'category_id' is refused with a 400. So is one that passes a 'version' or 'publication_status' other than 'all'.",
           "in" : "query",
           "name" : "is_based_on",
           "schema" : {
