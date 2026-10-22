@@ -16,18 +16,21 @@ public class TestTemplate07 extends SimpleTemplateTest {
     List<Change> destructive = delta.getDestructiveChanges();
     List<Change> nonDestructive = delta.getNonDestructiveChanges();
 
-    // Assert that there's exactly one deletion: Field 2
-    boolean hasField2Deletion = destructive.stream().anyMatch(c ->
-        c instanceof Deletion &&
-            c.getFieldName().equals("Field 2") &&
-            ((Deletion) c).getArtifactType().equals("field"));
-    assertTrue(hasField2Deletion, "Expected deletion of field: Field 2");
+    // Field 4 is Field 2 renamed and given a default and length bounds. Its stored values move to the new
+    // name, where a minimum length can refuse one.
+    assertEquals(1, nonDestructive.size(), "Should contain exactly one non-destructive change");
+    Change rename = nonDestructive.get(0);
+    assertTrue(rename instanceof Rename, "Expected Rename from Field 2 to Field 4");
+    assertEquals("Field 2", rename.getFieldName());
+    assertEquals("Field 4", ((Rename) rename).getNewFieldName());
 
-    // Assert that there's exactly one addition: Field 4
-    boolean hasField4Addition = nonDestructive.stream().anyMatch(c ->
-        c instanceof Addition &&
-            c.getFieldName().equals("Field 4") &&
-            ((Addition) c).getArtifactType().equals("field"));
-    assertTrue(hasField4Addition, "Expected addition of field: Field 4");
+    assertEquals(1, destructive.size(), "Should contain exactly one destructive change");
+    Change change = destructive.get(0);
+    assertTrue(change instanceof ConstraintChange, "Change should be a ConstraintChange");
+    assertEquals("Field 4", change.getFieldName());
+    ConstraintChange constraintChange = (ConstraintChange) change;
+    assertTrue(constraintChange.getOldConstraint().contains("defaultValue"), "Change description should mention defaultValue");
+    assertTrue(constraintChange.getOldConstraint().contains("minLength"), "Change description should mention minLength");
+    assertTrue(constraintChange.getOldConstraint().contains("maxLength"), "Change description should mention maxLength");
   }
 }

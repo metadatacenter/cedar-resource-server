@@ -3,7 +3,7 @@
   "info" : {
     "description" : "Better Metadata - Better Science\n\nFolders and artifacts use type-qualified selectors: `folders/<uuid>`, `templates/<uuid>`,\n`template-elements/<uuid>`, `template-fields/<uuid>`, or `template-instances/<uuid>`.\nTyped routes include the type once, for example `/templates/<uuid>`. Query parameters and\ncommand-body selectors retain the type, including folder parameters. Percent-encoded full\nIRIs remain accepted for compatibility. Stored document identities and references remain\nfull IRIs; legacy repository hosts must remain absolute until their data is migrated.\n\nMutable resources use strong ETags for optimistic concurrency. Read the resource (or its\npermissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing\nrequired precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`\naccepts whichever revision currently exists and therefore deliberately gives up lost-update\nprotection. Comma-separated strong validators are also accepted. Representation suffixes such\nas `\"7-json\"`, `\"7-yaml\"`, and `\"7-resource-record\"` identify different bytes of the same\nstored revision and are valid write preconditions.\n\nSee the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)\nfor authentication, request examples, and complete ETag guidance.\n",
     "title" : "CEDAR Resource Server API",
-    "version" : "2.9.27"
+    "version" : "2.9.28"
   },
   "tags" : [ {
     "name" : "Templates"
@@ -5560,7 +5560,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Template identifier. All the instances with this template id will be returned",
+          "description" : "Template identifier. The search returns the instances of this template. It applies no other selector or filter, so a request that also passes a text query in 'q', 'resource_types', an 'id', a 'sharing' view, a 'mode' or a 'category_id' is refused with a 400. So is one that passes a 'version' or 'publication_status' other than 'all'.",
           "in" : "query",
           "name" : "is_based_on",
           "schema" : {
@@ -5743,7 +5743,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Template identifier. All the instances with this template id will be returned",
+          "description" : "Template identifier. The search returns the instances of this template. It applies no other selector or filter, so a request that also passes a text query in 'q', 'resource_types', an 'id', a 'sharing' view, a 'mode' or a 'category_id' is refused with a 400. So is one that passes a 'version' or 'publication_status' other than 'all'.",
           "in" : "query",
           "name" : "is_based_on",
           "schema" : {
@@ -10197,90 +10197,6 @@
         "tags" : [ "Templates" ]
       }
     },
-    "/templates/recommend" : {
-      "post" : {
-        "description" : "Get a ranked list of recommended templates.",
-        "operationId" : "recommendTemplates",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/TemplateRecommendationRequest"
-              }
-            }
-          },
-          "description" : "The metadata record to get recommendations for",
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/TemplateRecommendationResponse"
-                }
-              }
-            },
-            "description" : "A ranked list of recommended templates"
-          },
-          "400" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Bad request"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Not found"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Get recommendations on the templates that best match an input metadata record",
-        "tags" : [ "Templates", "Recommendations" ]
-      }
-    },
     "/templates/{template_id}" : {
       "delete" : {
         "description" : "Conditionally delete a template using its current ETag. CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted workspace-graph or search-index cleanup.",
@@ -13685,75 +13601,6 @@
           }
         },
         "required" : [ "@id", "doi" ]
-      },
-      "TemplateRecommendation" : {
-        "type" : "object",
-        "properties" : {
-          "recommendationScore" : {
-            "type" : "number",
-            "format" : "double",
-            "description" : "recommendation score"
-          },
-          "resourceExtract" : {
-            "$ref" : "#/components/schemas/ResourceSummary"
-          },
-          "sourceFieldsMatched" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "number of fields in the template that match fields in the input metadata record"
-          },
-          "targetFieldsCount" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "total number of fields in the recommended template"
-          }
-        }
-      },
-      "TemplateRecommendationRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "description" : "The metadata record to get recommendations for.",
-        "properties" : {
-          "metadataRecord" : {
-            "type" : "object",
-            "additionalProperties" : {
-              "type" : "object",
-              "description" : "The input metadata record. Example: {\"tissue\": \"lung\", \"disease\": \"influenza\"}"
-            },
-            "description" : "The input metadata record. Example: {\"tissue\": \"lung\", \"disease\": \"influenza\"}"
-          }
-        }
-      },
-      "TemplateRecommendationResponse" : {
-        "type" : "object",
-        "description" : "A ranked list of recommended templates.",
-        "properties" : {
-          "recommendations" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/TemplateRecommendation"
-            }
-          },
-          "request" : {
-            "$ref" : "#/components/schemas/TemplateRecommendationResponseRequest"
-          },
-          "totalCount" : {
-            "type" : "number",
-            "format" : "double",
-            "description" : "total number of recommendations returned",
-            "example" : 1
-          }
-        }
-      },
-      "TemplateRecommendationResponseRequest" : {
-        "type" : "object",
-        "properties" : {
-          "sourceFieldsCount" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "number of fields in the input metadata record"
-          }
-        }
       },
       "TemplateUpdateCheck" : {
         "type" : "object",

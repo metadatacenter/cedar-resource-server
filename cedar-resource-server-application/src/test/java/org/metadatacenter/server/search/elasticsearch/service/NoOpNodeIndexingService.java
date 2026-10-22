@@ -48,9 +48,4 @@ public class NoOpNodeIndexingService extends NodeIndexingService {
     return 0;
   }
 
-  @Override
-  public long removeDocumentFromIndex(CedarFilesystemResourceId resourceId, boolean retry) {
-    return 0;
-  }
-
 }

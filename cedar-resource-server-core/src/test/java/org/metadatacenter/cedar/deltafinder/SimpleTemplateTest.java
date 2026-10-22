@@ -6,8 +6,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.reader.JsonArtifactReader;
+import org.metadatacenter.cedar.deltafinder.change.Change;
+import org.metadatacenter.cedar.deltafinder.change.ConstraintChange;
 
 import java.io.InputStream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 abstract public class SimpleTemplateTest {
 
@@ -46,6 +51,14 @@ abstract public class SimpleTemplateTest {
     Delta delta= finder.findDelta(oldModelArtifact, newModelArtifact);
 //    System.out.println(delta);
     return delta;
+  }
+
+  /** Asserts that the change is a destructive change to the property IRI of the element, and to nothing else. */
+  protected static void assertPropertyIriChange(Change change, String elementName) {
+    assertTrue(change instanceof ConstraintChange, "Change should be a ConstraintChange");
+    assertEquals(elementName, change.getFieldName());
+    assertTrue(change.isDestructive(), "Change should be destructive");
+    assertEquals("Changed: propertyUri changed", ((ConstraintChange) change).getOldConstraint());
   }
 
 }

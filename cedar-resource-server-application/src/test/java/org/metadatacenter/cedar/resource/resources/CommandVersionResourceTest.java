@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
+import org.metadatacenter.artifacts.model.core.TextField;
+import org.metadatacenter.artifacts.model.core.Version;
 import org.metadatacenter.artifacts.model.renderer.JsonArtifactRenderer;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
@@ -28,6 +31,7 @@ import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
 import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
+import org.metadatacenter.model.folderserver.basic.FolderServerSchemaArtifact;
 import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
@@ -51,7 +55,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Failure classification tests for template-version commands. */
@@ -119,6 +125,13 @@ public class CommandVersionResourceTest {
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
   /** Every request the artifact server received other than a read. */
   private static final AtomicInteger ARTIFACT_WRITES = new AtomicInteger();
+  /**
+   * When set, the one document the artifact server holds. A read answers it, and a PUT replaces it and
+   * gives it the next ETag in the series "scripted-0", "scripted-1", and so on.
+   */
+  private static volatile ObjectNode scriptedDocument;
+  /** The If-Match of each PUT the scripted document received, in order. */
+  private static final List<String> SCRIPTED_PUT_CONDITIONS = new CopyOnWriteArrayList<>();
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -334,6 +347,8 @@ public class CommandVersionResourceTest {
     VERSION_RETRY_DRAFT_WRITES.set(0);
     DRAFT_STATUS_GUARD_POSTS.set(0);
     COMPENSATING_DELETES.set(0);
+    scriptedDocument = null;
+    SCRIPTED_PUT_CONDITIONS.clear();
   }
 
   @AfterAll
@@ -360,6 +375,42 @@ public class CommandVersionResourceTest {
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
     Assertions.assertTrue(JsonMapper.STRICT_MAPPER.readTree(response.body()).get("canBeUpdated").asBoolean());
+  }
+
+  /**
+   * A definition that differs from the stored one cannot replace a template that has instances. The check
+   * counts the change and answers canBeUpdated false, which is what makes the Designer publish and draft
+   * rather than save in place. The versions it reports are the stored template's and the one after it,
+   * whatever version the submitted body carries.
+   */
+  @Test
+  public void aChangedDefinitionCannotReplaceATemplateThatHasInstances() throws Exception {
+    scriptedDocument = new JsonArtifactRenderer().renderTemplateSchemaArtifact(TemplateSchemaArtifact.builder()
+        .withJsonLdId(URI.create(templateId.getId()))
+        .withName("Version check fixture")
+        .withVersion(Version.fromString("1.2.3"))
+        .withFieldSchema(TextField.builder().withName("Diagnosis").build())
+        .withFieldSchema(TextField.builder().withName("Notes").build())
+        .build());
+    ObjectNode withoutNotes = new JsonArtifactRenderer().renderTemplateSchemaArtifact(TemplateSchemaArtifact.builder()
+        .withJsonLdId(URI.create(templateId.getId()))
+        .withName("Version check fixture")
+        .withVersion(Version.fromString("9.9.9"))
+        .withFieldSchema(TextField.builder().withName("Diagnosis").build())
+        .build());
+    int writes = ARTIFACT_WRITES.get();
+
+    HttpResponse<String> response = checkUpdateTemplate(withoutNotes.toString());
+
+    Assertions.assertEquals(200, response.statusCode(), response.body());
+    JsonNode check = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    Assertions.assertFalse(check.path("canBeUpdated").asBoolean(true), response.body());
+    Assertions.assertEquals(1, check.path("numberOfInstances").asLong(), response.body());
+    Assertions.assertEquals(1, check.path("destructiveChanges").asInt(), response.body());
+    Assertions.assertEquals(0, check.path("nonDestructiveChanges").asInt(), response.body());
+    Assertions.assertEquals("1.2.3", check.path("oldVersion").asText(), response.body());
+    Assertions.assertEquals("1.2.4", check.path("pav:version").asText(), response.body());
+    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "checking a template wrote to the artifact server");
   }
 
   @Test
@@ -481,6 +532,148 @@ public class CommandVersionResourceTest {
     Assertions.assertEquals(1, folderSession.getVersionHistory(published).size(), "a refused draft reached the graph");
   }
 
+  /**
+   * A version that is missing, is not three numbers, or is 0.0.0 is refused, by publication and by draft
+   * creation alike, before anything is written.
+   */
+  @Test
+  public void aMissingOrMalformedVersionIsRefused() throws Exception {
+    CedarTemplateId draft = ownedTemplate("Draft published only at a well-formed version", "1.0.0", "bibo:draft");
+    CedarTemplateId published = ownedTemplate("Published template drafted only at a well-formed version",
+        "1.0.0", "bibo:published");
+    int writes = ARTIFACT_WRITES.get();
+
+    assertRefusal(postVersionCommand("publish-artifact", "{\"@id\":\"" + draft.getId() + "\"}"), 400, "invalidData");
+    for (String version : List.of("", "1.0", "v1.0.1", "1.0.1-rc1", "0.0.0")) {
+      assertRefusal(postVersionCommand("publish-artifact",
+          "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"" + version + "\"}"), 400, "invalidData");
+      assertRefusal(postVersionCommand("create-draft-artifact", draftRequest(published, version)), 400,
+          "invalidData");
+    }
+
+    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a malformed version reached the artifact server");
+    Assertions.assertEquals("bibo:draft", folderSession.findSchemaArtifactById(draft).getPublicationStatus().getValue());
+    Assertions.assertEquals(1, folderSession.getVersionHistory(published).size());
+  }
+
+  /**
+   * A publication may keep the version the stored document carries but not lower it. A lower one is
+   * refused before the artifact server is written, and the template stays the draft it was.
+   */
+  @Test
+  public void aPublicationBelowTheStoredVersionIsRefusedBeforeAnyWrite() throws Exception {
+    CedarTemplateId draft = ownedTemplate("Draft at 2.0.0", "2.0.0", "bibo:draft");
+    scriptedDocument = documentOf(draft, "2.0.0", "bibo:draft");
+    ObjectNode before = scriptedDocument.deepCopy();
+
+    HttpResponse<String> response = postVersionCommand("publish-artifact",
+        "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.9.9\"}");
+
+    assertRefusal(response, 400, "invalidData");
+    JsonNode parameters = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("parameters");
+    Assertions.assertEquals("2.0.0", parameters.path("oldVersion").asText(), response.body());
+    Assertions.assertEquals("1.9.9", parameters.path("newVersion").asText(), response.body());
+    Assertions.assertTrue(SCRIPTED_PUT_CONDITIONS.isEmpty(), "a lowering publication reached the artifact server");
+    Assertions.assertEquals(before, scriptedDocument);
+    FolderServerSchemaArtifact stored = folderSession.findSchemaArtifactById(draft);
+    Assertions.assertEquals("bibo:draft", stored.getPublicationStatus().getValue());
+    Assertions.assertEquals("2.0.0", stored.getVersion().getValue());
+  }
+
+  /**
+   * Both stores must hold an artifact as a draft before it is published. A document the artifact server
+   * already holds as published is refused, with the same key the graph would use, even though the graph
+   * still calls it a draft.
+   */
+  @Test
+  public void aDocumentAlreadyPublishedIsRefusedWhenTheGraphStillHoldsADraft() throws Exception {
+    CedarTemplateId draft = ownedTemplate("Draft whose document is published", "1.0.0", "bibo:draft");
+    scriptedDocument = documentOf(draft, "1.0.0", "bibo:published");
+
+    HttpResponse<String> response = postVersionCommand("publish-artifact",
+        "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.0.1\"}");
+
+    assertRefusal(response, 400, "publishOnlyDraft");
+    Assertions.assertTrue(SCRIPTED_PUT_CONDITIONS.isEmpty(), "the published document was written again");
+    FolderServerSchemaArtifact stored = folderSession.findSchemaArtifactById(draft);
+    Assertions.assertEquals("bibo:draft", stored.getPublicationStatus().getValue());
+    Assertions.assertEquals("1.0.0", stored.getVersion().getValue());
+  }
+
+  /**
+   * The graph judges a publication again in the transaction that records it. When it refuses one the
+   * document allowed, here because the graph holds a later version than the document does, the
+   * publication is answered with 409 and the draft document is put back. The putting back is conditional
+   * on the ETag the publication wrote, so a write made since then would stand.
+   */
+  @Test
+  public void aPublicationTheGraphRefusesIsAConflictAndTheDraftDocumentIsPutBack() throws Exception {
+    CedarTemplateId draft = ownedTemplate("Draft the graph holds at 3.0.0", "3.0.0", "bibo:draft");
+    ObjectNode draftDocument = documentOf(draft, "1.0.0", "bibo:draft");
+    scriptedDocument = draftDocument.deepCopy();
+
+    HttpResponse<String> response = postVersionCommand("publish-artifact",
+        "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"2.0.0\"}");
+
+    assertRefusal(response, 409, "versioningOnlyOnLatest");
+    Assertions.assertEquals(List.of("\"scripted-0\"", "\"scripted-1\""), SCRIPTED_PUT_CONDITIONS,
+        "expected the publication, conditional on the document read, then its undoing, conditional on the "
+            + "publication's own ETag");
+    Assertions.assertEquals(draftDocument, scriptedDocument, "the draft document was not put back");
+    FolderServerSchemaArtifact stored = folderSession.findSchemaArtifactById(draft);
+    Assertions.assertEquals("bibo:draft", stored.getPublicationStatus().getValue());
+    Assertions.assertEquals("3.0.0", stored.getVersion().getValue());
+  }
+
+  /**
+   * A draft must come after the version it is drafted from. The published version itself, or one before
+   * it, is refused before anything is created, and the published template keeps its place as the latest.
+   */
+  @Test
+  public void aDraftVersionThatDoesNotFollowThePublishedOneIsRefusedBeforeAnyWrite() throws Exception {
+    CedarTemplateId published = ownedTemplate("Published at 2.0.0", "2.0.0", "bibo:published");
+    scriptedDocument = documentOf(published, "2.0.0", "bibo:published");
+    int writes = ARTIFACT_WRITES.get();
+
+    for (String version : List.of("2.0.0", "1.9.9")) {
+      HttpResponse<String> response = postVersionCommand("create-draft-artifact", draftRequest(published, version));
+
+      assertRefusal(response, 400, "invalidData");
+      JsonNode parameters = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("parameters");
+      Assertions.assertEquals("2.0.0", parameters.path("oldVersion").asText(), response.body());
+      Assertions.assertEquals(version, parameters.path("newVersion").asText(), response.body());
+    }
+
+    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a refused draft reached the artifact server");
+    Assertions.assertEquals(1, folderSession.getVersionHistory(published).size(), "a refused draft reached the graph");
+    Assertions.assertTrue(folderSession.findSchemaArtifactById(published).isLatestVersion());
+  }
+
+  /** A template in the test user's home folder at the given version and status, shared with nobody. */
+  private static CedarTemplateId ownedTemplate(String name, String version, String status) {
+    boolean draft = status.equals("bibo:draft");
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName(name);
+    template.setVersion(version);
+    template.setPublicationStatus(status);
+    template.setLatestVersion(true);
+    template.setLatestDraftVersion(draft);
+    template.setLatestPublishedVersion(!draft);
+    FolderServerArtifact created = folderSession.createResourceAsChildOfId(template, homeFolderId);
+    Assertions.assertNotNull(created);
+    return CedarTemplateId.build(created.getId());
+  }
+
+  /** The artifact server's document for a template, at the given version and status. */
+  private static ObjectNode documentOf(CedarTemplateId id, String version, String status) {
+    ObjectNode document = storedTemplate.deepCopy();
+    document.put("@id", id.getId());
+    document.put("pav:version", version);
+    document.put("bibo:status", status);
+    return document;
+  }
+
   /** A template in the test user's home folder at the given status, on which user 2 is a Manager. */
   private static CedarTemplateId sharedWithAManager(String name, String status) throws Exception {
     boolean draft = status.equals("bibo:draft");
@@ -506,8 +699,12 @@ public class CommandVersionResourceTest {
   }
 
   private static String draftRequest(CedarTemplateId source) {
-    return "{\"@id\":\"" + source.getId() + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
-        + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}";
+    return draftRequest(source, "1.0.1");
+  }
+
+  private static String draftRequest(CedarTemplateId source, String newVersion) {
+    return "{\"@id\":\"" + source.getId() + "\",\"newVersion\":\"" + newVersion + "\",\"folderId\":\""
+        + homeFolderId.getId() + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}";
   }
 
   private static void assertRefusal(HttpResponse<String> response, int status, String errorKey) throws IOException {
@@ -744,6 +941,20 @@ public class CommandVersionResourceTest {
       return;
     }
     byte[] requestBody = exchange.getRequestBody().readAllBytes();
+    if (scriptedDocument != null) {
+      String etag = "\"scripted-" + SCRIPTED_PUT_CONDITIONS.size() + "\"";
+      if ("GET".equals(exchange.getRequestMethod())) {
+        sendArtifactResponse(exchange, scriptedDocument, etag);
+      } else if ("PUT".equals(exchange.getRequestMethod())) {
+        SCRIPTED_PUT_CONDITIONS.add(exchange.getRequestHeaders().getFirst("If-Match"));
+        scriptedDocument = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
+        sendArtifactResponse(exchange, scriptedDocument, "\"scripted-" + SCRIPTED_PUT_CONDITIONS.size() + "\"");
+      } else {
+        exchange.sendResponseHeaders(500, -1);
+        exchange.close();
+      }
+      return;
+    }
     if (draftingFromDraft && "GET".equals(exchange.getRequestMethod())) {
       sendArtifactResponse(exchange, draftStatusMismatchDocument, "\"draft-status-etag\"");
       return;

@@ -166,9 +166,6 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final CategoriesResource categories = new CategoriesResource(cedarConfig);
     environment.jersey().register(categories);
 
-    final RecommendResource recommend = new RecommendResource(cedarConfig);
-    environment.jersey().register(recommend);
-
     // Search and folder listing are the bulk of what this server answers, and both read the
     // OpenSearch index. Redis is not gated here: the search-permission events it carries go to a
     // Neo4j outbox first and a managed relay drains it, so an outage delays reindexing rather than

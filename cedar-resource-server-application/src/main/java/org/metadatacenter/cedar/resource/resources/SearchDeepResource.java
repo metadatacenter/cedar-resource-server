@@ -70,7 +70,10 @@ public class SearchDeepResource extends AbstractSearchResource {
       @Parameter(description = "Publication status selector. It is only handled for template-fields, template-elements "
           + "and templates. The allowed values are: 'bibo:draft', 'bibo:published', 'all'")
       @QueryParam(QP_PUBLICATION_STATUS) Optional<String> publicationStatusParam,
-      @Parameter(description = "Template identifier. All the instances with this template id will be returned")
+      @Parameter(description = "Template identifier. The search returns the instances of this template. It applies "
+          + "no other selector or filter, so a request that also passes a text query in 'q', 'resource_types', an "
+          + "'id', a 'sharing' view, a 'mode' or a 'category_id' is refused with a 400. So is one that passes a "
+          + "'version' or 'publication_status' other than 'all'.")
       @QueryParam(QP_IS_BASED_ON) Optional<String> isBasedOnParam,
       @Parameter(description = "Sort field names as comma separated values. Prepending a field with '-' means descending "
           + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. "

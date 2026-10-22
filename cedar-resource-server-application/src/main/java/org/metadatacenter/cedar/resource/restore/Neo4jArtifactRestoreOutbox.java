@@ -56,10 +56,6 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
     ensureConstraint();
   }
 
-  Neo4jArtifactRestoreOutbox(Driver driver) {
-    this(driver, 30_000);
-  }
-
   Neo4jArtifactRestoreOutbox(Driver driver, long initialDelayMillis) {
     this.driver = driver;
     this.initialDelayMillis = initialDelayMillis;

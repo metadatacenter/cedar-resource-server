@@ -25,7 +25,9 @@ public class TestTemplate13 extends SimpleTemplateTest {
     );
     assertTrue(hasAddition, "Should contain addition of field: Field 2 in element");
 
-    // Should not contain any destructive changes
-    assertTrue(destructive.isEmpty(), "Should not contain destructive changes");
+    // The element's property IRI differs between the two versions, and a stored instance maps the
+    // element's name to the IRI it was written with
+    assertEquals(1, destructive.size(), "Should contain exactly one destructive change");
+    assertPropertyIriChange(destructive.get(0), "element-13-v1");
   }
 }

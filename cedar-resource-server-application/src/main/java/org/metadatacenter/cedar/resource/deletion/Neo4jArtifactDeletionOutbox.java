@@ -48,10 +48,6 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
     ensureConstraint();
   }
 
-  Neo4jArtifactDeletionOutbox(Driver driver) {
-    this(driver, 30_000);
-  }
-
   Neo4jArtifactDeletionOutbox(Driver driver, long initialDelayMillis) {
     this.driver = driver;
     this.initialDelayMillis = initialDelayMillis;
