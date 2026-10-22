@@ -70,6 +70,7 @@ public class DeltaFinder {
     }
 
     // Step 1b: Detect Renames in Elements
+    Map<String, String> renamedElements = new LinkedHashMap<>();
     for (String oldKey : oldElements.keySet()) {
       if (newElements.containsKey(oldKey)) continue;
       ElementSchemaArtifact oldElement = oldElements.get(oldKey);
@@ -86,6 +87,7 @@ public class DeltaFinder {
 
           matchedOldKeys.add(oldKey);
           matchedNewKeys.add(newKey);
+          renamedElements.put(oldKey, newKey);
           delta.addNonDestructiveChange(new Rename(oldKey, newKey));
           break;
         }
@@ -154,10 +156,7 @@ public class DeltaFinder {
     for (String key : commonElementKeys) {
       ElementSchemaArtifact oldElem = oldElements.get(key);
       ElementSchemaArtifact newElem = newElements.get(key);
-      List<String> elementChanges = new ArrayList<>();
-      boolean elementDestructive = detectCardinalityChange(oldElem, newElem, elementChanges);
-      elementDestructive |= detectPropertyChange(oldElem, newElem, elementChanges);
-      reportChanges(key, elementChanges, elementDestructive, delta);
+      detectElementChange(oldElem, newElem, key, delta);
       compareSchemas(
           oldElem.fieldSchemas(), oldElem.elementSchemas(),
           newElem.fieldSchemas(), newElem.elementSchemas(),
@@ -165,6 +164,11 @@ public class DeltaFinder {
           delta
       );
     }
+
+    // Step 5b: Changes to renamed elements, whose stored values move to the new name. A renamed element has the
+    // same contents as before, so there is nothing inside it to compare.
+    renamedElements.forEach((oldKey, newKey) ->
+        detectElementChange(oldElements.get(oldKey), newElements.get(newKey), newKey, delta));
 
     // Step 6: Order change detection
     List<String> filteredOldOrder = new ArrayList<>();
@@ -321,6 +325,21 @@ public class DeltaFinder {
   }
 
   /**
+   * Reports every change to an element, other than its contents and its name, as one change under the name it now
+   * has. It is destructive when an element stored under the old template can fail the new one. A renamed element's
+   * property IRI is compared too. Both template editors keep a child's property IRI when they rename it, and the
+   * instance clone that follows a new version carries a renamed child's values to its new name only by that IRI. An
+   * element renamed with a new IRI therefore leaves its stored values under a name the template no longer declares.
+   */
+  private static void detectElementChange(ElementSchemaArtifact oldElement, ElementSchemaArtifact newElement,
+                                          String key, Delta delta) {
+    List<String> changes = new ArrayList<>();
+    boolean destructive = detectCardinalityChange(oldElement, newElement, changes);
+    destructive |= detectPropertyChange(oldElement, newElement, changes);
+    reportChanges(key, changes, destructive, delta);
+  }
+
+  /**
    * Records a change to how many values a field or an element holds, and returns whether a stored instance can
    * fail it. A cardinality bound that narrows is destructive, and one that widens is not.
    */
@@ -346,7 +365,7 @@ public class DeltaFinder {
     return destructive;
   }
 
-  /** Records a change to the property IRI of a field or an element that keeps its name. Any change is destructive. */
+  /** Records a change to the property IRI of an element, or of a field that keeps its name. Any change is destructive. */
   private static boolean detectPropertyChange(ChildSchemaArtifact oldChild, ChildSchemaArtifact newChild,
                                               List<String> changes) {
     if (Objects.equals(oldChild.propertyUri(), newChild.propertyUri())) {

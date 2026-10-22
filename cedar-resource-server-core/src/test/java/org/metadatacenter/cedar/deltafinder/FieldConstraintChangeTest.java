@@ -38,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * instances fall out of step with their template. So must a change to how many values a field or an element
  * holds, to the granularity or timezone of a temporal field, and to the property IRI of a field or an element.
  * The delta then classes the change as destructive when a value stored under the old template can fail the new
- * one. A field renamed and changed at once is reported as a rename and as a change to the renamed field.
+ * one. A field or an element renamed and changed at once is reported as a rename and as a change to what it is now
+ * called.
  */
 public class FieldConstraintChangeTest {
 
@@ -344,6 +345,83 @@ public class FieldConstraintChangeTest {
     assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
     assertEquals(1, delta.getNonDestructiveChanges().size(), delta.toString());
     assertRename(delta.getNonDestructiveChanges().get(0), "Notes", "Comments");
+  }
+
+  static Stream<Arguments> renamesThatNarrowTheElement() {
+    return Stream.of(
+        Arguments.of("an element renamed and made multi-instance",
+            sample().build(),
+            sample().withName("Specimen").withIsMultiple(true).build()),
+        Arguments.of("a multi-instance element renamed and made single",
+            sample().withIsMultiple(true).build(),
+            sample().withName("Specimen").build()),
+        Arguments.of("a multi-instance element renamed as its minimum count rises",
+            sample().withIsMultiple(true).withMinItems(0).build(),
+            sample().withName("Specimen").withIsMultiple(true).withMinItems(1).build()),
+        Arguments.of("a multi-instance element renamed as its maximum count falls",
+            sample().withIsMultiple(true).withMaxItems(4).build(),
+            sample().withName("Specimen").withIsMultiple(true).withMaxItems(2).build()),
+        Arguments.of("a multi-instance element renamed and given a maximum count",
+            sample().withIsMultiple(true).build(),
+            sample().withName("Specimen").withIsMultiple(true).withMaxItems(2).build()),
+        // The instance clone carries a renamed element's values to its new name by the property IRI they share
+        Arguments.of("an element renamed as its property IRI is replaced",
+            sample().withPropertyUri(MATERIAL_SAMPLE).build(),
+            sample().withName("Specimen").withPropertyUri(SPECIMEN).build()));
+  }
+
+  /**
+   * A renamed element is paired with its old self by its contents alone, and its stored values move to its new name.
+   * A count the renamed element no longer admits can then refuse them, so the rename alone would hide the change.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("renamesThatNarrowTheElement")
+  public void anElementRenamedAndNarrowedAtOnceIsARenameAndADestructiveChange(String change,
+                                                                             ElementSchemaArtifact before,
+                                                                             ElementSchemaArtifact after) {
+    Delta delta = findDelta(before, after);
+
+    assertEquals(1, delta.getNonDestructiveChanges().size(), delta.toString());
+    assertRename(delta.getNonDestructiveChanges().get(0), before.name(), after.name());
+    assertOneConstraintChange(delta.getDestructiveChanges(), after.name(), true);
+  }
+
+  static Stream<Arguments> renamesThatWidenTheElement() {
+    return Stream.of(
+        Arguments.of("a multi-instance element renamed as its minimum count falls",
+            sample().withIsMultiple(true).withMinItems(1).build(),
+            sample().withName("Specimen").withIsMultiple(true).withMinItems(0).build()),
+        Arguments.of("a multi-instance element renamed as its maximum count rises",
+            sample().withIsMultiple(true).withMaxItems(2).build(),
+            sample().withName("Specimen").withIsMultiple(true).withMaxItems(4).build()),
+        Arguments.of("a multi-instance element renamed as its maximum count is removed",
+            sample().withIsMultiple(true).withMaxItems(2).build(),
+            sample().withName("Specimen").withIsMultiple(true).build()));
+  }
+
+  /** A count every stored element still meets is reported with the rename, but as safe. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("renamesThatWidenTheElement")
+  public void anElementRenamedAndWidenedAtOnceIsARenameAndASafeChange(String change, ElementSchemaArtifact before,
+                                                                     ElementSchemaArtifact after) {
+    Delta delta = findDelta(before, after);
+
+    assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
+    List<Change> changes = delta.getNonDestructiveChanges();
+    assertEquals(2, changes.size(), delta.toString());
+    assertRename(changes.get(0), before.name(), after.name());
+    assertOneConstraintChange(changes.subList(1, 2), after.name(), false);
+  }
+
+  /** Both template editors keep a renamed element's property IRI, so a rename that keeps it is a rename alone. */
+  @Test
+  public void anElementRenamedWithItsPropertyIriIsARenameAlone() {
+    Delta delta = findDelta(sample().withIsMultiple(true).withMaxItems(2).withPropertyUri(MATERIAL_SAMPLE).build(),
+        sample().withName("Specimen").withIsMultiple(true).withMaxItems(2).withPropertyUri(MATERIAL_SAMPLE).build());
+
+    assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
+    assertEquals(1, delta.getNonDestructiveChanges().size(), delta.toString());
+    assertRename(delta.getNonDestructiveChanges().get(0), "Sample", "Specimen");
   }
 
   /**
