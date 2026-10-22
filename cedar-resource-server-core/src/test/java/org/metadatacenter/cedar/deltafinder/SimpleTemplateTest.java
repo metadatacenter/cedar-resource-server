@@ -53,10 +53,10 @@ abstract public class SimpleTemplateTest {
     return delta;
   }
 
-  /** Asserts that the change is a destructive change to the property IRI of the element, and to nothing else. */
-  protected static void assertPropertyIriChange(Change change, String elementName) {
+  /** Asserts that the change is a destructive change to the property IRI of the child, and to nothing else. */
+  protected static void assertPropertyIriChange(Change change, String childName) {
     assertTrue(change instanceof ConstraintChange, "Change should be a ConstraintChange");
-    assertEquals(elementName, change.getFieldName());
+    assertEquals(childName, change.getFieldName());
     assertTrue(change.isDestructive(), "Change should be destructive");
     assertEquals("Changed: propertyUri changed", ((ConstraintChange) change).getOldConstraint());
   }

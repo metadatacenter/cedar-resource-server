@@ -143,12 +143,12 @@ public class DeltaFinder {
         delta.addDestructiveChange(new TypeChange(key, oldType, newType, true));
       }
 
-      detectFieldChange(oldField, newField, key, false, delta);
+      detectFieldChange(oldField, newField, key, delta);
     }
 
     // Step 4b: Field changes for renamed fields, whose stored values move to the new name
     renamedFields.forEach((oldKey, newKey) ->
-        detectFieldChange(oldFields.get(oldKey), newFields.get(newKey), newKey, true, delta));
+        detectFieldChange(oldFields.get(oldKey), newFields.get(newKey), newKey, delta));
 
     // Step 5: Recursively handle elements
     Set<String> commonElementKeys = new HashSet<>(oldElements.keySet());
@@ -287,20 +287,17 @@ public class DeltaFinder {
 
   /**
    * Reports every change to a field, other than its type and its name, as one change under the name it now has. It is
-   * destructive when a value stored under the old field can fail the new one. A renamed field's stored values move
-   * to its new name, which the template maps to a property IRI of its own, so its property IRI is not compared.
+   * destructive when a value stored under the old field can fail the new one. A renamed field's property IRI is
+   * compared, as a renamed element's is. The instance clone carries a renamed field's values to its new name only by
+   * an unchanged IRI.
    */
   private void detectFieldChange(FieldSchemaArtifact oldField,
                                  FieldSchemaArtifact newField,
                                  String key,
-                                 boolean renamed,
                                  Delta delta) {
     List<String> changes = new ArrayList<>();
     boolean destructive = detectCardinalityChange(oldField, newField, changes);
-
-    if (!renamed) {
-      destructive |= detectPropertyChange(oldField, newField, changes);
-    }
+    destructive |= detectPropertyChange(oldField, newField, changes);
 
     if (oldField.fieldUi().isTemporal() && newField.fieldUi().isTemporal()) {
       var oldUi = oldField.fieldUi().asTemporalFieldUi();
@@ -365,7 +362,7 @@ public class DeltaFinder {
     return destructive;
   }
 
-  /** Records a change to the property IRI of an element, or of a field that keeps its name. Any change is destructive. */
+  /** Records a change to the property IRI of a field or an element, renamed or not. Any change is destructive. */
   private static boolean detectPropertyChange(ChildSchemaArtifact oldChild, ChildSchemaArtifact newChild,
                                               List<String> changes) {
     if (Objects.equals(oldChild.propertyUri(), newChild.propertyUri())) {

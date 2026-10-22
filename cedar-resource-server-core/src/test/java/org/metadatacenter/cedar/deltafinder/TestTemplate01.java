@@ -16,8 +16,11 @@ public class TestTemplate01 extends SimpleTemplateTest {
     List<Change> destructive = delta.getDestructiveChanges();
     List<Change> nonDestructive = delta.getNonDestructiveChanges();
 
-    // Assert no destructive changes
-    assertTrue(destructive.isEmpty(), "Expected no destructive changes");
+    // The renamed field has a new property IRI. The fixture was once expected to hold no destructive change, when a
+    // renamed field's IRI went uncompared. The instance clone moves a renamed field's stored values to its new name
+    // only when the IRI is unchanged, so the new IRI leaves them under a name the template no longer declares.
+    assertEquals(1, destructive.size(), "Expected exactly one destructive change");
+    assertPropertyIriChange(destructive.get(0), "Text Field New");
 
     // Assert Rename from Text Field Old to Text Field New
     boolean hasExpectedRename = nonDestructive.stream().anyMatch(c ->

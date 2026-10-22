@@ -334,13 +334,29 @@ public class FieldConstraintChangeTest {
   }
 
   /**
-   * A renamed field's stored values move to its new name, which the template maps to a property IRI of its own.
-   * The template editor gives a renamed field a new IRI, so a rename that changes the IRI is a rename alone.
+   * The instance clone that follows a new version moves a renamed field's stored values to its new name only when
+   * its property IRI is unchanged. A field renamed as its IRI is replaced therefore leaves its values under a name
+   * the template no longer declares. This rename was once expected to be a rename alone, on the belief that the
+   * template editor gives a renamed field a new IRI. Both template editors keep the IRI instead, as they do for an
+   * element, so a replaced IRI comes from an edit of the IRI and is destructive.
    */
   @Test
-  public void aRenamedFieldTakesThePropertyIriOfItsNewName() {
+  public void aFieldRenamedAsItsPropertyIriIsReplacedIsARenameAndADestructiveChange() {
     Delta delta = findDelta(TextField.builder().withName("Notes").withPropertyUri(DESCRIPTION).build(),
         TextField.builder().withName("Comments").withPropertyUri(COMMENT).build());
+
+    assertEquals(1, delta.getNonDestructiveChanges().size(), delta.toString());
+    assertRename(delta.getNonDestructiveChanges().get(0), "Notes", "Comments");
+    assertOneConstraintChange(delta.getDestructiveChanges(), "Comments", true);
+    assertEquals("Changed: propertyUri changed",
+        ((ConstraintChange) delta.getDestructiveChanges().get(0)).getOldConstraint());
+  }
+
+  /** Both template editors keep a renamed field's property IRI, so a rename that keeps it is a rename alone. */
+  @Test
+  public void aFieldRenamedWithItsPropertyIriIsARenameAlone() {
+    Delta delta = findDelta(TextField.builder().withName("Notes").withPropertyUri(DESCRIPTION).build(),
+        TextField.builder().withName("Comments").withPropertyUri(DESCRIPTION).build());
 
     assertTrue(delta.getDestructiveChanges().isEmpty(), delta.toString());
     assertEquals(1, delta.getNonDestructiveChanges().size(), delta.toString());
