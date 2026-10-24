@@ -570,6 +570,24 @@ components:
               format: uri
               nullable: true
               description: IRI of the template an instance was filled in against.
+    ArtifactDeletionAccepted:
+      description: |
+        A deletion that is recorded and that the server completes without the caller. `pending` says
+        what is left. `artifact` means the artifact server did not confirm that the document is gone,
+        because it answered with an outage or did not answer, and the deletion is sent again until it
+        is answered. `cleanup` means the document is gone and its removal from the workspace graph or
+        the search index is still to finish.
+      type: object
+      required: ['@id', pending, message]
+      properties:
+        '@id':
+          type: string
+          format: uri
+        pending:
+          type: string
+          enum: [artifact, cleanup]
+        message:
+          type: string
     FolderOrArtifactRecord:
       description: |
         A folder or artifact record, for the operations that accept either. `resourceType` says

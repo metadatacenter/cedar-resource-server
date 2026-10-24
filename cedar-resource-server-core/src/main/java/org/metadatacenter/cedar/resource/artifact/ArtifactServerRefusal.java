@@ -2,6 +2,7 @@ package org.metadatacenter.cedar.resource.artifact;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.metadatacenter.error.CedarErrorKey;
+import org.metadatacenter.error.CedarErrorReasonKey;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.http.CedarResponseStatus;
 import org.metadatacenter.util.json.JsonMapper;
@@ -26,6 +27,18 @@ public class ArtifactServerRefusal extends CedarProcessingException {
     if (key != null) {
       errorPack.errorKey(key);
     }
+  }
+
+  /**
+   * Whether an answer is the artifact server's refusal to change or delete a template because instances
+   * reference it. That refusal is a 412, as a write that lost a race is, but nothing replaced the document,
+   * and asking again cannot succeed while the instances remain. The body tells the two apart, since only
+   * the refusal names this reason.
+   */
+  public static boolean refusesForInstances(int status, String body) {
+    JsonNode node = status == 412 ? parsed(body) : null;
+    return node != null && CedarErrorReasonKey.TEMPLATE_REFERENCED_IN_INSTANCES.getValue()
+        .equals(node.path("errorReasonKey").asText(null));
   }
 
   private static JsonNode parsed(String body) {

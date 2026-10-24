@@ -70,6 +70,7 @@ import org.metadatacenter.server.security.model.permission.resource.ResourcePerm
 import org.metadatacenter.util.CedarResourceTypeUtil;
 import org.metadatacenter.util.ModelUtil;
 import org.metadatacenter.cedar.resource.restore.ArtifactRestoreJob;
+import org.metadatacenter.cedar.resource.restore.RestoreOutcome;
 import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.ProxyUtil;
@@ -213,6 +214,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     var artifactContent = source != null ? source
         : ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(resourceType, aid, c, cedarConfig, response);
     String getResponse = artifactContent.content();
+    // The graph can refuse to record the publication, and putting its document back is then recorded here.
+    AtomicReference<Undo> undo = new AtomicReference<>();
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
@@ -327,9 +330,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               return Response.ok().entity(updatedResource).build();
             } finally {
               if (!graphUpdated && !supersededWrite) {
-                if (restoreJob != null) artifactRestoreCompletionService.restoreNow(restoreJob,c);
-                else restorePublishedArtifact(c, resourceType, aid, getResponse,
-                    putResponse.getHeaderString(HttpHeaders.ETAG));
+                String publishedEtag = putResponse.getHeaderString(HttpHeaders.ETAG);
+                undo.set(undoOf(restoreJob != null ? artifactRestoreCompletionService.restoreNow(restoreJob, c)
+                    : restorePublishedArtifact(c, resourceType, aid, getResponse, publishedEtag), publishedEtag));
               }
               if (restoreJob != null && !graphUpdated) artifactRestoreCompletionService.forgetOutcome(restoreJob);
             }
@@ -337,28 +340,33 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           }
         }
       } catch (org.metadatacenter.server.VersionTransitionConflictException e) {
-        return CedarResponse.conflict().errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST).message(e.getMessage()).build();
+        return describeUndo(CedarResponse.conflict().errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST)
+            .message(e.getMessage()).build(), undo.get());
       } catch (CedarException e) {
         // A refusal or an outage answers with its own status; this used to become a bare 500.
-        throw e;
+        throw describeUndo(e, undo.get());
       } catch (Exception e) {
         log.error("Error while publishing the artifact", e);
       }
     }
-    return CedarResponse.internalServerError()
+    return describeUndo(CedarResponse.internalServerError()
         .message("There was an error while publishing the artifact")
         .parameter("id", aid)
-        .build();
+        .build(), undo.get());
   }
 
-  /** Restore a publish write only while its exact replacement ETag is still current. */
-  private void restorePublishedArtifact(CedarRequestContext context, CedarResourceType resourceType,
-                                        CedarSchemaArtifactId artifactId, String preImage,
-                                        String publishedEtag) {
+  /**
+   * Restore a publish write only while its exact replacement ETag is still current.
+   *
+   * @return what became of the document, for the failure the publication is answered with
+   */
+  private RestoreOutcome restorePublishedArtifact(CedarRequestContext context, CedarResourceType resourceType,
+                                                  CedarSchemaArtifactId artifactId, String preImage,
+                                                  String publishedEtag) {
     if (publishedEtag == null || publishedEtag.isBlank()) {
       log.error("Failed publish left {} changed on the artifact server: conditional rollback is unavailable",
           artifactId);
-      return;
+      return new RestoreOutcome(RestoreOutcome.State.NOT_PUT_BACK, null);
     }
     try {
       Response rollback = ArtifactServerUtil.putSchemaArtifactToArtifactServer(resourceType, artifactId, context,
@@ -367,8 +375,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         log.error("Failed publish left {} changed on the artifact server: conditional rollback answered {}",
             artifactId, rollback.getStatus());
       }
+      return RestoreOutcome.answered(rollback.getStatus(), rollback.getHeaderString(HttpHeaders.ETAG),
+          rollback.getEntity() == null ? null : rollback.getEntity().toString(), false);
     } catch (Exception e) {
       log.error("Failed publish left {} changed on the artifact server: conditional rollback failed", artifactId, e);
+      return new RestoreOutcome(RestoreOutcome.State.NOT_PUT_BACK, null);
     }
   }
 
@@ -505,6 +516,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     String getResponse = ArtifactServerUtil.getSchemaArtifactFromArtifactServer(artifactType, aid, c,
         cedarConfig, response);
+    // A draft stored and never registered is removed, and what became of it is recorded here.
+    AtomicReference<Undo> undo = new AtomicReference<>();
     if (getResponse != null) {
       JsonNode getJsonNode = null;
       try {
@@ -544,6 +557,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           String artifactServerPostRequestBodyAsString = JsonMapper.STRICT_MAPPER.writeValueAsString(newDocument);
 
           String cleanupJob = artifactCreateCleanupService.prepare(artifactType, "draft", draftId);
+          boolean stored = false;
+          String storedId = draftId.map(CedarArtifactId::getId).orElse(null);
+          boolean registered = false;
           try {
             Response artifactServerPostResponse = executeResourceCreateOnArtifactServer(c, artifactType,
                 draftId, artifactServerPostRequestBodyAsString, cleanupJob);
@@ -552,6 +568,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             InputStream is = (InputStream) artifactServerPostResponse.getEntity();
             String artifactServerPostBody = is == null ? null : new String(is.readAllBytes(), StandardCharsets.UTF_8);
             if (artifactServerPostStatus == CedarResponseStatus.CREATED.getStatusCode()) {
+              stored = true;
               JsonNode artifactServerPostResponseNode = JsonMapper.STRICT_MAPPER.readTree(artifactServerPostBody);
               if (created != null) {
                 created.set(new ArtifactServerUtil.ArtifactContent(artifactServerPostResponseNode.toString(),
@@ -559,6 +576,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               }
               JsonNode atId = artifactServerPostResponseNode.at(AT_ID);
               String newIdString = atId.asText();
+              storedId = newIdString;
               CedarUntypedSchemaArtifactId newId = CedarUntypedSchemaArtifactId.build(newIdString);
 
               FolderServerArtifact sourceResource = folderSession.findSchemaArtifactById(aid);
@@ -583,6 +601,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                     .message("There was an error while creating the draft version of the artifact");
                 throw new CedarBackendException(backendCallResult);
               }
+              registered = true;
 
               FolderServerArtifact createdNewResource = folderSession.findArtifactById(newId);
               completeVersionProjections(c, relatedVersionIds(newId.getId()));
@@ -605,20 +624,24 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             }
           } finally {
             artifactCreateCleanupService.cleanupNow(cleanupJob, c);
+            if (stored && !registered) {
+              undo.set(undoOfUnregisteredCreate(c, artifactType, storedId));
+            }
           }
         }
       } catch (org.metadatacenter.server.VersionTransitionConflictException e) {
-        return CedarResponse.conflict().errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST).message(e.getMessage()).build();
+        return describeUndo(CedarResponse.conflict().errorKey(CedarErrorKey.VERSIONING_ONLY_ON_LATEST)
+            .message(e.getMessage()).build(), undo.get());
       } catch (CedarException e) {
-        throw e;
+        throw describeUndo(e, undo.get());
       } catch (Exception e) {
         log.error("Error while creating the draft version of the artifact", e);
       }
     }
-    return CedarResponse.internalServerError()
+    return describeUndo(CedarResponse.internalServerError()
         .message("There was an error while creating the draft version of the artifact")
         .parameter("id", aid)
-        .build();
+        .build(), undo.get());
   }
 
   @POST
@@ -788,6 +811,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           .build();
     }
     String getResponse = source.content();
+    AtomicReference<Undo> undo = new AtomicReference<>();
     if (getResponse != null) {
       JsonNode oldTemplateJsonNode;
       try {
@@ -826,66 +850,81 @@ public class CommandVersionResource extends AbstractResourceServerResource {
             return refusedDefinition;
           }
 
-          AtomicReference<Publication> publication = new AtomicReference<>();
-          AtomicReference<ArtifactServerUtil.ArtifactContent> createdDraft = new AtomicReference<>();
-          ArtifactServerUtil.ArtifactContent storedDraft = null;
-          boolean complete = false;
-          try {
-            Response publishResponse = publishArtifact(c, sourceId, oldVersion, source, publication);
-            if (publishResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
-              return publishResponse;
-            }
-
-            Response createResponse = createDraftArtifact(c, sourceId, newVersion, fid, true, null,
-                Optional.of(draftId.getId()), createdDraft);
-            if (createResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
-              return createResponse;
-            }
-
-            if (!(createResponse.getEntity() instanceof FolderServerTemplate entity)) {
-              log.error("Draft creation for template {} returned a successful response without a template entity", tid);
-              return CedarResponse.internalServerError()
-                  .message("Draft creation returned an invalid response")
-                  .parameter("id", tid)
-                  .build();
-            }
-            CedarTemplateId newTemplateId = CedarTemplateId.build(entity.getId());
-
-            storedDraft = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
-                CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null);
-            applyDefinitionToDraft(newTemplateJsonNode,
-                JsonMapper.STRICT_MAPPER.readTree(storedDraft.content()));
-            Response updateResponse = executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
-                JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, storedDraft.etag());
-            if (updateResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
-              return updateResponse;
-            }
-            complete = true;
-            // The worker must see the final definition, including renamed fields, before copying instances.
-            if (folderName.isPresent() && !folderName.get().isBlank()) {
-              createCopyOfInstancesWithNewTemplate(c, tid, newTemplateId, folderName.get());
-            }
-            return updateResponse;
-          } finally {
-            if (!complete) {
-              undoPublicationAndDraft(c, tid, oldVersion, publication.get(), draftId, createdDraft.get(), storedDraft);
-            }
-          }
+          return describeUndo(publishThenDraft(c, tid, sourceId, oldVersion, newVersion, fid, source, draftId,
+              newTemplateJsonNode, folderName, undo), undo.get());
         }
       } catch (CedarException e) {
-        throw e;
+        throw describeUndo(e, undo.get());
       } catch (Exception e) {
         log.error("Error while publishing template {} and creating its draft", tid, e);
-        return CedarResponse.internalServerError()
+        return describeUndo(CedarResponse.internalServerError()
             .message("There was an error while publishing the template and creating its draft")
             .parameter("id", tid)
-            .build();
+            .build(), undo.get());
       }
     }
     return CedarResponse.internalServerError()
         .message("There was an error while publishing the template and creating its draft")
         .parameter("id", tid)
         .build();
+  }
+
+  /**
+   * Publishes the template, creates its draft and gives the draft the submitted definition, undoing what
+   * committed when a later step fails. {@code undo} receives what the undoing left the template as, for
+   * the failure the command is answered with.
+   */
+  private Response publishThenDraft(CedarRequestContext c, CedarTemplateId tid, CedarUntypedSchemaArtifactId sourceId,
+                                    ResourceVersion oldVersion, ResourceVersion newVersion, CedarFolderId fid,
+                                    ArtifactServerUtil.ArtifactContent source, CedarArtifactId draftId,
+                                    ObjectNode newTemplateJsonNode, Optional<String> folderName,
+                                    AtomicReference<Undo> undo) throws Exception {
+    AtomicReference<Publication> publication = new AtomicReference<>();
+    AtomicReference<ArtifactServerUtil.ArtifactContent> createdDraft = new AtomicReference<>();
+    ArtifactServerUtil.ArtifactContent storedDraft = null;
+    boolean complete = false;
+    try {
+      Response publishResponse = publishArtifact(c, sourceId, oldVersion, source, publication);
+      if (publishResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+        return publishResponse;
+      }
+
+      Response createResponse = createDraftArtifact(c, sourceId, newVersion, fid, true, null,
+          Optional.of(draftId.getId()), createdDraft);
+      if (createResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+        return createResponse;
+      }
+
+      if (!(createResponse.getEntity() instanceof FolderServerTemplate entity)) {
+        log.error("Draft creation for template {} returned a successful response without a template entity", tid);
+        return CedarResponse.internalServerError()
+            .message("Draft creation returned an invalid response")
+            .parameter("id", tid)
+            .build();
+      }
+      CedarTemplateId newTemplateId = CedarTemplateId.build(entity.getId());
+
+      storedDraft = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
+          CedarResourceType.TEMPLATE, newTemplateId, c, cedarConfig, null);
+      applyDefinitionToDraft(newTemplateJsonNode,
+          JsonMapper.STRICT_MAPPER.readTree(storedDraft.content()));
+      Response updateResponse = executeResourceUpdateOnArtifactServerAndGraphDb(c, CedarResourceType.TEMPLATE, newTemplateId,
+          JsonMapper.STRICT_MAPPER.writeValueAsString(newTemplateJsonNode), false, storedDraft.etag());
+      if (updateResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+        return updateResponse;
+      }
+      complete = true;
+      // The worker must see the final definition, including renamed fields, before copying instances.
+      if (folderName.isPresent() && !folderName.get().isBlank()) {
+        createCopyOfInstancesWithNewTemplate(c, tid, newTemplateId, folderName.get());
+      }
+      return updateResponse;
+    } finally {
+      if (!complete) {
+        undo.set(undoPublicationAndDraft(c, tid, oldVersion, publication.get(), draftId, createdDraft.get(),
+            storedDraft));
+      }
+    }
   }
 
   /** What a publication changed in the artifact store, so a command that fails later can put it back. */
@@ -947,8 +986,11 @@ public class CommandVersionResource extends AbstractResourceServerResource {
    * Undoes what a failed publish-create-draft-template committed: the draft it created, then the
    * publication. It is best effort and never throws, so the caller still answers with the failing step's
    * own status. Whatever it cannot put back is logged with the identifiers needed to find it.
+   *
+   * @return what the undoing left the template as, for the failure the command is answered with, or null
+   *     when the command had committed nothing
    */
-  private void undoPublicationAndDraft(CedarRequestContext c, CedarTemplateId sourceId, ResourceVersion version,
+  private Undo undoPublicationAndDraft(CedarRequestContext c, CedarTemplateId sourceId, ResourceVersion version,
                                        Publication publication, CedarArtifactId draftId,
                                        ArtifactServerUtil.ArtifactContent createdDraft,
                                        ArtifactServerUtil.ArtifactContent storedDraft) {
@@ -956,13 +998,17 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       if (!removeDraftOfFailedCommand(c, draftId, createdDraft, storedDraft)) {
         log.error("Publishing {} and drafting {} failed, and the draft could not be removed; the template "
             + "stays published", sourceId, draftId);
-        return;
+        return new Undo("The draft created from the template could not be removed, so the template stays "
+            + "published.", publication == null ? null : publication.publishedEtag());
       }
       if (publication != null) {
-        returnSourceToDraft(c, sourceId, version, publication);
+        return returnSourceToDraft(c, sourceId, version, publication);
       }
+      return createdDraft == null ? null : new Undo("No draft of the template remains.", null);
     } catch (Exception failure) {
       log.error("Undoing the failed publication of {} and its draft {} did not finish", sourceId, draftId, failure);
+      return new Undo("Undoing the template's publication did not finish, so whether the template is still "
+          + "published is not known. Read it before trying again.", null);
     }
   }
 
@@ -1060,20 +1106,27 @@ public class CommandVersionResource extends AbstractResourceServerResource {
    * fenced by a durable restore that puts the published document back if the graph does not commit, so
    * the two stores end describing the same state either way.
    */
-  private void returnSourceToDraft(CedarRequestContext c, CedarTemplateId sourceId, ResourceVersion version,
+  private Undo returnSourceToDraft(CedarRequestContext c, CedarTemplateId sourceId, ResourceVersion version,
                                    Publication publication) throws CedarException {
     Response restored = ArtifactServerUtil.putSchemaArtifactToArtifactServer(CedarResourceType.TEMPLATE, sourceId, c,
         publication.preImage(), cedarConfig, publication.publishedEtag());
     if (restored.getStatus() != HttpStatus.SC_OK) {
       log.error("The failed publication of {} could not be undone: putting its draft document back answered {}",
           sourceId, restored.getStatus());
-      return;
+      // A refused put-back leaves the published document, except after a 412 that names no instances,
+      // which means another write replaced it and its ETag is not known here.
+      boolean replaced = restored.getStatus() == HttpStatus.SC_PRECONDITION_FAILED
+          && !ArtifactServerRefusal.refusesForInstances(restored.getStatus(),
+              restored.getEntity() == null ? null : restored.getEntity().toString());
+      return new Undo("No draft of the template remains, but the template could not be returned to the draft it "
+          + "was, so it stays published.", replaced ? null : publication.publishedEtag());
     }
     String restoredEtag = restored.getHeaderString(HttpHeaders.ETAG);
     ArtifactRestoreJob restoreJob = artifactRestoreCompletionService == null ? null
         : artifactRestoreCompletionService.prepare(sourceId, CedarResourceType.TEMPLATE,
             publication.publishedDocument(), restoredEtag, false);
     boolean returned = false;
+    RestoreOutcome republished = null;
     try {
       returned = artifactRestoreCompletionService != null && artifactRestoreCompletionService.returnToDraft(
           restoreJob, sourceId, version.getValue(), version.getValue(), c.getCedarUser().getId());
@@ -1082,10 +1135,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
         log.error("The failed publication of {} could not be undone in the graph; its published document is "
             + "being put back", sourceId);
         if (restoreJob != null) {
-          artifactRestoreCompletionService.restoreNow(restoreJob, c);
+          republished = artifactRestoreCompletionService.restoreNow(restoreJob, c);
         } else {
-          restorePublishedArtifact(c, CedarResourceType.TEMPLATE, sourceId, publication.publishedDocument(),
-              restoredEtag);
+          republished = restorePublishedArtifact(c, CedarResourceType.TEMPLATE, sourceId,
+              publication.publishedDocument(), restoredEtag);
         }
       }
       if (restoreJob != null && !returned) {
@@ -1093,6 +1146,21 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       }
       completeVersionProjections(c, relatedVersionIds(sourceId.getId()));
     }
+    if (returned) {
+      return new Undo("The template's publication was undone, and no draft of it remains.", restoredEtag);
+    }
+    String kept = "No draft of the template remains. The graph kept the template published";
+    return switch (republished.state()) {
+      case PUT_BACK, SETTLED -> new Undo(kept + ", so its published document was put back and it stays published.",
+          republished.etag());
+      case OVERTAKEN -> new Undo(kept + ", and a later write has replaced its document since.", null);
+      case RECORDED -> new Undo(kept + ". Putting its published document back is recorded and will be retried.",
+          null);
+      case PARKED -> new Undo(kept + ", and the artifact server refused to put its published document back. The "
+          + "refusal is recorded for a person to resolve.", restoredEtag);
+      case NOT_PUT_BACK -> new Undo(kept + ", and its published document could not be put back, so its document "
+          + "is the draft while the graph says it is published.", restoredEtag);
+    };
   }
 
   /**

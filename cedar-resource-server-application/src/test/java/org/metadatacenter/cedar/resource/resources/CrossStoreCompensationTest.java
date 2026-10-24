@@ -192,6 +192,7 @@ public class CrossStoreCompensationTest {
     Assertions.assertEquals(500, response.statusCode(), response.body());
     assertPutBack(id, before, verbatim);
     Assertions.assertNull(restoreJobOf(id), "a restore is still pending after it succeeded");
+    assertDescribesTheUndo(response, appliedTo(id).get(1).etag(), "was put back as it was before this request");
   }
 
   /**
@@ -212,6 +213,7 @@ public class CrossStoreCompensationTest {
     HttpResponse<String> response = edit(id, before, verbatim);
 
     Assertions.assertEquals(500, response.statusCode(), response.body());
+    assertDescribesTheUndo(response, null, "will be retried");
     Applied replacement = appliedTo(id).get(0);
     Map<String, Object> job = restoreJobOf(id);
     Assertions.assertNotNull(job, "the refused put-back was not left for the relay");
@@ -229,13 +231,51 @@ public class CrossStoreCompensationTest {
   }
 
   /**
+   * The artifact server answers a put-back with 412 for two reasons. A later write has replaced the
+   * document, and what it wrote stands, so the restore is settled. Or instances now reference the template
+   * and the put-back would give it other children. Nothing replaced the document then, which still holds
+   * the failed write, and asking again would be refused again, so the restore is parked for a person
+   * rather than settled. The answer says which of the two happened.
+   */
+  @ParameterizedTest(name = "the put-back answered 412 because {0}")
+  @ValueSource(strings = {"a later write replaced the document", "instances now use the template"})
+  public void aPutBackRefusedWith412IsSettledOnlyWhenALaterWriteCausedIt(String cause) throws Exception {
+    String id = createTemplate("Edit whose put-back meets a 412 because " + cause);
+    Stored before = DOCUMENTS.get(id);
+    FAULTS.add(unreadableAnswerToTheNextReplacementOf(id));
+    ObjectNode laterWrite = before.body().deepCopy().put(ModelNodeNames.SCHEMA_ORG_NAME, "A later writer's edit");
+    FAULTS.add(cause.startsWith("a later write") ? (exchange, request) -> {
+      if (request.method().equals("PUT") && id.equals(request.id()) && appliedTo(id).size() == 1) {
+        store(id, laterWrite.deepCopy(), "PUT", null, false);
+      }
+      return false;
+    } : refusingForInstances(id));
+
+    HttpResponse<String> response = edit(id, before, false);
+
+    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Map<String, Object> job = restoreJobOf(id);
+    if (cause.startsWith("a later write")) {
+      Assertions.assertEquals(laterWrite, DOCUMENTS.get(id).body(), "the later write did not stand");
+      Assertions.assertNull(job, "a restore a later write settled was kept");
+      assertDescribesTheUndo(response, null, "A later write has replaced");
+    } else {
+      Assertions.assertEquals(editOf(before, false), DOCUMENTS.get(id).body());
+      Assertions.assertNotNull(job, "a put-back instances block was settled as though a later write had replaced it");
+      Assertions.assertEquals(Boolean.TRUE, job.get("parked"), job.toString());
+      Assertions.assertTrue(String.valueOf(job.get("parkedReason")).contains("Instances"), job.toString());
+      assertDescribesTheUndo(response, appliedTo(id).get(0).etag(), "refused to put it back");
+    }
+  }
+
+  /**
    * With no restore outbox, the request's put-back is the only one there is. Whatever answer it gets, it
    * never overwrites a later write. It names the replacement's ETag, so a document another writer has
    * replaced since keeps their content, and a put-back that is refused or unanswered is never sent again
    * without that condition. The caller is told the edit failed either way.
    */
   @ParameterizedTest(name = "the put-back answered {0}")
-  @ValueSource(strings = {"412 after another write", "503", "no answer"})
+  @ValueSource(strings = {"412 after another write", "412 because instances use the template", "503", "no answer"})
   public void aPutBackInTheRequestNeverOverwritesALaterWrite(String answer) throws Exception {
     String id = createTemplate("Edit whose put-back meets " + answer);
     Stored before = DOCUMENTS.get(id);
@@ -248,6 +288,7 @@ public class CrossStoreCompensationTest {
         }
         return false;
       };
+      case "412 because instances use the template" -> refusingForInstances(id);
       case "503" -> refusing("PUT", id, 503);
       default -> refusing("PUT", id, null);
     });
@@ -260,8 +301,13 @@ public class CrossStoreCompensationTest {
     Assertions.assertFalse(putBacks.isEmpty(), "no put-back was attempted");
     Assertions.assertTrue(putBacks.stream().allMatch(putBack -> replacementEtag.equals(putBack.condition())),
         "a put-back did not name the replacement's ETag: " + putBacks);
-    ObjectNode expected = answer.startsWith("412") ? laterWrite : editOf(before, false);
+    ObjectNode expected = answer.equals("412 after another write") ? laterWrite : editOf(before, false);
     Assertions.assertEquals(expected, DOCUMENTS.get(id).body(), "the put-back overwrote what it should have left");
+    if (answer.equals("412 after another write")) {
+      assertDescribesTheUndo(response, null, "A later write has replaced");
+    } else {
+      assertDescribesTheUndo(response, replacementEtag, "still holds this write");
+    }
   }
 
   /**
@@ -288,6 +334,7 @@ public class CrossStoreCompensationTest {
     Assertions.assertEquals(1, SEEN.stream().filter(seen -> seen.method().equals("PUT") && id.equals(seen.id())).count(),
         "a put-back was sent with nothing to make it conditional on");
     Assertions.assertNull(restoreJobOf(id), "a put-back with no condition was recorded");
+    assertDescribesTheUndo(response, null, "still holds this write");
   }
 
   /**
@@ -321,6 +368,42 @@ public class CrossStoreCompensationTest {
     Assertions.assertNull(restoreJobOf(id), "the restore was left pending");
     Assertions.assertEquals(0, count("MATCH (o:CedarArtifactRestoreOutcome {resourceId:$id}) RETURN count(o) AS n", id),
         "the edit left its restore receipt behind");
+    Assertions.assertEquals("templateNotUpdated",
+        JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(), response.body());
+    assertDescribesTheUndo(response, null, "was put back before the graph recorded this write");
+  }
+
+  /**
+   * The graph step can find its restore record gone with no receipt saying what became of it. Nothing
+   * then says whether the document was put back, so the edit is answered as failed, and the answer says
+   * that the document's state is not known rather than naming an ETag for it.
+   */
+  @Test
+  public void anEditWhoseRestoreRecordVanishedSaysItsDocumentIsNotKnown() throws Exception {
+    String id = createTemplate("Edit whose restore record vanished");
+    Stored before = DOCUMENTS.get(id);
+    ArtifactRestoreCompletionService original = AbstractResourceServerResource.artifactRestoreCompletionService;
+    ArtifactRestoreCompletionService losingTheRecord = Mockito.spy(original);
+    Mockito.doAnswer(call -> {
+      ArtifactRestoreJob job = (ArtifactRestoreJob) call.callRealMethod();
+      run("MATCH (e:CedarArtifactRestoreOutbox {jobId:$id}) DELETE e", job.jobId());
+      return job;
+    }).when(losingTheRecord).prepare(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyString(),
+        ArgumentMatchers.anyString(), ArgumentMatchers.anyBoolean());
+    HttpResponse<String> response;
+    try {
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(losingTheRecord);
+      response = edit(id, before, false);
+    } finally {
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(original);
+    }
+
+    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Assertions.assertEquals("templateNotUpdated",
+        JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(), response.body());
+    assertDescribesTheUndo(response, null, "is not known");
+    Assertions.assertEquals(editOf(before, false), DOCUMENTS.get(id).body());
+    Assertions.assertEquals("Edit whose restore record vanished", nodeOf(id).getName(), "the graph recorded the edit");
   }
 
   /**
@@ -490,6 +573,7 @@ public class CrossStoreCompensationTest {
     Assertions.assertEquals("bibo:draft", node.getPublicationStatus().getValue());
     Assertions.assertEquals("3.0.0", node.getVersion().getValue());
     Assertions.assertNull(restoreJobOf(id), "a restore is still pending after it succeeded");
+    assertDescribesTheUndo(response, writes.get(1).etag(), "was put back as it was before this request");
   }
 
   /**
@@ -529,11 +613,13 @@ public class CrossStoreCompensationTest {
     if (answer.endsWith("without an ETag")) {
       Assertions.assertEquals(1, puts.size(), "a put-back was sent with nothing to make it conditional on: " + puts);
       Assertions.assertNull(restoreJobOf(id), "a put-back with no condition was recorded");
+      assertDescribesTheUndo(response, null, "still holds this write");
     } else {
       String publishedEtag = appliedTo(id).get(0).etag();
       Assertions.assertTrue(puts.size() > 1, "no put-back was attempted");
       Assertions.assertTrue(puts.stream().skip(1).allMatch(putBack -> publishedEtag.equals(putBack.condition())),
           "a put-back did not name the publication's ETag: " + puts);
+      assertDescribesTheUndo(response, publishedEtag, "still holds this write");
     }
     Assertions.assertEquals(1, appliedTo(id).size(), "a refused put-back changed the document");
   }
@@ -576,6 +662,337 @@ public class CrossStoreCompensationTest {
     Assertions.assertEquals(1, folderSession.getVersionHistory(org.metadatacenter.id.CedarTemplateId.build(id)).size(),
         "a refused draft reached the graph");
     Assertions.assertTrue(((FolderServerSchemaArtifact) nodeOf(id)).isLatestVersion());
+  }
+
+  /**
+   * A verbatim write states a whole document, but not a new version, status or predecessor. The graph
+   * holds those as well as the document, and only the lifecycle commands move them in both, so a
+   * verbatim write that changes one is refused before anything is written, and the refusal names the key.
+   */
+  @ParameterizedTest(name = "{0}")
+  @ValueSource(strings = {"pav:version changed", "bibo:status changed", "pav:previousVersion added",
+      "pav:previousVersion changed", "pav:previousVersion removed"})
+  public void aVerbatimWriteThatChangesLifecycleIsRefused(String change) throws Exception {
+    String id = createTemplate("Verbatim write that changes " + change);
+    String predecessor = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    if (change.equals("pav:previousVersion changed") || change.equals("pav:previousVersion removed")) {
+      replaceDocument(id, DOCUMENTS.get(id).body().deepCopy().put(ModelNodeNames.PAV_PREVIOUS_VERSION, predecessor));
+    }
+    Stored before = DOCUMENTS.get(id);
+    ObjectNode written = before.body().deepCopy();
+    switch (change) {
+      case "pav:version changed" -> written.put(ModelNodeNames.PAV_VERSION, "0.0.2");
+      case "bibo:status changed" -> written.put(ModelNodeNames.BIBO_STATUS, "bibo:published");
+      case "pav:previousVersion removed" -> written.remove(ModelNodeNames.PAV_PREVIOUS_VERSION);
+      default -> written.put(ModelNodeNames.PAV_PREVIOUS_VERSION,
+          cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    }
+
+    HttpResponse<String> response = send("PUT", "/templates/" + encode(id) + "?verbatim=true", written.toString(),
+        before.etag(), adminAuthHeader);
+
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    Assertions.assertEquals("verbatimWriteRefused", error.path("errorKey").asText(), response.body());
+    String key = change.substring(0, change.indexOf(' '));
+    Assertions.assertTrue(error.path("message").asText().contains(key), "the refusal does not name " + key + ": " + response.body());
+    Assertions.assertTrue(writesTo(id).isEmpty(), "a refused verbatim write reached the artifact server");
+    Assertions.assertEquals(before, DOCUMENTS.get(id));
+  }
+
+  /**
+   * The registered repairs that touch these keys change how a value is written rather than what it says,
+   * and a verbatim write that makes one of them is stored. A short version can be written in full, a
+   * predecessor that names no artifact can be dropped, and an instance can lose the version and status it
+   * copied from its template, since an instance has no lifecycle of its own in the graph.
+   */
+  @ParameterizedTest(name = "{0}")
+  @ValueSource(strings = {"a short pav:version written in full", "a pav:previousVersion naming no artifact dropped",
+      "an instance's copied pav:version and bibo:status dropped"})
+  public void aVerbatimRepairThatKeepsLifecycleIsStored(String repair) throws Exception {
+    String id;
+    String path;
+    ObjectNode written;
+    if (repair.startsWith("an instance")) {
+      id = createInstance("Instance carrying its template's lifecycle");
+      path = "/template-instances/";
+      written = DOCUMENTS.get(id).body().deepCopy();
+      written.remove(List.of(ModelNodeNames.PAV_VERSION, ModelNodeNames.BIBO_STATUS));
+    } else {
+      id = createTemplate("Verbatim repair: " + repair);
+      path = "/templates/";
+      ObjectNode stored = DOCUMENTS.get(id).body().deepCopy();
+      written = stored.deepCopy();
+      if (repair.startsWith("a short")) {
+        stored.put(ModelNodeNames.PAV_VERSION, "1");
+        written.put(ModelNodeNames.PAV_VERSION, "1.0.0");
+      } else {
+        stored.put(ModelNodeNames.PAV_PREVIOUS_VERSION, "1.0.0");
+      }
+      replaceDocument(id, stored);
+    }
+    Stored before = DOCUMENTS.get(id);
+
+    HttpResponse<String> response = send("PUT", path + encode(id) + "?verbatim=true", written.toString(),
+        before.etag(), adminAuthHeader);
+
+    Assertions.assertEquals(200, response.statusCode(), response.body());
+    Assertions.assertEquals(written, DOCUMENTS.get(id).body(), "the repair was not stored as written");
+  }
+
+  /**
+   * A deletion the artifact server did not confirm, with an outage answer or with no answer at all, stays
+   * recorded, and the relay sends it again until it completes. The caller is told so with 202 and a body
+   * that says the deletion will be completed, rather than with a failure that would soon stop being true.
+   * Until the relay runs, both stores still hold the artifact.
+   */
+  @ParameterizedTest(name = "the DELETE answered {0}")
+  @ValueSource(strings = {"500", "503", "no answer"})
+  public void aDeletionTheRelayWillCompleteIsAccepted(String answer) throws Exception {
+    String id = createTemplate("Deletion the relay completes after " + answer);
+    Stored before = DOCUMENTS.get(id);
+    FAULTS.add(refusing("DELETE", id, answer.equals("no answer") ? null : Integer.valueOf(answer)));
+
+    HttpResponse<String> response = send("DELETE", "/templates/" + encode(id), null, before.etag(), userAuthHeader);
+
+    Assertions.assertEquals(202, response.statusCode(), response.body());
+    JsonNode accepted = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    Assertions.assertEquals(id, accepted.path("@id").asText(), response.body());
+    Assertions.assertEquals("artifact", accepted.path("pending").asText(), response.body());
+    Assertions.assertTrue(accepted.path("message").asText().contains("will be completed"), response.body());
+    Assertions.assertEquals(before, DOCUMENTS.get(id));
+    Assertions.assertNotNull(nodeOf(id));
+    Map<String, Object> job = deletionJobOf(id);
+    Assertions.assertNotNull(job, "the deletion was not left for the relay");
+    Assertions.assertEquals(Boolean.FALSE, job.get("artifactDeleted"));
+    Assertions.assertNotEquals(Boolean.TRUE, job.get("parked"));
+  }
+
+  /**
+   * A deletion whose document is gone but whose graph or search cleanup is still running answers 202 with
+   * the same body, which says that it is the cleanup that will be completed.
+   */
+  @Test
+  public void aDeletionWhoseCleanupIsPendingSaysSo() throws Exception {
+    String id = createTemplate("Deletion whose cleanup is pending");
+    Stored before = DOCUMENTS.get(id);
+
+    HttpResponse<String> response = send("DELETE", "/templates/" + encode(id), null, before.etag(), userAuthHeader);
+
+    // The relay's index client points at no index here, so removing the search document cannot finish.
+    Assertions.assertEquals(202, response.statusCode(), response.body());
+    JsonNode accepted = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    Assertions.assertEquals(id, accepted.path("@id").asText(), response.body());
+    Assertions.assertEquals("cleanup", accepted.path("pending").asText(), response.body());
+    Assertions.assertTrue(accepted.path("message").asText().contains("will be completed"), response.body());
+    Assertions.assertFalse(DOCUMENTS.containsKey(id));
+    Assertions.assertNull(nodeOf(id));
+  }
+
+  /**
+   * A DOI is minted for a template or an instance, and an element or a field has none to carry. One whose
+   * document carries a DOI annotation is refused, on create and on update, before anything is written.
+   */
+  @ParameterizedTest(name = "{0}, on {1}")
+  @CsvSource({"element, create", "element, update", "field, create", "field, update"})
+  public void anElementOrFieldCarryingADoiIsRefused(String kind, String operation) throws Exception {
+    CedarResourceType type = kind.equals("element") ? CedarResourceType.ELEMENT : CedarResourceType.FIELD;
+    String collection = "/" + type.getPrefix();
+    int writes = (int) SEEN.stream().filter(seen -> !seen.method().equals("GET")).count();
+    HttpResponse<String> response;
+    if (operation.equals("create")) {
+      ObjectNode body = withDoi(schemaArtifactDocument(type, null, "A " + kind + " with a DOI"));
+      response = send("POST", collection + "?folder_id=" + encode(homeFolderId.getId()), body.toString(), null,
+          userAuthHeader);
+    } else {
+      String id = createSchemaArtifact(type, "A " + kind + " given a DOI");
+      Stored before = DOCUMENTS.get(id);
+      response = send("PUT", collection + "/" + encode(id), withDoi(before.body().deepCopy()).toString(),
+          before.etag(), userAuthHeader);
+      Assertions.assertEquals(before, DOCUMENTS.get(id));
+    }
+
+    Assertions.assertEquals(400, response.statusCode(), response.body());
+    Assertions.assertEquals("doiNotSupportedByResourceType",
+        JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(), response.body());
+    Assertions.assertEquals(writes, SEEN.stream().filter(seen -> !seen.method().equals("GET")).count(),
+        "a refused " + kind + " reached the artifact server");
+  }
+
+  /**
+   * The artifact server refuses to replace or to delete a template that instances still use, with 412 and
+   * a reason saying so. The caller receives that refusal as the artifact server stated it.
+   */
+  @ParameterizedTest(name = "{0}")
+  @ValueSource(strings = {"PUT", "DELETE"})
+  public void aTemplateWriteThatInstancesBlockIsRefusedWithTheArtifactServersReason(String method) throws Exception {
+    String id = createTemplate("Template whose " + method + " instances block");
+    Stored before = DOCUMENTS.get(id);
+    FAULTS.add((exchange, request) -> {
+      if (!request.method().equals(method) || !id.equals(request.id())) {
+        return false;
+      }
+      respond(exchange, 412, "{\"errorKey\":\"templateNotUpdated\",\"errorReasonKey\":\"templateReferencedInInstances\","
+          + "\"message\":\"Instances use this template\"}", null);
+      return true;
+    });
+
+    HttpResponse<String> response = method.equals("PUT")
+        ? send("PUT", "/templates/" + encode(id), editOf(before, false).toString(), before.etag(), userAuthHeader)
+        : send("DELETE", "/templates/" + encode(id), null, before.etag(), userAuthHeader);
+
+    Assertions.assertEquals(412, response.statusCode(), response.body());
+    JsonNode refusal = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    Assertions.assertEquals("templateReferencedInInstances", refusal.path("errorReasonKey").asText(), response.body());
+    Assertions.assertEquals("Instances use this template", refusal.path("message").asText(), response.body());
+    Assertions.assertEquals(before, DOCUMENTS.get(id));
+    Assertions.assertNotNull(nodeOf(id));
+  }
+
+  /**
+   * A create, a draft and a copy each store their document first and register it in the graph second.
+   * When the registration fails, here because the destination folder is deleted in between, the document
+   * is removed. The failure answered for the request says so, and names neither the removed document's
+   * location nor its ETag.
+   */
+  @ParameterizedTest(name = "{0}")
+  @ValueSource(strings = {"a create by POST", "a create by PUT", "a draft", "a copy"})
+  public void aCreateWhoseRegistrationFailsSaysItsDocumentWasRemoved(String operation) throws Exception {
+    org.metadatacenter.model.folderserver.basic.FolderServerFolder doomed =
+        new org.metadatacenter.model.folderserver.basic.FolderServerFolder();
+    doomed.setName("Destination removed during " + operation + " " + REVISIONS.incrementAndGet());
+    doomed.setDescription("Deleted after the content write");
+    CedarFolderId folderId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataIdObject(CedarFolderId.class);
+    Assertions.assertNotNull(folderSession.createFolderAsChildOfId(doomed, homeFolderId, folderId));
+    String source = null;
+    if (operation.equals("a draft") || operation.equals("a copy")) {
+      source = createTemplate("Source of " + operation, "1.0.0", null);
+      if (operation.equals("a draft")) {
+        folderSession.updateArtifactById(artifactId(source), CedarResourceType.TEMPLATE,
+            Map.of(org.metadatacenter.server.neo4j.cypher.NodeProperty.PUBLICATION_STATUS, "bibo:published",
+                org.metadatacenter.server.neo4j.cypher.NodeProperty.VERSION, "1.0.0"));
+        replaceDocument(source, DOCUMENTS.get(source).body().deepCopy().put(ModelNodeNames.BIBO_STATUS, "bibo:published"));
+      }
+    }
+    String chosen = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    java.util.concurrent.atomic.AtomicReference<String> stored = new java.util.concurrent.atomic.AtomicReference<>();
+    String sourceId = source;
+    FAULTS.add((exchange, request) -> {
+      boolean creates = request.method().equals("POST") && request.id() == null
+          || request.method().equals("PUT") && request.id() != null && !request.id().equals(sourceId)
+          && request.condition() == null && !DOCUMENTS.containsKey(request.id());
+      if (!creates || stored.get() != null) {
+        return false;
+      }
+      ObjectNode body = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(request.body());
+      String id = request.id() != null ? request.id()
+          : cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+      body.put(ModelNodeNames.JSON_LD_ID, id);
+      Stored created = store(id, body, request.method(), null, false);
+      stored.set(id);
+      Assertions.assertTrue(folderSession.deleteFolderById(folderId));
+      exchange.getResponseHeaders().set("Location", id);
+      respond(exchange, 201, created.body().toString(), created.etag());
+      return true;
+    });
+
+    HttpResponse<String> response = switch (operation) {
+      case "a create by POST" -> send("POST", "/templates?folder_id=" + encode(folderId.getId()),
+          templateDocument(null, "Created into a folder that is deleted", "0.0.1", null).toString(), null, userAuthHeader);
+      case "a create by PUT" -> send("PUT", "/templates/" + encode(chosen) + "?folder_id=" + encode(folderId.getId()),
+          templateDocument(chosen, "Created into a folder that is deleted", "0.0.1", null).toString(), null, userAuthHeader);
+      case "a draft" -> send("POST", "/command/create-draft-artifact", "{\"@id\":\"" + source + "\",\"newVersion\":\"1.0.1\","
+          + "\"folderId\":\"" + folderId.getId() + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}", null, userAuthHeader);
+      default -> send("POST", "/command/copy-artifact-to-folder", "{\"@id\":\"" + source + "\",\"targetFolderId\":\""
+          + folderId.getId() + "\",\"nameTemplate\":\"Copy of {{name}}\"}", null, userAuthHeader);
+    };
+
+    Assertions.assertTrue(response.statusCode() >= 400, response.statusCode() + " " + response.body());
+    Assertions.assertNotNull(stored.get(), "the request never stored a document");
+    Assertions.assertFalse(DOCUMENTS.containsKey(stored.get()), "the unregistered document was not removed");
+    Assertions.assertNull(nodeOf(stored.get()));
+    assertDescribesTheUndo(response, null, "was removed");
+  }
+
+  /**
+   * The failure answered for an undone write describes the artifact as the undo left it. It carries the
+   * ETag the artifact has now, or none where that is not known, no Location, and a message that says what
+   * became of the write.
+   */
+  private static void assertDescribesTheUndo(HttpResponse<String> response, String etag, String saying)
+      throws IOException {
+    Assertions.assertEquals(java.util.Optional.ofNullable(etag), response.headers().firstValue("ETag"),
+        "the answer's ETag is not the one the undo left: " + response.headers().map());
+    Assertions.assertTrue(response.headers().firstValue("Location").isEmpty(),
+        "the answer names a location the undo removed: " + response.headers().map());
+    String message = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("message").asText();
+    Assertions.assertTrue(message.contains(saying), "the answer does not say what became of the write: " + message);
+  }
+
+  private static ObjectNode withDoi(ObjectNode document) {
+    document.putObject(ModelNodeNames.ANNOTATIONS).putObject(ModelNodeNames.DATACITE_DOI_URI)
+        .put(ModelNodeNames.JSON_LD_ID, "10.5072/FK2-schema-artifact");
+    return document;
+  }
+
+  /** A draft element or field the test user owns, present in both stores. */
+  private static String createSchemaArtifact(CedarResourceType type, String name) {
+    String id = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(type);
+    FolderServerSchemaArtifact node = type == CedarResourceType.ELEMENT
+        ? new org.metadatacenter.model.folderserver.basic.FolderServerElement()
+        : new org.metadatacenter.model.folderserver.basic.FolderServerField();
+    node.setId(id);
+    node.setName(name);
+    node.setDescription("Cross-store compensation fixture");
+    node.setVersion("0.0.1");
+    node.setPublicationStatus("bibo:draft");
+    node.setLatestVersion(true);
+    node.setLatestDraftVersion(true);
+    node.setLatestPublishedVersion(false);
+    Assertions.assertNotNull(folderSession.createResourceAsChildOfId(node, homeFolderId));
+    replaceDocument(id, schemaArtifactDocument(type, id, name));
+    return id;
+  }
+
+  private static ObjectNode schemaArtifactDocument(CedarResourceType type, String id, String name) {
+    ObjectNode document = JsonMapper.STRICT_MAPPER.createObjectNode();
+    if (id != null) {
+      document.put(ModelNodeNames.JSON_LD_ID, id);
+    }
+    return document.put("@type", type.getAtType())
+        .put(ModelNodeNames.SCHEMA_ORG_NAME, name)
+        .put(ModelNodeNames.SCHEMA_ORG_DESCRIPTION, "Cross-store compensation fixture")
+        .put(ModelNodeNames.PAV_VERSION, "0.0.1")
+        .put(ModelNodeNames.BIBO_STATUS, "bibo:draft");
+  }
+
+  /** An instance the test user owns, present in both stores, whose document copied its template's lifecycle. */
+  private static String createInstance(String name) throws Exception {
+    String templateId = createTemplate("Template of " + name);
+    String id = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.INSTANCE);
+    var instance = new org.metadatacenter.model.folderserver.basic.FolderServerInstance();
+    instance.setId(id);
+    instance.setName(name);
+    instance.setDescription("Cross-store compensation fixture");
+    instance.setIsBasedOn(org.metadatacenter.id.CedarTemplateId.build(templateId));
+    Assertions.assertNotNull(folderSession.createResourceAsChildOfId(instance, homeFolderId));
+    replaceDocument(id, JsonMapper.STRICT_MAPPER.createObjectNode()
+        .put(ModelNodeNames.JSON_LD_ID, id)
+        .put(ModelNodeNames.SCHEMA_IS_BASED_ON, templateId)
+        .put(ModelNodeNames.SCHEMA_ORG_NAME, name)
+        .put(ModelNodeNames.SCHEMA_ORG_DESCRIPTION, "Cross-store compensation fixture")
+        .put(ModelNodeNames.PAV_VERSION, "0.0.1")
+        .put(ModelNodeNames.BIBO_STATUS, "bibo:draft"));
+    return id;
+  }
+
+  /** The deletion outbox's job for an artifact, as its properties, or null when there is none. */
+  private static Map<String, Object> deletionJobOf(String id) {
+    try (var driver = graphDriver(); var session = driver.session()) {
+      var found = session.run("MATCH (e:CedarArtifactDeletionOutbox {resourceId:$id}) RETURN properties(e) AS job",
+          Map.of("id", id));
+      return found.hasNext() ? found.single().get("job").asMap() : null;
+    }
   }
 
   /** The edit every compensation case makes: the stored document under a new name, or a stated provenance. */
@@ -625,6 +1042,18 @@ public class CrossStoreCompensationTest {
       Stored replaced = store(id, (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(request.body()), "PUT",
           request.condition(), request.verbatim());
       respond(exchange, 200, "not a document", replaced.etag());
+      return true;
+    };
+  }
+
+  /** Refuses every PUT of the document as the artifact server refuses a template that instances reference. */
+  private static Fault refusingForInstances(String id) {
+    return (exchange, request) -> {
+      if (!request.method().equals("PUT") || !id.equals(request.id())) {
+        return false;
+      }
+      respond(exchange, 412, "{\"errorKey\":\"templateNotUpdated\",\"errorReasonKey\":\"templateReferencedInInstances\","
+          + "\"message\":\"Instances use this template\"}", null);
       return true;
     };
   }
@@ -781,12 +1210,16 @@ public class CrossStoreCompensationTest {
     String path = exchange.getRequestURI().getPath();
     String query = exchange.getRequestURI().getQuery();
     String id = null;
+    CedarResourceType collectionType = CedarResourceType.TEMPLATE;
     for (CedarResourceType type : List.of(CedarResourceType.TEMPLATE, CedarResourceType.ELEMENT,
         CedarResourceType.FIELD, CedarResourceType.INSTANCE)) {
-      String collection = "/" + type.getPrefix() + "/";
-      if (path.startsWith(collection) && path.length() > collection.length()) {
+      String collection = "/" + type.getPrefix();
+      if (path.equals(collection)) {
+        collectionType = type;
+      } else if (path.startsWith(collection + "/") && path.length() > collection.length() + 1) {
+        collectionType = type;
         id = cedarConfig.getLinkedDataUtil().resolveResourceId(type,
-            URLDecoder.decode(path.substring(collection.length()), StandardCharsets.UTF_8));
+            URLDecoder.decode(path.substring(collection.length() + 1), StandardCharsets.UTF_8));
       }
     }
     String condition = exchange.getRequestHeaders().getFirst("If-Match");
@@ -800,7 +1233,7 @@ public class CrossStoreCompensationTest {
 
     if (method.equals("POST") && id == null) {
       ObjectNode created = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(body);
-      String minted = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+      String minted = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(collectionType);
       created.put(ModelNodeNames.JSON_LD_ID, minted);
       Stored stored = store(minted, created, "POST", null, false);
       exchange.getResponseHeaders().set("Location", minted);
@@ -823,7 +1256,8 @@ public class CrossStoreCompensationTest {
       return;
     }
     if (condition == null || !RevisionPreconditionParser.parse(condition).matches(current.revision())) {
-      respond(exchange, condition == null ? 428 : 412, "{\"message\":\"The artifact has moved on\"}", null);
+      respond(exchange, condition == null ? 428 : 412,
+          "{\"errorKey\":\"artifactHasMovedOn\",\"message\":\"The artifact has moved on\"}", null);
       return;
     }
     if (method.equals("DELETE")) {

@@ -2,6 +2,7 @@ package org.metadatacenter.cedar.resource.restore;
 
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.metadatacenter.cedar.resource.artifact.ArtifactServerRefusal;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.id.CedarArtifactId;
 import org.metadatacenter.model.CedarResourceType;
@@ -12,6 +13,7 @@ import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -101,28 +103,59 @@ public final class ArtifactRestoreCompletionService implements AutoCloseable {
   }
 
   private void attempt(ArtifactRestoreJob job, CedarRequestContext context) {
-    outbox.restoreIfPending(job, pending -> {
+    attempt(job, context, new java.util.concurrent.atomic.AtomicReference<>());
+  }
+
+  /** Attempts the put-back, and records in {@code answered} what the artifact server answered, if it did. */
+  private void attempt(ArtifactRestoreJob job, CedarRequestContext context,
+                       java.util.concurrent.atomic.AtomicReference<RestoreOutcome> answered) {
+    outbox.attemptRestoreIfPending(job, pending -> {
       try {
-        return restore(pending, context);
+        Answer answer = restore(pending, context);
+        answered.set(RestoreOutcome.answered(answer.status(), answer.etag(), answer.body(), true));
+        // A 412 that names instances is not a later write. The document still holds the one this job
+        // undoes, and the instances that block the put-back do not go away by asking again.
+        return new Neo4jArtifactRestoreOutbox.Attempt(answer.status(),
+            ArtifactServerRefusal.refusesForInstances(answer.status(), answer.body())
+                ? "Instances now reference the template, and the artifact server refuses to put back its earlier "
+                    + "children. The document still holds the write this job undoes."
+                : null);
       } catch (Exception failure) {
         log.warn("The restore of {} remains pending", pending.resourceId(), failure);
-        return 503;
+        answered.set(new RestoreOutcome(RestoreOutcome.State.RECORDED, null));
+        return new Neo4jArtifactRestoreOutbox.Attempt(503, null);
       }
     });
   }
 
-  /** The request and relay use the same durable job and lock; neither can undo a committed graph. */
-  public void restoreNow(ArtifactRestoreJob job, CedarRequestContext context) {
-    if (job != null) {
-      try {
-        attempt(job, context);
-      } catch (Exception failure) {
-        log.warn("The restore of {} remains recorded for the relay", job.resourceId(), failure);
+  /**
+   * The request and relay use the same durable job and lock; neither can undo a committed graph.
+   *
+   * @return what the attempt did to the document. A job that is no longer pending was settled by the relay
+   *     or by a committed graph update, and an attempt that failed before it was sent leaves the job for
+   *     the relay.
+   */
+  public RestoreOutcome restoreNow(ArtifactRestoreJob job, CedarRequestContext context) {
+    if (job == null) {
+      return new RestoreOutcome(RestoreOutcome.State.SETTLED, null);
+    }
+    var answered = new java.util.concurrent.atomic.AtomicReference<RestoreOutcome>();
+    try {
+      attempt(job, context, answered);
+    } catch (Exception failure) {
+      log.warn("The restore of {} remains recorded for the relay", job.resourceId(), failure);
+      if (answered.get() == null) {
+        return new RestoreOutcome(RestoreOutcome.State.RECORDED, null);
       }
     }
+    return answered.get() == null ? new RestoreOutcome(RestoreOutcome.State.SETTLED, null) : answered.get();
   }
 
-  private int restore(ArtifactRestoreJob job, CedarRequestContext admin) throws Exception {
+  /** What the artifact server answered a put-back with. */
+  private record Answer(int status, String etag, String body) {
+  }
+
+  private Answer restore(ArtifactRestoreJob job, CedarRequestContext admin) throws Exception {
     CedarArtifactId id = CedarArtifactId.build(job.resourceId(), job.resourceType());
     String url = cedarConfig.getMicroserviceUrlUtil().getArtifact()
         .getArtifactTypeWithId(job.resourceType(), id);
@@ -132,8 +165,9 @@ public final class ArtifactRestoreCompletionService implements AutoCloseable {
     try (ClassicHttpResponse response = new ArtifactServiceClient(cedarConfig)
         .put(url, admin, job.preImage(), job.conditionEtag())) {
       int status = response.getCode();
-      EntityUtils.consume(response.getEntity());
-      return status;
+      String body = response.getEntity() == null ? null : EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+      var etag = response.getFirstHeader(jakarta.ws.rs.core.HttpHeaders.ETAG);
+      return new Answer(status, etag == null ? null : etag.getValue(), body);
     }
   }
 

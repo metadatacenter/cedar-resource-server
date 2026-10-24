@@ -20,6 +20,7 @@ import org.metadatacenter.cedar.resource.artifact.ArtifactServerUtil;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
 import org.metadatacenter.cedar.resource.restore.ArtifactRestoreCompletionService;
 import org.metadatacenter.cedar.resource.restore.ArtifactRestoreJob;
+import org.metadatacenter.cedar.resource.restore.RestoreOutcome;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionJob;
 import org.metadatacenter.cedar.util.dw.CedarMicroserviceResource;
 import org.metadatacenter.config.CedarConfig;
@@ -87,6 +88,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_VERBATIM;
@@ -355,28 +357,41 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
     }
 
-    String doiInRequest = ModelUtil.extractDOIFromResourceContent(content, resourceType);
-
-    if (doiInRequest != null) {
-      if (!resourceType.supportsDOI()) {
-        return CedarResponse.badRequest()
-            .message("The doi is not supported by the given resource type")
-            .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
-            .parameter("resourceType", resourceType)
-            .build();
-      } else {
-        return CedarResponse.badRequest()
-            .message("The doi can not be set with this call")
-            .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_SET)
-            .build();
-      }
+    Response unsupportedDoi = unsupportedDoiRefusal(content, resourceType);
+    if (unsupportedDoi != null) {
+      return unsupportedDoi;
+    }
+    if (ModelUtil.extractDOIFromResourceContent(content, resourceType) != null) {
+      return CedarResponse.badRequest()
+          .message("The doi can not be set with this call")
+          .errorKey(CedarErrorKey.DOI_CAN_NOT_BE_SET)
+          .build();
     }
 
+    AtomicReference<Undo> undo = new AtomicReference<>();
+    try {
+      return describeUndo(createThenRegister(context, resourceType, artifactId, content, fid, undo), undo.get());
+    } catch (CedarException e) {
+      throw describeUndo(e, undo.get());
+    }
+  }
+
+  /**
+   * Stores a new artifact's document and then registers it in the graph. A document the graph does not
+   * register is removed by the create's cleanup, and {@code undo} then receives what became of it, for
+   * the failure the create is answered with.
+   */
+  private Response createThenRegister(CedarRequestContext context, CedarResourceType resourceType,
+                                      Optional<String> artifactId, String content, CedarFolderId fid,
+                                      AtomicReference<Undo> undo) throws CedarException {
     // Intent precedes the content request, including requests whose response never reaches us. A create
     // by PUT records the identity it writes at, so the relay can find a document stored there after a lost
     // answer, and fences this registration before it removes one.
     String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "create",
         artifactId.map(chosen -> CedarArtifactId.build(chosen, resourceType)));
+    boolean stored = false;
+    String storedId = artifactId.orElse(null);
+    boolean registered = false;
     try {
       String url;
       ClassicHttpResponse templateProxyResponse;
@@ -397,11 +412,13 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         return generateStatusResponse(templateProxyResponse);
       } else {
         // artifact was created
+        stored = true;
         HttpEntity templateProxyResponseEntity = templateProxyResponse.getEntity();
         if (templateProxyResponseEntity != null) {
           String templateEntityContent = EntityUtils.toString(templateProxyResponseEntity, StandardCharsets.UTF_8);
           JsonNode templateJsonNode = JsonMapper.STRICT_MAPPER.readTree(templateEntityContent);
           String id = ModelUtil.extractAtIdFromResource(resourceType, templateJsonNode).getValue();
+          storedId = id;
           CedarArtifactId aid = CedarArtifactId.build(id, resourceType);
           artifactCreateCleanupService.created(cleanupJob, id, headerValue(templateProxyResponse, HttpHeaders.ETAG));
 
@@ -484,6 +501,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
                 .message("The artifact was not created!")
                 .build();
           }
+          registered = true;
           // Registration retired cleanup in its graph transaction; downstream failures cannot undo it.
           UriBuilder builder = uriInfo.getAbsolutePathBuilder();
           URI uri = builder.path(CedarUrlUtil.urlEncode(linkedDataUtil.resourcePathId(resourceType, id))).build();
@@ -505,6 +523,9 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       throw new CedarProcessingException(e);
     } finally {
       artifactCreateCleanupService.cleanupNow(cleanupJob, context);
+      if (stored && !registered) {
+        undo.set(undoOfUnregisteredCreate(context, resourceType, storedId));
+      }
     }
   }
 
@@ -937,15 +958,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
     }
 
-    String doiInRequest = ModelUtil.extractDOIFromResourceContent(content, resourceType);
-
-    if (doiInRequest != null && !resourceType.supportsDOI()) {
-      return CedarResponse.badRequest()
-          .message("The doi is not supported by the given resource type")
-          .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
-          .parameter("resourceType", resourceType)
-          .build();
+    Response unsupportedDoi = unsupportedDoiRefusal(content, resourceType);
+    if (unsupportedDoi != null) {
+      return unsupportedDoi;
     }
+    String doiInRequest = ModelUtil.extractDOIFromResourceContent(content, resourceType);
 
     // The doi is minted elsewhere and may not be changed here, but an unchanged one must be allowed
     // through: refusing every request that merely carries a doi made reading an artifact and writing it
@@ -964,6 +981,25 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
     }
 
+    AtomicReference<Undo> undo = new AtomicReference<>();
+    try {
+      return describeUndo(updateArtifactThenGraph(context, resourceType, id, content, verbatim, expectedEtag,
+          folderSession, folderServerOldResource, undo), undo.get());
+    } catch (CedarException e) {
+      throw describeUndo(e, undo.get());
+    }
+  }
+
+  /**
+   * Writes an edit to the artifact server and then to the graph, and puts the document back when the
+   * graph update does not commit. {@code undo} receives what putting it back did, for the failure the
+   * edit is answered with.
+   */
+  private Response updateArtifactThenGraph(CedarRequestContext context, CedarResourceType resourceType,
+                                           CedarArtifactId id, String content, boolean verbatim,
+                                           String expectedEtag, FolderServiceSession folderSession,
+                                           FolderServerArtifact folderServerOldResource,
+                                           AtomicReference<Undo> undo) throws CedarException {
     boolean artifactUpdated = false;
     boolean graphUpdated = false;
     boolean supersededWrite = false;
@@ -985,6 +1021,15 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           EntityUtils.toString(currentArtifactResponse.getEntity(), StandardCharsets.UTF_8),
           headerValue(currentArtifactResponse, HttpHeaders.ETAG));
 
+      // Every verbatim write reaches the artifact server here. A verbatim write that changed the
+      // lifecycle would leave the graph describing the old one, since nothing below projects it.
+      if (resourceType.isVersioned() && verbatim) {
+        Response lifecycleChange = verbatimLifecycleRefusal(JsonMapper.STRICT_MAPPER.readTree(artifactPreImage.content()),
+            JsonMapper.STRICT_MAPPER.readTree(content));
+        if (lifecycleChange != null) {
+          return lifecycleChange;
+        }
+      }
       if (resourceType.isVersioned() && !verbatim) {
         JsonNode current = JsonMapper.STRICT_MAPPER.readTree(artifactPreImage.content());
         JsonNode requested = JsonMapper.STRICT_MAPPER.readTree(content);
@@ -1080,12 +1125,15 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
             return Response.ok().entity(resource).build();
           }
           if (graphResult.outcome() != ArtifactGraphUpdateResult.Outcome.UPDATED) {
-            return CedarResponse.internalServerError().build();
+            return unrecordedWriteResponse(resourceType, graphResult.outcome());
           }
           updatedResource = graphResult.resource();
         }
         if (updatedResource == null) {
-          return CedarResponse.internalServerError().build();
+          return CedarResponse.internalServerError()
+              .errorKey(notUpdatedKey(resourceType))
+              .message("The graph did not record this write, because the artifact's node could not be updated.")
+              .build();
         } else {
           graphUpdated = true;
           // Both primary stores now describe the replacement. Logging before the graph write would
@@ -1107,9 +1155,10 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       throw new CedarProcessingException(e);
     } finally {
       if (artifactUpdated && !graphUpdated && !supersededWrite && restoreJob != null) {
-        artifactRestoreCompletionService.restoreNow(restoreJob, context);
+        undo.set(undoOf(artifactRestoreCompletionService.restoreNow(restoreJob, context), replacementEtag));
       } else if (artifactUpdated && !graphUpdated && !supersededWrite) {
-        restoreArtifactAfterFailedGraphUpdate(context, resourceType, id, artifactPreImage, replacementEtag, verbatim);
+        undo.set(undoOf(restoreArtifactAfterFailedGraphUpdate(context, resourceType, id, artifactPreImage,
+            replacementEtag, verbatim), replacementEtag));
       }
       if (restoreJob != null && !graphUpdated) artifactRestoreCompletionService.forgetOutcome(restoreJob);
     }
@@ -1139,16 +1188,17 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
    * that {@code ArtifactRestoreCompletionService} carries on retrying. The original graph failure
    * remains the response either way.
    *
-   * @return whether the document is back to its pre-image, so the caller knows whether the durable
-   *     job still has work to do
+   * @return what became of the document, for the failure the write is answered with
    */
-  protected boolean restoreArtifactAfterFailedGraphUpdate(CedarRequestContext context, CedarResourceType resourceType,
-                                                          CedarArtifactId artifactId, ArtifactPreImage preImage,
-                                                          String replacementEtag, boolean verbatim) {
+  protected RestoreOutcome restoreArtifactAfterFailedGraphUpdate(CedarRequestContext context,
+                                                                 CedarResourceType resourceType,
+                                                                 CedarArtifactId artifactId, ArtifactPreImage preImage,
+                                                                 String replacementEtag, boolean verbatim) {
+    RestoreOutcome notPutBack = new RestoreOutcome(RestoreOutcome.State.NOT_PUT_BACK, null);
     if (preImage == null || replacementEtag == null || replacementEtag.isBlank()) {
       log.error("Failed graph update left {} changed on the artifact server: conditional rollback is unavailable",
           artifactId);
-      return false;
+      return notPutBack;
     }
     try {
       String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId);
@@ -1158,22 +1208,279 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       ClassicHttpResponse rollbackResponse =
           new ArtifactServiceClient(cedarConfig).put(url, context, preImage.content(), replacementEtag);
       int status = rollbackResponse.getCode();
-      if (status == HttpConstants.CREATED || status == HttpConstants.OK) {
-        return true;
-      }
-      if (status == HttpStatus.SC_PRECONDITION_FAILED) {
+      String body = rollbackResponse.getEntity() == null ? null
+          : EntityUtils.toString(rollbackResponse.getEntity(), StandardCharsets.UTF_8);
+      if (ArtifactServerRefusal.refusesForInstances(status, body)) {
+        // A 412 that names instances is not a later write. The rollback would give the template other
+        // children, which the instances now referencing it forbid, so the failed update's content stays.
+        log.error("Failed graph update left {} changed on the artifact server: instances now reference it, and the"
+            + " artifact server refuses to put back its earlier children", artifactId);
+      } else if (status == HttpStatus.SC_PRECONDITION_FAILED) {
         // Another writer has replaced the document since. Their content is newer than this
         // pre-image, so there is nothing left to put back and nothing for the relay to retry.
         log.warn("Failed graph update left {} changed on the artifact server, and a later write has"
             + " since replaced it: the newer content stands", artifactId);
-        return true;
+      } else if (status != HttpConstants.CREATED && status != HttpConstants.OK) {
+        log.error("Failed graph update left {} changed on the artifact server: conditional rollback answered {}",
+            artifactId, status);
       }
-      log.error("Failed graph update left {} changed on the artifact server: conditional rollback answered {}",
-          artifactId, status);
-      return false;
+      return RestoreOutcome.answered(status, headerValue(rollbackResponse, HttpHeaders.ETAG), body, false);
     } catch (Exception e) {
       log.error("Failed graph update left {} changed on the artifact server: conditional rollback failed",
           artifactId, e);
+      return notPutBack;
+    }
+  }
+
+  /**
+   * What undoing a write left the artifact as, for the failure the write is answered with.
+   *
+   * @param description a sentence saying what became of the write, or null where the failure's own
+   *                    message says it already
+   * @param etag        the artifact's ETag after the undo, or null where that is not known
+   */
+  protected record Undo(String description, String etag) {
+  }
+
+  /**
+   * The undo a put-back amounts to. A document that still holds the write keeps the write's ETag, which
+   * stays current unless a put-back is still to come. A document the put-back did not settle, because a
+   * later write replaced it or because the relay still has to put it back, has no ETag this request knows.
+   */
+  protected static Undo undoOf(RestoreOutcome outcome, String writeEtag) {
+    return switch (outcome.state()) {
+      case PUT_BACK -> new Undo("The write was undone, and the artifact's document was put back as it was before "
+          + "this request.", outcome.etag());
+      case OVERTAKEN -> new Undo("A later write has replaced the artifact's document since, so this write no "
+          + "longer stands.", null);
+      case RECORDED -> new Undo("The artifact's document still holds this write. Putting it back is recorded and "
+          + "will be retried.", null);
+      case PARKED -> new Undo("The artifact's document still holds this write, because the artifact server refused "
+          + "to put it back. The refusal is recorded for a person to resolve.", writeEtag);
+      case SETTLED -> new Undo(null, null);
+      case NOT_PUT_BACK -> new Undo("The artifact's document still holds this write, and putting it back failed.",
+          writeEtag);
+    };
+  }
+
+  /**
+   * Makes the failure answered for a write that was undone describe the artifact as the undo left it.
+   *
+   * <p>The calls a write makes copy the artifact server's ETag and Location onto the response as they go,
+   * and after an undo both name state that no longer exists. The ETag the undo left replaces them, or
+   * none does where it is not known, and the failure's message says what became of the write. A body that
+   * is not a JSON object keeps its text, since there is no message in it to add to.
+   */
+  protected Response describeUndo(Response failure, Undo undo) {
+    if (undo == null) {
+      return failure;
+    }
+    relabelAfterUndo(undo);
+    if (undo.description() == null) {
+      return failure;
+    }
+    Object entity = failure.getEntity();
+    if (entity instanceof org.metadatacenter.util.http.CedarError error) {
+      error.message = withSentence(error.message, undo.description());
+      return failure;
+    }
+    ObjectNode body = null;
+    try {
+      String text = entity instanceof String string ? string
+          : entity instanceof java.io.InputStream stream ? new String(stream.readAllBytes(), StandardCharsets.UTF_8)
+          : entity instanceof ObjectNode node ? node.toString() : null;
+      if (text != null && JsonMapper.STRICT_MAPPER.readTree(text) instanceof ObjectNode parsed) {
+        body = parsed;
+      } else if (text != null) {
+        return Response.fromResponse(failure).entity(text).build();
+      }
+    } catch (IOException unreadable) {
+      return failure;
+    }
+    if (body == null) {
+      return failure;
+    }
+    body.put("message", withSentence(body.path("message").asText(null), undo.description()));
+    return Response.fromResponse(failure).entity(body.toString()).type(MediaType.APPLICATION_JSON).build();
+  }
+
+  /**
+   * The undo of a create whose document was stored and never registered, once its cleanup has run. The
+   * cleanup removes the document but reports nothing, so the identity is read again to learn whether it
+   * did. The removed document has no ETag, and one still waiting for removal is not an artifact anyone can
+   * write, so the answer carries none either way.
+   *
+   * @param storedId the identity the document was stored at, or null when the create's answer did not
+   *                 say
+   */
+  protected Undo undoOfUnregisteredCreate(CedarRequestContext context, CedarResourceType resourceType,
+                                          String storedId) {
+    if (storedId != null) {
+      String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType,
+          CedarArtifactId.build(storedId, resourceType));
+      try (ClassicHttpResponse stored = new ArtifactServiceClient(cedarConfig).get(url, context)) {
+        EntityUtils.consume(stored.getEntity());
+        if (stored.getCode() == HttpStatus.SC_NOT_FOUND) {
+          return new Undo("The document this request stored was removed, so nothing was created.", null);
+        }
+        if (stored.getCode() == HttpStatus.SC_OK) {
+          return new Undo("The document this request stored has not been removed yet. Its removal is recorded.",
+              null);
+        }
+      } catch (Exception unreadable) {
+        log.warn("The document {} of a failed create could not be read after its cleanup", storedId, unreadable);
+      }
+    }
+    return new Undo("Whether the document this request stored was removed is not known. Its removal is recorded.",
+        null);
+  }
+
+  /** Makes a thrown failure describe the undo, as {@link #describeUndo(Response, Undo)} does an answered one. */
+  protected CedarException describeUndo(CedarException failure, Undo undo) {
+    if (undo == null) {
+      return failure;
+    }
+    relabelAfterUndo(undo);
+    if (undo.description() != null) {
+      failure.getErrorPack().message(withSentence(failure.getErrorPack().getMessage(), undo.description()));
+    }
+    return failure;
+  }
+
+  private void relabelAfterUndo(Undo undo) {
+    response.setHeader(HttpHeaders.LOCATION, null);
+    response.setHeader(HttpHeaders.ETAG, undo.etag());
+  }
+
+  private static String withSentence(String message, String sentence) {
+    if (message == null || message.isBlank()) {
+      return sentence;
+    }
+    String trimmed = message.trim();
+    return trimmed + (trimmed.endsWith(".") || trimmed.endsWith("!") ? " " : ". ") + sentence;
+  }
+
+  /**
+   * The failure answered when the graph does not record a write because its restore record says the
+   * document was put back first, or because the record is gone with nothing saying what became of it.
+   */
+  private static Response unrecordedWriteResponse(CedarResourceType resourceType, ArtifactGraphUpdateResult.Outcome outcome) {
+    String message = outcome == ArtifactGraphUpdateResult.Outcome.RESTORED
+        ? "The artifact's document was put back before the graph recorded this write, so the write did not take "
+            + "effect."
+        : "The graph did not record this write, and its restore record is gone with nothing saying what became of "
+            + "it. Whether the artifact's document still holds the write is not known, so read the artifact before "
+            + "writing it again.";
+    return CedarResponse.internalServerError().errorKey(notUpdatedKey(resourceType)).message(message).build();
+  }
+
+  private static CedarErrorKey notUpdatedKey(CedarResourceType resourceType) {
+    return switch (resourceType) {
+      case TEMPLATE -> CedarErrorKey.TEMPLATE_NOT_UPDATED;
+      case ELEMENT -> CedarErrorKey.TEMPLATE_ELEMENT_NOT_UPDATED;
+      case FIELD -> CedarErrorKey.TEMPLATE_FIELD_NOT_UPDATED;
+      case INSTANCE -> CedarErrorKey.TEMPLATE_INSTANCE_NOT_UPDATED;
+      default -> null;
+    };
+  }
+
+  /**
+   * The refusal of a DOI annotation on an artifact whose type has no DOI, or null when there is none to
+   * refuse. A DOI is minted for a template or an instance, and the graph records one only for those. An
+   * element or a field that carried the annotation would claim a DOI that nothing else knows of, so the
+   * annotation is refused whatever it holds.
+   */
+  protected static Response unsupportedDoiRefusal(String content, CedarResourceType resourceType)
+      throws CedarProcessingException {
+    if (resourceType.supportsDOI()) {
+      return null;
+    }
+    JsonNode annotations;
+    try {
+      annotations = JsonMapper.STRICT_MAPPER.readTree(content).path(ModelNodeNames.ANNOTATIONS);
+    } catch (IOException e) {
+      throw new CedarProcessingException(e);
+    }
+    if (!annotations.isObject() || !annotations.has(ModelNodeNames.DATACITE_DOI_URI)) {
+      return null;
+    }
+    return CedarResponse.badRequest()
+        .message("The doi is not supported by the given resource type")
+        .errorKey(CedarErrorKey.DOI_NOT_SUPPORTED_BY_RESOURCE_TYPE)
+        .parameter("resourceType", resourceType)
+        .build();
+  }
+
+  private static final java.util.regex.Pattern SHORT_VERSION = java.util.regex.Pattern.compile("\\d+(\\.\\d+){0,2}");
+
+  /**
+   * The refusal of a verbatim write that changes the stored document's version, publication status or
+   * predecessor, or null when it changes none of them.
+   *
+   * <p>The graph holds these as well as the document, and only the lifecycle commands move them in both.
+   * A verbatim write projects none of them into the graph, so one that changed them in the document left
+   * the two stores disagreeing. Two repairs the repair tool makes rewrite how a value is spelled rather
+   * than what it says, and pass. One writes a short numeric version in full, as 1 is 1.0.0. The other
+   * drops a predecessor that names no artifact.
+   */
+  private static Response verbatimLifecycleRefusal(JsonNode stored, JsonNode requested) {
+    for (String key : List.of(ModelNodeNames.PAV_VERSION, ModelNodeNames.BIBO_STATUS,
+        ModelNodeNames.PAV_PREVIOUS_VERSION)) {
+      JsonNode before = stated(stored.path(key));
+      JsonNode after = stated(requested.path(key));
+      if (Objects.equals(before, after) || respelled(key, before, after)) {
+        continue;
+      }
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.VERBATIM_WRITE_REFUSED)
+          .message("A verbatim write may not change " + key + ". Version, publication status and predecessor "
+              + "change only through the lifecycle commands, which keep the graph in step with the document.")
+          .parameter("key", key)
+          .parameter("stored", before == null ? null : before.isTextual() ? before.textValue() : before.toString())
+          .parameter("requested", after == null ? null : after.isTextual() ? after.textValue() : after.toString())
+          .build();
+    }
+    return null;
+  }
+
+  private static JsonNode stated(JsonNode value) {
+    return value == null || value.isMissingNode() || value.isNull() ? null : value;
+  }
+
+  private static boolean respelled(String key, JsonNode before, JsonNode after) {
+    if (key.equals(ModelNodeNames.PAV_VERSION)) {
+      return before != null && after != null && before.isTextual() && after.isTextual()
+          && fullVersion(before.textValue()) != null
+          && fullVersion(before.textValue()).equals(fullVersion(after.textValue()));
+    }
+    if (key.equals(ModelNodeNames.PAV_PREVIOUS_VERSION)) {
+      return before != null && after == null && before.isTextual() && !isAbsoluteIri(before.textValue());
+    }
+    return false;
+  }
+
+  /** The three-part version a numeric version of up to three parts means, or null for anything else. */
+  private static String fullVersion(String version) {
+    if (version == null || !SHORT_VERSION.matcher(version).matches()) {
+      return null;
+    }
+    List<String> parts = new java.util.ArrayList<>();
+    for (String part : version.split("\\.")) {
+      parts.add(new java.math.BigInteger(part).toString());
+    }
+    while (parts.size() < 3) {
+      parts.add("0");
+    }
+    return String.join(".", parts);
+  }
+
+  private static boolean isAbsoluteIri(String value) {
+    if (value == null || value.isBlank()) {
+      return false;
+    }
+    try {
+      return new URI(value.trim()).isAbsolute();
+    } catch (java.net.URISyntaxException e) {
       return false;
     }
   }
@@ -1357,8 +1664,15 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (!artifactAlreadyDeleted) {
       try {
         try (ClassicHttpResponse proxyResponse = new ArtifactServiceClient(cedarConfig).delete(url, c, deletion.artifactEtag())) {
-          ProxyUtil.proxyResponseHeaders(proxyResponse, response);
           int statusCode = proxyResponse.getCode();
+          if (statusCode >= 500) {
+            // The artifact server may or may not have deleted the document, and the recorded deletion
+            // stays for the relay, which sends it again until it is answered. The deletion will
+            // complete, so it is accepted rather than reported as a failure.
+            log.warn("The artifact server answered the deletion of {} with {}; the relay completes it", id, statusCode);
+            return deletionAccepted(id, "artifact");
+          }
+          ProxyUtil.proxyResponseHeaders(proxyResponse, response);
           if (statusCode != HttpStatus.SC_NO_CONTENT && statusCode != HttpStatus.SC_NOT_FOUND) {
             if (statusCode >= 400 && statusCode < 500) {
               // A refused request is not permission for a background retry after its blocker disappears.
@@ -1368,6 +1682,9 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
           }
           EntityUtils.consume(proxyResponse.getEntity());
         }
+      } catch (CedarDependencyUnavailableException unanswered) {
+        log.warn("The deletion of {} received no answer; the relay completes it", id, unanswered);
+        return deletionAccepted(id, "artifact");
       } catch (IOException e) {
         throw new CedarProcessingException(e);
       }
@@ -1380,7 +1697,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       artifactDeletionCompletionService.completeAfterArtifactDeletion(deletion, c);
     } catch (CedarProcessingException e) {
       log.error("Artifact {} was removed from the content store; durable cleanup remains pending", id, e);
-      return Response.accepted().build();
+      return deletionAccepted(id, "cleanup");
     } finally {
       // The surviving versions' index documents depend on the graph alone. A cleanup step that fails
       // must not leave search describing them as they stood before the deletion until the background
@@ -1389,6 +1706,23 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     }
 
     return Response.noContent().build();
+  }
+
+  /**
+   * The answer to a deletion that is recorded and will be completed without the caller: 202, with a body
+   * that says so. {@code pending} is "artifact" when the artifact server has not confirmed that the
+   * document is gone, and "cleanup" when the document is gone and its removal from the workspace graph or
+   * the search index is still to finish.
+   */
+  private static Response deletionAccepted(CedarArtifactId id, String pending) {
+    Map<String, Object> body = new java.util.LinkedHashMap<>();
+    body.put("@id", id.getId());
+    body.put("pending", pending);
+    body.put("message", pending.equals("artifact")
+        ? "The artifact server did not confirm the deletion. It is recorded, and it will be completed."
+        : "The artifact's document is deleted. Removing it from the workspace and the search index is recorded, "
+            + "and it will be completed.");
+    return Response.accepted().type(MediaType.APPLICATION_JSON).entity(body).build();
   }
 
   // The permission reader reports "no access" for a node that does not exist, so on a denial the

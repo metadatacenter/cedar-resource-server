@@ -423,6 +423,7 @@ public class PublishCreateDraftTemplateTest {
     HttpResponse<String> response = publishCreateDraft(sourceId, submitted);
 
     Assertions.assertEquals(500, response.statusCode(), response.body());
+    assertDescribesTheUndo(response, sourceId);
     Assertions.assertEquals(before, ARTIFACTS.get(sourceId.getId()), "the template's document was not put back");
     Assertions.assertEquals(documents, ARTIFACTS.size(), "the draft was left in the artifact store");
     FolderServerTemplate node = (FolderServerTemplate) folderSession.findArtifactById(sourceId);
@@ -477,6 +478,20 @@ public class PublishCreateDraftTemplateTest {
     Assertions.assertEquals(BiboStatus.DRAFT,
         ((FolderServerTemplate) folderSession.findArtifactById(sourceId)).getPublicationStatus());
     Assertions.assertEquals(1, folderSession.getVersionHistory(sourceId).size(), "the draft was left in the graph");
+  }
+
+  /**
+   * A failure answered after the publication was undone describes the template as the undoing left it:
+   * the ETag it has now, no Location for the draft that was removed, and a message saying so.
+   */
+  private static void assertDescribesTheUndo(HttpResponse<String> response, CedarTemplateId sourceId) throws IOException {
+    Assertions.assertEquals(java.util.Optional.of(quoted(ETAGS.get(sourceId.getId()))), response.headers().firstValue("ETag"),
+        "the answer does not carry the template's ETag after the undoing: " + response.headers().map());
+    Assertions.assertTrue(response.headers().firstValue("Location").isEmpty(),
+        "the answer names the draft the undoing removed: " + response.headers().map());
+    String message = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("message").asText();
+    Assertions.assertTrue(message.contains("publication was undone"), "the answer does not say the publication was undone: "
+        + message);
   }
 
   private static String quoted(Integer revision) {
@@ -580,6 +595,7 @@ public class PublishCreateDraftTemplateTest {
 
     Assertions.assertEquals(412, response.statusCode(), response.body());
     Assertions.assertEquals("nodeAlreadyPresent", JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText());
+    assertDescribesTheUndo(response, sourceId);
     Assertions.assertEquals("Another writer's template", ARTIFACTS.get(draftId).path("schema:name").asText(),
         "the other writer's document was touched");
     Assertions.assertEquals(before, ARTIFACTS.get(sourceId.getId()), "the template's document was not put back");

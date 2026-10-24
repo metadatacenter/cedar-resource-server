@@ -270,7 +270,8 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       if (putStatus >= 400) {
         log.error("The artifact server refused the propagation of {} into {} with status {}",
             todo.getSourceId(), todo.getTargetId(), putStatus);
-        outcomes.add(InclusionSubgraphUpdateOutcome.failed(todo.getSourceId(), todo.getTargetId(), putStatus));
+        outcomes.add(InclusionSubgraphUpdateOutcome.failed(todo.getSourceId(), todo.getTargetId(), putStatus,
+            putResponse.getEntity() instanceof JsonNode answer ? answer : null));
         continue;
       }
 

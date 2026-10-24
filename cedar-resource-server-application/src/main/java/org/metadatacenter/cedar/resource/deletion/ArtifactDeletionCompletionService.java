@@ -4,6 +4,7 @@ import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.artifact.ArtifactServerRefusal;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarProcessingException;
 import org.metadatacenter.id.CedarArtifactId;
@@ -142,10 +143,18 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
                 job.resourceType(), CedarArtifactId.build(job.resourceId(), job.resourceType()));
             try (ClassicHttpResponse response = new ArtifactServiceClient(cedarConfig).delete(url, admin, job.artifactEtag())) {
               int status = response.getCode();
-              EntityUtils.consume(response.getEntity());
+              String body = response.getEntity() == null ? null
+                  : EntityUtils.toString(response.getEntity(), java.nio.charset.StandardCharsets.UTF_8);
               if (status == HttpStatus.SC_PRECONDITION_FAILED) {
-                log.warn("Abandoning deletion {} because the artifact advanced beyond {}",
-                    job.resourceId(), job.artifactEtag());
+                // Both 412s end the deletion, for different reasons: a later write means the caller asked
+                // to delete a revision that is gone, and instances that reference a template keep it.
+                if (ArtifactServerRefusal.refusesForInstances(status, body)) {
+                  log.warn("Abandoning deletion {}: instances reference the template, and the artifact server "
+                      + "refuses to delete it", job.resourceId());
+                } else {
+                  log.warn("Abandoning deletion {} because the artifact advanced beyond {}",
+                      job.resourceId(), job.artifactEtag());
+                }
                 outbox.remove(job.jobId());
                 continue;
               }

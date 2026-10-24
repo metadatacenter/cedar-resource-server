@@ -4230,8 +4230,15 @@ paths:
           type: string
       responses:
         "202":
-          description: "Content deleted; durable downstream cleanup is pending. The\
-            \ response carries no body, so no content is declared."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDeletionAccepted"
+          description: "The deletion is recorded and will be completed without the\
+            \ caller. Either the artifact server did not confirm it, by an outage\
+            \ or no answer, and it is sent again until it is answered, or the content\
+            \ is deleted and the workspace-graph or search-index cleanup is still\
+            \ pending. The body says which."
         "204":
           description: Deletion completed across content and downstream stores
         "400":
@@ -5153,8 +5160,15 @@ paths:
           type: string
       responses:
         "202":
-          description: "Content deleted; durable downstream cleanup is pending. The\
-            \ response carries no body, so no content is declared."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDeletionAccepted"
+          description: "The deletion is recorded and will be completed without the\
+            \ caller. Either the artifact server did not confirm it, by an outage\
+            \ or no answer, and it is sent again until it is answered, or the content\
+            \ is deleted and the workspace-graph or search-index cleanup is still\
+            \ pending. The body says which."
         "204":
           description: Deletion completed across content and downstream stores
         "400":
@@ -6076,8 +6090,15 @@ paths:
           type: string
       responses:
         "202":
-          description: "Content deleted; durable downstream cleanup is pending. The\
-            \ response carries no body, so no content is declared."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDeletionAccepted"
+          description: "The deletion is recorded and will be completed without the\
+            \ caller. Either the artifact server did not confirm it, by an outage\
+            \ or no answer, and it is sent again until it is answered, or the content\
+            \ is deleted and the workspace-graph or search-index cleanup is still\
+            \ pending. The body says which."
         "204":
           description: Deletion completed across content and downstream stores
         "400":
@@ -6967,8 +6988,15 @@ paths:
           type: string
       responses:
         "202":
-          description: "Content deleted; durable downstream cleanup is pending. The\
-            \ response carries no body, so no content is declared."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDeletionAccepted"
+          description: "The deletion is recorded and will be completed without the\
+            \ caller. Either the artifact server did not confirm it, by an outage\
+            \ or no answer, and it is sent again until it is answered, or the content\
+            \ is deleted and the workspace-graph or search-index cleanup is still\
+            \ pending. The body says which."
         "204":
           description: Deletion completed across content and downstream stores
         "400":
@@ -7866,6 +7894,29 @@ components:
         template:
           type: integer
           format: int64
+    ArtifactDeletionAccepted:
+      type: object
+      description: |
+        A deletion that is recorded and that the server completes without the caller. `pending` says
+        what is left. `artifact` means the artifact server did not confirm that the document is gone,
+        because it answered with an outage or did not answer, and the deletion is sent again until it
+        is answered. `cleanup` means the document is gone and its removal from the workspace graph or
+        the search index is still to finish.
+      properties:
+        '@id':
+          type: string
+          format: uri
+        message:
+          type: string
+        pending:
+          type: string
+          enum:
+          - artifact
+          - cleanup
+      required:
+      - '@id'
+      - message
+      - pending
     ArtifactDetails:
       allOf:
       - $ref: "#/components/schemas/ArtifactRecord"
@@ -9104,6 +9155,8 @@ components:
     InclusionSubgraphUpdateOutcome:
       type: object
       properties:
+        artifactServerAnswer:
+          $ref: "#/components/schemas/CedarError"
         artifactServerStatus:
           type: integer
           format: int32
