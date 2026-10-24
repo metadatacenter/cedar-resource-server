@@ -421,7 +421,7 @@ public class ResourceStateRoundTripIT {
     Assertions.assertTrue(status == 403 || status == 404, "the details are readable: " + status);
     if (folder != null) {
       HttpResponse<String> listing = send("GET", "/folders/" + enc(folder) + "/contents?limit=100", null, auth, null);
-      Assertions.assertTrue(listing.statusCode() != 200 || listed(auth, folder, id) == null,
+      Assertions.assertNull(ResourceListingAssertions.find(listing.statusCode(), listing.body(), id, true),
           "the folder listing shows " + id);
     }
     Assertions.assertNull(searched(auth, id), "search still finds " + id);
@@ -479,10 +479,7 @@ public class ResourceStateRoundTripIT {
 
   private static JsonNode listed(String auth, String folder, String id) throws Exception {
     HttpResponse<String> listing = send("GET", "/folders/" + enc(folder) + "/contents?limit=100", null, auth, null);
-    if (listing.statusCode() != 200) {
-      return null;
-    }
-    return find(JsonMapper.STRICT_MAPPER.readTree(listing.body()), id);
+    return ResourceListingAssertions.find(listing.statusCode(), listing.body(), id, false);
   }
 
   /** The resource as search returns it, found by the unique word in its name. */
@@ -529,12 +526,7 @@ public class ResourceStateRoundTripIT {
   }
 
   private static JsonNode find(JsonNode page, String id) {
-    for (JsonNode resource : page.path("resources")) {
-      if (id.equals(resource.path("@id").asText())) {
-        return resource;
-      }
-    }
-    return null;
+    return ResourceListingAssertions.find(page, id);
   }
 
   private static Set<String> actions(JsonNode resource) {
