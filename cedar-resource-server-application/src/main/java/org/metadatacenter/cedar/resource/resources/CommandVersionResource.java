@@ -550,8 +550,9 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
             int artifactServerPostStatus = artifactServerPostResponse.getStatus();
             InputStream is = (InputStream) artifactServerPostResponse.getEntity();
-            JsonNode artifactServerPostResponseNode = JsonMapper.STRICT_MAPPER.readTree(is);
+            String artifactServerPostBody = is == null ? null : new String(is.readAllBytes(), StandardCharsets.UTF_8);
             if (artifactServerPostStatus == CedarResponseStatus.CREATED.getStatusCode()) {
+              JsonNode artifactServerPostResponseNode = JsonMapper.STRICT_MAPPER.readTree(artifactServerPostBody);
               if (created != null) {
                 created.set(new ArtifactServerUtil.ArtifactContent(artifactServerPostResponseNode.toString(),
                     artifactServerPostResponse.getHeaderString(HttpHeaders.ETAG)));
@@ -597,9 +598,10 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               return Response.created(uri).entity(createdNewResource).build();
             } else {
               // The artifact server's refusal, with its own status: a validation failure is the
-              // caller's to fix, and it was answered as an unexplained 500.
-              throw new ArtifactServerRefusal(artifactServerPostStatus,
-                  artifactServerPostResponseNode == null ? null : artifactServerPostResponseNode.toString());
+              // caller's to fix, and it was answered as an unexplained 500. Its body is passed on as
+              // text. A refusal need not be JSON, and one that was not, such as a container's error
+              // page, failed to parse and became a 500 as well.
+              throw new ArtifactServerRefusal(artifactServerPostStatus, artifactServerPostBody);
             }
           } finally {
             artifactCreateCleanupService.cleanupNow(cleanupJob, c);

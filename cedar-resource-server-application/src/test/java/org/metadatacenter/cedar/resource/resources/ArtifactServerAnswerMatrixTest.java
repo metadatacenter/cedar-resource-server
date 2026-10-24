@@ -178,6 +178,8 @@ public class ArtifactServerAnswerMatrixTest {
   }
 
   private static final Map<String, Command> COMMANDS = Map.of(
+      "create", id -> post("/templates?folder_id=" + encode(homeFolderId.getId()),
+          templateDocument("Answer matrix fixture, created beside it").toString()),
       "publish", id -> post("/command/publish-artifact", "{\"@id\":\"" + id + "\",\"newVersion\":\"1.0.0\"}"),
       "create a draft", id -> post("/command/create-draft-artifact",
           "{\"@id\":\"" + id + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
@@ -200,6 +202,7 @@ public class ArtifactServerAnswerMatrixTest {
    * update and a deletion each read the document first, so their GET is failed as well as their write.
    */
   private static final List<Object[]> STEPS = List.of(
+      new Object[]{"create", "POST"},
       new Object[]{"publish", "GET"}, new Object[]{"publish", "PUT"},
       new Object[]{"create a draft", "GET"}, new Object[]{"create a draft", "POST"},
       new Object[]{"publish and draft", "GET"}, new Object[]{"publish and draft", "PUT"},
