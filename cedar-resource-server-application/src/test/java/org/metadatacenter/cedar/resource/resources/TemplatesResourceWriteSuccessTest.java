@@ -393,4 +393,57 @@ public class TemplatesResourceWriteSuccessTest {
     }
   }
 
+  /**
+   * An ordinary create and update carry into the graph the times the artifact server stamped on the
+   * document, rather than reading the clock again. The second reading used to leave a node a second
+   * ahead of its document whenever the two fell either side of a second. The stub stores the body as
+   * given, so a stamp written into it stands for the one the artifact server would write.
+   */
+  @Test
+  @Order(7)
+  public void ordinaryWritesGiveTheGraphTheDatesTheStoredDocumentStates() throws Exception {
+    CedarConfig config = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
+    String caller = TestAuthUtil.getTestUser1(config).getId();
+    String createdOn = "2019-03-04T05:06:07-08:00";
+    String stamped = templateBody("Stamped date fixture").replace("}",
+        ",\"pav:createdOn\":\"" + createdOn + "\",\"pav:lastUpdatedOn\":\"" + createdOn
+            + "\",\"oslc:modifiedBy\":\"" + caller + "\"}");
+    var created = CLIENT.send(HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates?folder_id="
+            + URLEncoder.encode(homeFolderId.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader).header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(stamped)).build(), HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(201, created.statusCode(), created.body());
+    String fixtureId = JsonMapper.STRICT_MAPPER.readTree(created.body()).path("@id").asText();
+    long createdSecond = java.time.OffsetDateTime.parse(createdOn).toEpochSecond();
+    JsonNode afterCreate = details(fixtureId);
+    Assertions.assertEquals(createdSecond, afterCreate.path("createdOnTS").asLong(), afterCreate.toString());
+    Assertions.assertEquals(createdSecond, afterCreate.path("lastUpdatedOnTS").asLong(), afterCreate.toString());
+
+    String updatedOn = "2020-07-08T09:10:11Z";
+    ObjectNode update = storedArtifact.deepCopy();
+    update.put("schema:name", "Stamped date fixture, renamed");
+    update.put("pav:lastUpdatedOn", updatedOn);
+    var updated = CLIENT.send(HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(fixtureId, StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader).header("Content-Type", "application/json").header("If-Match", "*")
+        .PUT(HttpRequest.BodyPublishers.ofString(update.toString())).build(), HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(200, updated.statusCode(), updated.body());
+    JsonNode afterUpdate = details(fixtureId);
+    Assertions.assertEquals(java.time.OffsetDateTime.parse(updatedOn).toEpochSecond(),
+        afterUpdate.path("lastUpdatedOnTS").asLong(), afterUpdate.toString());
+    Assertions.assertEquals(createdSecond, afterUpdate.path("createdOnTS").asLong(), afterUpdate.toString());
+    Assertions.assertEquals(caller, afterUpdate.path("oslc:modifiedBy").asText(), afterUpdate.toString());
+  }
+
+  private static JsonNode details(String id) throws Exception {
+    var response = CLIENT.send(HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
+            + URLEncoder.encode(id, StandardCharsets.UTF_8) + "/details"))
+        .header("Authorization", authHeader).GET().build(), HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(200, response.statusCode(), response.body());
+    return JsonMapper.STRICT_MAPPER.readTree(response.body());
+  }
+
 }

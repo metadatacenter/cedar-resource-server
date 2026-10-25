@@ -490,7 +490,8 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
               brandNewResource.setDOI(doi);
             }
           }
-          FolderServerArtifact newResource = folderSession.createResourceWithCleanup(brandNewResource, fid, cleanupJob);
+          FolderServerArtifact newResource = folderSession.createResourceWithCleanup(brandNewResource, fid, cleanupJob,
+              org.metadatacenter.server.ArtifactCreationProvenance.fromDocument(templateJsonNode));
 
           if (newResource == null) {
             return CedarResponse.badRequest()
@@ -1102,8 +1103,10 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
         }
         // The document path skips stamping for verbatim writes. The graph must do the same:
         // listings, details and search display these fields, not the stored JSON's provenance.
+        // An ordinary write is stamped by the artifact server, and the node takes that stamp too.
         var modificationProvenance = verbatim
-            ? org.metadatacenter.server.ArtifactModificationProvenance.fromDocument(templateJsonNode) : null;
+            ? org.metadatacenter.server.ArtifactModificationProvenance.fromDocument(templateJsonNode)
+            : stampedModificationProvenance(templateJsonNode);
         FolderServerArtifact updatedResource;
         if (restoreJob == null) {
           updatedResource = folderSession.updateArtifactById(id, resource.getType(), updateFields,
@@ -1541,9 +1544,43 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     if (versionProjectionService != null) versionProjectionService.complete(id.getId(), nodeIndexingService, context);
   }
 
+  /**
+   * The modifier and time the artifact server stamped on the document it stored, for the graph node to
+   * carry. A node that read the clock again stood a second ahead of its document whenever the two
+   * readings fell either side of a second. Null where the stored document does not state both, so the
+   * node stamps its own as before.
+   */
+  protected static org.metadatacenter.server.ArtifactModificationProvenance stampedModificationProvenance(Object stored) {
+    if (!(stored instanceof JsonNode document)) return null;
+    try {
+      var stated = org.metadatacenter.server.ArtifactModificationProvenance.fromDocument(document);
+      return stated.modifiedBy() == null || stated.modifiedOn() == null ? null : stated;
+    } catch (RuntimeException unreadable) {
+      return null;
+    }
+  }
+
+  /** The document an artifact-server write answered with, or null where it sent none or none readable. */
+  protected static JsonNode storedDocument(ClassicHttpResponse artifactResponse) {
+    HttpEntity entity = artifactResponse == null ? null : artifactResponse.getEntity();
+    if (entity == null) return null;
+    try {
+      return JsonMapper.STRICT_MAPPER.readTree(EntityUtils.toString(entity, StandardCharsets.UTF_8));
+    } catch (Exception unreadable) {
+      return null;
+    }
+  }
+
   /** Inclusion propagation uses the same content-to-graph fence and durable follow-up as a save. */
   protected void applyArtifactUpdateSideEffects(CedarRequestContext context, CedarTypedSchemaArtifactId id, JsonNode newContent,
                                                String preImage, String replacementEtag) throws CedarProcessingException {
+    applyArtifactUpdateSideEffects(context, id, newContent, preImage, replacementEtag, null);
+  }
+
+  /** As above, with the node carrying the modification the artifact server stamped on {@code stored}. */
+  protected void applyArtifactUpdateSideEffects(CedarRequestContext context, CedarTypedSchemaArtifactId id, JsonNode newContent,
+                                               String preImage, String replacementEtag, Object stored)
+      throws CedarProcessingException {
     var restore = artifactRestoreCompletionService == null ? null
         : artifactRestoreCompletionService.prepare(id, id.getType(), preImage, replacementEtag, false);
     boolean committed = false;
@@ -1551,7 +1588,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     try {
       var folderSession = dataServices.getFolderServiceSession(context);
       var result = folderSession.updateArtifactById(id, id.getType(), Map.of(),
-          restore == null ? null : restore.jobId(), newContent.toString());
+          restore == null ? null : restore.jobId(), newContent.toString(), stampedModificationProvenance(stored));
       superseded = result.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED;
       if (superseded) return;
       if (result.resource() == null) throw new CedarProcessingException("The propagated artifact could not be updated in the graph");

@@ -314,7 +314,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
                 resourceType,
                 ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue(),
                 ModelUtil.extractDescriptionFromResource(resourceType, jsonNode).getValue(),
-                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue(), null, null, cleanupJob);
+                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue(), null, null, cleanupJob,
+                org.metadatacenter.server.ArtifactCreationProvenance.fromDocument(jsonNode));
 
         if (folderServerCreatedResource == null) {
           return CedarResponse.badRequest().errorKey(CedarErrorKey.RESOURCE_NOT_CREATED).build();

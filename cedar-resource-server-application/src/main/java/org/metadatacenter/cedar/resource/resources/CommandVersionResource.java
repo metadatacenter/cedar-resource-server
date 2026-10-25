@@ -300,10 +300,13 @@ public class CommandVersionResource extends AbstractResourceServerResource {
               updates.put(NodeProperty.VERSION, newVersion.getValue());
               updates.put(NodeProperty.PUBLICATION_STATUS, BiboStatus.PUBLISHED.getValue());
               FolderServerArtifact publishedResource;
+              var stamped = stampedModificationProvenance(putResponse.getEntity());
               if (restoreJob == null) {
-                publishedResource = folderSession.updateArtifactById(aid, resourceType, updates);
+                publishedResource = folderSession.updateArtifactById(aid, resourceType, updates, null, null, stamped)
+                    .resource();
               } else {
-                var result = folderSession.updateArtifactById(aid, resourceType, updates, restoreJob.jobId());
+                var result = folderSession.updateArtifactById(aid, resourceType, updates, restoreJob.jobId(), null,
+                    stamped);
                 if (result.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
                   supersededWrite = true;
                   var acknowledged = (org.metadatacenter.model.folderserver.basic.FolderServerSchemaArtifact)
@@ -593,7 +596,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
                 schemaArtifact.setLatestPublishedVersion(false);
               }
 
-              FolderServerArtifact newResource = folderSession.createDraftWithCleanup(brandNewResource, fid, propagateSharing, cleanupJob);
+              FolderServerArtifact newResource = folderSession.createDraftWithCleanup(brandNewResource, fid, propagateSharing,
+                  cleanupJob, org.metadatacenter.server.ArtifactCreationProvenance.fromDocument(artifactServerPostResponseNode));
               if (newResource == null) {
                 BackendCallResult backendCallResult = new BackendCallResult();
                 backendCallResult.addError(CedarErrorType.SERVER_ERROR)

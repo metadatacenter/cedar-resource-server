@@ -276,7 +276,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
       }
 
       applyArtifactUpdateSideEffects(c, targetArtifactId, targetJsonNode, update.preImage(),
-          putResponse.getHeaderString(jakarta.ws.rs.core.HttpHeaders.ETAG));
+          putResponse.getHeaderString(jakarta.ws.rs.core.HttpHeaders.ETAG), putResponse.getEntity());
       outcomes.add(InclusionSubgraphUpdateOutcome.updated(todo.getSourceId(), todo.getTargetId(), putStatus));
     }
 

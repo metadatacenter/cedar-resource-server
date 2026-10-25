@@ -193,11 +193,13 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
               replacementEtag, false);
 
       FolderServerArtifact updatedResource;
+      var stamped = stampedModificationProvenance(storedDocument(artifactPutResponse));
       if (restoreJob == null) {
         updatedResource = folderSession.updateArtifactById(artifactId, resourceType, updateFields,
-            null, objectNode.toString()).resource();
+            null, objectNode.toString(), stamped).resource();
       } else {
-        var result = folderSession.updateArtifactById(artifactId, resourceType, updateFields, restoreJob.jobId(), objectNode.toString());
+        var result = folderSession.updateArtifactById(artifactId, resourceType, updateFields, restoreJob.jobId(),
+            objectNode.toString(), stamped);
         if (result.outcome() == ArtifactGraphUpdateResult.Outcome.SUPERSEDED) {
           supersededWrite = true;
           folderServerOldResource.setDOI(doiInRequest);
