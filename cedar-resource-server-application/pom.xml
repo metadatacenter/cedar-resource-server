@@ -20,6 +20,8 @@
     <cedar.resource.test.forks>2</cedar.resource.test.forks>
     <!-- Line coverage measured on 2026-10-19: 78.4%. The build fails below this floor. -->
     <cedar.coverage.line.minimum>0.76</cedar.coverage.line.minimum>
+    <!-- Branch coverage measured on 2026-10-26: 73.0%. The build fails below this floor. -->
+    <cedar.coverage.branch.minimum>0.71</cedar.coverage.branch.minimum>
   </properties>
 
   <dependencies>
