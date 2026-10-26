@@ -144,7 +144,7 @@ public class CreatedArtifactSurvivesAnEditTest {
   @Test
   public void aCopySurvivesAnEdit() throws Exception {
     String sourceId = createTemplate("Copy source that carries a DOI");
-    setDoi(sourceId, "10.5072/FK2-survives-copy");
+    setDoi(sourceId, "https://doi.org/10.5072/FK2-survives-copy");
 
     HttpResponse<String> copied = post("/command/copy-artifact-to-folder",
         "{\"@id\":\"" + sourceId + "\",\"targetFolderId\":\"" + homeFolderId.getId()
@@ -157,7 +157,7 @@ public class CreatedArtifactSurvivesAnEditTest {
   @Test
   public void aDraftSurvivesAnEdit() throws Exception {
     String sourceId = createTemplate("Draft source that carries a DOI");
-    setDoi(sourceId, "10.5072/FK2-survives-draft");
+    setDoi(sourceId, "https://doi.org/10.5072/FK2-survives-draft");
     Assertions.assertEquals(200, post("/command/publish-artifact",
         "{\"@id\":\"" + sourceId + "\",\"newVersion\":\"1.0.0\"}").statusCode());
 
@@ -172,7 +172,7 @@ public class CreatedArtifactSurvivesAnEditTest {
   @Test
   public void aDraftCarryingASubmittedDefinitionSurvivesAnEdit() throws Exception {
     String sourceId = createTemplate("Publish-and-draft source that carries a DOI");
-    setDoi(sourceId, "10.5072/FK2-survives-publish-and-draft");
+    setDoi(sourceId, "https://doi.org/10.5072/FK2-survives-publish-and-draft");
 
     // What a client submits here is the template it read and edited, DOI and all, rather than a
     // document composed from nothing.

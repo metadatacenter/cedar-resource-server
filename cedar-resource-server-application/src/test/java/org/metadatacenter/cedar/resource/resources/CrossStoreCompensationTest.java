@@ -414,7 +414,7 @@ public class CrossStoreCompensationTest {
   @ValueSource(strings = {"a changed DOI", "a dropped DOI", "a document published since the graph was read",
       "lifecycle metadata the document no longer holds"})
   public void anEditRefusedBeforeItsWriteChangesNeitherStore(String refusal) throws Exception {
-    String doi = refusal.contains("DOI") ? "10.5072/FK2-compensation-" + REVISIONS.incrementAndGet() : null;
+    String doi = refusal.contains("DOI") ? "https://doi.org/10.5072/FK2-compensation-" + REVISIONS.incrementAndGet() : null;
     String id = createTemplate("Edit refused for " + refusal, "0.0.1", doi);
     if (refusal.startsWith("a document published")) {
       replaceDocument(id, DOCUMENTS.get(id).body().deepCopy().put(ModelNodeNames.BIBO_STATUS, "bibo:published"));
@@ -423,7 +423,7 @@ public class CrossStoreCompensationTest {
     }
     Stored before = DOCUMENTS.get(id);
     ObjectNode edited = templateDocument(id, "Edit that is refused", "0.0.1",
-        refusal.equals("a changed DOI") ? "10.5072/FK2-another-doi" : null);
+        refusal.equals("a changed DOI") ? "https://doi.org/10.5072/FK2-another-doi" : null);
 
     HttpResponse<String> response = send("PUT", "/templates/" + encode(id), edited.toString(), before.etag(), userAuthHeader);
 
@@ -448,7 +448,7 @@ public class CrossStoreCompensationTest {
   @ValueSource(strings = {"a later version", "a published status", "a predecessor", "a DOI"})
   public void aCreateRefusedBeforeItsWriteChangesNeitherStore(String refusal) throws Exception {
     ObjectNode body = templateDocument(null, "Create refused for " + refusal, "0.0.1",
-        refusal.equals("a DOI") ? "10.5072/FK2-refused-create" : null);
+        refusal.equals("a DOI") ? "https://doi.org/10.5072/FK2-refused-create" : null);
     body.remove(ModelNodeNames.JSON_LD_ID);
     switch (refusal) {
       case "a later version" -> body.put(ModelNodeNames.PAV_VERSION, "0.0.2");
@@ -931,7 +931,7 @@ public class CrossStoreCompensationTest {
 
   private static ObjectNode withDoi(ObjectNode document) {
     document.putObject(ModelNodeNames.ANNOTATIONS).putObject(ModelNodeNames.DATACITE_DOI_URI)
-        .put(ModelNodeNames.JSON_LD_ID, "10.5072/FK2-schema-artifact");
+        .put(ModelNodeNames.JSON_LD_ID, "https://doi.org/10.5072/FK2-schema-artifact");
     return document;
   }
 

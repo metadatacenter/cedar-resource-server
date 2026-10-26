@@ -76,7 +76,7 @@ public class PublishCreateDraftTemplateTest {
 
   private static final String SOURCE_VERSION = "1.0.0";
   private static final String DRAFT_VERSION = "1.0.1";
-  private static final String PUBLISHED_DOI = "10.5072/FK2-published-template";
+  private static final String PUBLISHED_DOI = "https://doi.org/10.5072/FK2-published-template";
   private static final URI UNRELATED_PREDECESSOR =
       URI.create("https://repo.metadatacenter.orgx/templates/00000000-1111-2222-3333-444444444444");
 
