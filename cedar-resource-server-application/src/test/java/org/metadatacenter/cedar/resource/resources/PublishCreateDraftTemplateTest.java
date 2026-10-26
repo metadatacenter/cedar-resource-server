@@ -76,7 +76,7 @@ public class PublishCreateDraftTemplateTest {
 
   private static final String SOURCE_VERSION = "1.0.0";
   private static final String DRAFT_VERSION = "1.0.1";
-  private static final String PUBLISHED_DOI = "10.5072/FK2-published-template";
+  private static final String PUBLISHED_DOI = "https://doi.org/10.5072/FK2-published-template";
   private static final URI UNRELATED_PREDECESSOR =
       URI.create("https://repo.metadatacenter.orgx/templates/00000000-1111-2222-3333-444444444444");
 
@@ -94,6 +94,17 @@ public class PublishCreateDraftTemplateTest {
    * put back after an update: the same content, with fresh provenance stamps on it and on its children.
    */
   private static volatile boolean puttingDraftsBackBeforeTheirDefinitionFails;
+  /** Before it fails that write, the stub loses the successor's document, so that only the graph names it. */
+  private static volatile boolean losingDraftsBeforeTheirDefinitionFails;
+  /** The stub answers the draft's creation with this status and an error page rather than JSON. */
+  private static volatile Integer refusingDraftCreationsWithAPage;
+  /** The stub stores another document at this identifier when it publishes a template. */
+  private static volatile String takingThisIdentityOnPublication;
+  /**
+   * The stub refuses to put a published template's draft document back, with this status, or with no
+   * answer at all when it is "no answer".
+   */
+  private static volatile String refusingPutBacksOfPublishedTemplates;
   /** A write or deletion the stub received: of a template or a draft, its If-Match, and the revision it made. */
   private record Write(String method, boolean source, String condition, Integer revision) {
   }
@@ -162,6 +173,10 @@ public class PublishCreateDraftTemplateTest {
     failingDefinitionWrites = false;
     editingDraftsBeforeTheirDefinitionFails = false;
     puttingDraftsBackBeforeTheirDefinitionFails = false;
+    losingDraftsBeforeTheirDefinitionFails = false;
+    refusingDraftCreationsWithAPage = null;
+    takingThisIdentityOnPublication = null;
+    refusingPutBacksOfPublishedTemplates = null;
     WRITES.clear();
   }
 
@@ -408,6 +423,7 @@ public class PublishCreateDraftTemplateTest {
     HttpResponse<String> response = publishCreateDraft(sourceId, submitted);
 
     Assertions.assertEquals(500, response.statusCode(), response.body());
+    assertDescribesTheUndo(response, sourceId);
     Assertions.assertEquals(before, ARTIFACTS.get(sourceId.getId()), "the template's document was not put back");
     Assertions.assertEquals(documents, ARTIFACTS.size(), "the draft was left in the artifact store");
     FolderServerTemplate node = (FolderServerTemplate) folderSession.findArtifactById(sourceId);
@@ -464,6 +480,20 @@ public class PublishCreateDraftTemplateTest {
     Assertions.assertEquals(1, folderSession.getVersionHistory(sourceId).size(), "the draft was left in the graph");
   }
 
+  /**
+   * A failure answered after the publication was undone describes the template as the undoing left it:
+   * the ETag it has now, no Location for the draft that was removed, and a message saying so.
+   */
+  private static void assertDescribesTheUndo(HttpResponse<String> response, CedarTemplateId sourceId) throws IOException {
+    Assertions.assertEquals(java.util.Optional.of(quoted(ETAGS.get(sourceId.getId()))), response.headers().firstValue("ETag"),
+        "the answer does not carry the template's ETag after the undoing: " + response.headers().map());
+    Assertions.assertTrue(response.headers().firstValue("Location").isEmpty(),
+        "the answer names the draft the undoing removed: " + response.headers().map());
+    String message = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("message").asText();
+    Assertions.assertTrue(message.contains("publication was undone"), "the answer does not say the publication was undone: "
+        + message);
+  }
+
   private static String quoted(Integer revision) {
     return "\"" + revision + "\"";
   }
@@ -495,6 +525,155 @@ public class PublishCreateDraftTemplateTest {
     Assertions.assertEquals(BiboStatus.PUBLISHED.getValue(),
         ARTIFACTS.get(sourceId.getId()).path(ModelNodeNames.BIBO_STATUS).asText(),
         "the template's document and graph disagree about its publication");
+  }
+
+  /**
+   * A draft whose document has gone, so that only the graph still names it, is removed from the graph by
+   * the undoing, and the template returns to the draft it was.
+   */
+  @Test
+  public void aDraftWhoseDocumentHasGoneIsStillRemovedFromTheGraph() throws Exception {
+    failingDefinitionWrites = true;
+    losingDraftsBeforeTheirDefinitionFails = true;
+    CedarTemplateId sourceId = createSourceTemplate("Template whose draft document is lost", null);
+    ObjectNode before = ARTIFACTS.get(sourceId.getId()).deepCopy();
+    int documents = ARTIFACTS.size();
+    String draftId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    String submitted = templateDocument("Template whose draft document is lost, edited", null).toString();
+
+    HttpResponse<String> response = publishCreateDraft(sourceId, submitted, "\"" + ETAGS.get(sourceId.getId()) + "\"",
+        draftId);
+
+    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Assertions.assertNull(folderSession.findArtifactById(CedarTemplateId.build(draftId)),
+        "the graph still names a draft whose document has gone");
+    Assertions.assertEquals(before, ARTIFACTS.get(sourceId.getId()), "the template's document was not put back");
+    Assertions.assertEquals(documents, ARTIFACTS.size());
+    Assertions.assertEquals(BiboStatus.DRAFT,
+        ((FolderServerTemplate) folderSession.findArtifactById(sourceId)).getPublicationStatus());
+    Assertions.assertEquals(1, folderSession.getVersionHistory(sourceId).size());
+  }
+
+  /**
+   * The artifact server's refusal of the draft is answered with its own status even when its body is not
+   * JSON, and the publication is undone.
+   */
+  @org.junit.jupiter.params.ParameterizedTest(name = "{0}")
+  @org.junit.jupiter.params.provider.ValueSource(ints = {400, 503})
+  public void aDraftRefusedWithAnErrorPageIsAnsweredWithItsStatusAndUndone(int status) throws Exception {
+    refusingDraftCreationsWithAPage = status;
+    CedarTemplateId sourceId = createSourceTemplate("Template whose draft is refused with a page", null);
+    ObjectNode before = ARTIFACTS.get(sourceId.getId()).deepCopy();
+    int documents = ARTIFACTS.size();
+    String submitted = templateDocument("Template whose draft is refused with a page, edited", null).toString();
+
+    HttpResponse<String> response = publishCreateDraft(sourceId, submitted);
+
+    Assertions.assertEquals(status, response.statusCode(), response.body());
+    Assertions.assertEquals(before, ARTIFACTS.get(sourceId.getId()), "the template's document was not put back");
+    Assertions.assertEquals(documents, ARTIFACTS.size(), "a draft reached the artifact store");
+    Assertions.assertEquals(BiboStatus.DRAFT,
+        ((FolderServerTemplate) folderSession.findArtifactById(sourceId)).getPublicationStatus());
+    Assertions.assertEquals(1, folderSession.getVersionHistory(sourceId).size(), "a draft reached the graph");
+  }
+
+  /**
+   * The draft's identifier is checked before the template is published, and another writer can still
+   * take it before the draft is created. The draft is then refused with 412 as before, the publication is
+   * undone, and the other writer's document is left where it is.
+   */
+  @Test
+  public void anIdentifierTakenAfterItWasCheckedIsRefusedAndThePublicationUndone() throws Exception {
+    CedarTemplateId sourceId = createSourceTemplate("Template whose draft identifier is taken", null);
+    ObjectNode before = ARTIFACTS.get(sourceId.getId()).deepCopy();
+    String draftId = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE);
+    takingThisIdentityOnPublication = draftId;
+    String submitted = templateDocument("Template whose draft identifier is taken, edited", null).toString();
+
+    HttpResponse<String> response = publishCreateDraft(sourceId, submitted, "\"" + ETAGS.get(sourceId.getId()) + "\"",
+        draftId);
+
+    Assertions.assertEquals(412, response.statusCode(), response.body());
+    Assertions.assertEquals("nodeAlreadyPresent", JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText());
+    assertDescribesTheUndo(response, sourceId);
+    Assertions.assertEquals("Another writer's template", ARTIFACTS.get(draftId).path("schema:name").asText(),
+        "the other writer's document was touched");
+    Assertions.assertEquals(before, ARTIFACTS.get(sourceId.getId()), "the template's document was not put back");
+    Assertions.assertEquals(BiboStatus.DRAFT,
+        ((FolderServerTemplate) folderSession.findArtifactById(sourceId)).getPublicationStatus());
+    Assertions.assertEquals(1, folderSession.getVersionHistory(sourceId).size());
+  }
+
+  /**
+   * When the template's draft document cannot be put back, the undoing stops after removing the draft.
+   * The template stays published, and both stores say so, so the two never disagree about it. The
+   * command still answers with the failing step's own status.
+   */
+  @org.junit.jupiter.params.ParameterizedTest(name = "the put-back answered {0}")
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"503", "no answer"})
+  public void aTemplateWhoseDraftDocumentCannotBePutBackStaysPublishedInBothStores(String answer) throws Exception {
+    failingDefinitionWrites = true;
+    refusingPutBacksOfPublishedTemplates = answer;
+    CedarTemplateId sourceId = createSourceTemplate("Template that cannot be put back after " + answer, null);
+    int documents = ARTIFACTS.size();
+    String submitted = templateDocument("Template that cannot be put back, edited", null).toString();
+
+    HttpResponse<String> response = publishCreateDraft(sourceId, submitted);
+
+    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Assertions.assertEquals(documents, ARTIFACTS.size(), "the draft was left in the artifact store");
+    Assertions.assertEquals(1, folderSession.getVersionHistory(sourceId).size(), "the draft was left in the graph");
+    Assertions.assertEquals(BiboStatus.PUBLISHED.getValue(),
+        ARTIFACTS.get(sourceId.getId()).path(ModelNodeNames.BIBO_STATUS).asText());
+    Assertions.assertEquals(BiboStatus.PUBLISHED,
+        ((FolderServerTemplate) folderSession.findArtifactById(sourceId)).getPublicationStatus(),
+        "the template's document and graph disagree about its publication");
+  }
+
+  /**
+   * The graph can refuse to return a template to the draft it was after its draft document has been put
+   * back, and with no restore outbox it cannot be returned at all. The published document is then put back
+   * in turn, conditional on the ETag the first put-back returned, so the template ends published in both
+   * stores, and no restore is left pending.
+   */
+  @org.junit.jupiter.params.ParameterizedTest(name = "{0}")
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"the graph refuses", "there is no restore outbox"})
+  public void aTemplateTheGraphKeepsPublishedGetsItsPublishedDocumentBack(String reason) throws Exception {
+    failingDefinitionWrites = true;
+    CedarTemplateId sourceId = createSourceTemplate("Template the graph keeps published because " + reason, null);
+    int documents = ARTIFACTS.size();
+    String submitted = templateDocument("Template the graph keeps published, edited", null).toString();
+    var original = AbstractResourceServerResource.artifactRestoreCompletionService;
+    var keepingItPublished = org.mockito.Mockito.spy(original);
+    org.mockito.Mockito.doReturn(false).when(keepingItPublished).returnToDraft(org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+    long restoresPending = original.getPendingCount();
+    HttpResponse<String> response;
+    try {
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(
+          reason.equals("the graph refuses") ? keepingItPublished : null);
+      response = publishCreateDraft(sourceId, submitted);
+    } finally {
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(original);
+    }
+
+    Assertions.assertEquals(500, response.statusCode(), response.body());
+    Assertions.assertEquals(documents, ARTIFACTS.size(), "the draft was left in the artifact store");
+    Assertions.assertEquals(1, folderSession.getVersionHistory(sourceId).size(), "the draft was left in the graph");
+    JsonNode stored = ARTIFACTS.get(sourceId.getId());
+    Assertions.assertEquals(BiboStatus.PUBLISHED.getValue(), stored.path(ModelNodeNames.BIBO_STATUS).asText(),
+        "the published document was not put back");
+    Assertions.assertEquals(SOURCE_VERSION, stored.path(ModelNodeNames.PAV_VERSION).asText());
+    Assertions.assertEquals(BiboStatus.PUBLISHED,
+        ((FolderServerTemplate) folderSession.findArtifactById(sourceId)).getPublicationStatus());
+    java.util.List<Write> sourceWrites = WRITES.stream().filter(Write::source).toList();
+    Assertions.assertEquals(3, sourceWrites.size(), sourceWrites.toString());
+    Assertions.assertEquals(quoted(sourceWrites.get(0).revision()), sourceWrites.get(1).condition(),
+        "the draft document was not put back on the revision the publication returned");
+    Assertions.assertEquals(quoted(sourceWrites.get(1).revision()), sourceWrites.get(2).condition(),
+        "the published document was not put back on the revision the first put-back returned");
+    Assertions.assertEquals(restoresPending, original.getPendingCount(), "a restore was left pending");
   }
 
   /** A draft identifier the caller chose is where the draft is created, and a repeat finds it taken. */
@@ -623,6 +802,16 @@ public class PublishCreateDraftTemplateTest {
         send(exchange, 412, JsonMapper.STRICT_MAPPER.createObjectNode().put("message", "absent"), null);
         return;
       }
+      Integer refusal = refusingDraftCreationsWithAPage;
+      if (refusal != null) {
+        byte[] page = ("<html><body><h1>" + refusal + "</h1></body></html>").getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "text/html");
+        exchange.sendResponseHeaders(refusal, page.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+          out.write(page);
+        }
+        return;
+      }
       ObjectNode created = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       ARTIFACTS.put(artifactId, created);
       ETAGS.put(artifactId, REVISIONS.incrementAndGet());
@@ -668,6 +857,10 @@ public class PublishCreateDraftTemplateTest {
         ARTIFACTS.get(artifactId).put("schema:description", "Edited by another writer");
         ETAGS.put(artifactId, REVISIONS.incrementAndGet());
       }
+      if (losingDraftsBeforeTheirDefinitionFails) {
+        ARTIFACTS.remove(artifactId);
+        ETAGS.remove(artifactId);
+      }
       WRITES.add(new Write("PUT", false, condition, null));
       send(exchange, 500, JsonMapper.STRICT_MAPPER.createObjectNode().put("message", "The definition was not written"), null);
       return;
@@ -687,6 +880,17 @@ public class PublishCreateDraftTemplateTest {
       send(exchange, 201, created, mintedId);
       return;
     }
+    String putBackRefusal = refusingPutBacksOfPublishedTemplates;
+    if ("PUT".equals(method) && artifactId != null && putBackRefusal != null && isSource(artifactId)
+        && BiboStatus.PUBLISHED.getValue().equals(ARTIFACTS.get(artifactId).path(ModelNodeNames.BIBO_STATUS).asText())) {
+      if (putBackRefusal.equals("no answer")) {
+        exchange.close();
+      } else {
+        send(exchange, Integer.parseInt(putBackRefusal),
+            JsonMapper.STRICT_MAPPER.createObjectNode().put("message", "The template cannot be put back"), null);
+      }
+      return;
+    }
     if ("PUT".equals(method) && artifactId != null) {
       if (artifactId.equals(raceOnPut)) {
         raceOnPut = null;
@@ -702,6 +906,12 @@ public class PublishCreateDraftTemplateTest {
       ARTIFACTS.put(artifactId, replacement);
       ETAGS.put(artifactId, REVISIONS.incrementAndGet());
       WRITES.add(new Write("PUT", source, condition, ETAGS.get(artifactId)));
+      String taken = takingThisIdentityOnPublication;
+      if (source && taken != null) {
+        takingThisIdentityOnPublication = null;
+        ARTIFACTS.put(taken, templateDocument("Another writer's template", null).put(ModelNodeNames.JSON_LD_ID, taken));
+        ETAGS.put(taken, REVISIONS.incrementAndGet());
+      }
       send(exchange, 200, replacement, null);
       return;
     }

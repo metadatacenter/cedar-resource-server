@@ -234,6 +234,24 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
 
   /** Hold the same node lock used by graph completion for the entire conditional HTTP restore. */
   public void restoreIfPending(ArtifactRestoreJob job, java.util.function.ToIntFunction<ArtifactRestoreJob> restore) {
+    attemptRestoreIfPending(job, pending -> new Attempt(restore.applyAsInt(pending), null));
+  }
+
+  /**
+   * What one put-back attempt received: the artifact server's status, and the reason to park the job
+   * rather than settle or retry it, when the answer is a refusal that asking again cannot change.
+   */
+  public record Attempt(int status, String parkingReason) {
+  }
+
+  /**
+   * Attempts the put-back as {@link #restoreIfPending} does, and parks the job with the reason an attempt
+   * names, whatever its status. A
+   * template's put-back that instances now block is answered with a 412, as a put-back that lost a race
+   * is, but nothing replaced the document, so the job must not be settled as one that did.
+   */
+  public void attemptRestoreIfPending(ArtifactRestoreJob job,
+                                      java.util.function.Function<ArtifactRestoreJob, Attempt> restore) {
     try (Session session = driver.session()) {
       // Persist the decision before HTTP: even if the later transaction rolls back after an
       // uncertain response, the original graph write must never commit over a possible restore.
@@ -250,8 +268,14 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
         if (!ArtifactRestoreTransaction.lock(tx, job.jobId())) {
           return null;
         }
-        int status = restore.applyAsInt(job);
-        if (status == 200 || status == 201 || status == 404 || status == 412) {
+        Attempt attempt = restore.apply(job);
+        int status = attempt.status();
+        if (attempt.parkingReason() != null) {
+          tx.run("MATCH (e:CedarArtifactRestoreOutbox {jobId: $jobId}) "
+              + "SET e.attempts = coalesce(e.attempts, 0) + 1, e.parked = true, e.parkedReason = $reason, "
+              + "e.parkedAt = timestamp()", Map.of("jobId", job.jobId(), "reason", attempt.parkingReason())).consume();
+          log.error("Parking restore for {}: {}", job.resourceId(), attempt.parkingReason());
+        } else if (status == 200 || status == 201 || status == 404 || status == 412) {
           boolean requestFinished = tx.run("MATCH (e:CedarArtifactRestoreOutbox {jobId: $jobId}) "
               + "RETURN coalesce(e.requestFinished, false) AS finished", Map.of("jobId", job.jobId()))
               .single().get("finished").asBoolean();

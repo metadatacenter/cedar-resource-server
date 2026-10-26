@@ -254,8 +254,11 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       + "workspace-graph or search-index cleanup.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
-      @ApiResponse(responseCode = "202", description = "Content deleted; durable downstream cleanup is pending. "
-              + "The response carries no body, so no content is declared."),
+      @ApiResponse(responseCode = "202", description = "The deletion is recorded and will be completed without the "
+              + "caller. Either the artifact server did not confirm it, by an outage or no answer, and it is sent "
+              + "again until it is answered, or the content is deleted and the workspace-graph or search-index "
+              + "cleanup is still pending. The body says which.",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactDeletionAccepted"))),
       @ApiResponse(responseCode = "204", description = "Deletion completed across content and downstream stores"),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),

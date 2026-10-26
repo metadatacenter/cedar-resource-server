@@ -192,7 +192,7 @@ public class StoreConsistencyMatrixTest {
   @Test
   public void aCopiedTemplateIsDescribedTheSameWayByBothStores() throws Exception {
     String sourceId = createTemplate("Consistency copy source", null);
-    setDoi(sourceId, "10.5072/FK2-consistency-source");
+    setDoi(sourceId, "https://doi.org/10.5072/FK2-consistency-source");
 
     HttpResponse<String> copied = post("/command/copy-artifact-to-folder",
         "{\"@id\":\"" + sourceId + "\",\"targetFolderId\":\"" + homeFolderId.getId()
@@ -208,7 +208,7 @@ public class StoreConsistencyMatrixTest {
   public void aMintedDoiIsDescribedTheSameWayByBothStores() throws Exception {
     String id = createTemplate("Consistency DOI fixture", null);
 
-    setDoi(id, "10.5072/FK2-consistency-minted");
+    setDoi(id, "https://doi.org/10.5072/FK2-consistency-minted");
 
     assertStoresAgree("set the DOI", id, CedarResourceType.TEMPLATE);
   }
@@ -233,7 +233,7 @@ public class StoreConsistencyMatrixTest {
 
   @Test
   public void aTemplateDraftedFromAPublishedOneIsDescribedTheSameWayByBothStores() throws Exception {
-    String id = createTemplate("Consistency publish-and-draft fixture", "10.5072/FK2-consistency-published");
+    String id = createTemplate("Consistency publish-and-draft fixture", "https://doi.org/10.5072/FK2-consistency-published");
 
     HttpResponse<String> response = post("/command/publish-create-draft-template/" + encode(id),
         templateDocument("Consistency publish-and-draft fixture, edited", null).toString());

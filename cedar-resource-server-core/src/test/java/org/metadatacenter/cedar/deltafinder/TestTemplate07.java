@@ -16,8 +16,9 @@ public class TestTemplate07 extends SimpleTemplateTest {
     List<Change> destructive = delta.getDestructiveChanges();
     List<Change> nonDestructive = delta.getNonDestructiveChanges();
 
-    // Field 4 is Field 2 renamed and given a default and length bounds. Its stored values move to the new
-    // name, where a minimum length can refuse one.
+    // Field 4 is Field 2 renamed and given a default, length bounds and a new property IRI. Its stored values move
+    // to the new name, where a minimum length can refuse one. The instance clone moves them only by an unchanged
+    // IRI, so the new IRI is reported too.
     assertEquals(1, nonDestructive.size(), "Should contain exactly one non-destructive change");
     Change rename = nonDestructive.get(0);
     assertTrue(rename instanceof Rename, "Expected Rename from Field 2 to Field 4");
@@ -32,5 +33,6 @@ public class TestTemplate07 extends SimpleTemplateTest {
     assertTrue(constraintChange.getOldConstraint().contains("defaultValue"), "Change description should mention defaultValue");
     assertTrue(constraintChange.getOldConstraint().contains("minLength"), "Change description should mention minLength");
     assertTrue(constraintChange.getOldConstraint().contains("maxLength"), "Change description should mention maxLength");
+    assertTrue(constraintChange.getOldConstraint().contains("propertyUri"), "Change description should mention propertyUri");
   }
 }

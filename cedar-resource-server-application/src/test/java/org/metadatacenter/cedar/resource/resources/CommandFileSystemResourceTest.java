@@ -59,7 +59,7 @@ public class CommandFileSystemResourceTest {
 
   private static final String SOURCE_NAME = "Named source artifact";
   private static final String COPIED_NAME = "Copy of " + SOURCE_NAME;
-  private static final String SOURCE_DOI = "10.5072/FK2-source-artifact";
+  private static final String SOURCE_DOI = "https://doi.org/10.5072/FK2-source-artifact";
 
   public static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =
       new DropwizardTestSupport<>(ResourceServerApplication.class,

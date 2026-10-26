@@ -3,7 +3,7 @@
   "info" : {
     "description" : "Better Metadata - Better Science\n\nFolders and artifacts use type-qualified selectors: `folders/<uuid>`, `templates/<uuid>`,\n`template-elements/<uuid>`, `template-fields/<uuid>`, or `template-instances/<uuid>`.\nTyped routes include the type once, for example `/templates/<uuid>`. Query parameters and\ncommand-body selectors retain the type, including folder parameters. Percent-encoded full\nIRIs remain accepted for compatibility. Stored document identities and references remain\nfull IRIs; legacy repository hosts must remain absolute until their data is migrated.\n\nMutable resources use strong ETags for optimistic concurrency. Read the resource (or its\npermissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing\nrequired precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`\naccepts whichever revision currently exists and therefore deliberately gives up lost-update\nprotection. Comma-separated strong validators are also accepted. Representation suffixes such\nas `\"7-json\"`, `\"7-yaml\"`, and `\"7-resource-record\"` identify different bytes of the same\nstored revision and are valid write preconditions.\n\nSee the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)\nfor authentication, request examples, and complete ETag guidance.\n",
     "title" : "CEDAR Resource Server API",
-    "version" : "2.9.28"
+    "version" : "2.9.29"
   },
   "tags" : [ {
     "name" : "Templates"
@@ -6062,7 +6062,14 @@
         } ],
         "responses" : {
           "202" : {
-            "description" : "Content deleted; durable downstream cleanup is pending. The response carries no body, so no content is declared."
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactDeletionAccepted"
+                }
+              }
+            },
+            "description" : "The deletion is recorded and will be completed without the caller. Either the artifact server did not confirm it, by an outage or no answer, and it is sent again until it is answered, or the content is deleted and the workspace-graph or search-index cleanup is still pending. The body says which."
           },
           "204" : {
             "description" : "Deletion completed across content and downstream stores"
@@ -7461,7 +7468,14 @@
         } ],
         "responses" : {
           "202" : {
-            "description" : "Content deleted; durable downstream cleanup is pending. The response carries no body, so no content is declared."
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactDeletionAccepted"
+                }
+              }
+            },
+            "description" : "The deletion is recorded and will be completed without the caller. Either the artifact server did not confirm it, by an outage or no answer, and it is sent again until it is answered, or the content is deleted and the workspace-graph or search-index cleanup is still pending. The body says which."
           },
           "204" : {
             "description" : "Deletion completed across content and downstream stores"
@@ -8860,7 +8874,14 @@
         } ],
         "responses" : {
           "202" : {
-            "description" : "Content deleted; durable downstream cleanup is pending. The response carries no body, so no content is declared."
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactDeletionAccepted"
+                }
+              }
+            },
+            "description" : "The deletion is recorded and will be completed without the caller. Either the artifact server did not confirm it, by an outage or no answer, and it is sent again until it is answered, or the content is deleted and the workspace-graph or search-index cleanup is still pending. The body says which."
           },
           "204" : {
             "description" : "Deletion completed across content and downstream stores"
@@ -10214,7 +10235,14 @@
         } ],
         "responses" : {
           "202" : {
-            "description" : "Content deleted; durable downstream cleanup is pending. The response carries no body, so no content is declared."
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactDeletionAccepted"
+                }
+              }
+            },
+            "description" : "The deletion is recorded and will be completed without the caller. Either the artifact server did not confirm it, by an outage or no answer, and it is sent again until it is answered, or the content is deleted and the workspace-graph or search-index cleanup is still pending. The body says which."
           },
           "204" : {
             "description" : "Deletion completed across content and downstream stores"
@@ -11571,6 +11599,24 @@
           }
         }
       },
+      "ArtifactDeletionAccepted" : {
+        "type" : "object",
+        "description" : "A deletion that is recorded and that the server completes without the caller. `pending` says\nwhat is left. `artifact` means the artifact server did not confirm that the document is gone,\nbecause it answered with an outage or did not answer, and the deletion is sent again until it\nis answered. `cleanup` means the document is gone and its removal from the workspace graph or\nthe search index is still to finish.\n",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "pending" : {
+            "type" : "string",
+            "enum" : [ "artifact", "cleanup" ]
+          }
+        },
+        "required" : [ "@id", "message", "pending" ]
+      },
       "ArtifactDetails" : {
         "allOf" : [ {
           "$ref" : "#/components/schemas/ArtifactRecord"
@@ -12855,6 +12901,9 @@
       "InclusionSubgraphUpdateOutcome" : {
         "type" : "object",
         "properties" : {
+          "artifactServerAnswer" : {
+            "$ref" : "#/components/schemas/CedarError"
+          },
           "artifactServerStatus" : {
             "type" : "integer",
             "format" : "int32"

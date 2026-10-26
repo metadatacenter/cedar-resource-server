@@ -1,5 +1,10 @@
 package org.metadatacenter.cedar.resource.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.media.Schema;
+import org.metadatacenter.util.http.CedarError;
+
 /**
  * What happened to one target of an inclusion subgraph propagation.
  *
@@ -22,24 +27,34 @@ public class InclusionSubgraphUpdateOutcome {
   private final String targetId;
   private final Status status;
   private final Integer artifactServerStatus;
+  private final JsonNode artifactServerAnswer;
 
-  private InclusionSubgraphUpdateOutcome(String sourceId, String targetId, Status status, Integer artifactServerStatus) {
+  private InclusionSubgraphUpdateOutcome(String sourceId, String targetId, Status status, Integer artifactServerStatus,
+                                         JsonNode artifactServerAnswer) {
     this.sourceId = sourceId;
     this.targetId = targetId;
     this.status = status;
     this.artifactServerStatus = artifactServerStatus;
+    this.artifactServerAnswer = artifactServerAnswer;
   }
 
   public static InclusionSubgraphUpdateOutcome updated(String sourceId, String targetId, int artifactServerStatus) {
-    return new InclusionSubgraphUpdateOutcome(sourceId, targetId, Status.UPDATED, artifactServerStatus);
+    return new InclusionSubgraphUpdateOutcome(sourceId, targetId, Status.UPDATED, artifactServerStatus, null);
   }
 
   public static InclusionSubgraphUpdateOutcome unchanged(String sourceId, String targetId) {
-    return new InclusionSubgraphUpdateOutcome(sourceId, targetId, Status.UNCHANGED, null);
+    return new InclusionSubgraphUpdateOutcome(sourceId, targetId, Status.UNCHANGED, null, null);
   }
 
-  public static InclusionSubgraphUpdateOutcome failed(String sourceId, String targetId, int artifactServerStatus) {
-    return new InclusionSubgraphUpdateOutcome(sourceId, targetId, Status.FAILED, artifactServerStatus);
+  /**
+   * A write the artifact server refused, with its answer as it gave it, so that the caller learns why. A
+   * template that instances now reference is refused with a 412 whose answer names that reason, and only
+   * the answer tells it apart from a write that lost a race.
+   */
+  public static InclusionSubgraphUpdateOutcome failed(String sourceId, String targetId, int artifactServerStatus,
+                                                      JsonNode artifactServerAnswer) {
+    return new InclusionSubgraphUpdateOutcome(sourceId, targetId, Status.FAILED, artifactServerStatus,
+        artifactServerAnswer);
   }
 
   public String getSourceId() {
@@ -57,5 +72,13 @@ public class InclusionSubgraphUpdateOutcome {
   /** The status the artifact server answered, or null where no write was attempted. */
   public Integer getArtifactServerStatus() {
     return artifactServerStatus;
+  }
+
+  /** The artifact server's answer to a refused write, where it gave one as JSON, and null otherwise. */
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  @Schema(implementation = CedarError.class, nullable = true,
+      description = "The artifact server's answer to a refused write, as it gave it")
+  public JsonNode getArtifactServerAnswer() {
+    return artifactServerAnswer;
   }
 }

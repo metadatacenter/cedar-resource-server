@@ -122,6 +122,12 @@ class InclusionTransitionTest {
     } else {
       assertTrue(result.statusCode() >= 400, result.body());
       if (!change.equals("published")) assertRefusedWrite(result);
+      if (change.equals("instance")) {
+        var answer = JsonMapper.STRICT_MAPPER.readTree(result.body()).path("objects").path("report").path("outcomes")
+            .path(0).path("artifactServerAnswer");
+        assertEquals("templateReferencedInInstances", answer.path("errorReasonKey").asText(),
+            "the artifact server's reason for refusing the write did not reach the caller: " + result.body());
+      }
       assertEquals(0, writes.get(), "a later publish, edit or first instance must not be overwritten");
       assertFalse(documents.get(targetId).body().toString().contains("New field"));
       if (change.equals("edited")) assertEquals("Concurrent edit", documents.get(targetId).body().path("schema:name").asText());
@@ -181,7 +187,11 @@ class InclusionTransitionTest {
     if (exchange.getRequestMethod().equals("PUT")) {
       // A first instance is committed after the resource server's count, before the content write.
       // The protected artifact endpoint must enforce this condition at the storage boundary.
-      if (mode.equals("instance") && path.endsWith("/inclusion")) { respond(exchange, 412, null); return; }
+      if (mode.equals("instance") && path.endsWith("/inclusion")) {
+        refuse(exchange, 412, "{\"errorKey\":\"templateNotUpdated\",\"errorReasonKey\":\"templateReferencedInInstances\","
+            + "\"message\":\"Instances use this template\"}");
+        return;
+      }
       if (!stored.etag().equals(exchange.getRequestHeaders().getFirst("If-Match"))) { respond(exchange, 412, null); return; }
       ObjectNode body = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(exchange.getRequestBody());
       Stored replacement = new Stored(body, stored.revision() + 1);
@@ -191,6 +201,13 @@ class InclusionTransitionTest {
       return;
     }
     respond(exchange, 405, null);
+  }
+  private static void refuse(HttpExchange exchange, int status, String body) throws IOException {
+    exchange.getResponseHeaders().set("Content-Type", "application/json");
+    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+    exchange.sendResponseHeaders(status, bytes.length);
+    exchange.getResponseBody().write(bytes);
+    exchange.close();
   }
   private static void respond(HttpExchange exchange, int status, Stored stored) throws IOException {
     exchange.getResponseHeaders().set("Content-Type", "application/json");

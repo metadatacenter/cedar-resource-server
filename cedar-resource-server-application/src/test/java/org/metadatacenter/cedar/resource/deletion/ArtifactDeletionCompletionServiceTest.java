@@ -46,8 +46,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * a recorded deletion for the server's relay to finish. The relay sends the deletion again, conditional
  * on the ETag the request had read, and the artifact server's answer decides what follows. A deletion, or
  * an artifact that is already gone, finishes in the graph. An artifact edited since then abandons the
- * deletion. A refusal parks it for a person, and an outage leaves it to be tried again. The graph node
- * goes only in the first two cases, and only an outage is asked again.
+ * deletion, and so do instances that reference a template, which the artifact server also answers with
+ * 412. A refusal parks it for a person, and an outage leaves it to be tried again. The graph node goes
+ * only in the first two cases, and only an outage is asked again.
  */
 @Tag("integration")
 class ArtifactDeletionCompletionServiceTest {
@@ -59,6 +60,8 @@ class ArtifactDeletionCompletionServiceTest {
 
   /** The status the artifact server answers a deletion of each artifact with, by the artifact's UUID. */
   private static final Map<String, Integer> ANSWERS = new ConcurrentHashMap<>();
+  /** The body the artifact server answers a deletion of an artifact with, where it gives one. */
+  private static final Map<String, String> BODIES = new ConcurrentHashMap<>();
   /** The If-Match of every deletion the artifact server received, by the artifact's UUID. */
   private static final Map<String, List<String>> DELETIONS = new ConcurrentHashMap<>();
   /** Every artifact this class recorded a deletion for. */
@@ -113,9 +116,16 @@ class ArtifactDeletionCompletionServiceTest {
 
   @Test
   void theArtifactServersAnswerDecidesWhetherARecordedDeletionFinishesStopsOrWaits() throws Exception {
+    ch.qos.logback.classic.Logger relayLog = (ch.qos.logback.classic.Logger)
+        org.slf4j.LoggerFactory.getLogger(ArtifactDeletionCompletionService.class);
+    var logged = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+    logged.start();
+    relayLog.addAppender(logged);
     String deleted = recordedDeletion("Deleted when the relay asks", 204);
     String alreadyGone = recordedDeletion("Already gone when the relay asks", 404);
     String editedSince = recordedDeletion("Edited since its deletion was recorded", 412);
+    String usedByInstances = recordedDeletion("Used by instances when the relay asks", 412,
+        "{\"errorKey\":\"templateNotDeleted\",\"errorReasonKey\":\"templateReferencedInInstances\"}");
     String refused = recordedDeletion("Refused by the artifact server", 400);
     String unavailable = recordedDeletion("Asked while the artifact server is away", 503);
 
@@ -133,13 +143,14 @@ class ArtifactDeletionCompletionServiceTest {
       assertEquals(attempts(unavailable), attempts(id), "a pass counted more than one attempt at " + id);
     }
 
-    for (String id : List.of(deleted, alreadyGone, editedSince, refused, unavailable)) {
+    relayLog.detachAppender(logged);
+    for (String id : List.of(deleted, alreadyGone, editedSince, usedByInstances, refused, unavailable)) {
       assertTrue(DELETIONS.containsKey(uuidOf(id)), "the relay never asked to delete " + id);
       for (String condition : DELETIONS.get(uuidOf(id))) {
         assertEquals(etagFor(ANSWERS.get(uuidOf(id))), condition, "a deletion was sent without the recorded ETag");
       }
     }
-    for (String id : List.of(deleted, alreadyGone, editedSince, refused)) {
+    for (String id : List.of(deleted, alreadyGone, editedSince, usedByInstances, refused)) {
       assertEquals(1, DELETIONS.get(uuidOf(id)).size(), "an answered deletion was asked again: " + id);
     }
 
@@ -151,6 +162,15 @@ class ArtifactDeletionCompletionServiceTest {
 
     assertNotNull(folders.findArtifactById(CedarTemplateId.build(editedSince)), "an edited artifact lost its node");
     assertNull(job(editedSince), "a deletion overtaken by an edit was kept");
+    assertNotNull(folders.findArtifactById(CedarTemplateId.build(usedByInstances)), "a template instances use lost its node");
+    assertNull(job(usedByInstances), "a deletion instances block was kept");
+    // The two 412s end the deletion alike, and the log says which of them it was.
+    List<String> abandoned = logged.list.stream().map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+        .filter(message -> message.startsWith("Abandoning deletion")).toList();
+    assertTrue(abandoned.stream().anyMatch(message -> message.contains(usedByInstances)
+        && message.contains("instances reference the template")), abandoned.toString());
+    assertTrue(abandoned.stream().anyMatch(message -> message.contains(editedSince)
+        && message.contains("the artifact advanced")), abandoned.toString());
 
     assertNotNull(folders.findArtifactById(CedarTemplateId.build(refused)), "a refused artifact lost its node");
     Map<String, Object> parked = job(refused);
@@ -169,6 +189,10 @@ class ArtifactDeletionCompletionServiceTest {
    * one before it deletes the artifact.
    */
   private static String recordedDeletion(String name, int answer) throws Exception {
+    return recordedDeletion(name, answer, null);
+  }
+
+  private static String recordedDeletion(String name, int answer, String body) throws Exception {
     FolderServerTemplate template = new FolderServerTemplate();
     template.setId(config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
     template.setName(name);
@@ -180,6 +204,9 @@ class ArtifactDeletionCompletionServiceTest {
     FolderServerArtifact created = folders.createResourceAsChildOfId(template, home);
     assertNotNull(created);
     ANSWERS.put(uuidOf(created.getId()), answer);
+    if (body != null) {
+      BODIES.put(uuidOf(created.getId()), body);
+    }
     RECORDED.add(created.getId());
     outbox.prepare(created.getId(), CedarResourceType.TEMPLATE, etagFor(answer),
         JsonMapper.STRICT_MAPPER.writeValueAsString(created), null, false);
@@ -220,7 +247,15 @@ class ArtifactDeletionCompletionServiceTest {
     }
     DELETIONS.computeIfAbsent(id, key -> new CopyOnWriteArrayList<>())
         .add(exchange.getRequestHeaders().getFirst("If-Match"));
-    exchange.sendResponseHeaders(answer, -1);
+    String body = BODIES.get(id);
+    if (body == null) {
+      exchange.sendResponseHeaders(answer, -1);
+    } else {
+      byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+      exchange.getResponseHeaders().set("Content-Type", "application/json");
+      exchange.sendResponseHeaders(answer, bytes.length);
+      exchange.getResponseBody().write(bytes);
+    }
     exchange.close();
   }
 }

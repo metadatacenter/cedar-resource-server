@@ -36,11 +36,6 @@ class OpenApiSuccessContractTest {
           "POST /template-fields/{template_field_id}/download",
           "POST /template-instances/{template_instance_id}/download",
           "POST /templates/{template_id}/download",
-          // Content is gone and downstream cleanup is still running, which needs no body.
-          "DELETE /templates/{template_id} 202",
-          "DELETE /template-elements/{template_element_id} 202",
-          "DELETE /template-fields/{template_field_id} 202",
-          "DELETE /template-instances/{template_instance_id} 202",
           // Provisions the user's objects for the Keycloak listener, which reads no body back.
           "POST /command/auth-user-callback 201",
           // Reached only when the artifact server returns no entity, which leaves nothing to

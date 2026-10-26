@@ -70,6 +70,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.metadatacenter.model.ModelNodeNames.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -263,7 +264,29 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       throw new CedarProcessingException(e);
     }
 
+    AtomicReference<Undo> undo = new AtomicReference<>();
+    try {
+      return describeUndo(copyThenRegister(c, resourceType, sourceArtifactId, targetFolderId, copyId, originalDocument,
+          folderSession, undo), undo.get());
+    } catch (CedarException e) {
+      throw describeUndo(e, undo.get());
+    }
+  }
+
+  /**
+   * Stores the copy's document and then registers it in the graph. A document the graph does not register
+   * is removed by the copy's cleanup, and {@code undo} then receives what became of it, for the failure the
+   * copy is answered with.
+   */
+  private Response copyThenRegister(CedarRequestContext c, CedarResourceType resourceType,
+                                    CedarArtifactId sourceArtifactId, CedarFolderId targetFolderId,
+                                    Optional<CedarArtifactId> copyId, String originalDocument,
+                                    FolderServiceSession folderSession, AtomicReference<Undo> undo)
+      throws CedarException {
     String cleanupJob = artifactCreateCleanupService.prepare(resourceType, "copy", copyId);
+    boolean stored = false;
+    String storedId = copyId.map(CedarArtifactId::getId).orElse(null);
+    boolean registered = false;
     try {
       ClassicHttpResponse templateProxyResponse =
           sendCreateToArtifactServer(c, resourceType, copyId, originalDocument, cleanupJob);
@@ -275,11 +298,13 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         return generateStatusResponse(templateProxyResponse);
       } else {
         // artifact was created
+        stored = true;
         HttpEntity entity = templateProxyResponse.getEntity();
         Header locationHeader = templateProxyResponse.getFirstHeader(HttpHeaders.LOCATION);
         String entityContent = EntityUtils.toString(entity, StandardCharsets.UTF_8);
         JsonNode jsonNode = JsonMapper.STRICT_MAPPER.readTree(entityContent);
         String createdId = jsonNode.get("@id").asText();
+        storedId = createdId;
         CedarArtifactId newId = CedarArtifactId.build(createdId, resourceType);
         Header validator = templateProxyResponse.getFirstHeader(HttpHeaders.ETAG);
         artifactCreateCleanupService.created(cleanupJob, createdId, validator == null ? null : validator.getValue());
@@ -289,11 +314,13 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
                 resourceType,
                 ModelUtil.extractNameFromResource(resourceType, jsonNode).getValue(),
                 ModelUtil.extractDescriptionFromResource(resourceType, jsonNode).getValue(),
-                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue(), null, null, cleanupJob);
+                ModelUtil.extractIdentifierFromResource(resourceType, jsonNode).getValue(), null, null, cleanupJob,
+                org.metadatacenter.server.ArtifactCreationProvenance.fromDocument(jsonNode));
 
         if (folderServerCreatedResource == null) {
           return CedarResponse.badRequest().errorKey(CedarErrorKey.RESOURCE_NOT_CREATED).build();
         }
+        registered = true;
         if (locationHeader != null) {
           response.setHeader(locationHeader.getName(), locationHeader.getValue());
         }
@@ -312,6 +339,9 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       throw new CedarProcessingException(e);
     } finally {
       artifactCreateCleanupService.cleanupNow(cleanupJob, c);
+      if (stored && !registered) {
+        undo.set(undoOfUnregisteredCreate(c, resourceType, storedId));
+      }
     }
   }
 

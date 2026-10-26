@@ -68,7 +68,9 @@ import java.util.stream.Stream;
  * the 404 envelope for the artifact, stamped a version on it and wrote it back.
  *
  * <p>Each case fails one request a command makes. The command must answer with the artifact server's
- * status and reason, or with 503 when no answer came. It must also leave both stores as they were.
+ * status and reason, or with 503 when no answer came. It must also leave both stores as they were. A
+ * deletion's DELETE is the exception: one met by an outage stays recorded for the relay to complete, and
+ * is accepted with 202.
  *
  * <p>Publishing a template and drafting its successor is one command that makes several writes, and its
  * later steps fail after the publication has committed. Those steps are failed one at a time: the
@@ -178,6 +180,8 @@ public class ArtifactServerAnswerMatrixTest {
   }
 
   private static final Map<String, Command> COMMANDS = Map.of(
+      "create", id -> post("/templates?folder_id=" + encode(homeFolderId.getId()),
+          templateDocument("Answer matrix fixture, created beside it").toString()),
       "publish", id -> post("/command/publish-artifact", "{\"@id\":\"" + id + "\",\"newVersion\":\"1.0.0\"}"),
       "create a draft", id -> post("/command/create-draft-artifact",
           "{\"@id\":\"" + id + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
@@ -200,6 +204,7 @@ public class ArtifactServerAnswerMatrixTest {
    * update and a deletion each read the document first, so their GET is failed as well as their write.
    */
   private static final List<Object[]> STEPS = List.of(
+      new Object[]{"create", "POST"},
       new Object[]{"publish", "GET"}, new Object[]{"publish", "PUT"},
       new Object[]{"create a draft", "GET"}, new Object[]{"create a draft", "POST"},
       new Object[]{"publish and draft", "GET"}, new Object[]{"publish and draft", "PUT"},
@@ -247,10 +252,20 @@ public class ArtifactServerAnswerMatrixTest {
     FAULT.set(null);
 
     // A deletion that finds the document already gone has nothing left to delete there, so it
-    // completes, and the dangling node goes with it. That is the one answer not relayed.
+    // completes, and the dangling node goes with it. That answer is not relayed.
     if (command.equals("delete") && Integer.valueOf(404).equals(status)) {
       Assertions.assertEquals(2, response.statusCode() / 100, response.body());
       Assertions.assertEquals("absent", describe(id), "the deletion left the graph node behind");
+      return;
+    }
+    // Nor is an outage while deleting. The deletion stays recorded and the relay completes it, so it is
+    // accepted rather than failed, and nothing has changed yet.
+    if (command.equals("delete") && method.equals("DELETE") && (status == null || status >= 500)) {
+      Assertions.assertEquals(202, response.statusCode(), response.body());
+      Assertions.assertEquals("artifact", JsonMapper.STRICT_MAPPER.readTree(response.body()).path("pending").asText(),
+          response.body());
+      Assertions.assertEquals(documentBefore, ARTIFACTS.get(id), "the accepted deletion changed the document");
+      Assertions.assertEquals(nodeBefore, describe(id), "the accepted deletion changed the graph node");
       return;
     }
     int expected = status == null ? 503 : status;
