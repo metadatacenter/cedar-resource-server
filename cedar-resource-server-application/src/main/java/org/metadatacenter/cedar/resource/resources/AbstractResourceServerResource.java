@@ -69,6 +69,7 @@ import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.http.CedarResponse;
 import org.metadatacenter.util.http.CedarUrlUtil;
 import org.metadatacenter.util.http.ProxyUtil;
+import org.metadatacenter.util.http.ArtifactRequestNotSentException;
 import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
@@ -235,34 +236,50 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
    * PUT can also be stored after the read found nothing. The cleanup job has held the identity since
    * before the write, so its relay reads the identity again until no write can still land there, and
    * removes a document it finds unless the graph registers it. A POST whose answer is lost leaves
-   * nothing to read back by, as before.
+   * nothing to read back by, as before. A create the artifact server never received stored nothing, so
+   * its cleanup job is dropped.
    */
   protected ClassicHttpResponse sendCreateToArtifactServer(CedarRequestContext context, CedarResourceType resourceType,
                                                            Optional<CedarArtifactId> identity, String content,
                                                            String cleanupJob) throws CedarProcessingException {
     ArtifactServiceClient client = new ArtifactServiceClient(cedarConfig);
-    if (identity.isEmpty()) {
-      return client.post(microserviceUrlUtil.getArtifact().getResourceType(resourceType), context, content);
+    try {
+      if (identity.isEmpty()) {
+        return client.post(microserviceUrlUtil.getArtifact().getResourceType(resourceType), context, content);
+      }
+      return putCreate(client, context, resourceType, identity.get(), content, cleanupJob);
+    } catch (ArtifactRequestNotSentException notSent) {
+      artifactCreateCleanupService.notSent(cleanupJob);
+      throw notSent;
     }
-    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, identity.get());
+  }
+
+  /** A create at the identity its caller chose, which is read back when the create's answer is lost. */
+  private ClassicHttpResponse putCreate(ArtifactServiceClient client, CedarRequestContext context,
+                                        CedarResourceType resourceType, CedarArtifactId identity, String content,
+                                        String cleanupJob) throws CedarProcessingException {
+    String url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, identity);
     try {
       return client.put(url, context, content, null);
+    } catch (ArtifactRequestNotSentException notSent) {
+      // Nothing reached the artifact server, so there is nothing to read back.
+      throw notSent;
     } catch (CedarDependencyUnavailableException lost) {
       try (ClassicHttpResponse stored = client.get(url, context)) {
         String etag = headerValue(stored, HttpHeaders.ETAG);
         EntityUtils.consume(stored.getEntity());
         if (stored.getCode() == HttpStatus.SC_OK && etag != null) {
-          artifactCreateCleanupService.created(cleanupJob, identity.get().getId(), etag);
+          artifactCreateCleanupService.created(cleanupJob, identity.getId(), etag);
         } else {
           // The PUT may still be stored after this read. Its cleanup job holds the identity, and the relay
           // removes what is stored there later unless the graph registers it.
           log.warn("The create of {} lost its answer and reading it back answered {}; its cleanup job reads "
-              + "the identity again and removes a document stored there later", identity.get().getId(),
+              + "the identity again and removes a document stored there later", identity.getId(),
               stored.getCode());
         }
       } catch (Exception unreadable) {
         log.warn("The create of {} lost its answer and could not be read back; its cleanup job reads the "
-            + "identity again", identity.get().getId(), unreadable);
+            + "identity again", identity.getId(), unreadable);
       }
       throw lost;
     }
@@ -395,14 +412,20 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     try {
       String url;
       ClassicHttpResponse templateProxyResponse;
-      if (artifactId.isEmpty()) {
-        // Create by POST, empty @id
-        url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
-        templateProxyResponse = new ArtifactServiceClient(cedarConfig).post(url, context, content);
-      } else {
-        // Create by PUT, filled @id
-        url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId.get(), Optional.empty());
-        templateProxyResponse = new ArtifactServiceClient(cedarConfig).put(url, context, content);
+      try {
+        if (artifactId.isEmpty()) {
+          // Create by POST, empty @id
+          url = microserviceUrlUtil.getArtifact().getResourceType(resourceType);
+          templateProxyResponse = new ArtifactServiceClient(cedarConfig).post(url, context, content);
+        } else {
+          // Create by PUT, filled @id
+          url = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, artifactId.get(), Optional.empty());
+          templateProxyResponse = new ArtifactServiceClient(cedarConfig).put(url, context, content);
+        }
+      } catch (ArtifactRequestNotSentException notSent) {
+        // The artifact server never received the create, so it stored nothing for the cleanup to find.
+        artifactCreateCleanupService.notSent(cleanupJob);
+        throw notSent;
       }
       ProxyUtil.proxyResponseHeaders(templateProxyResponse, response);
 
