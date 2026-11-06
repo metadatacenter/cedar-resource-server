@@ -84,18 +84,23 @@ class ArtifactDeletionCompletionServiceTest {
         "CEDAR_REDIS_PERSISTENT_PORT", "1", "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1", "CEDAR_OPENSEARCH_REST_PORT", "1"));
-    SERVER.before();
     config = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
+    Neo4jConfig neo4j = Neo4jConfig.fromCedarConfig(config);
+    driver = GraphDatabase.driver(neo4j.getUri(), AuthTokens.basic(neo4j.getUserName(), neo4j.getUserPassword()));
+    // Other classes share this JVM's embedded graph and can leave pending deletions behind.
+    // Clear that private test outbox before this server starts: a 25-job relay batch otherwise
+    // mixes those jobs with this fixture and gives its six jobs different retry histories.
+    try (Session session = driver.session()) {
+      session.run("MATCH (e:" + LABEL + ") DELETE e").consume();
+    }
+    SERVER.before();
     TestAuthUtil.installInMemoryUserService(config);
     EmbeddedCedarNeo4j.seed(config);
     folders = CedarDataServices.getInstance().getFolderServiceSession(
         CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config)));
     home = folders.findHomeFolderOf().getResourceId();
-    Neo4jConfig neo4j = Neo4jConfig.fromCedarConfig(config);
-    driver = GraphDatabase.driver(neo4j.getUri(), AuthTokens.basic(neo4j.getUserName(), neo4j.getUserPassword()));
-    // This writes to the outbox the server reads, without the delay a request's own record is given, so
-    // the server's relay takes these jobs up on its next pass.
-    outbox = new Neo4jArtifactDeletionOutbox(driver, 0);
+    // Hold the fixture until all six jobs exist, then make them due together below.
+    outbox = new Neo4jArtifactDeletionOutbox(driver, 60_000);
   }
 
   @AfterAll
@@ -128,6 +133,13 @@ class ArtifactDeletionCompletionServiceTest {
         "{\"errorKey\":\"templateNotDeleted\",\"errorReasonKey\":\"templateReferencedInInstances\"}");
     String refused = recordedDeletion("Refused by the artifact server", 400);
     String unavailable = recordedDeletion("Asked while the artifact server is away", 503);
+    try (Session session = driver.session()) {
+      long pending = session.run("MATCH (e:" + LABEL + ") RETURN count(e) AS count")
+          .single().get("count").asLong();
+      assertEquals(6L, pending, "the relay fixture shares an outbox with another test");
+      session.run("MATCH (e:" + LABEL + ") WHERE e.resourceId IN $ids SET e.nextAttemptAt = 0",
+          Map.of("ids", RECORDED)).consume();
+    }
 
     // Two attempts at the unavailable one prove that the relay has passed over the others again.
     long deadline = System.currentTimeMillis() + 40_000;
