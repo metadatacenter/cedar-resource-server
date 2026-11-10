@@ -46,7 +46,7 @@ class UnreachableArtifactServerCreateTest {
 
   static {
     int closedPort;
-    try (var socket = new ServerSocket(0, 0, InetAddress.getLoopbackAddress())) {
+    try (var socket = new ServerSocket(0, 0, InetAddress.getByName("127.0.0.1"))) {
       closedPort = socket.getLocalPort();
     } catch (IOException e) {
       throw new ExceptionInInitializerError(e);
