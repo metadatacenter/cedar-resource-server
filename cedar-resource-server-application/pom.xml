@@ -147,11 +147,6 @@
       <artifactId>cedar-model-validation-library</artifactId>
     </dependency>
 
-    <dependency>
-      <groupId>com.fasterxml.jackson.module</groupId>
-      <artifactId>jackson-module-afterburner</artifactId>
-    </dependency>
-
     <!-- Swagger v3 annotations (@Operation, @Tag, @ApiResponse, ...) used to generate the OpenAPI 3.0 spec at build time -->
     <dependency>
       <groupId>io.swagger.core.v3</groupId>
