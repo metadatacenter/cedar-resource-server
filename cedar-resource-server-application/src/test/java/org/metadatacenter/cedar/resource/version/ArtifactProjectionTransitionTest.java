@@ -169,9 +169,13 @@ class ArtifactProjectionTransitionTest {
     }
   }
 
-  @Test void aSaveWaitsForAnInFlightProjectionAndThenLeavesItsOwnDurableWork() throws Exception {
+  // A save used to wait for the projection in flight, because the projection held the lifecycle lock
+  // while it wrote to the index, and so did every other save in the installation. The save no longer
+  // waits. What the wait protected is asserted directly: finishing the first save's projection must
+  // not discard the second save's work, and the derived state must end as the second save left it.
+  @Test void aSaveDoesNotWaitForAnInFlightProjectionAndItsOwnWorkIsStillWrittenOut() throws Exception {
     save("First");
-    var entered=new CountDownLatch(1); var release=new CountDownLatch(1); var started=new CountDownLatch(1);
+    var entered=new CountDownLatch(1); var release=new CountDownLatch(1);
     doAnswer(call -> {
       FolderServerArtifact a=call.getArgument(0);
       if (a.getName().equals("First")) { entered.countDown(); assertTrue(release.await(10,TimeUnit.SECONDS)); }
@@ -181,13 +185,16 @@ class ArtifactProjectionTransitionTest {
     try(var first=relay();var second=relay()) {
       var projecting=threads.submit(() -> first.complete(ID,index,null));
       assertTrue(entered.await(5,TimeUnit.SECONDS));
-      var saving=threads.submit(() -> { started.countDown(); save("Second"); });
-      assertTrue(started.await(5,TimeUnit.SECONDS));
-      assertThrows(TimeoutException.class,() -> saving.get(150,TimeUnit.MILLISECONDS));
+      threads.submit(() -> save("Second")).get(5,TimeUnit.SECONDS);
+      assertEquals(1,pending(),"the second save's work is recorded while the first is on the wire");
+      // Another writer leaves the artifact to the one already writing it, and reports no failure.
+      assertTrue(second.complete(ID,index,null));
+      assertEquals("First",observed("inclusion"));
       release.countDown();
-      assertTrue(projecting.get(10,TimeUnit.SECONDS)); saving.get(10,TimeUnit.SECONDS);
-      assertEquals(1,pending(),"acknowledging A must not remove B's later work");
-      assertTrue(second.complete(ID,index,null)); assertDerived("Second");
+      assertTrue(projecting.get(10,TimeUnit.SECONDS));
+      // The first writer found the job moved on and wrote the artifact out again before removing it.
+      assertEquals(0,pending(),"the job is removed only once the later save is written out");
+      assertDerived("Second");
     } finally { release.countDown(); threads.shutdownNow(); }
   }
 
