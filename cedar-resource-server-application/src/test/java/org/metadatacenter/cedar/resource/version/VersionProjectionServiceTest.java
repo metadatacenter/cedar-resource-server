@@ -54,7 +54,7 @@ class VersionProjectionServiceTest {
   }
 
   private static String template(int number) {
-    return "https://repo.metadatacenter.org/templates/00000000-0000-0000-0000-00000000000" + number;
+    return "https://repo.metadatacenter.org/templates/00000000-0000-0000-0000-00000000000" + Integer.toHexString(number);
   }
   private static Driver driver() { return GraphDatabase.driver(ScratchNeo4j.boltURI(),AuthTokens.none()); }
   /** A latest template with one projection recorded against it, as a committed mutation leaves it. */
@@ -151,6 +151,82 @@ class VersionProjectionServiceTest {
           Map.of("id",id)).single().get("free").asBoolean());
       // The tests of this class share one graph, and a relay in another test would take this job.
       s.run("MATCH (j:CedarVersionProjection {resourceId:$id}) DELETE j",Map.of("id",id)).consume();
+    }
+  }
+
+  @Test void callersWaitingTogetherShareATurnAtTheLifecycleLock() throws Exception {
+    int callers=5;
+    var index=mock(NodeIndexingService.class);
+    try(var reader=driver(); var service=new VersionProjectionService(driver(),index,(artifact,previous) -> {}); var s=reader.session()) {
+      service.turnWaitMillis=60_000;
+      List<String> ids=new ArrayList<>();
+      for (int i=0; i<callers; i++) { ids.add(template(10+i)); recorded(s,ids.get(i)); }
+      long before=lockRevision(s);
+      List<CompletableFuture<Boolean>> completions=new ArrayList<>();
+      // Something else holds the lock, as a save does, while five callers arrive to claim their jobs.
+      try(var holder=reader.session(); var held=holder.beginTransaction()) {
+        VersionChainTransaction.lock(held);
+        for (String id : ids) completions.add(CompletableFuture.supplyAsync(() -> service.complete(id,index,null)));
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
+        while (service.waitingForATurn()<callers && System.nanoTime()<deadline) Thread.sleep(10);
+        assertEquals(callers,service.waitingForATurn(),"every caller is waiting behind the held lock");
+        held.commit();
+      }
+      for (var completion : completions) assertTrue(completion.get(30,TimeUnit.SECONDS));
+      for (String id : ids) assertEquals(0,jobs(s,id));
+      verify(index,times(callers)).indexDocumentForProjection(any(),isNull());
+      // One turn for the holder and one for all five claims. The removals share turns as they
+      // arrive, so they take between one and five. A turn for each claim and removal would be ten.
+      long turns=lockRevision(s)-before;
+      assertTrue(turns>=3 && turns<=7,"the lock was taken "+turns+" times");
+    }
+  }
+
+  @Test void aCallerStuckInFrontCostsOnlyItself() throws Exception {
+    String stuck=template(8), behind=template(9);
+    var index=mock(NodeIndexingService.class);
+    var holding=new CountDownLatch(1);
+    var release=new CountDownLatch(1);
+    var entered=new AtomicInteger();
+    try(var reader=driver(); var service=new VersionProjectionService(driver(),index,(artifact,previous) -> {}); var s=reader.session()) {
+      recorded(s,stuck);
+      recorded(s,behind);
+      service.turnWaitMillis=200;
+      // The first caller to start a turn never gets its lock, as one transaction was seen not to.
+      service.enteringTurn=() -> {
+        if (entered.incrementAndGet()==1) {
+          holding.countDown();
+          try { release.await(30,TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
+      };
+      var first=CompletableFuture.supplyAsync(() -> service.complete(stuck,index,null));
+      assertTrue(holding.await(10,TimeUnit.SECONDS));
+      // The caller behind it waits a moment, then takes a turn of its own and finishes.
+      assertTrue(CompletableFuture.supplyAsync(() -> service.complete(behind,index,null)).get(20,TimeUnit.SECONDS));
+      assertEquals(0,jobs(s,behind));
+      assertEquals(1,jobs(s,stuck));
+      release.countDown();
+      assertTrue(first.get(20,TimeUnit.SECONDS));
+      assertEquals(0,jobs(s,stuck));
+    }
+  }
+
+  @Test void aLockThatCannotBeTakenFailsTheCallerInsteadOfRetryingForever() throws Exception {
+    String id=template(15);
+    var index=mock(NodeIndexingService.class);
+    try(var reader=driver(); var service=new VersionProjectionService(driver(),index,(artifact,previous) -> {}); var s=reader.session()) {
+      recorded(s,id);
+      s.run("MATCH (n:CedarVersionLock {id:'lifecycle'}) DELETE n").consume();
+      try {
+        // The projection is reported as pending, promptly, and its job is still there to retry.
+        assertFalse(CompletableFuture.supplyAsync(() -> service.complete(id,index,null)).get(20,TimeUnit.SECONDS));
+        verifyNoInteractions(index);
+        assertEquals(1,jobs(s,id));
+      } finally {
+        s.run("MERGE (:CedarVersionLock {id:'lifecycle'})").consume();
+      }
+      assertTrue(service.complete(id,index,null));
+      assertEquals(0,jobs(s,id));
     }
   }
 

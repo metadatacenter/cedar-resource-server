@@ -150,7 +150,7 @@ public final class VersionProjectionService implements AutoCloseable {
       FolderServerArtifact artifact=null;
       try {
         for (int round=0; round<ROUNDS; round++) {
-          var claimed=claim(session,id,claim);
+          var claimed=claim(id,claim);
           if (claimed==null) return Outcome.DONE;
           // Its owner settles against the generation, so it writes this caller's change out as well.
           if (claimed.busy()) return Outcome.DEFERRED;
@@ -162,7 +162,7 @@ public final class VersionProjectionService implements AutoCloseable {
             // Replace by stable ID, without the previous delete-then-index visibility gap.
             indexing.indexDocumentForProjection(artifact,context);
           }
-          switch (settle(session,id,claim,generation(claimed.job()))) {
+          switch (settle(id,claim,generation(claimed.job()))) {
             case REMOVED: return Outcome.DONE;
             case MOVED_ON: continue;
             case ARTIFACT_DELETED:
@@ -200,29 +200,25 @@ public final class VersionProjectionService implements AutoCloseable {
   }
 
   /** Reads the job and the artifact state it describes in one locked transaction, and claims the job. */
-  private Claimed claim(Session session, String id, String claim) {
-    // Explicit transaction: network writes must not be automatically replayed by the driver.
-    try (var tx=session.beginTransaction()) {
-      VersionChainTransaction.lock(tx);
+  private Claimed claim(String id, String claim) {
+    return locked(tx -> {
       var pending=tx.run("MATCH (j:CedarVersionProjection {resourceId:$id}) RETURN properties(j) AS job, timestamp() AS now",Map.of("id",id));
-      if (!pending.hasNext()) { tx.commit(); return null; }
+      if (!pending.hasNext()) return null;
       var row=pending.next();
       var job=row.get("job").asMap();
       boolean live=job.get("claimedAt") instanceof Number claimedAt && row.get("now").asLong()-claimedAt.longValue()<CLAIM_MILLIS;
-      if (live && job.get("claim")!=null && !claim.equals(job.get("claim"))) { tx.commit(); return new Claimed(job,null,true); }
+      if (live && job.get("claim")!=null && !claim.equals(job.get("claim"))) return new Claimed(job,null,true);
       tx.run("MATCH (j:CedarVersionProjection {resourceId:$id}) SET j.claim=$claim, j.claimedAt=timestamp()",
           Map.of("id",id,"claim",claim)).consume();
       var found=tx.run("MATCH (a:Artifact {_id:$id}) RETURN properties(a) AS a",Map.of("id",id));
       Map<String,Object> artifact=found.hasNext() ? found.next().get("a").asMap() : null;
-      tx.commit();
       return new Claimed(job,artifact,false);
-    }
+    });
   }
 
   /** Removes the job if it still describes what was written out, and says what happened if not. */
-  private Settled settle(Session session, String id, String claim, long generation) {
-    try (var tx=session.beginTransaction()) {
-      VersionChainTransaction.lock(tx);
+  private Settled settle(String id, String claim, long generation) {
+    return locked(tx -> {
       var current=tx.run("MATCH (j:CedarVersionProjection {resourceId:$id}) RETURN j.claim AS claim, "
           + "coalesce(j.generation,0) AS generation",Map.of("id",id));
       Settled settled;
@@ -239,8 +235,114 @@ public final class VersionProjectionService implements AutoCloseable {
           settled=Settled.REMOVED;
         }
       }
-      tx.commit();
       return settled;
+    });
+  }
+
+  /** A caller's work at the lifecycle lock, and what came of it once its transaction committed. */
+  private static final class Turn<T> {
+    final java.util.function.Function<Transaction,T> work;
+    T result;
+    RuntimeException failure;
+    volatile boolean done;
+    Turn(java.util.function.Function<Transaction,T> work) { this.work=work; }
+    void run(Transaction tx) { result=work.apply(tx); }
+  }
+
+  private final ConcurrentLinkedQueue<Turn<?>> waiting=new ConcurrentLinkedQueue<>();
+  private final java.util.concurrent.locks.ReentrantLock leading=new java.util.concurrent.locks.ReentrantLock();
+  private static final int TURN_BATCH=64;
+  /** How long a caller waits for the caller ahead of it before taking a turn of its own. */
+  long turnWaitMillis=2000;
+  /** Runs as a caller starts its turn. Tests hold a caller here to stand in for one that is stuck. */
+  Runnable enteringTurn=() -> {};
+
+  /**
+   * Runs short work under the lifecycle lock, sharing the turn with every caller waiting for one.
+   *
+   * Each turn at the lock is a transaction and a commit, and all of them queue on one node. Fifty
+   * writers that each take one turn to claim a job and another to remove it wait for a hundred
+   * commits. Here the caller at the front takes the lock once and runs everything queued by then in
+   * one transaction, and the callers behind it find their work done. A result is handed out only
+   * after that transaction commits. If it fails, each caller's work runs in a transaction of its
+   * own, so one caller's failure stays its own.
+   *
+   * A caller does not wait on the one ahead of it without limit. A transaction has been seen to wait
+   * on this lock indefinitely while others passed it, and a caller stuck that way must cost one
+   * thread, as it did when every caller had its own transaction. After the wait, a caller takes a
+   * turn of its own beside the one in front.
+   */
+  private <T> T locked(java.util.function.Function<Transaction,T> work) {
+    Turn<T> mine=new Turn<>(work);
+    waiting.add(mine);
+    while (!mine.done) {
+      boolean inFront=false;
+      try {
+        inFront=leading.tryLock(turnWaitMillis,TimeUnit.MILLISECONDS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        // Work another caller has already taken still runs: a claim that lapses, or a removal that was due.
+        waiting.remove(mine);
+        throw new IllegalStateException("Interrupted while waiting for a turn at the lifecycle lock",e);
+      }
+      try {
+        if (!mine.done) takeTurn();
+      } catch (RuntimeException lockNotTaken) {
+        // No work was taken from the queue. While this caller's is still there, the failure is its
+        // own to report; if another caller has taken it, the outcome comes from that caller's turn.
+        if (waiting.remove(mine)) throw lockNotTaken;
+      } finally {
+        if (inFront) leading.unlock();
+      }
+    }
+    if (mine.failure!=null) throw mine.failure;
+    return mine.result;
+  }
+
+  /** How many callers are waiting for a turn. */
+  int waitingForATurn() {
+    return waiting.size();
+  }
+
+  private void takeTurn() {
+    enteringTurn.run();
+    List<Turn<?>> batch=new ArrayList<>();
+    int settled=0;
+    try {
+      // Explicit transactions: network writes must not be automatically replayed by the driver.
+      try (var session=driver.session(); var tx=session.beginTransaction()) {
+        VersionChainTransaction.lock(tx);
+        // Taken from the queue only once the lock is held, so a caller stuck waiting for the lock
+        // holds nobody's work but its own.
+        for (Turn<?> next; batch.size()<TURN_BATCH && (next=waiting.poll())!=null; ) batch.add(next);
+        for (Turn<?> turn : batch) turn.run(tx);
+        tx.commit();
+        settled=batch.size();
+      } catch (RuntimeException shared) {
+        if (batch.isEmpty()) throw shared;
+        for (Turn<?> turn : batch) {
+          try (var session=driver.session(); var tx=session.beginTransaction()) {
+            VersionChainTransaction.lock(tx);
+            turn.run(tx);
+            tx.commit();
+          } catch (RuntimeException own) {
+            turn.result=null;
+            turn.failure=own;
+          }
+          settled++;
+        }
+      }
+    } finally {
+      // Every caller whose work was taken hears of it, whatever ended the turn. A caller left
+      // waiting would take the lock again and again for work that is no longer in the queue.
+      for (int i=0; i<batch.size(); i++) {
+        Turn<?> turn=batch.get(i);
+        if (i>=settled) {
+          turn.result=null;
+          turn.failure=new IllegalStateException("The turn at the lifecycle lock ended before this work was committed");
+        }
+        turn.done=true;
+      }
     }
   }
 
