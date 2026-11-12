@@ -165,7 +165,9 @@ public class CommandOpenResource extends AbstractResourceServerResource {
         return CedarResponse.notFound().id(artifactId).message("The artifact can not be found by id").build();
       }
       // The indexed document carries isOpen, and search listings derive the OpenView actions from it.
-      updateIndexResource(updated.resource(), c);
+      // The graph change recorded its own projection job, so this writes that job out. Recording a
+      // second one cost every toggle another turn at the lifecycle lock.
+      completeVersionProjections(c, java.util.List.of(artifactId.getId()));
       return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updated.revision()))
           .entity(updated.resource()).build();
     } catch (RevisionConflictException e) {
