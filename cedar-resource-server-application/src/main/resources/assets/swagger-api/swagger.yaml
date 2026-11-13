@@ -2823,18 +2823,24 @@ paths:
       description: Get the contents of a folder.
       operationId: findFolderContentsById
       parameters:
-      - description: "Inclusive last-modified lower bound, in epoch milliseconds"
+      - description: "Inclusive last-modified lower bound, in epoch milliseconds.\
+          \ A value below 100000000000, which falls in March 1973, is refused as most\
+          \ likely a time in seconds."
         in: query
         name: modified_after
         schema:
           type: integer
           format: int64
-      - description: "Exclusive last-modified upper bound, in epoch milliseconds"
+          minimum: 100000000000
+      - description: "Exclusive last-modified upper bound, in epoch milliseconds.\
+          \ A value below 100000000000, which falls in March 1973, is refused as most\
+          \ likely a time in seconds."
         in: query
         name: modified_before
         schema:
           type: integer
           format: int64
+          minimum: 100000000000
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -2931,18 +2937,24 @@ paths:
         to return smaller payload if a lot of artifacts are expected to be returned.
       operationId: findFolderContentsExtractById
       parameters:
-      - description: "Inclusive last-modified lower bound, in epoch milliseconds"
+      - description: "Inclusive last-modified lower bound, in epoch milliseconds.\
+          \ A value below 100000000000, which falls in March 1973, is refused as most\
+          \ likely a time in seconds."
         in: query
         name: modified_after
         schema:
           type: integer
           format: int64
-      - description: "Exclusive last-modified upper bound, in epoch milliseconds"
+          minimum: 100000000000
+      - description: "Exclusive last-modified upper bound, in epoch milliseconds.\
+          \ A value below 100000000000, which falls in March 1973, is refused as most\
+          \ likely a time in seconds."
         in: query
         name: modified_before
         schema:
           type: integer
           format: int64
+          minimum: 100000000000
       - description: "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: folder_id
@@ -3794,18 +3806,24 @@ paths:
         \ can see the type of the executed search in the response body."
       operationId: search
       parameters:
-      - description: "Inclusive last-modified lower bound, in epoch milliseconds"
+      - description: "Inclusive last-modified lower bound, in epoch milliseconds.\
+          \ A value below 100000000000, which falls in March 1973, is refused as most\
+          \ likely a time in seconds."
         in: query
         name: modified_after
         schema:
           type: integer
           format: int64
-      - description: "Exclusive last-modified upper bound, in epoch milliseconds"
+          minimum: 100000000000
+      - description: "Exclusive last-modified upper bound, in epoch milliseconds.\
+          \ A value below 100000000000, which falls in March 1973, is refused as most\
+          \ likely a time in seconds."
         in: query
         name: modified_before
         schema:
           type: integer
           format: int64
+          minimum: 100000000000
       - description: Search term. It will be looked up in the artifact names
         in: query
         name: q
@@ -3949,18 +3967,24 @@ paths:
         \ will work. You can see the type of the executed search in the response body."
       operationId: searchDeep
       parameters:
-      - description: "Inclusive last-modified lower bound, in epoch milliseconds"
+      - description: "Inclusive last-modified lower bound, in epoch milliseconds.\
+          \ A value below 100000000000, which falls in March 1973, is refused as most\
+          \ likely a time in seconds."
         in: query
         name: modified_after
         schema:
           type: integer
           format: int64
-      - description: "Exclusive last-modified upper bound, in epoch milliseconds"
+          minimum: 100000000000
+      - description: "Exclusive last-modified upper bound, in epoch milliseconds.\
+          \ A value below 100000000000, which falls in March 1973, is refused as most\
+          \ likely a time in seconds."
         in: query
         name: modified_before
         schema:
           type: integer
           format: int64
+          minimum: 100000000000
       - description: Search term. It will be looked up in the artifact names
         in: query
         name: q
