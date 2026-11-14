@@ -38,9 +38,9 @@ public class SearchDeepResource extends AbstractSearchResource {
   @Path("/search-deep")
   @Operation(parameters = {
       @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-          description = "Inclusive last-modified lower bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64")),
+          description = "Inclusive last-modified lower bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000")),
       @Parameter(name = "modified_before", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-          description = "Exclusive last-modified upper bound, in epoch milliseconds", schema = @Schema(type = "integer", format = "int64"))
+          description = "Exclusive last-modified upper bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000"))
   }, summary = "Search resources", description = "Search resources using different criteria. This call can go further than 10.000 resources, "
           + "by offset or, for a whole result set, by following the continuation each answer carries. It is "
           + "not intended for everyday use. All of the parameters are optional, but you need to provide at least "

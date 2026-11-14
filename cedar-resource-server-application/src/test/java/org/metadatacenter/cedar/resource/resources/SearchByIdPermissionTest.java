@@ -14,7 +14,9 @@ import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
 import org.metadatacenter.id.CedarFolderId;
+import org.metadatacenter.id.CedarTemplateId;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.model.folderserver.basic.FolderServerInstance;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.FolderServerFolder;
@@ -25,7 +27,11 @@ import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.neo4j.cypher.NodeProperty;
+import org.metadatacenter.server.neo4j.util.Neo4JUtil;
 import org.metadatacenter.server.search.util.IndexUtils;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionGroup;
+import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionGroupPermissionPair;
 import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
@@ -41,6 +47,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
 import java.util.Map;
 
 /**
@@ -93,6 +100,10 @@ public class SearchByIdPermissionTest {
   private static String unsharedTemplateId;
   private static String unsharedFolderId;
   private static String sharedTemplateId;
+  private static String everybodyTemplateId;
+  private static String instanceTemplateId;
+  private static String instanceId;
+  private static String specialFolderId;
 
   @BeforeAll
   public static void oneTimeSetUp() throws Exception {
@@ -131,6 +142,22 @@ public class SearchByIdPermissionTest {
     CedarFolderId newFolderId = CedarFolderId.build(
         cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FOLDER));
     unsharedFolderId = folderSession.createFolderAsChildOfId(folder, homeId, newFolderId).getId();
+
+    FolderServerArtifact toEverybody = createTemplate(folderSession, homeId, "SBI template shared with everybody",
+        "Created by SearchByIdPermissionTest");
+    grantReadToEverybody(toEverybody);
+    everybodyTemplateId = toEverybody.getId();
+
+    instanceTemplateId = createTemplate(folderSession, homeId, "SBI template with an instance",
+        "Created by SearchByIdPermissionTest").getId();
+    instanceId = createInstance(folderSession, homeId, instanceTemplateId);
+
+    FolderServerFolder special = new FolderServerFolder();
+    special.setName("SBI special folder");
+    special.setDescription("Created by SearchByIdPermissionTest");
+    specialFolderId = folderSession.createFolderAsChildOfId(special, homeId, CedarFolderId.build(
+        cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FOLDER))).getId();
+    markSpecial(specialFolderId);
   }
 
   @AfterAll
@@ -197,35 +224,80 @@ public class SearchByIdPermissionTest {
   }
 
   @Test
-  public void modifiedBoundsApplyToFolderCountsAndSharedSearchAndRejectInvalidInput() throws Exception {
+  public void modifiedBoundsApplyToFolderCountsAndRejectInvalidInput() throws Exception {
     var folderSession = CedarDataServices.getInstance().getFolderServiceSession(user1Context);
     String home = folderSession.findHomeFolderOf().getId();
     String contents = "/folders/" + URLEncoder.encode(home, StandardCharsets.UTF_8) + "/contents";
     long tomorrow = System.currentTimeMillis() + 86_400_000;
-    for (String path : java.util.List.of(contents + "?resource_types=template,folder",
-        "/search?sharing=shared-with-me&resource_types=template,folder",
-        "/search?sharing=shared-with-everybody&resource_types=template,folder",
-        "/search?mode=special-folders&resource_types=template")) {
-      var request = HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + path
-          + "&modified_after=" + tomorrow)).header("Authorization", authHeaderUser1).GET().build();
-      var response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-      Assertions.assertEquals(200, response.statusCode(), response.body());
-      var body = JsonMapper.STRICT_MAPPER.readTree(response.body());
-      Assertions.assertEquals(0, body.path("totalCount").asLong(), response.body());
-      Assertions.assertEquals(0, body.path("resources").size(), response.body());
+    JsonNode later = get(contents + "?resource_types=template,folder&modified_after=" + tomorrow, authHeaderUser1);
+    Assertions.assertEquals(0, later.path("totalCount").asLong(), later.toString());
+    Assertions.assertEquals(0, later.path("resources").size(), later.toString());
+    JsonNode matching = get(contents + "?resource_types=template,folder&limit=1&modified_after="
+        + (tomorrow - 2 * 86_400_000) + "&modified_before=" + tomorrow, authHeaderUser1);
+    Assertions.assertTrue(matching.path("totalCount").asLong() >= 3, matching.toString());
+    Assertions.assertEquals(1, matching.path("resources").size(), matching.toString());
+
+    // Each refusal identifies the parameter at fault.
+    Map<String, java.util.Set<String>> refusals = Map.of(
+        "?modified_after=" + tomorrow + "&modified_before=" + (tomorrow - 1), java.util.Set.of("modified_after", "modified_before"),
+        "?modified_after=" + (tomorrow / 1000), java.util.Set.of("modified_after"),
+        "?modified_before=yesterday", java.util.Set.of("modified_before"),
+        "?modified_after=" + tomorrow + "&modified_after=" + tomorrow, java.util.Set.of("modified_after"));
+    for (var refusal : refusals.entrySet()) {
+      HttpResponse<String> response = send(contents + refusal.getKey(), authHeaderUser1);
+      Assertions.assertEquals(400, response.statusCode(), response.body());
+      JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      java.util.Set<String> named = new java.util.HashSet<>();
+      error.path("parameters").fieldNames().forEachRemaining(named::add);
+      Assertions.assertEquals(refusal.getValue(), named, response.body());
     }
-    var matching = HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + contents
-        + "?resource_types=template,folder&limit=1&modified_after=" + (tomorrow - 2 * 86_400_000)
-        + "&modified_before=" + tomorrow)).header("Authorization", authHeaderUser1).GET().build();
-    var matchingResponse = CLIENT.send(matching, HttpResponse.BodyHandlers.ofString());
-    Assertions.assertEquals(200, matchingResponse.statusCode(), matchingResponse.body());
-    var matchingBody = JsonMapper.STRICT_MAPPER.readTree(matchingResponse.body());
-    Assertions.assertTrue(matchingBody.path("totalCount").asLong() >= 3, matchingResponse.body());
-    Assertions.assertEquals(1, matchingBody.path("resources").size());
-    var request = HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + contents
-        + "?modified_after=10&modified_before=5")).header("Authorization", authHeaderUser1).GET().build();
-    var invalid = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-    Assertions.assertEquals(400, invalid.statusCode(), invalid.body());
+  }
+
+  /**
+   * The four graph listings whose fixtures the REST smoke cannot always create: the two sharing views,
+   * the instances of a template and the special folders. Each is read as a user for whom it holds a
+   * known resource, so an empty answer under a window shows that the window excluded the resource
+   * rather than that the listing never held it. The bounds come from the modification time the listing
+   * itself reports, and the count the listing answers with is held to the same window as its rows.
+   */
+  @Test
+  public void modifiedBoundsApplyToTheSharingViewsTheInstancesOfATemplateAndTheSpecialFolders() throws Exception {
+    long tomorrow = System.currentTimeMillis() + 86_400_000;
+    for (Listing listing : java.util.List.of(
+        new Listing("shared with me", "/search?sharing=shared-with-me&resource_types=template",
+            sharedTemplateId, authHeaderUser2),
+        new Listing("shared with everybody", "/search?sharing=shared-with-everybody&resource_types=template",
+            everybodyTemplateId, authHeaderUser2),
+        new Listing("instances of a template",
+            "/search?is_based_on=" + URLEncoder.encode(instanceTemplateId, StandardCharsets.UTF_8),
+            instanceId, authHeaderUser1),
+        new Listing("special folders", "/search?mode=special-folders&resource_types=folder",
+            specialFolderId, authHeaderUser1))) {
+      JsonNode row = rowFor(get(listing.path(), listing.authHeader()), listing.id());
+      Assertions.assertNotNull(row, listing.name() + " should hold its fixture when no window is given");
+      long modified = OffsetDateTime.parse(row.path("pav:lastUpdatedOn").asText()).toInstant().toEpochMilli();
+
+      assertWindow(listing, "&modified_after=" + modified + "&modified_before=" + (modified + 1), true);
+      assertWindow(listing, "&modified_after=" + modified, true);
+      assertWindow(listing, "&modified_after=" + (modified + 1), false);
+      assertWindow(listing, "&modified_before=" + modified, false);
+
+      JsonNode later = get(listing.path() + "&modified_after=" + tomorrow, listing.authHeader());
+      Assertions.assertEquals(0, later.path("totalCount").asLong(), listing.name() + ": " + later);
+      Assertions.assertEquals(0, later.path("resources").size(), listing.name() + ": " + later);
+    }
+  }
+
+  private record Listing(String name, String path, String id, String authHeader) {}
+
+  /** Asserts that the listing holds its fixture under the given bounds, or omits it, and counts it. */
+  private static void assertWindow(Listing listing, String bounds, boolean holds) throws Exception {
+    JsonNode body = get(listing.path() + bounds, listing.authHeader());
+    Assertions.assertEquals(holds, rowFor(body, listing.id()) != null,
+        listing.name() + " with " + bounds + (holds ? " should hold " : " should omit ") + "its fixture: " + body);
+    if (holds) {
+      Assertions.assertTrue(body.path("totalCount").asLong() >= 1, listing.name() + " with " + bounds + ": " + body);
+    }
   }
 
   // ── helpers ────────────────────────────────────────────────────────────────
@@ -245,6 +317,28 @@ public class SearchByIdPermissionTest {
           .header("Authorization", authHeaderUser2).GET().build(), HttpResponse.BodyHandlers.ofString());
       Assertions.assertEquals(400, token.statusCode(), token.body());
     }
+  }
+
+  private static HttpResponse<String> send(String pathAndQuery, String authHeader) throws Exception {
+    return CLIENT.send(HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort() + pathAndQuery))
+        .header("Authorization", authHeader).GET().build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  /** The body of a listing that answered 200. */
+  private static JsonNode get(String pathAndQuery, String authHeader) throws Exception {
+    HttpResponse<String> response = send(pathAndQuery, authHeader);
+    Assertions.assertEquals(200, response.statusCode(), pathAndQuery + ": " + response.body());
+    return JsonMapper.STRICT_MAPPER.readTree(response.body());
+  }
+
+  /** The row of a listing's page that carries the given identifier, or null when the page has none. */
+  private static JsonNode rowFor(JsonNode listing, String id) {
+    for (JsonNode row : listing.path("resources")) {
+      if (id.equals(row.path("@id").asText())) {
+        return row;
+      }
+    }
+    return null;
   }
 
   private static HttpResponse<String> search(String path, String id, String authHeader) throws Exception {
@@ -305,5 +399,43 @@ public class SearchByIdPermissionTest {
     BackendCallResult result = CedarDataServices.getInstance().getResourcePermissionServiceSession(user1Context)
         .updateResourcePermissions(artifact.getResourceId(), request);
     Assertions.assertFalse(result.isError(), "the grant should succeed");
+  }
+
+  private static void grantReadToEverybody(FolderServerArtifact artifact) {
+    String everybody = CedarDataServices.getInstance().getGroupServiceSession(user1Context)
+        .findGroupByName(cedarConfig.getFolderStructureConfig().getEverybodyGroup().getName()).getId();
+    ResourcePermissionsRequest request = new ResourcePermissionsRequest();
+    request.setOwner(new ResourcePermissionUser(user1.getId()));
+    request.getGroupPermissions().add(new ResourcePermissionGroupPermissionPair(
+        new ResourcePermissionGroup(everybody), ResourceRole.VIEWER));
+    BackendCallResult result = CedarDataServices.getInstance().getResourcePermissionServiceSession(user1Context)
+        .updateResourcePermissions(artifact.getResourceId(), request);
+    Assertions.assertFalse(result.isError(), "the grant to everybody should succeed");
+  }
+
+  private static String createInstance(FolderServiceSession folderSession, CedarFolderId parentId, String templateId) {
+    FolderServerInstance instance = new FolderServerInstance();
+    instance.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.INSTANCE));
+    instance.setName("SBI instance");
+    instance.setIsBasedOn(CedarTemplateId.build(templateId));
+    FolderServerArtifact created = folderSession.createResourceAsChildOfId(instance, parentId);
+    Assertions.assertNotNull(created, "the fixture instance should have been created");
+    return created.getId();
+  }
+
+  /**
+   * No CEDAR operation marks a folder special: a deployment's special folders are marked in the graph by
+   * hand. The fixture is marked the same way.
+   */
+  private static void markSpecial(String folderId) {
+    var neo = org.metadatacenter.server.neo4j.Neo4jConfig.fromCedarConfig(cedarConfig);
+    try (var driver = org.neo4j.driver.GraphDatabase.driver(neo.getUri(),
+        org.neo4j.driver.AuthTokens.basic(neo.getUserName(), neo.getUserPassword()));
+         var session = driver.session()) {
+      var summary = session.run("MATCH (folder {" + Neo4JUtil.escapePropertyName(NodeProperty.ID.getValue())
+          + ": $id}) SET folder." + Neo4JUtil.escapePropertyName(NodeProperty.SPECIAL_FOLDER.getValue())
+          + " = 'community'", Map.of("id", folderId)).consume();
+      Assertions.assertEquals(1, summary.counters().propertiesSet(), "the fixture folder should be marked special");
+    }
   }
 }
