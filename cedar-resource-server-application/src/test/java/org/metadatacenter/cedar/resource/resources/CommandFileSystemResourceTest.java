@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.metadatacenter.artifacts.model.core.Annotations;
+import org.metadatacenter.artifacts.model.core.Status;
+import org.metadatacenter.artifacts.model.core.Version;
 import org.metadatacenter.artifacts.model.core.ElementSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateInstanceArtifact;
@@ -509,6 +511,60 @@ public class CommandFileSystemResourceTest {
   private static JsonNode refusal(HttpResponse<String> response, int status) throws Exception {
     Assertions.assertEquals(status, response.statusCode(), response.body());
     return JsonMapper.STRICT_MAPPER.readTree(response.body());
+  }
+
+  /**
+   * A copy is a new artifact, so a copy of a published template starts as a first draft: version 0.0.1,
+   * draft status, no predecessor, and derived from the template it copies. A source already at 0.0.1 and
+   * in draft cannot show any of this, so this one is published at 2.0.0 with a predecessor of its own
+   * and an origin it was itself derived from.
+   */
+  @Test
+  @Order(16)
+  public void aCopyOfAPublishedTemplateStartsAsAFirstDraft() throws Exception {
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName("Published source");
+    template.setDescription("Copy reset fixture");
+    template.setVersion("2.0.0");
+    template.setPublicationStatus("bibo:published");
+    template.setLatestVersion(true);
+    template.setLatestDraftVersion(false);
+    template.setLatestPublishedVersion(true);
+    String sourceId = folderSession.createResourceAsChildOfId(template, homeFolderId).getId();
+    URI predecessor = URI.create(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    URI origin = URI.create(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    SOURCES.put(sourceId, () -> new JsonArtifactRenderer().renderTemplateSchemaArtifact(TemplateSchemaArtifact.builder()
+        .withJsonLdId(URI.create(sourceId))
+        .withName("Published source")
+        .withVersion(Version.fromString("2.0.0"))
+        .withStatus(Status.PUBLISHED)
+        .withPreviousVersion(predecessor)
+        .withDerivedFrom(origin)
+        .build()));
+    postedArtifact = null;
+
+    HttpResponse<String> response = postCommand("copy-artifact-to-folder", "{\"@id\":\"" + sourceId + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\",\"nameTemplate\":\"Copy of {{name}}\"}");
+
+    Assertions.assertEquals(201, response.statusCode(), response.body());
+    Assertions.assertNotNull(postedArtifact, "the copy should be posted to the artifact service");
+    Assertions.assertEquals("0.0.1", postedArtifact.path("pav:version").asText(), postedArtifact.toString());
+    Assertions.assertEquals("bibo:draft", postedArtifact.path("bibo:status").asText(), postedArtifact.toString());
+    Assertions.assertFalse(postedArtifact.has("pav:previousVersion"),
+        "the copy kept the source's predecessor: " + postedArtifact);
+    Assertions.assertEquals(sourceId, postedArtifact.path("pav:derivedFrom").asText(),
+        "the copy should be derived from the template it copies");
+    Assertions.assertEquals("Copy of Published source", postedArtifact.path("schema:name").asText());
+
+    String copyId = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("@id").asText();
+    var copy = (org.metadatacenter.model.folderserver.basic.FolderServerSchemaArtifact) folderSession.findArtifactById(
+        CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE));
+    Assertions.assertNotNull(copy, response.body());
+    Assertions.assertEquals("0.0.1", copy.getVersion().getValue(), "the copy's graph node keeps the source's version");
+    Assertions.assertEquals("bibo:draft", copy.getPublicationStatus().getValue(),
+        "the copy's graph node keeps the source's status");
+    Assertions.assertNull(copy.getPreviousVersion(), "the copy's graph node keeps the source's predecessor");
   }
 
   @Test
