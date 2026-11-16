@@ -27,9 +27,6 @@ import org.metadatacenter.util.test.TestHttpClient;
 import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.GraphDatabase;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.ServerSocket;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
@@ -45,12 +42,9 @@ import java.util.Map;
 class UnreachableArtifactServerCreateTest {
 
   static {
-    int closedPort;
-    try (var socket = new ServerSocket(0, 0, InetAddress.getByName("127.0.0.1"))) {
-      closedPort = socket.getLocalPort();
-    } catch (IOException e) {
-      throw new ExceptionInInitializerError(e);
-    }
+    // Port 1 is privileged, so nothing this run starts can listen on it, and a connection to it is
+    // refused at once. A port taken from a closed socket could be bound again by Neo4j or Jetty below.
+    int closedPort = 1;
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
