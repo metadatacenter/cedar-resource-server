@@ -36,7 +36,8 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.SearchPermissionQueueEventType;
+import org.metadatacenter.server.search.permission.SearchPermissionOutboxReader;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -75,6 +76,7 @@ public class CommandFileSystemResourceTest {
   private static String missingArtifactId;
   private static JsonNode postedArtifact;
   private static CedarConfig cedarConfig;
+  private static SearchPermissionOutboxReader outbox;
   private static FolderServiceSession folderSession;
   private static NoOpNodeIndexingService nodeIndexingService;
   private static int sourceGetStatus = 200;
@@ -124,10 +126,11 @@ public class CommandFileSystemResourceTest {
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
     nodeIndexingService = new NoOpNodeIndexingService(cedarConfig);
+    outbox = new SearchPermissionOutboxReader(cedarConfig);
     AbstractResourceServerResource.injectServices(
         nodeIndexingService,
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        outbox.enqueueService());
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
@@ -159,6 +162,9 @@ public class CommandFileSystemResourceTest {
     SERVER.after();
     if (artifactServer != null) {
       artifactServer.stop(0);
+    }
+    if (outbox != null) {
+      outbox.close();
     }
   }
 
@@ -293,6 +299,7 @@ public class CommandFileSystemResourceTest {
   public void moveRequiresCurrentSourceEtagAndReturnsTheReplacement() throws Exception {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"targetFolderId\":\"" + moveDestinationId.getId() + "\"}";
+    int eventsBefore = outbox.eventsFor(sourceArtifact.getId()).size();
 
     HttpResponse<String> missing = postCommand("move-resource-to-folder", body);
     Assertions.assertEquals(428, missing.statusCode(), missing.body());
@@ -312,6 +319,14 @@ public class CommandFileSystemResourceTest {
     HttpResponse<String> wildcard = postCommand("move-resource-to-folder", body, "*");
     Assertions.assertEquals(201, wildcard.statusCode(), wildcard.body());
     Assertions.assertEquals("\"3\"", wildcard.headers().firstValue("ETag").orElse(null));
+
+    // Each of the two moves, and none of the three refusals, tells the search index to recompute the
+    // permissions the artifact now inherits from its new folder.
+    List<SearchPermissionQueueEventType> events = outbox.eventsFor(sourceArtifact.getId());
+    Assertions.assertEquals(
+        List.of(SearchPermissionQueueEventType.RESOURCE_MOVED, SearchPermissionQueueEventType.RESOURCE_MOVED),
+        events.subList(eventsBefore, events.size()),
+        "the two moves should each record one move event, and the refusals none");
   }
 
   @Test
@@ -396,6 +411,11 @@ public class CommandFileSystemResourceTest {
       Assertions.assertEquals(201, moved.statusCode(), resource.getType() + ": " + moved.body());
       Assertions.assertTrue(parentPathOf(resource).endsWith("/Move command destination"),
           resource.getType() + " is now in the destination: " + parentPathOf(resource));
+      SearchPermissionQueueEventType expected = resource.getType() == CedarResourceType.FOLDER
+          ? SearchPermissionQueueEventType.FOLDER_MOVED
+          : SearchPermissionQueueEventType.RESOURCE_MOVED;
+      Assertions.assertEquals(List.of(expected), outbox.eventsFor(resource.getId()),
+          resource.getType() + ": the move should record exactly one move event for the search index");
     }
   }
 

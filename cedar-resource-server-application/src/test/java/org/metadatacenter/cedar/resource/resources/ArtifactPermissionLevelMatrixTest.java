@@ -27,7 +27,8 @@ import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.SearchPermissionQueueEventType;
+import org.metadatacenter.server.search.permission.SearchPermissionOutboxReader;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
 import org.metadatacenter.server.security.model.permission.resource.ResourceCapability;
@@ -78,6 +79,7 @@ public class ArtifactPermissionLevelMatrixTest {
 
   private static Map<PermissionMatrix.Actor, String> actors;
   private static CedarConfig cedarConfig;
+  private static SearchPermissionOutboxReader outbox;
   private static CedarRequestContext user1Context;
   private static CedarRequestContext user2Context;
   private static CedarUser user1;
@@ -113,10 +115,11 @@ public class ArtifactPermissionLevelMatrixTest {
 
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
+    outbox = new SearchPermissionOutboxReader(cedarConfig);
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        outbox.enqueueService());
 
     user1 = TestAuthUtil.getTestUser1(cedarConfig);
     user2 = TestAuthUtil.getTestUser2(cedarConfig);
@@ -128,6 +131,9 @@ public class ArtifactPermissionLevelMatrixTest {
   @AfterAll
   public static void oneTimeTearDown() {
     SERVER.after();
+    if (outbox != null) {
+      outbox.close();
+    }
   }
 
   /**
@@ -182,6 +188,8 @@ public class ArtifactPermissionLevelMatrixTest {
     for (Fixture f : resharable) {
       Assertions.assertTrue(user2Permissions().userHasCapability(f.node().getResourceId(), ResourceCapability.READ_RESOURCE),
           "the refused ACL update should have left the " + f.label() + "'s permissions untouched");
+      Assertions.assertEquals(List.of(), outbox.eventsFor(f.node().getId()),
+          "the refused ACL update must not tell the search index the " + f.label() + "'s permissions changed");
     }
   }
 
@@ -232,6 +240,11 @@ public class ArtifactPermissionLevelMatrixTest {
     for (Fixture f : resharable) {
       Assertions.assertFalse(user2Permissions().userHasCapability(f.node().getResourceId(), ResourceCapability.UPDATE_RESOURCE),
           "the successful Manager ACL replacement should remove the omitted " + f.label() + " grant");
+      // Without this event the worker never rewrites the index's permission fields, and user 2 keeps
+      // finding an artifact they can no longer open.
+      Assertions.assertEquals(List.of(SearchPermissionQueueEventType.RESOURCE_PERMISSION_CHANGED),
+          outbox.eventsFor(f.node().getId()),
+          "the ACL replacement should record exactly one resource-permission event for the " + f.label());
     }
   }
 

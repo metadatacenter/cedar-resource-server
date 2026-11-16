@@ -30,7 +30,8 @@ import org.metadatacenter.server.GroupServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.SearchPermissionQueueEventType;
+import org.metadatacenter.server.search.permission.SearchPermissionOutboxReader;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.security.model.auth.CedarGroupUserRequest;
 import org.metadatacenter.server.security.model.auth.CedarGroupUsersRequest;
@@ -89,6 +90,7 @@ public class SharingRoundTripTest {
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
   private static CedarConfig cedarConfig;
+  private static SearchPermissionOutboxReader outbox;
   private static CedarUser user1;
   private static CedarUser user2;
   private static CedarRequestContext user1Context;
@@ -106,10 +108,11 @@ public class SharingRoundTripTest {
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
+    outbox = new SearchPermissionOutboxReader(cedarConfig);
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        outbox.enqueueService());
 
     user1 = TestAuthUtil.getTestUser1(cedarConfig);
     user2 = TestAuthUtil.getTestUser2(cedarConfig);
@@ -123,6 +126,9 @@ public class SharingRoundTripTest {
   @AfterAll
   public static void oneTimeTearDown() {
     SERVER.after();
+    if (outbox != null) {
+      outbox.close();
+    }
   }
 
   /** A Viewer grant remains Viewer throughout the REST and graph layers. */
@@ -268,6 +274,12 @@ public class SharingRoundTripTest {
         "a grant of " + level + " conferred the wrong grant-management capability");
     Assertions.assertFalse(user2Permissions().userIsOwnerOfResource(folder.getResourceId()),
         "sharing must never confer ownership");
+
+    // What the search index will be told. Without this event the worker never rewrites the folder's
+    // permission fields, and user 2 cannot find what they were just given.
+    Assertions.assertEquals(List.of(SearchPermissionQueueEventType.FOLDER_PERMISSION_CHANGED),
+        outbox.eventsFor(folder.getId()),
+        "sharing the folder should record exactly one folder-permission event for the search index");
   }
 
   private void expectRefusal(FolderServerFolder folder, String body, String description) throws Exception {
@@ -302,6 +314,8 @@ public class SharingRoundTripTest {
           "the " + target.label() + " changed hands despite the refusal");
       Assertions.assertFalse(user2Permissions().userIsOwnerOfResource(target.id()),
           "the Manager became owner of the " + target.label() + " despite the refusal");
+      Assertions.assertEquals(List.of(), outbox.eventsFor(target.id().getId()),
+          "a refused transfer of the " + target.label() + " must not tell the search index anything changed");
     }
   }
 
@@ -349,6 +363,8 @@ public class SharingRoundTripTest {
         "a transfer without If-Match should be rejected: " + missing.body());
     Assertions.assertTrue(user1Permissions().userIsOwnerOfResource(target.id()),
         "a transfer without a precondition must leave the owner unchanged");
+    Assertions.assertEquals(List.of(), outbox.eventsFor(target.id().getId()),
+        "a refused transfer must not tell the search index anything changed");
   }
 
   /**
@@ -374,6 +390,9 @@ public class SharingRoundTripTest {
 
     Assertions.assertFalse(user1Permissions().userIsOwnerOfResource(target.id()),
         "the previous owner should no longer be the owner");
+    Assertions.assertEquals(List.of(SearchPermissionQueueEventType.FOLDER_PERMISSION_CHANGED),
+        outbox.eventsFor(target.id().getId()),
+        "the transfer should record exactly one folder-permission event for the search index");
 
     // But they have not lost access, and this is the part worth knowing. The request listed no user
     // permissions, so nothing was granted back to user 1 directly — yet the folder still sits inside
@@ -407,6 +426,31 @@ public class SharingRoundTripTest {
     Assertions.assertTrue(acl.getUserPermissions().stream()
             .noneMatch(grant -> user2.getId().equals(grant.getUser().getId())),
         "the new owner must not also retain a direct role grant on the same resource");
+  }
+
+  /**
+   * The owner may transfer every kind of artifact. The new owner holds it in the graph and in the ACL
+   * the endpoint serves, and the search index is told that its permissions changed.
+   */
+  @Test
+  public void theOwnerTransfersEachKindOfArtifact() throws Exception {
+    for (Target target : artifactTargets("handover")) {
+      HttpResponse<String> handover = transfer(target, user2.getId(), user1Header);
+      Assertions.assertEquals(200, handover.statusCode(),
+          "the owner should be able to transfer the " + target.label() + ": " + handover.body());
+      CedarNodePermissionsWithExtract served =
+          JsonMapper.STRICT_MAPPER.readValue(handover.body(), CedarNodePermissionsWithExtract.class);
+      Assertions.assertEquals(user2.getId(), served.getOwner().getId(),
+          "the transfer's answer should name the new owner of the " + target.label());
+
+      Assertions.assertTrue(user2Permissions().userIsOwnerOfResource(target.id()),
+          "user 2 should own the " + target.label() + " after the transfer");
+      Assertions.assertFalse(user1Permissions().userIsOwnerOfResource(target.id()),
+          "user 1 should no longer own the " + target.label());
+      Assertions.assertEquals(List.of(SearchPermissionQueueEventType.RESOURCE_PERMISSION_CHANGED),
+          outbox.eventsFor(target.id().getId()),
+          "the transfer should record exactly one resource-permission event for the " + target.label());
+    }
   }
 
   // ── fixtures and helpers ───────────────────────────────────────────────────
