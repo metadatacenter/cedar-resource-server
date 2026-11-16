@@ -82,6 +82,7 @@ public class CommandFileSystemResourceTest {
   private static int sourceGetStatus = 200;
   private static boolean omitSourceGetBody;
   private static String receivedPutIfMatch;
+  private static JsonNode receivedPutBody;
   /**
    * Identities a case chose for a copy. The stub answers for these as the artifact server does, from
    * what is stored at them, and answers everything else as before.
@@ -354,6 +355,36 @@ public class CommandFileSystemResourceTest {
     Assertions.assertEquals(412, stale.statusCode(), stale.body());
     Assertions.assertEquals("\"0\"", receivedPutIfMatch,
         "rename must forward the caller's validator, not replace it with the internal GET ETag");
+  }
+
+  /**
+   * A rename rewrites the document's name and nothing else, sends it to the artifact server under the
+   * caller's validator, and records the new name in the graph.
+   */
+  @Test
+  @Order(15)
+  public void renameArtifactWritesTheNewNameToBothStores() throws Exception {
+    String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"schema:name\":\"Renamed artifact\"}";
+    receivedPutBody = null;
+
+    HttpResponse<String> renamed = postCommand("rename-resource", body, "\"1\"");
+
+    Assertions.assertEquals(200, renamed.statusCode(), renamed.body());
+    Assertions.assertNotNull(receivedPutBody, "the rename should be written to the artifact server");
+    Assertions.assertEquals("Renamed artifact", receivedPutBody.path("schema:name").asText(),
+        "the document the artifact server received kept its old name");
+    ObjectNode unchangedOtherwise = sourceDocument();
+    unchangedOtherwise.put("schema:name", "Renamed artifact");
+    Assertions.assertEquals(unchangedOtherwise, receivedPutBody, "the rename changed more than the name");
+    Assertions.assertEquals("Renamed artifact", folderSession.findArtifactById(
+            CedarArtifactId.build(sourceArtifact.getId(), CedarResourceType.TEMPLATE)).getName(),
+        "the graph kept the artifact's old name");
+
+    // The stored document still carries the name it had, so asking for that name again is refused.
+    String sameName = "{\"@id\":\"" + sourceArtifact.getId() + "\",\"schema:name\":\"" + SOURCE_NAME + "\"}";
+    JsonNode unchanged = refusal(postCommand("rename-resource", sameName, "*"), 400);
+    Assertions.assertEquals("nothingToDo", unchanged.path("errorKey").asText(), unchanged.toString());
   }
 
   @Test
@@ -790,6 +821,7 @@ public class CommandFileSystemResourceTest {
     } else if ("PUT".equals(exchange.getRequestMethod())) {
       receivedPutIfMatch = exchange.getRequestHeaders().getFirst("If-Match");
       response = exchange.getRequestBody().readAllBytes();
+      receivedPutBody = JsonMapper.STRICT_MAPPER.readTree(response);
       if (!"\"1\"".equals(receivedPutIfMatch) && !"*".equals(receivedPutIfMatch)) {
         status = 412;
         response = "{\"status\":412}".getBytes(StandardCharsets.UTF_8);

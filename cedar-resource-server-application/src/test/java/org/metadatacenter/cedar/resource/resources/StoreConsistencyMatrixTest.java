@@ -190,6 +190,20 @@ public class StoreConsistencyMatrixTest {
   }
 
   @Test
+  public void aRenamedTemplateIsDescribedTheSameWayByBothStores() throws Exception {
+    String id = createTemplate("Consistency rename fixture", null);
+
+    HttpResponse<String> renamed = post("/command/rename-resource",
+        "{\"@id\":\"" + id + "\",\"schema:name\":\"Consistency rename fixture, renamed\","
+            + "\"schema:description\":\"A description the rename introduced\"}");
+
+    Assertions.assertEquals(200, renamed.statusCode(), renamed.body());
+    Assertions.assertEquals("Consistency rename fixture, renamed",
+        ARTIFACTS.get(id).path(ModelNodeNames.SCHEMA_ORG_NAME).asText(), "the stored document kept its old name");
+    assertStoresAgree("rename", id, CedarResourceType.TEMPLATE);
+  }
+
+  @Test
   public void aCopiedTemplateIsDescribedTheSameWayByBothStores() throws Exception {
     String sourceId = createTemplate("Consistency copy source", null);
     setDoi(sourceId, "https://doi.org/10.5072/FK2-consistency-source");
