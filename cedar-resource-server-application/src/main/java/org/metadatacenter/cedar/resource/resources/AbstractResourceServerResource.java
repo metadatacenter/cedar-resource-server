@@ -1926,8 +1926,11 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
 
       BackendCallResult<VersionedResourcePermissions> backendCallResult;
       try {
+        // The search event commits in the change's own transaction, so the index is never left
+        // holding the old permissions of a change that committed without its event.
         backendCallResult = permissionSession.updateResourcePermissions(resourceId, permissionsRequest,
-            RevisionPreconditionParser.parse(ifMatch));
+            RevisionPreconditionParser.parse(ifMatch), searchPermissionEnqueueService.permissionsChangedEvent(
+                resourceId, node.getType() == CedarResourceType.FOLDER));
       } catch (RevisionConflictException e) {
         return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
             .id(resourceId)
@@ -1937,12 +1940,6 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
       }
       if (backendCallResult.isError()) {
         throw new CedarBackendException(backendCallResult);
-      }
-
-      if (node.getType() == CedarResourceType.FOLDER) {
-        searchPermissionEnqueueService.folderPermissionsChanged(resourceId);
-      } else {
-        searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
       }
 
       VersionedResourcePermissions permissions = backendCallResult.getPayload();

@@ -740,8 +740,10 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     ResourcePermissionServiceSession permissions = dataServices.getResourcePermissionServiceSession(c);
     BackendCallResult<VersionedResourcePermissions> result;
     try {
+      // The search event commits in the transfer's own transaction, as a permissions change's does.
       result = permissions.transferResourceOwnership(resourceId,
-          CedarUserId.build(newOwnerIdParam.stringValue()), RevisionPreconditionParser.parse(ifMatch));
+          CedarUserId.build(newOwnerIdParam.stringValue()), RevisionPreconditionParser.parse(ifMatch),
+          searchPermissionEnqueueService.permissionsChangedEvent(resourceId, resourceType == CedarResourceType.FOLDER));
     } catch (RevisionConflictException e) {
       return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
           .id(resourceId)
@@ -753,11 +755,6 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       throw new CedarBackendException(result);
     }
 
-    if (resourceType == CedarResourceType.FOLDER) {
-      searchPermissionEnqueueService.folderPermissionsChanged(resourceId);
-    } else {
-      searchPermissionEnqueueService.resourcePermissionsChanged(resourceId);
-    }
     VersionedResourcePermissions transferred = result.getPayload();
     return Response.ok(transferred.content())
         .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(transferred.revision()))
