@@ -440,7 +440,7 @@ public class CommandFileSystemResourceTest {
 
   /** Fields, elements, instances and folders each move under the permissions of their own kind. */
   @Test
-  @Order(10)
+  @Order(17)
   public void everyKindOfResourceMovesToAnotherFolder() throws Exception {
     List<org.metadatacenter.model.folderserver.basic.FileSystemResource> resources = List.of(
         artifact(new org.metadatacenter.model.folderserver.basic.FolderServerField(), CedarResourceType.FIELD),
@@ -463,7 +463,7 @@ public class CommandFileSystemResourceTest {
   }
 
   @Test
-  @Order(11)
+  @Order(18)
   public void aMoveOrCopyNamesTheFolderItCannotFindAndAFolderIsNotCopied() throws Exception {
     String missingFolder = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FOLDER);
     JsonNode noTarget = refusal(postCommand("move-resource-to-folder", "{\"@id\":\"" + sourceArtifact.getId() + "\","
