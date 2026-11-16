@@ -4,6 +4,9 @@ server:
   # thread ceiling that a later class failed to start with Netty's "failed to create a child event
   # loop". These tests issue a handful of sequential requests each, so a few threads is ample, and the
   # headroom is worth more than the concurrency.
+  # Each class stops its server when it ends. Dropwizard's default grace period held every stop for
+  # a second while Jetty waited for idle connections the class no longer uses.
+  shutdownGracePeriod: 0s
   minThreads: 4
   maxThreads: 16
   applicationConnectors:
