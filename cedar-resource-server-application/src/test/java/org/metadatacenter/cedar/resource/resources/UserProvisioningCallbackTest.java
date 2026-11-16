@@ -141,6 +141,30 @@ public class UserProvisioningCallbackTest {
         "a login through another client should not create a user record");
   }
 
+  /**
+   * The body CEDAR's Keycloak event listener posts is accepted as it is. The fixture is a byte-for-byte
+   * copy of cedar-keycloak-event-listener's src/test/resources/auth-user-callback.json (commit 553b55f),
+   * whose own test holds the listener to that document, so a key either side adds or renames fails one
+   * of the two suites.
+   */
+  @Test
+  public void theBodyTheListenerPostsIsAccepted() throws Exception {
+    String body;
+    try (var input = UserProvisioningCallbackTest.class.getResourceAsStream("/auth-user-callback.json")) {
+      Assertions.assertNotNull(input, "the listener's callback fixture");
+      body = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+    }
+    CedarUserExtract named = JsonMapper.STRICT_MAPPER.treeToValue(
+        JsonMapper.STRICT_MAPPER.readTree(body).get("eventUser"), CedarUserExtract.class);
+
+    HttpResponse<String> response = post(body);
+
+    Assertions.assertEquals(201, response.statusCode(), response.body());
+    CedarUser provisioned = users.findUser(named.getResourceId());
+    Assertions.assertNotNull(provisioned, "the listener's login should provision the user it names");
+    Assertions.assertEquals("ada@example.org", provisioned.getEmail());
+  }
+
   private static long everybodyMembershipsOf(CedarRequestContext context, String userId) {
     var groups = CedarDataServices.getInstance().getGroupServiceSession(context);
     String everybodyId = groups.findGroupByName(cedarConfig.getFolderStructureConfig().getEverybodyGroup().getName())
@@ -170,6 +194,10 @@ public class UserProvisioningCallbackTest {
         }
         """.formatted(UUID.randomUUID(), clientId, UUID.randomUUID(), UUID.randomUUID(), user.getEmail(),
         JsonMapper.STRICT_MAPPER.writeValueAsString(user));
+    return post(body);
+  }
+
+  private static HttpResponse<String> post(String body) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/auth-user-callback"))
         .header("Authorization", TestAuthUtil.getAdminUserAuthHeader(cedarConfig))
