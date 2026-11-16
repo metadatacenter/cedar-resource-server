@@ -9,6 +9,7 @@ import org.metadatacenter.model.CedarResourceType;
 import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.GraphDatabase;
 
+import java.util.List;
 import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -136,13 +137,18 @@ class Neo4jArtifactDeletionOutboxTest {
     try (var outbox = new Neo4jArtifactDeletionOutbox(
              GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), 0)) {
       var executor = Executors.newFixedThreadPool(2);
+      int sawTheJob = 0;
       try {
         for (int iteration = 0; iteration < 100; iteration++) {
           ArtifactDeletionJob prepared = outbox.prepare("racing-artifact", CedarResourceType.ELEMENT,
               "\"9\"", "{\"resourceType\":\"element\"}", null, true);
           var pending = executor.submit(() -> outbox.pending(10));
           var removed = executor.submit(() -> outbox.remove(prepared.jobId()));
-          for (ArtifactDeletionJob job : pending.get()) {
+          List<ArtifactDeletionJob> read = pending.get();
+          if (!read.isEmpty()) {
+            sawTheJob++;
+          }
+          for (ArtifactDeletionJob job : read) {
             assertEquals(prepared.jobId(), job.jobId());
             assertEquals("racing-artifact", job.resourceId());
             assertEquals(CedarResourceType.ELEMENT, job.resourceType());
@@ -152,6 +158,9 @@ class Neo4jArtifactDeletionOutboxTest {
       } finally {
         executor.shutdownNow();
       }
+      // An iteration whose removal won returned nothing and checked nothing. At least one read must have
+      // found the job, or the race was never observed.
+      assertTrue(sawTheJob > 0, "no read found the job, so no field was checked");
       assertEquals(0, outbox.count());
     }
   }
