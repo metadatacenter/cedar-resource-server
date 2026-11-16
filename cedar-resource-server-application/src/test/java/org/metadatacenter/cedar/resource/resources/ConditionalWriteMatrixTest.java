@@ -174,19 +174,40 @@ public class ConditionalWriteMatrixTest {
           // Categories are an administrator's to write, and folders their owner's.
           String auth = write.category() ? adminAuthHeader : userAuthHeader;
           String id = write.category() ? createCategory() : createFolder();
+          String target = (write.category() ? "/categories/" : "/folders/") + encode(id);
+          if (write.name().equals("close a folder")) {
+            // Closing a folder that is already closed would change nothing a success could show.
+            HttpResponse<String> opened = send("POST", "/command/make-folder-open", "{\"@id\":\"" + id + "\"}",
+                tagOf(target, auth), auth);
+            Assertions.assertEquals(200, opened.statusCode(), opened.body());
+          }
           String current = tagOf(write.tagPath().apply(id), auth);
           String body = write.body().of(id);
           if (!exists) {
-            String target = (write.category() ? "/categories/" : "/folders/") + encode(id);
             HttpResponse<String> deleted = send("DELETE", target, null, tagOf(target, auth), auth);
             Assertions.assertEquals(204, deleted.statusCode(), deleted.body());
           }
+          String cell = write.name() + " / " + tag.name() + " / " + (exists ? "exists" : "deleted");
+          String before = exists ? stateOf(write.tagPath().apply(id), auth) : null;
           HttpResponse<String> answer = send(write.method(), write.path().apply(id), body, tag.value().apply(current),
               auth);
           int expected = expected(write, tag, exists);
           if (answer.statusCode() != expected)
-            differences.add(write.name() + " / " + tag.name() + " / " + (exists ? "exists" : "deleted") + ": "
-                + answer.statusCode() + " where " + expected);
+            differences.add(cell + ": " + answer.statusCode() + " where " + expected);
+          if (exists) {
+            // The status is the rule's; the target says whether the write was applied. A refused write
+            // leaves it, tag and all, as it was, and a successful one changes it.
+            boolean applied = answer.statusCode() == write.success();
+            if (write.method().equals("DELETE")) {
+              int read = send("GET", target, null, null, auth).statusCode();
+              if (read != (applied ? 404 : 200))
+                differences.add(cell + ": the target reads " + read + " after the " + (applied ? "delete" : "refusal"));
+            } else {
+              boolean changed = !before.equals(stateOf(write.tagPath().apply(id), auth));
+              if (changed != applied)
+                differences.add(cell + ": the target " + (changed ? "changed after a refusal" : "is unchanged after a success"));
+            }
+          }
         }
       }
     }
@@ -209,6 +230,13 @@ public class ConditionalWriteMatrixTest {
     Assertions.assertEquals(201, created.statusCode(), created.body());
     JsonNode category = JsonMapper.STRICT_MAPPER.readTree(created.body());
     return category.get("@id").asText();
+  }
+
+  /** The target as its owner reads it: its tag and its body. */
+  private static String stateOf(String path, String auth) throws Exception {
+    HttpResponse<String> read = send("GET", path, null, null, auth);
+    Assertions.assertEquals(200, read.statusCode(), read.body());
+    return read.headers().firstValue("ETag").orElseThrow() + " " + read.body();
   }
 
   private static String tagOf(String path, String auth) throws Exception {
