@@ -194,27 +194,28 @@ public class SharingRoundTripTest {
         new ResourcePermissionUser(user2.getId()), ResourceRole.VIEWER));
     duplicate.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
         new ResourcePermissionUser(user2.getId()), ResourceRole.MANAGER));
-    expectRefusal(folder, JsonMapper.STRICT_MAPPER.writeValueAsString(duplicate), "a request naming one user twice");
+    expectRefusal(folder, JsonMapper.STRICT_MAPPER.writeValueAsString(duplicate), "a request naming one user twice",
+        "uniqueConstraintCollision");
 
     // The owner also listed as a grantee, which would say two things about the same person.
     ResourcePermissionsRequest collision = ownedByUser1();
     collision.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
         new ResourcePermissionUser(user1.getId()), ResourceRole.VIEWER));
     expectRefusal(folder, JsonMapper.STRICT_MAPPER.writeValueAsString(collision),
-        "a request listing the owner as a grantee");
+        "a request listing the owner as a grantee", "invalidData");
 
     String legacyProperty = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2.getId()
         + "\"},\"permission\":\"read\"}],\"groupPermissions\":[]}";
-    expectRefusal(folder, legacyProperty, "a request using the removed permission property");
+    expectRefusal(folder, legacyProperty, "a request using the removed permission property", "invalidInput");
 
     String legacyValue = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2.getId()
         + "\"},\"role\":\"write\"}],\"groupPermissions\":[]}";
-    expectRefusal(folder, legacyValue, "a request using a legacy permission value as a role");
+    expectRefusal(folder, legacyValue, "a request using a legacy permission value as a role", "missingParameter");
 
     // A document leaving out a list, which removed every grant of that kind: {} cleared all of them.
-    expectRefusal(folder, "{}", "a request naming neither user nor group grants");
-    expectRefusal(folder, "{\"userPermissions\":[]}", "a request naming only user grants");
-    expectRefusal(folder, "{\"groupPermissions\":[]}", "a request naming only group grants");
+    expectRefusal(folder, "{}", "a request naming neither user nor group grants", "invalidData");
+    expectRefusal(folder, "{\"userPermissions\":[]}", "a request naming only user grants", "invalidData");
+    expectRefusal(folder, "{\"groupPermissions\":[]}", "a request naming only group grants", "invalidData");
 
     // None of the refusals may have changed anything: user 2 still has no access at all.
     Assertions.assertFalse(user2Permissions().userHasCapability(folder.getResourceId(), ResourceCapability.READ_RESOURCE),
@@ -277,11 +278,17 @@ public class SharingRoundTripTest {
         "sharing the folder should record exactly one folder-permission event for the search index");
   }
 
-  private void expectRefusal(FolderServerFolder folder, String body, String description) throws Exception {
+  /**
+   * Each malformed body is aimed at one rule, and the rule that refuses it says so with its own key. Any
+   * 4xx is not enough: a body that passed its rule and failed later, as a 404 or a 409, would pass.
+   */
+  private void expectRefusal(FolderServerFolder folder, String body, String description, String errorKey)
+      throws Exception {
     HttpResponse<String> response = send("PUT", permissionsPath(folder), body, user1Header);
-    Assertions.assertTrue(response.statusCode() >= 400 && response.statusCode() < 500,
-        description + " should have been refused with a 4xx, but answered "
-            + response.statusCode() + ": " + response.body());
+    Assertions.assertEquals(400, response.statusCode(),
+        description + " should have been refused as a bad request: " + response.body());
+    Assertions.assertEquals(errorKey, JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(),
+        description + " was refused by another rule: " + response.body());
   }
 
 
