@@ -2,6 +2,7 @@ package org.metadatacenter.cedar.resource.resources;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
@@ -275,6 +276,26 @@ public class CommandAnnotationsResourceTest {
     Assertions.assertNotNull(indexed, "the DOI write did not reindex the artifact");
     Assertions.assertEquals("10.1234/reindexed", ((FolderServerArtifact) indexed).getDOI(),
         "the artifact was reindexed as it stood before the write");
+  }
+
+  /** A DOI joins the annotations an artifact already carries, and every one of them is written back. */
+  @Test
+  public void aDoiIsAddedBesideTheAnnotationsTheArtifactAlreadyCarries() throws Exception {
+    String subject = "http://purl.org/dc/terms/subject";
+    synchronized (ARTIFACT_LOCK) {
+      currentArtifact.putObject("_annotations").putObject(subject).put("@value", "kept beside the DOI");
+    }
+
+    HttpResponse<String> response = setDoi("10.1234/beside");
+
+    Assertions.assertEquals(200, response.statusCode(), response.body());
+    Assertions.assertEquals(1, PUT_REQUESTS.get(), "the DOI should be written in one PUT");
+    JsonNode annotations = currentArtifact.path("_annotations");
+    Assertions.assertEquals("kept beside the DOI", annotations.path(subject).path("@value").asText(),
+        "the DOI write dropped an annotation the artifact already carried: " + annotations);
+    Assertions.assertEquals("10.1234/beside", annotations.path(ModelNodeNames.DATACITE_DOI_URI).path("@id").asText(),
+        "the DOI write did not add the DOI: " + annotations);
+    Assertions.assertEquals(2, annotations.size(), "the DOI write should add one annotation: " + annotations);
   }
 
   @Test
