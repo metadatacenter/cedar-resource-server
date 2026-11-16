@@ -569,6 +569,53 @@ public class CommandVersionResourceTest {
   }
 
   /**
+   * A later write can supersede a publication between its document write and its graph update. The
+   * publication then acknowledges what it wrote, as published at its new version, and leaves the graph
+   * to its successor rather than overwriting it or restoring the document under it.
+   */
+  @Test
+  public void aPublicationSupersededByALaterWriteAcknowledgesItselfAndLeavesTheSuccessor() throws Exception {
+    CedarTemplateId draft = ownedTemplate("Superseded publication", "0.0.1", "bibo:draft");
+    scriptedDocument = documentOf(draft, "0.0.1", "bibo:draft");
+    var original = AbstractResourceServerResource.artifactRestoreCompletionService;
+    var completion = org.mockito.Mockito.mock(
+        org.metadatacenter.cedar.resource.restore.ArtifactRestoreCompletionService.class);
+    try (var outbox = new org.metadatacenter.cedar.resource.restore.Neo4jArtifactRestoreOutbox(cedarConfig)) {
+      // The publication's restore job is recorded, and a successor's job and graph write land at once.
+      org.mockito.Mockito.when(completion.prepare(org.mockito.ArgumentMatchers.any(),
+          org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(),
+          org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyBoolean())).thenAnswer(call -> {
+        org.metadatacenter.id.CedarArtifactId id = call.getArgument(0);
+        CedarResourceType type = call.getArgument(1);
+        // The scripted stub's tags are not revisions, and the outbox records only revisions.
+        var first = outbox.prepare(id.getId(), type, call.getArgument(2), "\"2\"", false);
+        var second = outbox.prepare(id.getId(), type, scriptedDocument.toString(), "\"3\"", false);
+        folderSession.updateArtifactById(id, type, Map.of(
+            org.metadatacenter.server.neo4j.cypher.NodeProperty.NAME, "Successor"), second.jobId());
+        return first;
+      });
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(completion);
+
+      HttpResponse<String> response = postVersionCommand("publish-artifact",
+          "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.0.0\"}");
+
+      Assertions.assertEquals(200, response.statusCode(), response.body());
+      JsonNode acknowledged = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      Assertions.assertEquals("1.0.0", acknowledged.path("pav:version").asText(), response.body());
+      Assertions.assertEquals("bibo:published", acknowledged.path("bibo:status").asText(), response.body());
+      Assertions.assertEquals(1, SCRIPTED_PUT_CONDITIONS.size(), "the publication should write its document once");
+      FolderServerSchemaArtifact stored = folderSession.findSchemaArtifactById(draft);
+      Assertions.assertEquals("Successor", stored.getName(), "the publication overwrote its successor's graph write");
+      Assertions.assertEquals("bibo:draft", stored.getPublicationStatus().getValue(),
+          "the superseded publication still published the graph node");
+      org.mockito.Mockito.verify(completion, org.mockito.Mockito.never()).restoreNow(
+          org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    } finally {
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(original);
+    }
+  }
+
+  /**
    * A publication may keep the version the stored document carries but not lower it. A lower one is
    * refused before the artifact server is written, and the template stays the draft it was.
    */

@@ -85,7 +85,7 @@ class InclusionTransitionTest {
 
 
   @org.junit.jupiter.params.ParameterizedTest
-  @org.junit.jupiter.params.provider.ValueSource(strings = {"published", "edited", "instance", "normal"})
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"published", "edited", "instance", "counted", "normal"})
   void propagationRespectsChangesAfterItsGraphPreflight(String change) throws Exception {
     mode = change;
     writes.set(0);
@@ -115,8 +115,25 @@ class InclusionTransitionTest {
     String body = "{\"@id\":\"" + sourceId + "\",\"templates\":{\"" + targetId + "\":{\"operation\":\"update\"}}}";
     var preview = post("/command/inclusions-subgraph-preview", body);
     assertEquals(200, preview.statusCode(), preview.body());
+    if (change.equals("counted")) {
+      // An instance the graph already holds, so the resource server's own count refuses the change
+      // before any write, rather than leaving the refusal to the artifact server.
+      var instance = new org.metadatacenter.model.folderserver.basic.FolderServerInstance();
+      instance.setId(config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.INSTANCE));
+      instance.setName("Instance of " + targetId);
+      instance.setIsBasedOn(org.metadatacenter.id.CedarTemplateId.build(targetId));
+      assertNotNull(folders.createResourceAsChildOfId(instance, home));
+    }
     var result = post("/command/inclusions-subgraph-update", body);
-    if (change.equals("normal")) {
+    if (change.equals("counted")) {
+      assertEquals(400, result.statusCode(), result.body());
+      var refusal = JsonMapper.STRICT_MAPPER.readTree(result.body());
+      assertEquals("invalidData", refusal.path("errorKey").asText(), result.body());
+      assertEquals(targetId, refusal.path("parameters").path("templateId").asText(), result.body());
+      assertEquals(1, refusal.path("parameters").path("numberOfInstances").asLong(), result.body());
+      assertEquals(0, writes.get(), "a template with instances must not be written");
+      assertFalse(documents.get(targetId).body().toString().contains("New field"));
+    } else if (change.equals("normal")) {
       assertEquals(200, result.statusCode(), result.body());
       assertEquals(1, writes.get());
       assertTrue(documents.get(targetId).body().toString().contains("New field"));

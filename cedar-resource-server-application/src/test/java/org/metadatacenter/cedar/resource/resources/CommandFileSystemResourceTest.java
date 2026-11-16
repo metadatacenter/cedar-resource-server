@@ -589,8 +589,81 @@ public class CommandFileSystemResourceTest {
     }
   }
 
+  /**
+   * Fields, elements and instances are copied as templates are: the copy is posted to its own kind's
+   * collection, derived from its source, and registered in the graph as that kind. Fields and elements
+   * are versioned and start as a first draft; an instance carries no version.
+   */
   @Test
   @Order(20)
+  public void everyKindOfArtifactIsCopied() throws Exception {
+    JsonArtifactRenderer renderer = new JsonArtifactRenderer();
+    Map<CedarResourceType, ObjectNode> documents = Map.of(
+        CedarResourceType.FIELD, renderer.renderFieldSchemaArtifact(TextField.builder().withName("Copied field").build()),
+        CedarResourceType.ELEMENT, renderer.renderElementSchemaArtifact(
+            ElementSchemaArtifact.builder().withName("Copied element").build()),
+        CedarResourceType.INSTANCE, renderer.renderTemplateInstanceArtifact(TemplateInstanceArtifact.builder()
+            .withName("Copied instance").withIsBasedOn(URI.create(sourceArtifact.getId())).build()));
+
+    for (Map.Entry<CedarResourceType, ObjectNode> entry : documents.entrySet()) {
+      CedarResourceType type = entry.getKey();
+      FolderServerArtifact node = type == CedarResourceType.FIELD ? new org.metadatacenter.model.folderserver.basic.FolderServerField()
+          : type == CedarResourceType.ELEMENT ? new org.metadatacenter.model.folderserver.basic.FolderServerElement()
+          : new org.metadatacenter.model.folderserver.basic.FolderServerInstance();
+      String sourceId = artifact(node, type).getId();
+      ObjectNode document = entry.getValue().put("@id", sourceId);
+      SOURCES.put(sourceId, document::deepCopy);
+      postedArtifact = null;
+
+      HttpResponse<String> response = postCommand("copy-artifact-to-folder", "{\"@id\":\"" + sourceId + "\","
+          + "\"targetFolderId\":\"" + homeFolderId.getId() + "\",\"nameTemplate\":\"Copy of {{name}}\"}");
+
+      Assertions.assertEquals(201, response.statusCode(), type + ": " + response.body());
+      Assertions.assertNotNull(postedArtifact, type + ": the copy should be posted to the artifact service");
+      String name = document.path("schema:name").asText();
+      Assertions.assertEquals("Copy of " + name, postedArtifact.path("schema:name").asText(), type.getValue());
+      Assertions.assertEquals(sourceId, postedArtifact.path("pav:derivedFrom").asText(), type.getValue());
+      if (type.isVersioned()) {
+        Assertions.assertEquals("0.0.1", postedArtifact.path("pav:version").asText(), type.getValue());
+        Assertions.assertEquals("bibo:draft", postedArtifact.path("bibo:status").asText(), type.getValue());
+      } else {
+        Assertions.assertFalse(postedArtifact.has("pav:version"), type + " was given a version: " + postedArtifact);
+      }
+      String copyId = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("@id").asText();
+      FolderServerArtifact copy = folderSession.findArtifactById(CedarArtifactId.build(copyId, type));
+      Assertions.assertNotNull(copy, type + ": the copy was not registered in the graph");
+      Assertions.assertEquals(type, copy.getType());
+      Assertions.assertEquals("Copy of " + name, copy.getName(), type.getValue());
+    }
+  }
+
+  /**
+   * A caDSR CDE carries its identifier in schema:identifier and, in brackets, in its name. The copy is
+   * a different artifact, so it carries the identifier in neither.
+   */
+  @Test
+  @Order(21)
+  public void aCopyOfACdeDropsItsIdentifier() throws Exception {
+    String sourceId = artifact(new org.metadatacenter.model.folderserver.basic.FolderServerField(),
+        CedarResourceType.FIELD).getId();
+    ObjectNode document = new JsonArtifactRenderer().renderFieldSchemaArtifact(
+        TextField.builder().withName("Diagnosis (CDE-2192199)").build());
+    document.put("@id", sourceId).put("schema:identifier", "CDE-2192199");
+    SOURCES.put(sourceId, document::deepCopy);
+    postedArtifact = null;
+
+    HttpResponse<String> response = postCommand("copy-artifact-to-folder", "{\"@id\":\"" + sourceId + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\",\"nameTemplate\":\"Copy of {{name}}\"}");
+
+    Assertions.assertEquals(201, response.statusCode(), response.body());
+    Assertions.assertNotNull(postedArtifact, "the copy should be posted to the artifact service");
+    Assertions.assertFalse(postedArtifact.has("schema:identifier"), "the copy kept the CDE identifier: " + postedArtifact);
+    Assertions.assertEquals("Copy of Diagnosis", postedArtifact.path("schema:name").asText(),
+        "the copy's name kept the CDE identifier");
+  }
+
+  @Test
+  @Order(30)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
     artifactServer.stop(0);
     artifactServer = null;
@@ -621,7 +694,7 @@ public class CommandFileSystemResourceTest {
    * fixture's artifact server is still up.
    */
   @Test
-  @Order(21)
+  @Order(31)
   public void aCommandRefusesPropertiesItDoesNotAccept() throws Exception {
     String withTheResourceType = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"resourceType\":\"template\","
