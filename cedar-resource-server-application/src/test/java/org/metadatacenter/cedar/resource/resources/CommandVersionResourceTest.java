@@ -37,6 +37,7 @@ import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.neo4j.Neo4jConfig;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
 import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
@@ -47,6 +48,10 @@ import org.metadatacenter.server.security.model.permission.resource.ResourceRole
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
+import org.neo4j.driver.AuthTokens;
+import org.neo4j.driver.Driver;
+import org.neo4j.driver.GraphDatabase;
+import org.neo4j.driver.Session;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -755,7 +760,6 @@ public class CommandVersionResourceTest {
   @Order(-1)
   public void refusedDeletionDoesNotLeaveAnAutomaticRetry() throws Exception {
     refusingDelete = true;
-    long before = AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount();
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
             + URLEncoder.encode(deleteRetryTemplateId.getId(), StandardCharsets.UTF_8)))
@@ -763,7 +767,7 @@ public class CommandVersionResourceTest {
     HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
     Assertions.assertEquals(400, response.statusCode(), response.body());
     Assertions.assertNotNull(folderSession.findArtifactById(deleteRetryTemplateId));
-    Assertions.assertEquals(before, AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount(),
+    Assertions.assertNull(deletionJobOf(deleteRetryTemplateId.getId()),
         "a refused template deletion must not run later when its instances disappear");
   }
 
@@ -789,8 +793,13 @@ public class CommandVersionResourceTest {
         "the graph delete should finish while the unavailable search-index cleanup remains durably pending");
     Assertions.assertNull(folderSession.findArtifactById(deleteRetryTemplateId),
         "the resumed delete left the stale graph node behind");
-    Assertions.assertTrue(AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount() > 0,
-        "the unavailable search index should leave a durable completion job");
+    // This artifact's own job, not any job: every class in the JVM shares the embedded graph, and earlier
+    // classes leave deletions their artifact server never confirmed.
+    Map<String, Object> job = deletionJobOf(deleteRetryTemplateId.getId());
+    Assertions.assertNotNull(job, "the unavailable search index should leave a durable completion job");
+    Assertions.assertEquals(Boolean.TRUE, job.get("artifactDeleted"), "the job should record the document as gone");
+    Assertions.assertEquals(Boolean.TRUE, job.get("graphDeleted"), "the job should record the graph node as gone");
+    Assertions.assertNotEquals(Boolean.TRUE, job.get("parked"), "the job should wait for the relay, not a person");
     Assertions.assertEquals(0, DELETE_RETRY_ARTIFACT_CALLS.get(),
         "a preflight 404 should skip the redundant artifact DELETE");
   }
@@ -1164,5 +1173,16 @@ public class CommandVersionResourceTest {
     exchange.sendResponseHeaders(200, response.length);
     exchange.getResponseBody().write(response);
     exchange.close();
+  }
+
+  /** The deletion job the durable outbox holds for one artifact, or null when it holds none. */
+  private static Map<String, Object> deletionJobOf(String id) {
+    Neo4jConfig neo4j = Neo4jConfig.fromCedarConfig(cedarConfig);
+    try (Driver driver = GraphDatabase.driver(neo4j.getUri(), AuthTokens.basic(neo4j.getUserName(), neo4j.getUserPassword()));
+         Session session = driver.session()) {
+      var found = session.run("MATCH (e:CedarArtifactDeletionOutbox {resourceId:$id}) RETURN properties(e) AS job",
+          Map.of("id", id));
+      return found.hasNext() ? found.single().get("job").asMap() : null;
+    }
   }
 }

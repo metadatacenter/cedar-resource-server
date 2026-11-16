@@ -787,6 +787,12 @@ public class CrossStoreCompensationTest {
     Assertions.assertTrue(accepted.path("message").asText().contains("will be completed"), response.body());
     Assertions.assertFalse(DOCUMENTS.containsKey(id));
     Assertions.assertNull(nodeOf(id));
+    // The answer promises that the cleanup will be completed, and this job is what completes it.
+    Map<String, Object> job = deletionJobOf(id);
+    Assertions.assertNotNull(job, "the pending cleanup was not left for the relay");
+    Assertions.assertEquals(Boolean.TRUE, job.get("artifactDeleted"), "the job should record the document as gone");
+    Assertions.assertEquals(Boolean.TRUE, job.get("graphDeleted"), "the job should record the graph node as gone");
+    Assertions.assertNotEquals(Boolean.TRUE, job.get("parked"), "the job should wait for the relay, not a person");
   }
 
   /**
