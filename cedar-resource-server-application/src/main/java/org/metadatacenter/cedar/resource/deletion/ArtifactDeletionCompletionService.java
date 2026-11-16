@@ -132,7 +132,8 @@ public final class ArtifactDeletionCompletionService implements AutoCloseable {
     executor.scheduleWithFixedDelay(this::resumeSafely, 5, 5, TimeUnit.SECONDS);
   }
 
-  private void resumeSafely() {
+  /** One pass of the relay over the jobs that are due. The scheduler runs it; a test may run it directly. */
+  void resumeSafely() {
     try {
       CedarRequestContext admin = CedarRequestContextFactory.fromAdminUser(cedarConfig, userService);
       for (ArtifactDeletionJob original : outbox.pending(BATCH_SIZE)) {
