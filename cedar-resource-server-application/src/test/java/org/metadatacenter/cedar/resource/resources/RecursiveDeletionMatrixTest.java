@@ -13,6 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ClassScopedSearchPermissionServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.cedar.resource.deletion.ArtifactDeletionCompletionService;
@@ -29,7 +30,6 @@ import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -123,7 +123,7 @@ class RecursiveDeletionMatrixTest {
         CedarDataServices.getInstance().getNeoUserService(), new NoOpNodeIndexingService(config));
     AbstractResourceServerResource.injectArtifactDeletionCompletionService(completion);
     AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
+        new IndexUtils(config).getNodeSearchingService(), ClassScopedSearchPermissionServices.open(config));
   }
 
   @AfterAll

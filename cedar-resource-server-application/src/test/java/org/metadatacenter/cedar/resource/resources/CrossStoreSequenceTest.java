@@ -7,6 +7,7 @@ import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.*;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ClassScopedSearchPermissionServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -20,7 +21,6 @@ import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -82,7 +82,7 @@ class CrossStoreSequenceTest {
         CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config)));
     home = folders.findHomeFolderOf().getResourceId();
     AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
+        new IndexUtils(config).getNodeSearchingService(), ClassScopedSearchPermissionServices.open(config));
   }
 
   @AfterEach
@@ -140,7 +140,7 @@ class CrossStoreSequenceTest {
     org.mockito.Mockito.when(index.indexDocumentForProjection(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
         .thenThrow(new org.metadatacenter.exception.CedarProcessingException("search unavailable"));
     AbstractResourceServerResource.injectServices(index,
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
+        new IndexUtils(config).getNodeSearchingService(), ClassScopedSearchPermissionServices.open(config));
     try {
       ObjectNode content = documents.get(id).body().deepCopy().put("schema:name", "Committed during outage");
       var saved = send("PUT", "/templates/" + enc(id), content.toString(), "\"1\"");
@@ -165,7 +165,7 @@ class CrossStoreSequenceTest {
       }
     } finally {
       AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-          new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
+          new IndexUtils(config).getNodeSearchingService(), ClassScopedSearchPermissionServices.open(config));
     }
   }
 
@@ -351,7 +351,7 @@ class CrossStoreSequenceTest {
     org.mockito.Mockito.doThrow(new org.metadatacenter.exception.CedarProcessingException("index outage"))
         .when(index).indexDocument(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     AbstractResourceServerResource.injectServices(index,
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
+        new IndexUtils(config).getNodeSearchingService(), ClassScopedSearchPermissionServices.open(config));
     try {
       ObjectNode command = JsonMapper.MAPPER.createObjectNode().put("@id", source)
           .put("targetFolderId", home.getId()).put("nameTemplate", "Copy of {{name}}");
@@ -362,7 +362,7 @@ class CrossStoreSequenceTest {
       assertNull(cleanupJob(copiedId), "registration must retire cleanup before downstream calls");
     } finally {
       AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-          new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
+          new IndexUtils(config).getNodeSearchingService(), ClassScopedSearchPermissionServices.open(config));
     }
   }
 

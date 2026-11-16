@@ -64,14 +64,9 @@ import java.util.function.Supplier;
 @Tag("integration")
 public class SharingRoundTripTest {
 
-  // A note for whoever adds the next test class here. This module runs its tests in one shared JVM,
-  // and each class that boots a server also creates a Neo4j driver whose Netty event-loop threads are
-  // not reclaimed between classes. Nine such classes exhausted the JVM: a later one failed with
-  // "failed to create a child event loop", an exhaustion error that appears only in the full run and
-  // never when the class is run alone, and which names whichever class happened to boot last rather
-  // than the cause. Eight is the number that currently passes. If you need another, merge into an
-  // existing class as this one merges sharing with ownership, or take up the roadmap item that fixes
-  // it properly by isolating forks or closing the drivers.
+  // Each test JVM runs many classes that boot a server, one after another. A class's search-permission
+  // service holds a Neo4j driver, so it comes from ClassScopedSearchPermissionServices, which closes it
+  // when the class ends; a driver left open keeps its event-loop threads for the rest of the JVM.
   static {
     // Must run before the test support boots the server, which reads the Neo4j env vars. Ports are
     // assigned by the OS, so they cannot collide with the dev server or another test in this module.
