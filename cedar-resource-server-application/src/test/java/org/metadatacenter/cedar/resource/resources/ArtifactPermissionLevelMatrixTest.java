@@ -248,6 +248,46 @@ public class ArtifactPermissionLevelMatrixTest {
     }
   }
 
+  /**
+   * Making an artifact public needs the OpenView capability, which only a Manager holds. A Viewer and
+   * an Editor are refused both ways and leave the artifact as it was. The Manager row shows that the
+   * same request is otherwise acceptable, so the refusals are the capability check's.
+   */
+  @Test
+  public void onlyAManagerMayChangeAnArtifactsOpenView() throws Exception {
+    for (ResourceRole role : List.of(ResourceRole.VIEWER, ResourceRole.EDITOR, ResourceRole.MANAGER)) {
+      int expected = role == ResourceRole.MANAGER ? 200 : 403;
+      List<Fixture> closed = fixtures("openview-closed-" + role, role);
+      List<Fixture> opened = fixtures("openview-opened-" + role, role);
+      for (Fixture f : opened) {
+        changeOpenView(f, "/command/make-artifact-open", actors.get(OWNER));
+      }
+
+      PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
+      for (Fixture f : closed) {
+        matrix.when("POST", "/command/make-artifact-open", idBody(f))
+            .header("If-Match", "*")
+            .expect(ANONYMOUS, 401).expect(OTHER_USER, expected);
+      }
+      for (Fixture f : opened) {
+        matrix.when("POST", "/command/make-artifact-not-open", idBody(f))
+            .header("If-Match", "*")
+            .expect(ANONYMOUS, 401).expect(OTHER_USER, expected);
+      }
+      matrix.verify();
+
+      boolean changed = role == ResourceRole.MANAGER;
+      for (Fixture f : closed) {
+        Assertions.assertEquals(changed, details(f, actors.get(OWNER)).path("isOpen").asBoolean(),
+            "a " + role + " making the " + f.label() + " open should " + (changed ? "" : "not ") + "have opened it");
+      }
+      for (Fixture f : opened) {
+        Assertions.assertEquals(!changed, details(f, actors.get(OWNER)).path("isOpen").asBoolean(),
+            "a " + role + " making the " + f.label() + " not open should " + (changed ? "" : "not ") + "have closed it");
+      }
+    }
+  }
+
   @Test
   public void artifactDetailsExposeTheEffectiveAuthorityReport() throws Exception {
     for (Fixture fixture : fixtures("details-authority", ResourceRole.EDITOR)) {
@@ -327,6 +367,22 @@ public class ArtifactPermissionLevelMatrixTest {
         .put("@id", fixture.node().getId())
         .put("schema:name", "Overwritten By A Viewer")
         .toString();
+  }
+
+  private static String idBody(Fixture fixture) {
+    return JsonMapper.STRICT_MAPPER.createObjectNode().put("@id", fixture.node().getId()).toString();
+  }
+
+  private static void changeOpenView(Fixture fixture, String command, String authorization) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + command))
+        .header("Authorization", authorization)
+        .header("Content-Type", "application/json")
+        .header("If-Match", "*")
+        .POST(HttpRequest.BodyPublishers.ofString(idBody(fixture)))
+        .build();
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(200, response.statusCode(), command + " on the " + fixture.label() + ": " + response.body());
   }
 
   private static ResourcePermissionServiceSession user2Permissions() {
