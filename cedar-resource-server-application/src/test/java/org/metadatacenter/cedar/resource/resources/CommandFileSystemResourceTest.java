@@ -567,6 +567,28 @@ public class CommandFileSystemResourceTest {
     Assertions.assertNull(copy.getPreviousVersion(), "the copy's graph node keeps the source's predecessor");
   }
 
+  /** A rename whose read of the artifact comes back empty says so, as a copy does, and writes nothing. */
+  @Test
+  @Order(19)
+  public void emptyArtifactFetchOnRenameReturnsBadGatewayWithoutAWrite() throws Exception {
+    try {
+      omitSourceGetBody = true;
+      receivedPutBody = null;
+
+      HttpResponse<String> response = postCommand("rename-resource",
+          "{\"@id\":\"" + sourceArtifact.getId() + "\",\"schema:name\":\"Never written\"}", "*");
+
+      Assertions.assertEquals(502, response.statusCode(), response.body());
+      JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      Assertions.assertEquals("BAD_GATEWAY", error.path("status").asText(), response.body());
+      Assertions.assertEquals("Artifact service returned an empty artifact", error.path("message").asText(),
+          response.body());
+      Assertions.assertNull(receivedPutBody, "an empty read must not lead to a write");
+    } finally {
+      omitSourceGetBody = false;
+    }
+  }
+
   @Test
   @Order(20)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {

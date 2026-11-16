@@ -534,7 +534,8 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
       @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error"),
+      @ApiResponse(responseCode = "502", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Invalid response from artifact service")
   })
   public Response renameResource() throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -624,9 +625,15 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
         return generateStatusResponse(templateCurrentProxyResponse);
       } else {
         HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
-        if (currentTemplateEntity != null) {
+        String currentTemplateEntityContent;
+        try {
+          currentTemplateEntityContent = currentTemplateEntity == null ? null
+              : EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
+        } catch (IOException | ParseException e) {
+          throw new CedarProcessingException(e);
+        }
+        if (currentTemplateEntityContent != null && !currentTemplateEntityContent.isBlank()) {
           try {
-            String currentTemplateEntityContent = EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
             JsonNode currentTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(currentTemplateEntityContent);
             String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
             String currentDescription = ModelUtil.extractDescriptionFromResource(resourceType, currentTemplateJsonNode).getValue();
@@ -665,11 +672,14 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
                   .parameter(SCHEMA_ORG_DESCRIPTION, description)
                   .build();
             }
-          } catch (IOException | ParseException e) {
+          } catch (IOException e) {
             throw new CedarProcessingException(e);
           }
         }
-        return CedarResponse.internalServerError().build();
+        return CedarResponse.badGateway()
+            .message("Artifact service returned an empty artifact")
+            .id(fsResourceId)
+            .build();
       }
     }
   }
