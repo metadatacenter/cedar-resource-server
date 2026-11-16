@@ -194,6 +194,12 @@ public class CommandFileSystemResourceTest {
     Assertions.assertEquals("\"1-yaml\"", yaml.headers().firstValue("ETag").orElse(null));
     Assertions.assertEquals("\"1-yaml-compact-v2\"", compact.headers().firstValue("ETag").orElse(null));
     Assertions.assertTrue(yaml.headers().firstValue("Vary").orElse("").contains("Accept"));
+    // Each validator labels a body, and each body is the form its label names.
+    Assertions.assertEquals(sourceDocument(), JsonMapper.STRICT_MAPPER.readTree(json.body()));
+    Assertions.assertEquals(org.metadatacenter.util.artifact.ArtifactYamlTranscoder.jsonToYaml(
+        sourceDocument(), CedarResourceType.TEMPLATE, false), yaml.body(), "the full YAML");
+    Assertions.assertEquals(org.metadatacenter.util.artifact.ArtifactYamlTranscoder.jsonToYaml(
+        sourceDocument(), CedarResourceType.TEMPLATE, true), compact.body(), "the compact YAML");
   }
 
   @Test
