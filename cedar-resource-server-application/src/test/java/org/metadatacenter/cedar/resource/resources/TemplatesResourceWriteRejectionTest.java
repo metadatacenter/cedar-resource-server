@@ -191,17 +191,21 @@ public class TemplatesResourceWriteRejectionTest {
 
   @Test
   public void templateUpdatePermissionAloneCannotCreateByPut() throws Exception {
-    CedarUser updateOnlyUser = TestAuthUtil.getTestUser2(cedarConfig);
-    List<String> originalPermissions = List.copyOf(updateOnlyUser.getPermissions());
-    updateOnlyUser.setPermissions(List.of(CedarPermission.LOGGED_IN.getPermissionName(),
-        CedarPermission.TEMPLATE_UPDATE.getPermissionName()));
+    // Change the user where requests read it, through the service, not on a fixture object the service
+    // may only have copied.
+    var users = TestAuthUtil.getInMemoryUserService(cedarConfig);
+    CedarUser original = users.findUser(TestAuthUtil.getTestUser2(cedarConfig).getResourceId());
+    var originalRoles = List.copyOf(original.getRoles());
+    List<String> originalPermissions = List.copyOf(original.getPermissions());
+    users.replaceRolesAndPermissions(original.getResourceId(), originalRoles,
+        List.of(CedarPermission.LOGGED_IN.getPermissionName(), CedarPermission.TEMPLATE_UPDATE.getPermissionName()));
     try {
       String absentId = "https://repo.metadatacenter.org/templates/7b8977ed-c4d7-4c29-b202-53e38a41c724";
       HttpResponse<String> response = putTemplate(absentId, "", "{}", "application/json",
           authHeaderUser2);
       Assertions.assertEquals(403, response.statusCode());
     } finally {
-      updateOnlyUser.setPermissions(originalPermissions);
+      users.replaceRolesAndPermissions(original.getResourceId(), originalRoles, originalPermissions);
     }
   }
 
