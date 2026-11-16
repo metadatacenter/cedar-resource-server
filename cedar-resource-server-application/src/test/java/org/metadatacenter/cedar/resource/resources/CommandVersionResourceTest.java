@@ -1134,12 +1134,25 @@ public class CommandVersionResourceTest {
       return;
     }
 
+    // The one document this branch holds, answered only at its own identifier, and replaced only under
+    // the validator it was read with. A read or write of any other artifact finds nothing.
+    ObjectNode held = publishingArtifact ? publishTemplateDocument : storedTemplate;
+    if (!held.path("@id").asText().equals(artifactIdIn(exchange))) {
+      exchange.sendResponseHeaders(404, -1);
+      exchange.close();
+      return;
+    }
     ObjectNode responseDocument;
     if ("PUT".equals(exchange.getRequestMethod())) {
+      if (!"\"fixture-etag\"".equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
+        exchange.sendResponseHeaders(412, -1);
+        exchange.close();
+        return;
+      }
       lastPublishedTemplate = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       responseDocument = lastPublishedTemplate;
     } else {
-      responseDocument = publishingArtifact ? publishTemplateDocument : storedTemplate;
+      responseDocument = held;
       exchange.getResponseHeaders().set("ETag", "\"fixture-etag\"");
     }
     byte[] response = responseDocument.toString().getBytes(StandardCharsets.UTF_8);
@@ -1147,6 +1160,20 @@ public class CommandVersionResourceTest {
     exchange.sendResponseHeaders(200, response.length);
     exchange.getResponseBody().write(response);
     exchange.close();
+  }
+
+  /** The artifact a request to the stub names, or null when its path names none. */
+  private static String artifactIdIn(HttpExchange exchange) {
+    String path = exchange.getRequestURI().getPath();
+    for (CedarResourceType type : List.of(CedarResourceType.TEMPLATE, CedarResourceType.ELEMENT,
+        CedarResourceType.FIELD, CedarResourceType.INSTANCE)) {
+      String collection = "/" + type.getPrefix() + "/";
+      if (path.startsWith(collection) && path.length() > collection.length()) {
+        return cedarConfig.getLinkedDataUtil().resolveResourceId(type,
+            java.net.URLDecoder.decode(path.substring(collection.length()), StandardCharsets.UTF_8));
+      }
+    }
+    return null;
   }
 
   private static void sendArtifactResponse(HttpExchange exchange, ObjectNode document, String etag)

@@ -89,6 +89,9 @@ public class CommandFileSystemResourceTest {
    */
   private static final java.util.Set<String> CHOSEN = java.util.concurrent.ConcurrentHashMap.newKeySet();
   private static final Map<String, ObjectNode> STORED_AT_CHOSEN = new java.util.concurrent.ConcurrentHashMap<>();
+  /** The documents the stub's artifact server holds outside the chosen identities, by identifier. */
+  private static final Map<String, java.util.function.Supplier<ObjectNode>> SOURCES =
+      new java.util.concurrent.ConcurrentHashMap<>();
   private static final java.util.concurrent.atomic.AtomicInteger CREATES_AT_CHOSEN =
       new java.util.concurrent.atomic.AtomicInteger();
   private static final java.util.concurrent.atomic.AtomicInteger DELETES_AT_CHOSEN =
@@ -156,6 +159,7 @@ public class CommandFileSystemResourceTest {
     template.setDOI(SOURCE_DOI);
     sourceArtifact = folderSession.createResourceAsChildOfId(template, homeFolderId);
     Assertions.assertNotNull(sourceArtifact);
+    SOURCES.put(sourceArtifact.getId(), CommandFileSystemResourceTest::sourceDocument);
   }
 
   @AfterAll
@@ -806,12 +810,14 @@ public class CommandFileSystemResourceTest {
     }
     byte[] response;
     int status;
+    String target = artifactIdIn(exchange);
     if ("GET".equals(exchange.getRequestMethod())) {
-      status = sourceGetStatus;
+      // A read answers with the document stored at the identifier it names, and finds nothing elsewhere.
+      status = SOURCES.containsKey(target) ? sourceGetStatus : 404;
       if (omitSourceGetBody) {
         response = null;
       } else if (status == 200) {
-        response = sourceDocument().toString().getBytes(StandardCharsets.UTF_8);
+        response = SOURCES.get(target).get().toString().getBytes(StandardCharsets.UTF_8);
       } else {
         response = ("{\"status\":" + status + "}").getBytes(StandardCharsets.UTF_8);
       }
@@ -828,7 +834,10 @@ public class CommandFileSystemResourceTest {
       receivedPutIfMatch = exchange.getRequestHeaders().getFirst("If-Match");
       response = exchange.getRequestBody().readAllBytes();
       receivedPutBody = JsonMapper.STRICT_MAPPER.readTree(response);
-      if (!"\"1\"".equals(receivedPutIfMatch) && !"*".equals(receivedPutIfMatch)) {
+      if (!SOURCES.containsKey(target)) {
+        status = 404;
+        response = "{\"status\":404}".getBytes(StandardCharsets.UTF_8);
+      } else if (!"\"1\"".equals(receivedPutIfMatch) && !"*".equals(receivedPutIfMatch)) {
         status = 412;
         response = "{\"status\":412}".getBytes(StandardCharsets.UTF_8);
       } else {
@@ -852,6 +861,20 @@ public class CommandFileSystemResourceTest {
       exchange.getResponseBody().write(response);
     }
     exchange.close();
+  }
+
+  /** The artifact a request to the stub names, or null when its path names none. */
+  private static String artifactIdIn(HttpExchange exchange) {
+    String path = exchange.getRequestURI().getPath();
+    for (CedarResourceType type : List.of(CedarResourceType.TEMPLATE, CedarResourceType.ELEMENT,
+        CedarResourceType.FIELD, CedarResourceType.INSTANCE)) {
+      String collection = "/" + type.getPrefix() + "/";
+      if (path.startsWith(collection) && path.length() > collection.length()) {
+        return cedarConfig.getLinkedDataUtil().resolveResourceId(type,
+            java.net.URLDecoder.decode(path.substring(collection.length()), StandardCharsets.UTF_8));
+      }
+    }
+    return null;
   }
 
   private static CedarResourceType resourceTypeForPath(String path) {
