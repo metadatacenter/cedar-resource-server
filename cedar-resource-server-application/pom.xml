@@ -17,7 +17,7 @@
     <!-- Opt in to the cedar-shade execution managed in cedar-parent. -->
     <cedar.shade.phase>package</cedar.shade.phase>
     <cedar.shade.main.class>org.metadatacenter.cedar.resource.ResourceServerApplication</cedar.shade.main.class>
-    <cedar.resource.test.forks>2</cedar.resource.test.forks>
+    <cedar.resource.test.forks>4</cedar.resource.test.forks>
     <!-- Line coverage measured on 2026-11-04: 83.3%. The build fails below this floor. -->
     <cedar.coverage.line.minimum>0.81</cedar.coverage.line.minimum>
     <!-- Branch coverage measured on 2026-10-26: 73.0%. The build fails below this floor. -->
@@ -242,9 +242,11 @@
       <!--
         The tests redirect the CEDAR environment variables (embedded Neo4j, alternate server
         ports) through a CedarEnvironmentSource override instead of reflective environment
-        rewriting. Two reusable JVMs isolate the process-global configuration while
+        rewriting. Four reusable JVMs isolate the process-global configuration while
         distributing test classes; methods and classes remain serial within each JVM.
-        HTTP fixtures use OS-assigned ports and Neo4j harnesses own private stores.
+        HTTP fixtures use OS-assigned ports. Each JVM has its own embedded Neo4j store, which
+        every class in that JVM shares. This module's suite ends the full build, and four JVMs
+        took it from 120 to 84 seconds against two (measured 2026-11-16).
         Set cedar.resource.test.forks=1 for serial diagnosis.
       -->
       <plugin>
