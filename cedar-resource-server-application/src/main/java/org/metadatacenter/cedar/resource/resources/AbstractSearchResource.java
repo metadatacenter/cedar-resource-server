@@ -164,16 +164,20 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         return continuationPage(c, pagedSearchQuery, continuationParam.get(), queryString, idString, resourceTypeList,
             version, publicationStatus, categoryId, sortList, limit, absoluteUrl, nlqt, sharing);
       }
-      if (searchDeep) {
-        pagedSearchQuery.validateDeepOffset();
-        r = nodeSearchingService
-            .searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl, modified, sharing);
-      } else {
-        pagedSearchQuery.validateShallowWindow(cedarConfig.getElasticsearchConfig().getMaxResultWindow());
-        r = nodeSearchingService
-            .search(c, queryString, idString, resourceTypeList, version, publicationStatus, categoryId, sortList, limit, offset, absoluteUrl, modified, sharing);
+      if (searchDeep) pagedSearchQuery.validateDeepOffset();
+      else pagedSearchQuery.validateShallowWindow(cedarConfig.getElasticsearchConfig().getMaxResultWindow());
+      // A page that held documents of deleted resources has had them removed. Asked again, the index
+      // fills the page and counts only what exists; a second pass is needed only when the index
+      // held more orphans than one page could show.
+      for (int pass = 0; ; pass++) {
+        r = searchDeep
+            ? nodeSearchingService.searchDeep(c, queryString, idString, resourceTypeList, version, publicationStatus,
+                categoryId, sortList, limit, offset, absoluteUrl, modified, sharing)
+            : nodeSearchingService.search(c, queryString, idString, resourceTypeList, version, publicationStatus,
+                categoryId, sortList, limit, offset, absoluteUrl, modified, sharing);
+        if (!authorizeIndexedHits(c, r) || pass == ORPHAN_REPAIR_PASSES) break;
+        nodeIndexingService.refreshIndex();
       }
-      authorizeIndexedHits(c, r);
     }
     r.setNodeListQueryType(nlqt);
     r.setPaging(LinkHeaderUtil.getPagingLinkHeaders(absoluteUrl, r.getTotalCount(), limit, offset));
@@ -229,19 +233,39 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
     return Response.ok().entity(r).build();
   }
 
-  /** An index projection can outlive a grant even without a retained search snapshot. */
-  private void authorizeIndexedHits(CedarRequestContext c, FolderServerNodeListResponse r) {
+  /** How many times an offset page is asked for again after removing documents of deleted resources. */
+  private static final int ORPHAN_REPAIR_PASSES = 2;
+
+  /**
+   * An index projection can outlive a grant even without a retained search snapshot, and a document
+   * can outlive its resource. A hit whose resource the graph no longer holds is removed from the
+   * index rather than only hidden, so the next search neither counts nor pages over it. Answers
+   * whether any was removed. A readable hit needs no extra graph read, since only an existing
+   * resource grants a capability; an unreadable one, or any hit for a user who reads everything, is
+   * checked for existence.
+   */
+  private boolean authorizeIndexedHits(CedarRequestContext c, FolderServerNodeListResponse r)
+      throws CedarProcessingException {
     ResourcePermissionServiceSession permissions = dataServices.getResourcePermissionServiceSession(c);
+    FolderServiceSession folders = dataServices.getFolderServiceSession(c);
+    boolean readsEverything = c.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE);
     List<FolderServerResourceExtract> authorized = new ArrayList<>();
+    boolean removedOrphans = false;
     for (FolderServerResourceExtract resource : r.getResources()) {
-      if (c.getCedarUser().has(CedarPermission.READ_NOT_READABLE_NODE)
-          || permissions.userHasCapability(resource.getResourceId(),
-              org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE)) {
+      boolean readable = readsEverything || permissions.userHasCapability(resource.getResourceId(),
+          org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
+      if ((readsEverything || !readable) && folders.findResourceById(resource.getResourceId()) == null) {
+        removeIndexDocument(resource.getResourceId());
+        removedOrphans = true;
+        continue;
+      }
+      if (readable) {
         PathInfoBuilder.addCurrentUserPermissions(permissions, resource);
         authorized.add(resource);
       }
     }
     r.setResources(authorized);
+    return removedOrphans;
   }
 
   /**
