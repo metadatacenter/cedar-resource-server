@@ -58,6 +58,12 @@ class CrossStoreSequenceTest {
   private static volatile boolean holdingTheNextCreate;
   private static final Map<String, ObjectNode> heldCreates = new ConcurrentHashMap<>();
   private static final HttpClient client = HttpClient.newHttpClient();
+  /**
+   * The bound on every wait here: a request, a latch, the server's own call to the artifact server. Each guards
+   * against a hang and none measures speed. A whole-estate build at a load average of 220 slowed a request here past
+   * 20 seconds, so the bound is generous.
+   */
+  private static final Duration HANG_BOUND = Duration.ofMinutes(2);
   private static final DropwizardTestSupport<ResourceServerConfiguration> server =
       new DropwizardTestSupport<>(ResourceServerApplication.class, ResourceHelpers.resourceFilePath("test-config.yml"));
 
@@ -72,7 +78,8 @@ class CrossStoreSequenceTest {
         "CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0", "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1", "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
-        "CEDAR_OPENSEARCH_HOST", "127.0.0.1", "CEDAR_OPENSEARCH_REST_PORT", "1"));
+        "CEDAR_OPENSEARCH_HOST", "127.0.0.1", "CEDAR_OPENSEARCH_REST_PORT", "1",
+        "CEDAR_HTTP_ARTIFACT_RESPONSE_MS", Long.toString(HANG_BOUND.toMillis())));
     server.before();
     config = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
     TestAuthUtil.installInMemoryUserService(config);
@@ -115,7 +122,7 @@ class CrossStoreSequenceTest {
     CompletableFuture<HttpResponse<String>> firstResponse = client.sendAsync(
         request("PUT", "/templates/" + enc(id), first.toString(), "\"1\""), HttpResponse.BodyHandlers.ofString());
     try {
-      assertTrue(firstWriteStored.await(10, TimeUnit.SECONDS), "first content update must be committed before the second read");
+      assertTrue(firstWriteStored.await(HANG_BOUND.toSeconds(), TimeUnit.SECONDS), "first content update must be committed before the second read");
       HttpResponse<String> read = send("GET", "/templates/" + enc(id), null, null);
       assertEquals(200, read.statusCode(), read.body());
       assertEquals("First writer", JsonMapper.STRICT_MAPPER.readTree(read.body()).path("schema:name").asText());
@@ -126,7 +133,7 @@ class CrossStoreSequenceTest {
     } finally {
       releaseFirstReply.countDown();
     }
-    HttpResponse<String> earlier = firstResponse.get(10, TimeUnit.SECONDS);
+    HttpResponse<String> earlier = firstResponse.get(HANG_BOUND.toSeconds(), TimeUnit.SECONDS);
     assertEquals(200, earlier.statusCode(), earlier.body());
     assertEquals("Second writer", documents.get(id).body().path("schema:name").asText());
     assertEquals("Second writer", folders.findArtifactById(artifactId(id)).getName(),
@@ -408,7 +415,7 @@ class CrossStoreSequenceTest {
   private static String enc(String id) { return URLEncoder.encode(id, StandardCharsets.UTF_8); }
   private static HttpRequest request(String method, String path, String body, String etag) {
     HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://localhost:" + server.getLocalPort() + path))
-        .timeout(Duration.ofSeconds(20)).header("Authorization", authorization).header("Content-Type", "application/json");
+        .timeout(HANG_BOUND).header("Authorization", authorization).header("Content-Type", "application/json");
     if (etag != null) builder.header("If-Match", etag);
     return builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body)).build();
   }
@@ -467,7 +474,7 @@ class CrossStoreSequenceTest {
       if (body.path("schema:name").asText().equals(delayedName)) {
         firstWriteStored.countDown();
         try {
-          if (!releaseFirstReply.await(15, TimeUnit.SECONDS)) throw new IOException("audit did not release delayed reply");
+          if (!releaseFirstReply.await(HANG_BOUND.toSeconds(), TimeUnit.SECONDS)) throw new IOException("audit did not release delayed reply");
         } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IOException(e); }
       }
       respond(exchange, 200, replacement);
