@@ -15,6 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ClassScopedSearchPermissionServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -27,7 +28,6 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.artifact.ArtifactYamlTranscoder;
 import org.metadatacenter.util.json.JsonMapper;
@@ -101,7 +101,6 @@ public class RepresentationMatrixTest {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
@@ -198,7 +197,7 @@ public class RepresentationMatrixTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        ClassScopedSearchPermissionServices.open(cedarConfig));
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     FolderServiceSession folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
@@ -310,10 +309,52 @@ public class RepresentationMatrixTest {
     }
     switch (expected) {
       case JSON -> Assertions.assertEquals(id, JsonMapper.STRICT_MAPPER.readTree(body).path("@id").asText());
-      case YAML, X_YAML -> Assertions.assertTrue(body.startsWith("type:"), "a YAML artifact opens with its type: " + head(body));
+      // The full form of the very document stored at this identifier, not merely something YAML-shaped.
+      case YAML, X_YAML -> Assertions.assertEquals(ArtifactYamlTranscoder.jsonToYaml(DOCUMENTS.get(id), kind, false),
+          body, "the YAML should be the full form of the stored " + kind.getValue());
       case NQUADS -> Assertions.assertTrue(body.contains("<" + id + ">"), "the N-Quads describe the instance: " + head(body));
       default -> Assertions.fail("no representation to check");
     }
+  }
+
+  /**
+   * A read asks for the full or the compact YAML, and each is the form it names of the stored document.
+   * The compact form of a schema artifact leaves out the keys the system records, so it is not the full
+   * form under another label, and the full form read back names the stored artifact.
+   */
+  @ParameterizedTest(name = "a {0}")
+  @MethodSource("kinds")
+  public void eachYamlFormIsTheOneTheReadAskedFor(String kindName) throws Exception {
+    CedarResourceType kind = CedarResourceType.forValue(kindName);
+    String id = FIXTURES.get(kind).get(Stored.READABLE);
+    String path = "/" + kind.getPrefix() + "/" + encode(id);
+
+    HttpResponse<String> full = TestHttpClient.send(request(path).header("Accept", "application/yaml").GET().build());
+    HttpResponse<String> compact = TestHttpClient.send(
+        request(path + "?compact=true").header("Accept", "application/yaml").GET().build());
+
+    Assertions.assertEquals(200, full.statusCode(), full.body());
+    Assertions.assertEquals(200, compact.statusCode(), compact.body());
+    ObjectNode stored = DOCUMENTS.get(id);
+    Assertions.assertEquals(ArtifactYamlTranscoder.jsonToYaml(stored, kind, false), full.body(),
+        "a plain YAML read should serve the full form");
+    Assertions.assertEquals(ArtifactYamlTranscoder.jsonToYaml(stored, kind, true), compact.body(),
+        "a compact YAML read should serve the compact form");
+    Assertions.assertTrue(full.body().contains(id) && compact.body().contains(id),
+        "both forms should identify the stored artifact");
+    if (kind != CedarResourceType.INSTANCE) {
+      // The instance fixture carries none of the keys the compact form leaves out, so its two forms agree,
+      // and its full form reads back as compact.
+      Assertions.assertNotEquals(full.body(), compact.body(), "the compact form should leave out the system's keys");
+      Assertions.assertEquals(stored.path(ModelNodeNames.SCHEMA_ORG_NAME).asText(),
+          JsonMapper.STRICT_MAPPER.readTree(ArtifactYamlTranscoder.yamlToJsonString(full.body(), kind))
+              .path(ModelNodeNames.SCHEMA_ORG_NAME).asText(),
+          "the full form read back should name the stored artifact");
+    }
+  }
+
+  static Stream<String> kinds() {
+    return KINDS.stream().map(CedarResourceType::getValue);
   }
 
   /** A YAML body sent to the validate command and to a create of the same kind. */

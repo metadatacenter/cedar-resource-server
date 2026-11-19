@@ -30,7 +30,8 @@ import org.metadatacenter.server.GroupServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.SearchPermissionQueueEventType;
+import org.metadatacenter.server.search.permission.SearchPermissionOutboxReader;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.security.model.auth.CedarGroupUserRequest;
 import org.metadatacenter.server.security.model.auth.CedarGroupUsersRequest;
@@ -63,21 +64,15 @@ import java.util.function.Supplier;
 @Tag("integration")
 public class SharingRoundTripTest {
 
-  // A note for whoever adds the next test class here. This module runs its tests in one shared JVM,
-  // and each class that boots a server also creates a Neo4j driver whose Netty event-loop threads are
-  // not reclaimed between classes. Nine such classes exhausted the JVM: a later one failed with
-  // "failed to create a child event loop", an exhaustion error that appears only in the full run and
-  // never when the class is run alone, and which names whichever class happened to boot last rather
-  // than the cause. Eight is the number that currently passes. If you need another, merge into an
-  // existing class as this one merges sharing with ownership, or take up the roadmap item that fixes
-  // it properly by isolating forks or closing the drivers.
+  // Each test JVM runs many classes that boot a server, one after another. A class's search-permission
+  // service holds a Neo4j driver, so it comes from ClassScopedSearchPermissionServices, which closes it
+  // when the class ends; a driver left open keeps its event-loop threads for the rest of the JVM.
   static {
     // Must run before the test support boots the server, which reads the Neo4j env vars. Ports are
     // assigned by the OS, so they cannot collide with the dev server or another test in this module.
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
         "CEDAR_OPENSEARCH_REST_PORT", "1"));
@@ -89,6 +84,7 @@ public class SharingRoundTripTest {
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
   private static CedarConfig cedarConfig;
+  private static SearchPermissionOutboxReader outbox;
   private static CedarUser user1;
   private static CedarUser user2;
   private static CedarRequestContext user1Context;
@@ -106,10 +102,11 @@ public class SharingRoundTripTest {
     TestAuthUtil.installInMemoryUserService(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
+    outbox = new SearchPermissionOutboxReader(cedarConfig);
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        outbox.enqueueService());
 
     user1 = TestAuthUtil.getTestUser1(cedarConfig);
     user2 = TestAuthUtil.getTestUser2(cedarConfig);
@@ -123,6 +120,9 @@ public class SharingRoundTripTest {
   @AfterAll
   public static void oneTimeTearDown() {
     SERVER.after();
+    if (outbox != null) {
+      outbox.close();
+    }
   }
 
   /** A Viewer grant remains Viewer throughout the REST and graph layers. */
@@ -193,27 +193,28 @@ public class SharingRoundTripTest {
         new ResourcePermissionUser(user2.getId()), ResourceRole.VIEWER));
     duplicate.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
         new ResourcePermissionUser(user2.getId()), ResourceRole.MANAGER));
-    expectRefusal(folder, JsonMapper.STRICT_MAPPER.writeValueAsString(duplicate), "a request naming one user twice");
+    expectRefusal(folder, JsonMapper.STRICT_MAPPER.writeValueAsString(duplicate), "a request naming one user twice",
+        "uniqueConstraintCollision");
 
     // The owner also listed as a grantee, which would say two things about the same person.
     ResourcePermissionsRequest collision = ownedByUser1();
     collision.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
         new ResourcePermissionUser(user1.getId()), ResourceRole.VIEWER));
     expectRefusal(folder, JsonMapper.STRICT_MAPPER.writeValueAsString(collision),
-        "a request listing the owner as a grantee");
+        "a request listing the owner as a grantee", "invalidData");
 
     String legacyProperty = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2.getId()
         + "\"},\"permission\":\"read\"}],\"groupPermissions\":[]}";
-    expectRefusal(folder, legacyProperty, "a request using the removed permission property");
+    expectRefusal(folder, legacyProperty, "a request using the removed permission property", "invalidInput");
 
     String legacyValue = "{\"userPermissions\":[{\"user\":{\"@id\":\"" + user2.getId()
         + "\"},\"role\":\"write\"}],\"groupPermissions\":[]}";
-    expectRefusal(folder, legacyValue, "a request using a legacy permission value as a role");
+    expectRefusal(folder, legacyValue, "a request using a legacy permission value as a role", "missingParameter");
 
     // A document leaving out a list, which removed every grant of that kind: {} cleared all of them.
-    expectRefusal(folder, "{}", "a request naming neither user nor group grants");
-    expectRefusal(folder, "{\"userPermissions\":[]}", "a request naming only user grants");
-    expectRefusal(folder, "{\"groupPermissions\":[]}", "a request naming only group grants");
+    expectRefusal(folder, "{}", "a request naming neither user nor group grants", "invalidData");
+    expectRefusal(folder, "{\"userPermissions\":[]}", "a request naming only user grants", "invalidData");
+    expectRefusal(folder, "{\"groupPermissions\":[]}", "a request naming only group grants", "invalidData");
 
     // None of the refusals may have changed anything: user 2 still has no access at all.
     Assertions.assertFalse(user2Permissions().userHasCapability(folder.getResourceId(), ResourceCapability.READ_RESOURCE),
@@ -268,13 +269,25 @@ public class SharingRoundTripTest {
         "a grant of " + level + " conferred the wrong grant-management capability");
     Assertions.assertFalse(user2Permissions().userIsOwnerOfResource(folder.getResourceId()),
         "sharing must never confer ownership");
+
+    // What the search index will be told. Without this event the worker never rewrites the folder's
+    // permission fields, and user 2 cannot find what they were just given.
+    Assertions.assertEquals(List.of(SearchPermissionQueueEventType.FOLDER_PERMISSION_CHANGED),
+        outbox.eventsFor(folder.getId()),
+        "sharing the folder should record exactly one folder-permission event for the search index");
   }
 
-  private void expectRefusal(FolderServerFolder folder, String body, String description) throws Exception {
+  /**
+   * Each malformed body is aimed at one rule, and the rule that refuses it says so with its own key. Any
+   * 4xx is not enough: a body that passed its rule and failed later, as a 404 or a 409, would pass.
+   */
+  private void expectRefusal(FolderServerFolder folder, String body, String description, String errorKey)
+      throws Exception {
     HttpResponse<String> response = send("PUT", permissionsPath(folder), body, user1Header);
-    Assertions.assertTrue(response.statusCode() >= 400 && response.statusCode() < 500,
-        description + " should have been refused with a 4xx, but answered "
-            + response.statusCode() + ": " + response.body());
+    Assertions.assertEquals(400, response.statusCode(),
+        description + " should have been refused as a bad request: " + response.body());
+    Assertions.assertEquals(errorKey, JsonMapper.STRICT_MAPPER.readTree(response.body()).path("errorKey").asText(),
+        description + " was refused by another rule: " + response.body());
   }
 
 
@@ -302,6 +315,8 @@ public class SharingRoundTripTest {
           "the " + target.label() + " changed hands despite the refusal");
       Assertions.assertFalse(user2Permissions().userIsOwnerOfResource(target.id()),
           "the Manager became owner of the " + target.label() + " despite the refusal");
+      Assertions.assertEquals(List.of(), outbox.eventsFor(target.id().getId()),
+          "a refused transfer of the " + target.label() + " must not tell the search index anything changed");
     }
   }
 
@@ -349,6 +364,8 @@ public class SharingRoundTripTest {
         "a transfer without If-Match should be rejected: " + missing.body());
     Assertions.assertTrue(user1Permissions().userIsOwnerOfResource(target.id()),
         "a transfer without a precondition must leave the owner unchanged");
+    Assertions.assertEquals(List.of(), outbox.eventsFor(target.id().getId()),
+        "a refused transfer must not tell the search index anything changed");
   }
 
   /**
@@ -374,6 +391,9 @@ public class SharingRoundTripTest {
 
     Assertions.assertFalse(user1Permissions().userIsOwnerOfResource(target.id()),
         "the previous owner should no longer be the owner");
+    Assertions.assertEquals(List.of(SearchPermissionQueueEventType.FOLDER_PERMISSION_CHANGED),
+        outbox.eventsFor(target.id().getId()),
+        "the transfer should record exactly one folder-permission event for the search index");
 
     // But they have not lost access, and this is the part worth knowing. The request listed no user
     // permissions, so nothing was granted back to user 1 directly — yet the folder still sits inside
@@ -407,6 +427,31 @@ public class SharingRoundTripTest {
     Assertions.assertTrue(acl.getUserPermissions().stream()
             .noneMatch(grant -> user2.getId().equals(grant.getUser().getId())),
         "the new owner must not also retain a direct role grant on the same resource");
+  }
+
+  /**
+   * The owner may transfer every kind of artifact. The new owner holds it in the graph and in the ACL
+   * the endpoint serves, and the search index is told that its permissions changed.
+   */
+  @Test
+  public void theOwnerTransfersEachKindOfArtifact() throws Exception {
+    for (Target target : artifactTargets("handover")) {
+      HttpResponse<String> handover = transfer(target, user2.getId(), user1Header);
+      Assertions.assertEquals(200, handover.statusCode(),
+          "the owner should be able to transfer the " + target.label() + ": " + handover.body());
+      CedarNodePermissionsWithExtract served =
+          JsonMapper.STRICT_MAPPER.readValue(handover.body(), CedarNodePermissionsWithExtract.class);
+      Assertions.assertEquals(user2.getId(), served.getOwner().getId(),
+          "the transfer's answer should name the new owner of the " + target.label());
+
+      Assertions.assertTrue(user2Permissions().userIsOwnerOfResource(target.id()),
+          "user 2 should own the " + target.label() + " after the transfer");
+      Assertions.assertFalse(user1Permissions().userIsOwnerOfResource(target.id()),
+          "user 1 should no longer own the " + target.label());
+      Assertions.assertEquals(List.of(SearchPermissionQueueEventType.RESOURCE_PERMISSION_CHANGED),
+          outbox.eventsFor(target.id().getId()),
+          "the transfer should record exactly one resource-permission event for the " + target.label());
+    }
   }
 
   // ── fixtures and helpers ───────────────────────────────────────────────────

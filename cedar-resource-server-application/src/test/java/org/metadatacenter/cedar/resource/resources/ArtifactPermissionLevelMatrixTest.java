@@ -27,7 +27,8 @@ import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.SearchPermissionQueueEventType;
+import org.metadatacenter.server.search.permission.SearchPermissionOutboxReader;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
 import org.metadatacenter.server.security.model.permission.resource.ResourceCapability;
@@ -65,7 +66,6 @@ public class ArtifactPermissionLevelMatrixTest {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_HTTP_PORT", "1",
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
@@ -78,6 +78,7 @@ public class ArtifactPermissionLevelMatrixTest {
 
   private static Map<PermissionMatrix.Actor, String> actors;
   private static CedarConfig cedarConfig;
+  private static SearchPermissionOutboxReader outbox;
   private static CedarRequestContext user1Context;
   private static CedarRequestContext user2Context;
   private static CedarUser user1;
@@ -113,10 +114,11 @@ public class ArtifactPermissionLevelMatrixTest {
 
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
+    outbox = new SearchPermissionOutboxReader(cedarConfig);
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        outbox.enqueueService());
 
     user1 = TestAuthUtil.getTestUser1(cedarConfig);
     user2 = TestAuthUtil.getTestUser2(cedarConfig);
@@ -128,6 +130,9 @@ public class ArtifactPermissionLevelMatrixTest {
   @AfterAll
   public static void oneTimeTearDown() {
     SERVER.after();
+    if (outbox != null) {
+      outbox.close();
+    }
   }
 
   /**
@@ -182,6 +187,8 @@ public class ArtifactPermissionLevelMatrixTest {
     for (Fixture f : resharable) {
       Assertions.assertTrue(user2Permissions().userHasCapability(f.node().getResourceId(), ResourceCapability.READ_RESOURCE),
           "the refused ACL update should have left the " + f.label() + "'s permissions untouched");
+      Assertions.assertEquals(List.of(), outbox.eventsFor(f.node().getId()),
+          "the refused ACL update must not tell the search index the " + f.label() + "'s permissions changed");
     }
   }
 
@@ -232,6 +239,51 @@ public class ArtifactPermissionLevelMatrixTest {
     for (Fixture f : resharable) {
       Assertions.assertFalse(user2Permissions().userHasCapability(f.node().getResourceId(), ResourceCapability.UPDATE_RESOURCE),
           "the successful Manager ACL replacement should remove the omitted " + f.label() + " grant");
+      // Without this event the worker never rewrites the index's permission fields, and user 2 keeps
+      // finding an artifact they can no longer open.
+      Assertions.assertEquals(List.of(SearchPermissionQueueEventType.RESOURCE_PERMISSION_CHANGED),
+          outbox.eventsFor(f.node().getId()),
+          "the ACL replacement should record exactly one resource-permission event for the " + f.label());
+    }
+  }
+
+  /**
+   * Making an artifact public needs the OpenView capability, which only a Manager holds. A Viewer and
+   * an Editor are refused both ways and leave the artifact as it was. The Manager row shows that the
+   * same request is otherwise acceptable, so the refusals are the capability check's.
+   */
+  @Test
+  public void onlyAManagerMayChangeAnArtifactsOpenView() throws Exception {
+    for (ResourceRole role : List.of(ResourceRole.VIEWER, ResourceRole.EDITOR, ResourceRole.MANAGER)) {
+      int expected = role == ResourceRole.MANAGER ? 200 : 403;
+      List<Fixture> closed = fixtures("openview-closed-" + role, role);
+      List<Fixture> opened = fixtures("openview-opened-" + role, role);
+      for (Fixture f : opened) {
+        changeOpenView(f, "/command/make-artifact-open", actors.get(OWNER));
+      }
+
+      PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
+      for (Fixture f : closed) {
+        matrix.when("POST", "/command/make-artifact-open", idBody(f))
+            .header("If-Match", "*")
+            .expect(ANONYMOUS, 401).expect(OTHER_USER, expected);
+      }
+      for (Fixture f : opened) {
+        matrix.when("POST", "/command/make-artifact-not-open", idBody(f))
+            .header("If-Match", "*")
+            .expect(ANONYMOUS, 401).expect(OTHER_USER, expected);
+      }
+      matrix.verify();
+
+      boolean changed = role == ResourceRole.MANAGER;
+      for (Fixture f : closed) {
+        Assertions.assertEquals(changed, details(f, actors.get(OWNER)).path("isOpen").asBoolean(),
+            "a " + role + " making the " + f.label() + " open should " + (changed ? "" : "not ") + "have opened it");
+      }
+      for (Fixture f : opened) {
+        Assertions.assertEquals(!changed, details(f, actors.get(OWNER)).path("isOpen").asBoolean(),
+            "a " + role + " making the " + f.label() + " not open should " + (changed ? "" : "not ") + "have closed it");
+      }
     }
   }
 
@@ -314,6 +366,22 @@ public class ArtifactPermissionLevelMatrixTest {
         .put("@id", fixture.node().getId())
         .put("schema:name", "Overwritten By A Viewer")
         .toString();
+  }
+
+  private static String idBody(Fixture fixture) {
+    return JsonMapper.STRICT_MAPPER.createObjectNode().put("@id", fixture.node().getId()).toString();
+  }
+
+  private static void changeOpenView(Fixture fixture, String command, String authorization) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + command))
+        .header("Authorization", authorization)
+        .header("Content-Type", "application/json")
+        .header("If-Match", "*")
+        .POST(HttpRequest.BodyPublishers.ofString(idBody(fixture)))
+        .build();
+    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(200, response.statusCode(), command + " on the " + fixture.label() + ": " + response.body());
   }
 
   private static ResourcePermissionServiceSession user2Permissions() {

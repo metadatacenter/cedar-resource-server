@@ -21,6 +21,7 @@ import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.Version;
 import org.metadatacenter.artifacts.model.renderer.JsonArtifactRenderer;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ClassScopedSearchPermissionServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.cedar.resource.restore.ArtifactRestoreCompletionService;
@@ -40,7 +41,6 @@ import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.neo4j.Neo4jConfig;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.http.RevisionPreconditionParser;
 import org.metadatacenter.util.json.JsonMapper;
@@ -124,7 +124,6 @@ public class CrossStoreCompensationTest {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
@@ -154,7 +153,7 @@ public class CrossStoreCompensationTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        ClassScopedSearchPermissionServices.open(cedarConfig));
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
@@ -787,6 +786,12 @@ public class CrossStoreCompensationTest {
     Assertions.assertTrue(accepted.path("message").asText().contains("will be completed"), response.body());
     Assertions.assertFalse(DOCUMENTS.containsKey(id));
     Assertions.assertNull(nodeOf(id));
+    // The answer promises that the cleanup will be completed, and this job is what completes it.
+    Map<String, Object> job = deletionJobOf(id);
+    Assertions.assertNotNull(job, "the pending cleanup was not left for the relay");
+    Assertions.assertEquals(Boolean.TRUE, job.get("artifactDeleted"), "the job should record the document as gone");
+    Assertions.assertEquals(Boolean.TRUE, job.get("graphDeleted"), "the job should record the graph node as gone");
+    Assertions.assertNotEquals(Boolean.TRUE, job.get("parked"), "the job should wait for the relay, not a person");
   }
 
   /**

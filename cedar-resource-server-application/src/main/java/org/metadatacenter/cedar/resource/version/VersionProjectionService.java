@@ -5,13 +5,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
+import org.metadatacenter.server.neo4j.Neo4jDrivers;
 import org.metadatacenter.server.search.util.InclusionSubgraphUtil;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
-import org.metadatacenter.server.neo4j.Neo4jConfig;
 import org.metadatacenter.server.neo4j.VersionChainTransaction;
 import org.metadatacenter.server.search.elasticsearch.service.NodeIndexingService;
 import org.metadatacenter.server.service.UserService;
@@ -61,13 +61,7 @@ public final class VersionProjectionService implements AutoCloseable {
             CedarDataServices.getInstance().getInclusionSubgraphServiceSession(context), content);
       }
     };
-    var neo=Neo4jConfig.fromCedarConfig(config);
-    var settings=Config.builder();
-    org.metadatacenter.config.CedarTestRuntime.dependencyTimeoutMillis().ifPresent(timeout -> settings
-        .withConnectionTimeout(timeout,TimeUnit.MILLISECONDS)
-        .withConnectionAcquisitionTimeout(timeout,TimeUnit.MILLISECONDS)
-        .withMaxTransactionRetryTime(timeout,TimeUnit.MILLISECONDS));
-    driver=GraphDatabase.driver(neo.getUri(),AuthTokens.basic(neo.getUserName(),neo.getUserPassword()),settings.build());
+    driver=Neo4jDrivers.open(config);
     VersionChainTransaction.initialize(driver);
   }
 

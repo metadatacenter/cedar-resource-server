@@ -7,6 +7,7 @@ import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.*;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ClassScopedSearchPermissionServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -26,7 +27,6 @@ import org.metadatacenter.server.security.model.permission.resource.ResourcePerm
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionsRequest;
 import org.metadatacenter.server.security.model.permission.resource.ResourceRole;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -69,7 +69,7 @@ class DraftTransitionTest {
     artifactServer.createContext("/", DraftTransitionTest::handleArtifact);
     artifactServer.start();
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0", "CEDAR_RESOURCE_STOP_PORT", "0",
+        "CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1", "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1", "CEDAR_OPENSEARCH_REST_PORT", "1"));
@@ -90,7 +90,7 @@ class DraftTransitionTest {
         org.mockito.ArgumentMatchers.anyString());
     CommandVersionResource.injectCloneInstancesEnqueueServices(queue);
     AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
+        new IndexUtils(config).getNodeSearchingService(), ClassScopedSearchPermissionServices.open(config));
   }
 
   @AfterAll

@@ -7,6 +7,7 @@ import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.*;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ClassScopedSearchPermissionServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -20,7 +21,6 @@ import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -66,7 +66,7 @@ class RecursiveDeletionTransitionTest {
     artifactServer.createContext("/", RecursiveDeletionTransitionTest::handleArtifact);
     artifactServer.start();
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0", "CEDAR_RESOURCE_STOP_PORT", "0",
+        "CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1", "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1", "CEDAR_OPENSEARCH_REST_PORT", "1"));
@@ -91,7 +91,7 @@ class RecursiveDeletionTransitionTest {
         CedarDataServices.getInstance().getNeoUserService(), new NoOpNodeIndexingService(config));
     AbstractResourceServerResource.injectArtifactDeletionCompletionService(completion);
     AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
+        new IndexUtils(config).getNodeSearchingService(), ClassScopedSearchPermissionServices.open(config));
   }
 
   @AfterAll

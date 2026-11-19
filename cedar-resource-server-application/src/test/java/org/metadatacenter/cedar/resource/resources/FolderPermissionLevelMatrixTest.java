@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ClassScopedSearchPermissionServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -27,7 +28,6 @@ import org.metadatacenter.server.GroupServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
 import org.metadatacenter.server.result.BackendCallResult;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.security.model.auth.CedarGroupUserRequest;
 import org.metadatacenter.server.security.model.auth.CedarGroupUsersRequest;
@@ -62,7 +62,6 @@ public class FolderPermissionLevelMatrixTest {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1",
         "CEDAR_OPENSEARCH_REST_PORT", "1"));
@@ -119,7 +118,7 @@ public class FolderPermissionLevelMatrixTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        ClassScopedSearchPermissionServices.open(cedarConfig));
 
     user1 = TestAuthUtil.getTestUser1(cedarConfig);
     user2 = TestAuthUtil.getTestUser2(cedarConfig);
@@ -246,6 +245,52 @@ public class FolderPermissionLevelMatrixTest {
   }
 
   /**
+   * Making a folder public needs the OpenView capability, which only a Manager holds. A Viewer and an
+   * Editor are refused both ways and leave the folder as it was. The Manager row shows that the same
+   * request is otherwise acceptable, so the refusals are the capability check's.
+   */
+  @Test
+  public void onlyAManagerMayChangeAFoldersOpenView() {
+    for (ResourceRole role : new ResourceRole[]{ResourceRole.VIEWER, ResourceRole.EDITOR, ResourceRole.MANAGER}) {
+      int expected = role == ResourceRole.MANAGER ? 200 : 403;
+      FolderServerFolder closed = folder("OpenView Closed " + role);
+      FolderServerFolder opened = folder("OpenView Opened " + role);
+      matrix().when("POST", "/command/make-folder-open", idBody(opened))
+          .header("If-Match", "*")
+          .expect(OWNER, 200)
+          .verify();
+      grantToUser2(closed, role);
+      grantToUser2(opened, role);
+
+      matrix().when("POST", "/command/make-folder-open", idBody(closed))
+          .header("If-Match", "*")
+          .expect(ANONYMOUS, 401).expect(OTHER_USER, expected)
+          .when("POST", "/command/make-folder-not-open", idBody(opened))
+          .header("If-Match", "*")
+          .expect(ANONYMOUS, 401).expect(OTHER_USER, expected)
+          .verify();
+
+      boolean changed = role == ResourceRole.MANAGER;
+      Assertions.assertEquals(changed, isOpen(closed),
+          "a " + role + " making the folder open should " + (changed ? "" : "not ") + "have opened it");
+      Assertions.assertEquals(!changed, isOpen(opened),
+          "a " + role + " making the folder not open should " + (changed ? "" : "not ") + "have closed it");
+    }
+  }
+
+  /** A home folder is never made public, even by its owner, whose authority exceeds a Manager's. */
+  @Test
+  public void noOneMayMakeAHomeFolderOpen() {
+    String body = JsonMapper.STRICT_MAPPER.createObjectNode().put("@id", user1HomeId.getId()).toString();
+    matrix().when("POST", "/command/make-folder-open", body)
+        .header("If-Match", "*")
+        .expect(ANONYMOUS, 401).expect(OWNER, 403)
+        .verify();
+    Assertions.assertFalse(CedarDataServices.getInstance().getFolderServiceSession(user1Context)
+        .findFolderById(user1HomeId).isOpen(), "the refused request should have left the home folder closed");
+  }
+
+  /**
    * The same Viewer capabilities, granted through a group rather than to the user directly. Membership
    * resolution is the most indirect route to access in the system and therefore the easiest to get
    * subtly wrong, and it is how sharing is actually used.
@@ -362,6 +407,17 @@ public class FolderPermissionLevelMatrixTest {
     request.getUserPermissions().add(new ResourcePermissionUserPermissionPair(
         new ResourcePermissionUser(user2.getId()), role));
     apply(resource.getResourceId(), request);
+  }
+
+  private static String idBody(FolderServerFolder folder) {
+    return JsonMapper.STRICT_MAPPER.createObjectNode().put("@id", folder.getId()).toString();
+  }
+
+  private static boolean isOpen(FolderServerFolder folder) {
+    FolderServerFolder current = CedarDataServices.getInstance().getFolderServiceSession(user1Context)
+        .findFolderById(folder.getResourceId());
+    Assertions.assertNotNull(current, "the folder should still exist");
+    return current.isOpen();
   }
 
   private static ResourcePermissionServiceSession user2Permissions() {

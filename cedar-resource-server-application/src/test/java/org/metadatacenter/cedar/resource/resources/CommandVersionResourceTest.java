@@ -20,10 +20,12 @@ import org.metadatacenter.artifacts.model.core.TextField;
 import org.metadatacenter.artifacts.model.core.Version;
 import org.metadatacenter.artifacts.model.renderer.JsonArtifactRenderer;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ClassScopedSearchPermissionServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
+import org.metadatacenter.constant.CedarHeaderParameters;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.id.CedarTemplateId;
 import org.metadatacenter.model.CedarResourceType;
@@ -36,8 +38,8 @@ import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.server.neo4j.Neo4jConfig;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUser;
 import org.metadatacenter.server.security.model.permission.resource.ResourcePermissionUserPermissionPair;
@@ -46,6 +48,10 @@ import org.metadatacenter.server.security.model.permission.resource.ResourceRole
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
+import org.neo4j.driver.AuthTokens;
+import org.neo4j.driver.Driver;
+import org.neo4j.driver.GraphDatabase;
+import org.neo4j.driver.Session;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -57,6 +63,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -123,8 +131,15 @@ public class CommandVersionResourceTest {
   private static final AtomicInteger VERSION_RETRY_DRAFT_WRITES = new AtomicInteger();
   private static final AtomicInteger DRAFT_STATUS_GUARD_POSTS = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DELETES = new AtomicInteger();
-  /** Every request the artifact server received other than a read. */
-  private static final AtomicInteger ARTIFACT_WRITES = new AtomicInteger();
+  /**
+   * The global request id of every request other than a read that the artifact server received. A write the
+   * resource server makes while serving a request carries that request's id, and a background relay's write
+   * carries none. The embedded graph is shared by every test class in a fork, so a relay can resume work
+   * another class left behind and write here at any moment.
+   */
+  private static final List<String> ARTIFACT_WRITE_REQUESTS = new CopyOnWriteArrayList<>();
+  /** The global request id of every command this class sent to the resource server, in order. */
+  private static final List<String> SENT_REQUESTS = new CopyOnWriteArrayList<>();
   /**
    * When set, the one document the artifact server holds. A read answers it, and a PUT replaces it and
    * gives it the next ETag in the series "scripted-0", "scripted-1", and so on.
@@ -145,7 +160,6 @@ public class CommandVersionResourceTest {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
@@ -164,7 +178,7 @@ public class CommandVersionResourceTest {
     AbstractResourceServerResource.injectServices(
         new NoOpNodeIndexingService(cedarConfig),
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        ClassScopedSearchPermissionServices.open(cedarConfig));
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
@@ -398,7 +412,7 @@ public class CommandVersionResourceTest {
         .withVersion(Version.fromString("9.9.9"))
         .withFieldSchema(TextField.builder().withName("Diagnosis").build())
         .build());
-    int writes = ARTIFACT_WRITES.get();
+    int sent = SENT_REQUESTS.size();
 
     HttpResponse<String> response = checkUpdateTemplate(withoutNotes.toString());
 
@@ -410,7 +424,7 @@ public class CommandVersionResourceTest {
     Assertions.assertEquals(0, check.path("nonDestructiveChanges").asInt(), response.body());
     Assertions.assertEquals("1.2.3", check.path("oldVersion").asText(), response.body());
     Assertions.assertEquals("1.2.4", check.path("pav:version").asText(), response.body());
-    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "checking a template wrote to the artifact server");
+    Assertions.assertEquals(0, artifactWritesSince(sent), "checking a template wrote to the artifact server");
   }
 
   @Test
@@ -426,16 +440,13 @@ public class CommandVersionResourceTest {
   public void publishPinsResolvableTerminologyAndLeavesUnresolvedConstraintsUnpinned() throws Exception {
     publishingArtifact = true;
     String body = "{\"@id\":\"" + publishTemplateId.getId() + "\",\"newVersion\":\"1.0.1\"}";
-    HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/publish-artifact"))
-        .header("Authorization", authHeader)
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(body))
-        .build();
+    int sent = SENT_REQUESTS.size();
 
-    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    HttpResponse<String> response = postVersionCommand("publish-artifact", body);
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
+    // The refusal tests expect no traced writes. This shows that the count sees the write a command makes
+    Assertions.assertTrue(artifactWritesSince(sent) > 0, "the publication's write did not carry its request id");
     Assertions.assertEquals(2, terminologyRequests);
     Assertions.assertNotNull(lastPublishedTemplate);
     Assertions.assertEquals(TERMINOLOGY_VERSION_ID,
@@ -469,9 +480,9 @@ public class CommandVersionResourceTest {
    */
   @Test
   public void aSuppliedDraftIdentityThatIsMalformedOrTakenIsRefusedBeforeAnyWrite() throws Exception {
-    int writes = ARTIFACT_WRITES.get();
+    int sent = SENT_REQUESTS.size();
     Map<String, Integer> answers = Map.of(
-        "https://repo.metadatacenter.orgx/template-fields/" + java.util.UUID.randomUUID(), 400,
+        "https://repo.metadatacenter.orgx/template-fields/" + UUID.randomUUID(), 400,
         "draft-of-the-fixture", 400,
         templateId.getId(), 412);
     for (Map.Entry<String, Integer> answer : answers.entrySet()) {
@@ -483,7 +494,7 @@ public class CommandVersionResourceTest {
 
       Assertions.assertEquals(answer.getValue(), response.statusCode(), answer.getKey() + ": " + response.body());
     }
-    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a refused draft identity reached the artifact server");
+    Assertions.assertEquals(0, artifactWritesSince(sent), "a refused draft identity reached the artifact server");
     Assertions.assertEquals(1, folderSession.getVersionHistory(draftStatusMismatchTemplateId).size());
   }
 
@@ -497,7 +508,7 @@ public class CommandVersionResourceTest {
     CedarTemplateId draft = sharedWithAManager("Draft a Manager may not publish", "bibo:draft");
     CedarTemplateId published = sharedWithAManager("Published template its owner may not publish again",
         "bibo:published");
-    int writes = ARTIFACT_WRITES.get();
+    int sent = SENT_REQUESTS.size();
 
     HttpResponse<String> manager = postVersionCommand("publish-artifact",
         "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.0.0\"}",
@@ -507,7 +518,7 @@ public class CommandVersionResourceTest {
 
     assertRefusal(manager, 403, "versioningOnlyByOwner");
     assertRefusal(owner, 400, "publishOnlyDraft");
-    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a refused publication reached the artifact server");
+    Assertions.assertEquals(0, artifactWritesSince(sent), "a refused publication reached the artifact server");
     Assertions.assertEquals("bibo:draft", folderSession.findSchemaArtifactById(draft).getPublicationStatus().getValue());
   }
 
@@ -520,7 +531,7 @@ public class CommandVersionResourceTest {
   public void aManagerWhoIsNotTheOwnerIsForbiddenToCreateADraft() throws Exception {
     CedarTemplateId published = sharedWithAManager("Published template a Manager may not draft", "bibo:published");
     CedarTemplateId draft = sharedWithAManager("Draft its owner may not draft", "bibo:draft");
-    int writes = ARTIFACT_WRITES.get();
+    int sent = SENT_REQUESTS.size();
 
     HttpResponse<String> manager = postVersionCommand("create-draft-artifact", draftRequest(published),
         TestAuthUtil.getTestUser2AuthHeader(cedarConfig));
@@ -528,7 +539,7 @@ public class CommandVersionResourceTest {
 
     assertRefusal(manager, 403, "versioningOnlyByOwner");
     assertRefusal(owner, 400, "createDraftOnlyFromPublished");
-    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a refused draft reached the artifact server");
+    Assertions.assertEquals(0, artifactWritesSince(sent), "a refused draft reached the artifact server");
     Assertions.assertEquals(1, folderSession.getVersionHistory(published).size(), "a refused draft reached the graph");
   }
 
@@ -541,7 +552,7 @@ public class CommandVersionResourceTest {
     CedarTemplateId draft = ownedTemplate("Draft published only at a well-formed version", "1.0.0", "bibo:draft");
     CedarTemplateId published = ownedTemplate("Published template drafted only at a well-formed version",
         "1.0.0", "bibo:published");
-    int writes = ARTIFACT_WRITES.get();
+    int sent = SENT_REQUESTS.size();
 
     assertRefusal(postVersionCommand("publish-artifact", "{\"@id\":\"" + draft.getId() + "\"}"), 400, "invalidData");
     for (String version : List.of("", "1.0", "v1.0.1", "1.0.1-rc1", "0.0.0")) {
@@ -551,9 +562,56 @@ public class CommandVersionResourceTest {
           "invalidData");
     }
 
-    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a malformed version reached the artifact server");
+    Assertions.assertEquals(0, artifactWritesSince(sent), "a malformed version reached the artifact server");
     Assertions.assertEquals("bibo:draft", folderSession.findSchemaArtifactById(draft).getPublicationStatus().getValue());
     Assertions.assertEquals(1, folderSession.getVersionHistory(published).size());
+  }
+
+  /**
+   * A later write can supersede a publication between its document write and its graph update. The
+   * publication then acknowledges what it wrote, as published at its new version, and leaves the graph
+   * to its successor rather than overwriting it or restoring the document under it.
+   */
+  @Test
+  public void aPublicationSupersededByALaterWriteAcknowledgesItselfAndLeavesTheSuccessor() throws Exception {
+    CedarTemplateId draft = ownedTemplate("Superseded publication", "0.0.1", "bibo:draft");
+    scriptedDocument = documentOf(draft, "0.0.1", "bibo:draft");
+    var original = AbstractResourceServerResource.artifactRestoreCompletionService;
+    var completion = org.mockito.Mockito.mock(
+        org.metadatacenter.cedar.resource.restore.ArtifactRestoreCompletionService.class);
+    try (var outbox = new org.metadatacenter.cedar.resource.restore.Neo4jArtifactRestoreOutbox(cedarConfig)) {
+      // The publication's restore job is recorded, and a successor's job and graph write land at once.
+      org.mockito.Mockito.when(completion.prepare(org.mockito.ArgumentMatchers.any(),
+          org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(),
+          org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyBoolean())).thenAnswer(call -> {
+        org.metadatacenter.id.CedarArtifactId id = call.getArgument(0);
+        CedarResourceType type = call.getArgument(1);
+        // The scripted stub's tags are not revisions, and the outbox records only revisions.
+        var first = outbox.prepare(id.getId(), type, call.getArgument(2), "\"2\"", false);
+        var second = outbox.prepare(id.getId(), type, scriptedDocument.toString(), "\"3\"", false);
+        folderSession.updateArtifactById(id, type, Map.of(
+            org.metadatacenter.server.neo4j.cypher.NodeProperty.NAME, "Successor"), second.jobId());
+        return first;
+      });
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(completion);
+
+      HttpResponse<String> response = postVersionCommand("publish-artifact",
+          "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.0.0\"}");
+
+      Assertions.assertEquals(200, response.statusCode(), response.body());
+      JsonNode acknowledged = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      Assertions.assertEquals("1.0.0", acknowledged.path("pav:version").asText(), response.body());
+      Assertions.assertEquals("bibo:published", acknowledged.path("bibo:status").asText(), response.body());
+      Assertions.assertEquals(1, SCRIPTED_PUT_CONDITIONS.size(), "the publication should write its document once");
+      FolderServerSchemaArtifact stored = folderSession.findSchemaArtifactById(draft);
+      Assertions.assertEquals("Successor", stored.getName(), "the publication overwrote its successor's graph write");
+      Assertions.assertEquals("bibo:draft", stored.getPublicationStatus().getValue(),
+          "the superseded publication still published the graph node");
+      org.mockito.Mockito.verify(completion, org.mockito.Mockito.never()).restoreNow(
+          org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    } finally {
+      AbstractResourceServerResource.injectArtifactRestoreCompletionService(original);
+    }
   }
 
   /**
@@ -633,7 +691,7 @@ public class CommandVersionResourceTest {
   public void aDraftVersionThatDoesNotFollowThePublishedOneIsRefusedBeforeAnyWrite() throws Exception {
     CedarTemplateId published = ownedTemplate("Published at 2.0.0", "2.0.0", "bibo:published");
     scriptedDocument = documentOf(published, "2.0.0", "bibo:published");
-    int writes = ARTIFACT_WRITES.get();
+    int sent = SENT_REQUESTS.size();
 
     for (String version : List.of("2.0.0", "1.9.9")) {
       HttpResponse<String> response = postVersionCommand("create-draft-artifact", draftRequest(published, version));
@@ -644,7 +702,7 @@ public class CommandVersionResourceTest {
       Assertions.assertEquals(version, parameters.path("newVersion").asText(), response.body());
     }
 
-    Assertions.assertEquals(writes, ARTIFACT_WRITES.get(), "a refused draft reached the artifact server");
+    Assertions.assertEquals(0, artifactWritesSince(sent), "a refused draft reached the artifact server");
     Assertions.assertEquals(1, folderSession.getVersionHistory(published).size(), "a refused draft reached the graph");
     Assertions.assertTrue(folderSession.findSchemaArtifactById(published).isLatestVersion());
   }
@@ -748,7 +806,6 @@ public class CommandVersionResourceTest {
   @Order(-1)
   public void refusedDeletionDoesNotLeaveAnAutomaticRetry() throws Exception {
     refusingDelete = true;
-    long before = AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount();
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
             + URLEncoder.encode(deleteRetryTemplateId.getId(), StandardCharsets.UTF_8)))
@@ -756,7 +813,7 @@ public class CommandVersionResourceTest {
     HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
     Assertions.assertEquals(400, response.statusCode(), response.body());
     Assertions.assertNotNull(folderSession.findArtifactById(deleteRetryTemplateId));
-    Assertions.assertEquals(before, AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount(),
+    Assertions.assertNull(deletionJobOf(deleteRetryTemplateId.getId()),
         "a refused template deletion must not run later when its instances disappear");
   }
 
@@ -782,8 +839,13 @@ public class CommandVersionResourceTest {
         "the graph delete should finish while the unavailable search-index cleanup remains durably pending");
     Assertions.assertNull(folderSession.findArtifactById(deleteRetryTemplateId),
         "the resumed delete left the stale graph node behind");
-    Assertions.assertTrue(AbstractResourceServerResource.artifactDeletionCompletionService.getPendingCount() > 0,
-        "the unavailable search index should leave a durable completion job");
+    // This artifact's own job, not any job: every class in the JVM shares the embedded graph, and earlier
+    // classes leave deletions their artifact server never confirmed.
+    Map<String, Object> job = deletionJobOf(deleteRetryTemplateId.getId());
+    Assertions.assertNotNull(job, "the unavailable search index should leave a durable completion job");
+    Assertions.assertEquals(Boolean.TRUE, job.get("artifactDeleted"), "the job should record the document as gone");
+    Assertions.assertEquals(Boolean.TRUE, job.get("graphDeleted"), "the job should record the graph node as gone");
+    Assertions.assertNotEquals(Boolean.TRUE, job.get("parked"), "the job should wait for the relay, not a person");
     Assertions.assertEquals(0, DELETE_RETRY_ARTIFACT_CALLS.get(),
         "a preflight 404 should skip the redundant artifact DELETE");
   }
@@ -903,6 +965,7 @@ public class CommandVersionResourceTest {
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/check-update-template/"
             + URLEncoder.encode(templateId.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authHeader)
+        .header(CedarHeaderParameters.GLOBAL_REQUEST_ID_KEY, nextRequestId())
         .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build();
@@ -918,15 +981,33 @@ public class CommandVersionResourceTest {
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/" + command))
         .header("Authorization", authorization)
+        .header(CedarHeaderParameters.GLOBAL_REQUEST_ID_KEY, nextRequestId())
         .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build();
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
+  /** A fresh global request id for a command, recorded so a test can count the artifact writes it caused. */
+  private static String nextRequestId() {
+    String id = UUID.randomUUID().toString();
+    SENT_REQUESTS.add(id);
+    return id;
+  }
+
+  /**
+   * How many writes reached the artifact server while it served the commands this class sent after its first
+   * {@code sentBefore} commands. A background relay's writes are not counted.
+   */
+  private static long artifactWritesSince(int sentBefore) {
+    Set<String> requests = Set.copyOf(SENT_REQUESTS.subList(sentBefore, SENT_REQUESTS.size()));
+    return ARTIFACT_WRITE_REQUESTS.stream().filter(requests::contains).count();
+  }
+
   private static void handleArtifactRequest(HttpExchange exchange) throws IOException {
     if (!"GET".equals(exchange.getRequestMethod())) {
-      ARTIFACT_WRITES.incrementAndGet();
+      String requestId = exchange.getRequestHeaders().getFirst(CedarHeaderParameters.GLOBAL_REQUEST_ID_KEY);
+      ARTIFACT_WRITE_REQUESTS.add(requestId == null ? "" : requestId);
     }
     if (refusingDelete) {
       if (exchange.getRequestMethod().equals("GET")) {
@@ -1099,12 +1180,25 @@ public class CommandVersionResourceTest {
       return;
     }
 
+    // The one document this branch holds, answered only at its own identifier, and replaced only under
+    // the validator it was read with. A read or write of any other artifact finds nothing.
+    ObjectNode held = publishingArtifact ? publishTemplateDocument : storedTemplate;
+    if (!held.path("@id").asText().equals(artifactIdIn(exchange))) {
+      exchange.sendResponseHeaders(404, -1);
+      exchange.close();
+      return;
+    }
     ObjectNode responseDocument;
     if ("PUT".equals(exchange.getRequestMethod())) {
+      if (!"\"fixture-etag\"".equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
+        exchange.sendResponseHeaders(412, -1);
+        exchange.close();
+        return;
+      }
       lastPublishedTemplate = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(requestBody);
       responseDocument = lastPublishedTemplate;
     } else {
-      responseDocument = publishingArtifact ? publishTemplateDocument : storedTemplate;
+      responseDocument = held;
       exchange.getResponseHeaders().set("ETag", "\"fixture-etag\"");
     }
     byte[] response = responseDocument.toString().getBytes(StandardCharsets.UTF_8);
@@ -1112,6 +1206,20 @@ public class CommandVersionResourceTest {
     exchange.sendResponseHeaders(200, response.length);
     exchange.getResponseBody().write(response);
     exchange.close();
+  }
+
+  /** The artifact a request to the stub names, or null when its path names none. */
+  private static String artifactIdIn(HttpExchange exchange) {
+    String path = exchange.getRequestURI().getPath();
+    for (CedarResourceType type : List.of(CedarResourceType.TEMPLATE, CedarResourceType.ELEMENT,
+        CedarResourceType.FIELD, CedarResourceType.INSTANCE)) {
+      String collection = "/" + type.getPrefix() + "/";
+      if (path.startsWith(collection) && path.length() > collection.length()) {
+        return cedarConfig.getLinkedDataUtil().resolveResourceId(type,
+            java.net.URLDecoder.decode(path.substring(collection.length()), StandardCharsets.UTF_8));
+      }
+    }
+    return null;
   }
 
   private static void sendArtifactResponse(HttpExchange exchange, ObjectNode document, String etag)
@@ -1138,5 +1246,16 @@ public class CommandVersionResourceTest {
     exchange.sendResponseHeaders(200, response.length);
     exchange.getResponseBody().write(response);
     exchange.close();
+  }
+
+  /** The deletion job the durable outbox holds for one artifact, or null when it holds none. */
+  private static Map<String, Object> deletionJobOf(String id) {
+    Neo4jConfig neo4j = Neo4jConfig.fromCedarConfig(cedarConfig);
+    try (Driver driver = GraphDatabase.driver(neo4j.getUri(), AuthTokens.basic(neo4j.getUserName(), neo4j.getUserPassword()));
+         Session session = driver.session()) {
+      var found = session.run("MATCH (e:CedarArtifactDeletionOutbox {resourceId:$id}) RETURN properties(e) AS job",
+          Map.of("id", id));
+      return found.hasNext() ? found.single().get("job").asMap() : null;
+    }
   }
 }

@@ -115,13 +115,11 @@ public class ResourceStateRoundTripIT {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(ARTIFACT_SERVER.getAddress().getPort()),
         "CEDAR_OPENSEARCH_HOST", OPENSEARCH_HOST,
-        "CEDAR_OPENSEARCH_REST_PORT", OPENSEARCH_PORT,
-        "CEDAR_OPENSEARCH_TRANSPORT_PORT", "9300"));
+        "CEDAR_OPENSEARCH_REST_PORT", OPENSEARCH_PORT));
   }
 
   private static final DropwizardTestSupport<ResourceServerConfiguration> SERVER =

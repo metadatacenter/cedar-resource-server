@@ -1,13 +1,9 @@
 package org.metadatacenter.cedar.resource.deletion;
 
 import org.metadatacenter.config.CedarConfig;
-import org.metadatacenter.config.CedarTestRuntime;
 import org.metadatacenter.model.CedarResourceType;
-import org.metadatacenter.server.neo4j.Neo4jConfig;
-import org.neo4j.driver.AuthTokens;
-import org.neo4j.driver.Config;
+import org.metadatacenter.server.neo4j.Neo4jDrivers;
 import org.neo4j.driver.Driver;
-import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Result;
 import org.neo4j.driver.Session;
@@ -17,7 +13,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A durable saga record for cross-store artifact deletion.
@@ -36,14 +31,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
   private final long initialDelayMillis;
 
   public Neo4jArtifactDeletionOutbox(CedarConfig cedarConfig) {
-    Neo4jConfig neo4j = Neo4jConfig.fromCedarConfig(cedarConfig);
-    Config.ConfigBuilder driverConfig = Config.builder();
-    CedarTestRuntime.dependencyTimeoutMillis().ifPresent(timeout -> driverConfig
-        .withConnectionTimeout(timeout, TimeUnit.MILLISECONDS)
-        .withConnectionAcquisitionTimeout(timeout, TimeUnit.MILLISECONDS)
-        .withMaxTransactionRetryTime(timeout, TimeUnit.MILLISECONDS));
-    driver = GraphDatabase.driver(neo4j.getUri(),
-        AuthTokens.basic(neo4j.getUserName(), neo4j.getUserPassword()), driverConfig.build());
+    driver = Neo4jDrivers.open(cedarConfig);
     initialDelayMillis = 30_000;
     ensureConstraint();
   }

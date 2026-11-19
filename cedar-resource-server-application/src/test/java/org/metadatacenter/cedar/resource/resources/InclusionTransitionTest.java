@@ -7,6 +7,7 @@ import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
 import org.junit.jupiter.api.*;
 import org.metadatacenter.bridge.CedarDataServices;
+import org.metadatacenter.cedar.resource.ClassScopedSearchPermissionServices;
 import org.metadatacenter.cedar.resource.ResourceServerApplication;
 import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
@@ -20,7 +21,6 @@ import org.metadatacenter.model.folderserver.basic.FolderServerTemplate;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -37,6 +37,7 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Real resource HTTP and graph, with conditional document-store responses and ordered competing writes. */
+@Tag("integration")
 class InclusionTransitionTest {
   private record Stored(ObjectNode body, long revision) { String etag() { return "\"" + revision + "\""; } }
   private static final Map<String, Stored> documents = new ConcurrentHashMap<>();
@@ -59,7 +60,7 @@ class InclusionTransitionTest {
     artifactServer.createContext("/", InclusionTransitionTest::handleArtifact);
     artifactServer.start();
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
-        "CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0", "CEDAR_RESOURCE_STOP_PORT", "0",
+        "CEDAR_RESOURCE_HTTP_PORT", "0", "CEDAR_RESOURCE_ADMIN_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1", "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
         "CEDAR_OPENSEARCH_HOST", "127.0.0.1", "CEDAR_OPENSEARCH_REST_PORT", "1"));
@@ -72,7 +73,7 @@ class InclusionTransitionTest {
         CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config)));
     home = folders.findHomeFolderOf().getResourceId();
     AbstractResourceServerResource.injectServices(new NoOpNodeIndexingService(config),
-        new IndexUtils(config).getNodeSearchingService(), new SearchPermissionEnqueueService(config));
+        new IndexUtils(config).getNodeSearchingService(), ClassScopedSearchPermissionServices.open(config));
   }
 
   @AfterAll
@@ -84,7 +85,7 @@ class InclusionTransitionTest {
 
 
   @org.junit.jupiter.params.ParameterizedTest
-  @org.junit.jupiter.params.provider.ValueSource(strings = {"published", "edited", "instance", "normal"})
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"published", "edited", "instance", "counted", "normal"})
   void propagationRespectsChangesAfterItsGraphPreflight(String change) throws Exception {
     mode = change;
     writes.set(0);
@@ -114,8 +115,25 @@ class InclusionTransitionTest {
     String body = "{\"@id\":\"" + sourceId + "\",\"templates\":{\"" + targetId + "\":{\"operation\":\"update\"}}}";
     var preview = post("/command/inclusions-subgraph-preview", body);
     assertEquals(200, preview.statusCode(), preview.body());
+    if (change.equals("counted")) {
+      // An instance the graph already holds, so the resource server's own count refuses the change
+      // before any write, rather than leaving the refusal to the artifact server.
+      var instance = new org.metadatacenter.model.folderserver.basic.FolderServerInstance();
+      instance.setId(config.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.INSTANCE));
+      instance.setName("Instance of " + targetId);
+      instance.setIsBasedOn(org.metadatacenter.id.CedarTemplateId.build(targetId));
+      assertNotNull(folders.createResourceAsChildOfId(instance, home));
+    }
     var result = post("/command/inclusions-subgraph-update", body);
-    if (change.equals("normal")) {
+    if (change.equals("counted")) {
+      assertEquals(400, result.statusCode(), result.body());
+      var refusal = JsonMapper.STRICT_MAPPER.readTree(result.body());
+      assertEquals("invalidData", refusal.path("errorKey").asText(), result.body());
+      assertEquals(targetId, refusal.path("parameters").path("templateId").asText(), result.body());
+      assertEquals(1, refusal.path("parameters").path("numberOfInstances").asLong(), result.body());
+      assertEquals(0, writes.get(), "a template with instances must not be written");
+      assertFalse(documents.get(targetId).body().toString().contains("New field"));
+    } else if (change.equals("normal")) {
       assertEquals(200, result.statusCode(), result.body());
       assertEquals(1, writes.get());
       assertTrue(documents.get(targetId).body().toString().contains("New field"));

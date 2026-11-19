@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.metadatacenter.artifacts.model.core.Annotations;
+import org.metadatacenter.artifacts.model.core.Status;
+import org.metadatacenter.artifacts.model.core.Version;
 import org.metadatacenter.artifacts.model.core.ElementSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateSchemaArtifact;
 import org.metadatacenter.artifacts.model.core.TemplateInstanceArtifact;
@@ -36,7 +38,8 @@ import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.search.elasticsearch.service.NoOpNodeIndexingService;
-import org.metadatacenter.server.search.permission.SearchPermissionEnqueueService;
+import org.metadatacenter.server.search.SearchPermissionQueueEventType;
+import org.metadatacenter.server.search.permission.SearchPermissionOutboxReader;
 import org.metadatacenter.server.search.util.IndexUtils;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
@@ -75,17 +78,22 @@ public class CommandFileSystemResourceTest {
   private static String missingArtifactId;
   private static JsonNode postedArtifact;
   private static CedarConfig cedarConfig;
+  private static SearchPermissionOutboxReader outbox;
   private static FolderServiceSession folderSession;
   private static NoOpNodeIndexingService nodeIndexingService;
   private static int sourceGetStatus = 200;
   private static boolean omitSourceGetBody;
   private static String receivedPutIfMatch;
+  private static JsonNode receivedPutBody;
   /**
    * Identities a case chose for a copy. The stub answers for these as the artifact server does, from
    * what is stored at them, and answers everything else as before.
    */
   private static final java.util.Set<String> CHOSEN = java.util.concurrent.ConcurrentHashMap.newKeySet();
   private static final Map<String, ObjectNode> STORED_AT_CHOSEN = new java.util.concurrent.ConcurrentHashMap<>();
+  /** The documents the stub's artifact server holds outside the chosen identities, by identifier. */
+  private static final Map<String, java.util.function.Supplier<ObjectNode>> SOURCES =
+      new java.util.concurrent.ConcurrentHashMap<>();
   private static final java.util.concurrent.atomic.AtomicInteger CREATES_AT_CHOSEN =
       new java.util.concurrent.atomic.AtomicInteger();
   private static final java.util.concurrent.atomic.AtomicInteger DELETES_AT_CHOSEN =
@@ -108,7 +116,6 @@ public class CommandFileSystemResourceTest {
     EmbeddedCedarNeo4j.startAndRedirectEnvironment(Map.of(
         "CEDAR_RESOURCE_HTTP_PORT", "0",
         "CEDAR_RESOURCE_ADMIN_PORT", "0",
-        "CEDAR_RESOURCE_STOP_PORT", "0",
         "CEDAR_REDIS_PERSISTENT_PORT", "1",
         "CEDAR_ARTIFACT_SERVER_HOST", "127.0.0.1",
         "CEDAR_ARTIFACT_HTTP_PORT", Integer.toString(artifactServer.getAddress().getPort()),
@@ -124,10 +131,11 @@ public class CommandFileSystemResourceTest {
     EmbeddedCedarNeo4j.seed(cedarConfig);
 
     nodeIndexingService = new NoOpNodeIndexingService(cedarConfig);
+    outbox = new SearchPermissionOutboxReader(cedarConfig);
     AbstractResourceServerResource.injectServices(
         nodeIndexingService,
         new IndexUtils(cedarConfig).getNodeSearchingService(),
-        new SearchPermissionEnqueueService(cedarConfig));
+        outbox.enqueueService());
 
     CedarRequestContext userContext = CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(cedarConfig));
     folderSession = CedarDataServices.getInstance().getFolderServiceSession(userContext);
@@ -152,6 +160,7 @@ public class CommandFileSystemResourceTest {
     template.setDOI(SOURCE_DOI);
     sourceArtifact = folderSession.createResourceAsChildOfId(template, homeFolderId);
     Assertions.assertNotNull(sourceArtifact);
+    SOURCES.put(sourceArtifact.getId(), CommandFileSystemResourceTest::sourceDocument);
   }
 
   @AfterAll
@@ -159,6 +168,9 @@ public class CommandFileSystemResourceTest {
     SERVER.after();
     if (artifactServer != null) {
       artifactServer.stop(0);
+    }
+    if (outbox != null) {
+      outbox.close();
     }
   }
 
@@ -187,6 +199,12 @@ public class CommandFileSystemResourceTest {
     Assertions.assertEquals("\"1-yaml\"", yaml.headers().firstValue("ETag").orElse(null));
     Assertions.assertEquals("\"1-yaml-compact-v2\"", compact.headers().firstValue("ETag").orElse(null));
     Assertions.assertTrue(yaml.headers().firstValue("Vary").orElse("").contains("Accept"));
+    // Each validator labels a body, and each body is the form its label names.
+    Assertions.assertEquals(sourceDocument(), JsonMapper.STRICT_MAPPER.readTree(json.body()));
+    Assertions.assertEquals(org.metadatacenter.util.artifact.ArtifactYamlTranscoder.jsonToYaml(
+        sourceDocument(), CedarResourceType.TEMPLATE, false), yaml.body(), "the full YAML");
+    Assertions.assertEquals(org.metadatacenter.util.artifact.ArtifactYamlTranscoder.jsonToYaml(
+        sourceDocument(), CedarResourceType.TEMPLATE, true), compact.body(), "the compact YAML");
   }
 
   @Test
@@ -293,6 +311,7 @@ public class CommandFileSystemResourceTest {
   public void moveRequiresCurrentSourceEtagAndReturnsTheReplacement() throws Exception {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"targetFolderId\":\"" + moveDestinationId.getId() + "\"}";
+    int eventsBefore = outbox.eventsFor(sourceArtifact.getId()).size();
 
     HttpResponse<String> missing = postCommand("move-resource-to-folder", body);
     Assertions.assertEquals(428, missing.statusCode(), missing.body());
@@ -312,6 +331,14 @@ public class CommandFileSystemResourceTest {
     HttpResponse<String> wildcard = postCommand("move-resource-to-folder", body, "*");
     Assertions.assertEquals(201, wildcard.statusCode(), wildcard.body());
     Assertions.assertEquals("\"3\"", wildcard.headers().firstValue("ETag").orElse(null));
+
+    // Each of the two moves, and none of the three refusals, tells the search index to recompute the
+    // permissions the artifact now inherits from its new folder.
+    List<SearchPermissionQueueEventType> events = outbox.eventsFor(sourceArtifact.getId());
+    Assertions.assertEquals(
+        List.of(SearchPermissionQueueEventType.RESOURCE_MOVED, SearchPermissionQueueEventType.RESOURCE_MOVED),
+        events.subList(eventsBefore, events.size()),
+        "the two moves should each record one move event, and the refusals none");
   }
 
   @Test
@@ -339,6 +366,36 @@ public class CommandFileSystemResourceTest {
     Assertions.assertEquals(412, stale.statusCode(), stale.body());
     Assertions.assertEquals("\"0\"", receivedPutIfMatch,
         "rename must forward the caller's validator, not replace it with the internal GET ETag");
+  }
+
+  /**
+   * A rename rewrites the document's name and nothing else, sends it to the artifact server under the
+   * caller's validator, and records the new name in the graph.
+   */
+  @Test
+  @Order(15)
+  public void renameArtifactWritesTheNewNameToBothStores() throws Exception {
+    String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
+        + "\"schema:name\":\"Renamed artifact\"}";
+    receivedPutBody = null;
+
+    HttpResponse<String> renamed = postCommand("rename-resource", body, "\"1\"");
+
+    Assertions.assertEquals(200, renamed.statusCode(), renamed.body());
+    Assertions.assertNotNull(receivedPutBody, "the rename should be written to the artifact server");
+    Assertions.assertEquals("Renamed artifact", receivedPutBody.path("schema:name").asText(),
+        "the document the artifact server received kept its old name");
+    ObjectNode unchangedOtherwise = sourceDocument();
+    unchangedOtherwise.put("schema:name", "Renamed artifact");
+    Assertions.assertEquals(unchangedOtherwise, receivedPutBody, "the rename changed more than the name");
+    Assertions.assertEquals("Renamed artifact", folderSession.findArtifactById(
+            CedarArtifactId.build(sourceArtifact.getId(), CedarResourceType.TEMPLATE)).getName(),
+        "the graph kept the artifact's old name");
+
+    // The stored document still carries the name it had, so asking for that name again is refused.
+    String sameName = "{\"@id\":\"" + sourceArtifact.getId() + "\",\"schema:name\":\"" + SOURCE_NAME + "\"}";
+    JsonNode unchanged = refusal(postCommand("rename-resource", sameName, "*"), 400);
+    Assertions.assertEquals("nothingToDo", unchanged.path("errorKey").asText(), unchanged.toString());
   }
 
   @Test
@@ -382,7 +439,7 @@ public class CommandFileSystemResourceTest {
 
   /** Fields, elements, instances and folders each move under the permissions of their own kind. */
   @Test
-  @Order(10)
+  @Order(17)
   public void everyKindOfResourceMovesToAnotherFolder() throws Exception {
     List<org.metadatacenter.model.folderserver.basic.FileSystemResource> resources = List.of(
         artifact(new org.metadatacenter.model.folderserver.basic.FolderServerField(), CedarResourceType.FIELD),
@@ -396,11 +453,16 @@ public class CommandFileSystemResourceTest {
       Assertions.assertEquals(201, moved.statusCode(), resource.getType() + ": " + moved.body());
       Assertions.assertTrue(parentPathOf(resource).endsWith("/Move command destination"),
           resource.getType() + " is now in the destination: " + parentPathOf(resource));
+      SearchPermissionQueueEventType expected = resource.getType() == CedarResourceType.FOLDER
+          ? SearchPermissionQueueEventType.FOLDER_MOVED
+          : SearchPermissionQueueEventType.RESOURCE_MOVED;
+      Assertions.assertEquals(List.of(expected), outbox.eventsFor(resource.getId()),
+          resource.getType() + ": the move should record exactly one move event for the search index");
     }
   }
 
   @Test
-  @Order(11)
+  @Order(18)
   public void aMoveOrCopyNamesTheFolderItCannotFindAndAFolderIsNotCopied() throws Exception {
     String missingFolder = cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.FOLDER);
     JsonNode noTarget = refusal(postCommand("move-resource-to-folder", "{\"@id\":\"" + sourceArtifact.getId() + "\","
@@ -450,8 +512,157 @@ public class CommandFileSystemResourceTest {
     return JsonMapper.STRICT_MAPPER.readTree(response.body());
   }
 
+  /**
+   * A copy is a new artifact, so a copy of a published template starts as a first draft: version 0.0.1,
+   * draft status, no predecessor, and derived from the template it copies. A source already at 0.0.1 and
+   * in draft cannot show any of this, so this one is published at 2.0.0 with a predecessor of its own
+   * and an origin it was itself derived from.
+   */
+  @Test
+  @Order(16)
+  public void aCopyOfAPublishedTemplateStartsAsAFirstDraft() throws Exception {
+    FolderServerTemplate template = new FolderServerTemplate();
+    template.setId(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    template.setName("Published source");
+    template.setDescription("Copy reset fixture");
+    template.setVersion("2.0.0");
+    template.setPublicationStatus("bibo:published");
+    template.setLatestVersion(true);
+    template.setLatestDraftVersion(false);
+    template.setLatestPublishedVersion(true);
+    String sourceId = folderSession.createResourceAsChildOfId(template, homeFolderId).getId();
+    URI predecessor = URI.create(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    URI origin = URI.create(cedarConfig.getLinkedDataUtil().buildNewLinkedDataId(CedarResourceType.TEMPLATE));
+    SOURCES.put(sourceId, () -> new JsonArtifactRenderer().renderTemplateSchemaArtifact(TemplateSchemaArtifact.builder()
+        .withJsonLdId(URI.create(sourceId))
+        .withName("Published source")
+        .withVersion(Version.fromString("2.0.0"))
+        .withStatus(Status.PUBLISHED)
+        .withPreviousVersion(predecessor)
+        .withDerivedFrom(origin)
+        .build()));
+    postedArtifact = null;
+
+    HttpResponse<String> response = postCommand("copy-artifact-to-folder", "{\"@id\":\"" + sourceId + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\",\"nameTemplate\":\"Copy of {{name}}\"}");
+
+    Assertions.assertEquals(201, response.statusCode(), response.body());
+    Assertions.assertNotNull(postedArtifact, "the copy should be posted to the artifact service");
+    Assertions.assertEquals("0.0.1", postedArtifact.path("pav:version").asText(), postedArtifact.toString());
+    Assertions.assertEquals("bibo:draft", postedArtifact.path("bibo:status").asText(), postedArtifact.toString());
+    Assertions.assertFalse(postedArtifact.has("pav:previousVersion"),
+        "the copy kept the source's predecessor: " + postedArtifact);
+    Assertions.assertEquals(sourceId, postedArtifact.path("pav:derivedFrom").asText(),
+        "the copy should be derived from the template it copies");
+    Assertions.assertEquals("Copy of Published source", postedArtifact.path("schema:name").asText());
+
+    String copyId = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("@id").asText();
+    var copy = (org.metadatacenter.model.folderserver.basic.FolderServerSchemaArtifact) folderSession.findArtifactById(
+        CedarArtifactId.build(copyId, CedarResourceType.TEMPLATE));
+    Assertions.assertNotNull(copy, response.body());
+    Assertions.assertEquals("0.0.1", copy.getVersion().getValue(), "the copy's graph node keeps the source's version");
+    Assertions.assertEquals("bibo:draft", copy.getPublicationStatus().getValue(),
+        "the copy's graph node keeps the source's status");
+    Assertions.assertNull(copy.getPreviousVersion(), "the copy's graph node keeps the source's predecessor");
+  }
+
+  /** A rename whose read of the artifact comes back empty says so, as a copy does, and writes nothing. */
+  @Test
+  @Order(19)
+  public void emptyArtifactFetchOnRenameReturnsBadGatewayWithoutAWrite() throws Exception {
+    try {
+      omitSourceGetBody = true;
+      receivedPutBody = null;
+
+      HttpResponse<String> response = postCommand("rename-resource",
+          "{\"@id\":\"" + sourceArtifact.getId() + "\",\"schema:name\":\"Never written\"}", "*");
+
+      Assertions.assertEquals(502, response.statusCode(), response.body());
+      JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      Assertions.assertEquals("BAD_GATEWAY", error.path("status").asText(), response.body());
+      Assertions.assertEquals("Artifact service returned an empty artifact", error.path("message").asText(),
+          response.body());
+      Assertions.assertNull(receivedPutBody, "an empty read must not lead to a write");
+    } finally {
+      omitSourceGetBody = false;
+    }
+  }
+
+  /**
+   * Fields, elements and instances are copied as templates are: the copy is posted to its own kind's
+   * collection, derived from its source, and registered in the graph as that kind. Fields and elements
+   * are versioned and start as a first draft; an instance carries no version.
+   */
   @Test
   @Order(20)
+  public void everyKindOfArtifactIsCopied() throws Exception {
+    JsonArtifactRenderer renderer = new JsonArtifactRenderer();
+    Map<CedarResourceType, ObjectNode> documents = Map.of(
+        CedarResourceType.FIELD, renderer.renderFieldSchemaArtifact(TextField.builder().withName("Copied field").build()),
+        CedarResourceType.ELEMENT, renderer.renderElementSchemaArtifact(
+            ElementSchemaArtifact.builder().withName("Copied element").build()),
+        CedarResourceType.INSTANCE, renderer.renderTemplateInstanceArtifact(TemplateInstanceArtifact.builder()
+            .withName("Copied instance").withIsBasedOn(URI.create(sourceArtifact.getId())).build()));
+
+    for (Map.Entry<CedarResourceType, ObjectNode> entry : documents.entrySet()) {
+      CedarResourceType type = entry.getKey();
+      FolderServerArtifact node = type == CedarResourceType.FIELD ? new org.metadatacenter.model.folderserver.basic.FolderServerField()
+          : type == CedarResourceType.ELEMENT ? new org.metadatacenter.model.folderserver.basic.FolderServerElement()
+          : new org.metadatacenter.model.folderserver.basic.FolderServerInstance();
+      String sourceId = artifact(node, type).getId();
+      ObjectNode document = entry.getValue().put("@id", sourceId);
+      SOURCES.put(sourceId, document::deepCopy);
+      postedArtifact = null;
+
+      HttpResponse<String> response = postCommand("copy-artifact-to-folder", "{\"@id\":\"" + sourceId + "\","
+          + "\"targetFolderId\":\"" + homeFolderId.getId() + "\",\"nameTemplate\":\"Copy of {{name}}\"}");
+
+      Assertions.assertEquals(201, response.statusCode(), type + ": " + response.body());
+      Assertions.assertNotNull(postedArtifact, type + ": the copy should be posted to the artifact service");
+      String name = document.path("schema:name").asText();
+      Assertions.assertEquals("Copy of " + name, postedArtifact.path("schema:name").asText(), type.getValue());
+      Assertions.assertEquals(sourceId, postedArtifact.path("pav:derivedFrom").asText(), type.getValue());
+      if (type.isVersioned()) {
+        Assertions.assertEquals("0.0.1", postedArtifact.path("pav:version").asText(), type.getValue());
+        Assertions.assertEquals("bibo:draft", postedArtifact.path("bibo:status").asText(), type.getValue());
+      } else {
+        Assertions.assertFalse(postedArtifact.has("pav:version"), type + " was given a version: " + postedArtifact);
+      }
+      String copyId = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("@id").asText();
+      FolderServerArtifact copy = folderSession.findArtifactById(CedarArtifactId.build(copyId, type));
+      Assertions.assertNotNull(copy, type + ": the copy was not registered in the graph");
+      Assertions.assertEquals(type, copy.getType());
+      Assertions.assertEquals("Copy of " + name, copy.getName(), type.getValue());
+    }
+  }
+
+  /**
+   * A caDSR CDE carries its identifier in schema:identifier and, in brackets, in its name. The copy is
+   * a different artifact, so it carries the identifier in neither.
+   */
+  @Test
+  @Order(21)
+  public void aCopyOfACdeDropsItsIdentifier() throws Exception {
+    String sourceId = artifact(new org.metadatacenter.model.folderserver.basic.FolderServerField(),
+        CedarResourceType.FIELD).getId();
+    ObjectNode document = new JsonArtifactRenderer().renderFieldSchemaArtifact(
+        TextField.builder().withName("Diagnosis (CDE-2192199)").build());
+    document.put("@id", sourceId).put("schema:identifier", "CDE-2192199");
+    SOURCES.put(sourceId, document::deepCopy);
+    postedArtifact = null;
+
+    HttpResponse<String> response = postCommand("copy-artifact-to-folder", "{\"@id\":\"" + sourceId + "\","
+        + "\"targetFolderId\":\"" + homeFolderId.getId() + "\",\"nameTemplate\":\"Copy of {{name}}\"}");
+
+    Assertions.assertEquals(201, response.statusCode(), response.body());
+    Assertions.assertNotNull(postedArtifact, "the copy should be posted to the artifact service");
+    Assertions.assertFalse(postedArtifact.has("schema:identifier"), "the copy kept the CDE identifier: " + postedArtifact);
+    Assertions.assertEquals("Copy of Diagnosis", postedArtifact.path("schema:name").asText(),
+        "the copy's name kept the CDE identifier");
+  }
+
+  @Test
+  @Order(30)
   public void unavailableArtifactServerRemainsServiceUnavailableAcrossCopyAndDelete() throws Exception {
     artifactServer.stop(0);
     artifactServer = null;
@@ -482,7 +693,7 @@ public class CommandFileSystemResourceTest {
    * fixture's artifact server is still up.
    */
   @Test
-  @Order(21)
+  @Order(31)
   public void aCommandRefusesPropertiesItDoesNotAccept() throws Exception {
     String withTheResourceType = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"resourceType\":\"template\","
@@ -749,12 +960,14 @@ public class CommandFileSystemResourceTest {
     }
     byte[] response;
     int status;
+    String target = artifactIdIn(exchange);
     if ("GET".equals(exchange.getRequestMethod())) {
-      status = sourceGetStatus;
+      // A read answers with the document stored at the identifier it names, and finds nothing elsewhere.
+      status = SOURCES.containsKey(target) ? sourceGetStatus : 404;
       if (omitSourceGetBody) {
         response = null;
       } else if (status == 200) {
-        response = sourceDocument().toString().getBytes(StandardCharsets.UTF_8);
+        response = SOURCES.get(target).get().toString().getBytes(StandardCharsets.UTF_8);
       } else {
         response = ("{\"status\":" + status + "}").getBytes(StandardCharsets.UTF_8);
       }
@@ -770,7 +983,11 @@ public class CommandFileSystemResourceTest {
     } else if ("PUT".equals(exchange.getRequestMethod())) {
       receivedPutIfMatch = exchange.getRequestHeaders().getFirst("If-Match");
       response = exchange.getRequestBody().readAllBytes();
-      if (!"\"1\"".equals(receivedPutIfMatch) && !"*".equals(receivedPutIfMatch)) {
+      receivedPutBody = JsonMapper.STRICT_MAPPER.readTree(response);
+      if (!SOURCES.containsKey(target)) {
+        status = 404;
+        response = "{\"status\":404}".getBytes(StandardCharsets.UTF_8);
+      } else if (!"\"1\"".equals(receivedPutIfMatch) && !"*".equals(receivedPutIfMatch)) {
         status = 412;
         response = "{\"status\":412}".getBytes(StandardCharsets.UTF_8);
       } else {
@@ -794,6 +1011,20 @@ public class CommandFileSystemResourceTest {
       exchange.getResponseBody().write(response);
     }
     exchange.close();
+  }
+
+  /** The artifact a request to the stub names, or null when its path names none. */
+  private static String artifactIdIn(HttpExchange exchange) {
+    String path = exchange.getRequestURI().getPath();
+    for (CedarResourceType type : List.of(CedarResourceType.TEMPLATE, CedarResourceType.ELEMENT,
+        CedarResourceType.FIELD, CedarResourceType.INSTANCE)) {
+      String collection = "/" + type.getPrefix() + "/";
+      if (path.startsWith(collection) && path.length() > collection.length()) {
+        return cedarConfig.getLinkedDataUtil().resolveResourceId(type,
+            java.net.URLDecoder.decode(path.substring(collection.length()), StandardCharsets.UTF_8));
+      }
+    }
+    return null;
   }
 
   private static CedarResourceType resourceTypeForPath(String path) {

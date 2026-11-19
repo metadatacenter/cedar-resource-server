@@ -14,16 +14,13 @@ public class CedarConfigResourceTest extends AbstractCedarConfigTest {
   }
 
   /**
-   * The API key salt is the resource server's alone, and the trusted folders are shared only with
-   * the worker. The trusted folders get one assertion beyond resolution: the string is JSON that
-   * {@code TrustedFoldersConfig} parses into the map the server actually reads, and a value that
-   * arrives but does not parse leaves an empty map and no trusted folder, silently.
+   * The trusted folders are shared only with the worker. They get one assertion beyond resolution:
+   * the string is JSON that {@code TrustedFoldersConfig} parses into the map the server actually
+   * reads, and a value that arrives but does not parse leaves an empty map and no trusted folder,
+   * silently.
    */
   @Override
   protected void assertServerSpecificConfig(CedarConfig config) {
-    assertResolved("blueprintUserProfile.defaultAPIKey.salt",
-        config.getBlueprintUserProfile().getDefaultAPIKey().getSalt());
-
     TrustedFoldersConfig trustedFolders = config.getTrustedFolders();
     assertResolved("trustedFolders.foldersStr", trustedFolders.getFoldersStr());
     Assertions.assertFalse(trustedFolders.getFoldersMap().isEmpty(),
