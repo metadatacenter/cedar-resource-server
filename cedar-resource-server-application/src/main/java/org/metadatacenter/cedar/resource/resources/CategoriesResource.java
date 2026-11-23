@@ -100,9 +100,9 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getAllCategories(
-      @Parameter(description = "Paging limit")
+      @Parameter(description = "How many categories to return, from 1 to 500. Defaults to 100.")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-      @Parameter(description = "Paging offset")
+      @Parameter(description = "How many categories to skip. Defaults to 0.")
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();

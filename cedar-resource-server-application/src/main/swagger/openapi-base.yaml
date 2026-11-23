@@ -22,6 +22,16 @@ info:
     as `"7-json"`, `"7-yaml"`, and `"7-resource-record"` identify different bytes of the same
     stored revision and are valid write preconditions.
 
+    Listings page by `limit` and `offset`. The limit defaults to 100 and may be at most 500; a
+    larger one is refused with 400. Each page carries `totalCount`, `currentOffset` and `paging`,
+    the links to the first, previous, next and last pages, keyed by relation. A relation with no
+    page is absent.
+
+    `/search-deep` with `continuation` is the exception. It is a walk through one snapshot of the
+    search index rather than an offset-paged listing. Pass `continuation=start` for the first page,
+    then the `continuation` each answer carries, until an answer carries none. Its `paging` holds
+    only `first` and `next`, and the `next` link carries the continuation rather than an offset.
+
     See the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)
     for authentication, request examples, and complete ETag guidance.
   version: ${project.version}

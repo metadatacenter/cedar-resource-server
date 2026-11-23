@@ -114,6 +114,17 @@ public class CategoriesResourceTest {
   }
 
   @Test
+  public void aCategoryPageDefaultsTo100AndAllowsAtMost500() throws Exception {
+    JsonNode unlimited = read(get("/categories", authHeaderUser1), 200);
+    Assertions.assertEquals(100, unlimited.path("request").path("limit").asInt());
+
+    JsonNode widest = read(get("/categories?limit=500", authHeaderUser1), 200);
+    Assertions.assertEquals(500, widest.path("request").path("limit").asInt());
+
+    read(get("/categories?limit=501", authHeaderUser1), 400);
+  }
+
+  @Test
   public void aCategoryIsCreatedOnlyUnderAParentThatExistsWithANameItsSiblingsDoNotUse() throws Exception {
     String stem = "Category " + UUID.randomUUID();
     String parent = ownCategory(stem);

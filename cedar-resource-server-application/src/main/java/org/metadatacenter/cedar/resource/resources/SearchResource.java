@@ -77,9 +77,9 @@ public class SearchResource extends AbstractSearchResource {
           + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. "
           + "Prepend 'foldersFirst,' to group folders before artifacts, followed by the desired field and direction.")
       @QueryParam(QP_SORT) Optional<String> sortParam,
-      @Parameter(description = "Paging limit")
+      @Parameter(description = "How many resources to return, from 1 to 500. Defaults to 100.")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-      @Parameter(description = "Paging offset")
+      @Parameter(description = "How many resources to skip. Defaults to 0.")
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
       @Parameter(description = "Sharing modifier for the search. Only the artifacts and folder matching the criteria will "
           + "be returned.")

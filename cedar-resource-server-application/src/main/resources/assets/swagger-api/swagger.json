@@ -1,7 +1,7 @@
 {
   "openapi" : "3.0.1",
   "info" : {
-    "description" : "Better Metadata - Better Science\n\nFolders and artifacts use type-qualified selectors: `folders/<uuid>`, `templates/<uuid>`,\n`template-elements/<uuid>`, `template-fields/<uuid>`, or `template-instances/<uuid>`.\nTyped routes include the type once, for example `/templates/<uuid>`. Query parameters and\ncommand-body selectors retain the type, including folder parameters. Percent-encoded full\nIRIs remain accepted for compatibility. Stored document identities and references remain\nfull IRIs; legacy repository hosts must remain absolute until their data is migrated.\n\nMutable resources use strong ETags for optimistic concurrency. Read the resource (or its\npermissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing\nrequired precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`\naccepts whichever revision currently exists and therefore deliberately gives up lost-update\nprotection. Comma-separated strong validators are also accepted. Representation suffixes such\nas `\"7-json\"`, `\"7-yaml\"`, and `\"7-resource-record\"` identify different bytes of the same\nstored revision and are valid write preconditions.\n\nSee the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)\nfor authentication, request examples, and complete ETag guidance.\n",
+    "description" : "Better Metadata - Better Science\n\nFolders and artifacts use type-qualified selectors: `folders/<uuid>`, `templates/<uuid>`,\n`template-elements/<uuid>`, `template-fields/<uuid>`, or `template-instances/<uuid>`.\nTyped routes include the type once, for example `/templates/<uuid>`. Query parameters and\ncommand-body selectors retain the type, including folder parameters. Percent-encoded full\nIRIs remain accepted for compatibility. Stored document identities and references remain\nfull IRIs; legacy repository hosts must remain absolute until their data is migrated.\n\nMutable resources use strong ETags for optimistic concurrency. Read the resource (or its\npermissions) and send the returned ETag in `If-Match` when replacing or deleting it. A missing\nrequired precondition returns 428; a stale or malformed validator returns 412. `If-Match: *`\naccepts whichever revision currently exists and therefore deliberately gives up lost-update\nprotection. Comma-separated strong validators are also accepted. Representation suffixes such\nas `\"7-json\"`, `\"7-yaml\"`, and `\"7-resource-record\"` identify different bytes of the same\nstored revision and are valid write preconditions.\n\nListings page by `limit` and `offset`. The limit defaults to 100 and may be at most 500; a\nlarger one is refused with 400. Each page carries `totalCount`, `currentOffset` and `paging`,\nthe links to the first, previous, next and last pages, keyed by relation. A relation with no\npage is absent.\n\n`/search-deep` with `continuation` is the exception. It is a walk through one snapshot of the\nsearch index rather than an offset-paged listing. Pass `continuation=start` for the first page,\nthen the `continuation` each answer carries, until an answer carries none. Its `paging` holds\nonly `first` and `next`, and the `next` link carries the continuation rather than an offset.\n\nSee the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)\nfor authentication, request examples, and complete ETag guidance.\n",
     "title" : "CEDAR Resource Server API",
     "version" : "2.9.38-SNAPSHOT"
   },
@@ -45,7 +45,7 @@
         "description" : "Get the list of all categories.",
         "operationId" : "getAllCategories",
         "parameters" : [ {
-          "description" : "Paging limit",
+          "description" : "How many categories to return, from 1 to 500. Defaults to 100.",
           "in" : "query",
           "name" : "limit",
           "schema" : {
@@ -53,7 +53,7 @@
             "format" : "int32"
           }
         }, {
-          "description" : "Paging offset",
+          "description" : "How many categories to skip. Defaults to 0.",
           "in" : "query",
           "name" : "offset",
           "schema" : {
@@ -4155,7 +4155,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Paging limit",
+          "description" : "How many resources to return, from 1 to 500. Defaults to 100.",
           "in" : "query",
           "name" : "limit",
           "schema" : {
@@ -4163,7 +4163,7 @@
             "format" : "int32"
           }
         }, {
-          "description" : "Paging offset",
+          "description" : "How many resources to skip. Defaults to 0.",
           "in" : "query",
           "name" : "offset",
           "schema" : {
@@ -4299,7 +4299,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Paging limit",
+          "description" : "How many resources to return, from 1 to 500. Defaults to 100.",
           "in" : "query",
           "name" : "limit",
           "schema" : {
@@ -4307,7 +4307,7 @@
             "format" : "int32"
           }
         }, {
-          "description" : "Paging offset",
+          "description" : "How many resources to skip. Defaults to 0.",
           "in" : "query",
           "name" : "offset",
           "schema" : {
@@ -5590,7 +5590,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Paging limit",
+          "description" : "How many resources to return, from 1 to 500. Defaults to 100.",
           "in" : "query",
           "name" : "limit",
           "schema" : {
@@ -5598,7 +5598,7 @@
             "format" : "int32"
           }
         }, {
-          "description" : "Paging offset",
+          "description" : "How many resources to skip. Defaults to 0.",
           "in" : "query",
           "name" : "offset",
           "schema" : {
@@ -5775,7 +5775,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Paging limit",
+          "description" : "How many resources to return, from 1 to 500. Defaults to 100.",
           "in" : "query",
           "name" : "limit",
           "schema" : {
@@ -5783,7 +5783,7 @@
             "format" : "int32"
           }
         }, {
-          "description" : "Paging offset. This call walks to the offset a page at a time, so a configured maximum bounds the walk; a larger offset is refused with a 400.",
+          "description" : "How many resources to skip. Defaults to 0. This call walks to the offset a page at a time, so a configured maximum bounds the walk; a larger offset is refused with a 400.",
           "in" : "query",
           "name" : "offset",
           "schema" : {

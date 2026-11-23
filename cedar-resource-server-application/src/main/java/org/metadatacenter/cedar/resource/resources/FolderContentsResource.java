@@ -94,9 +94,9 @@ public class FolderContentsResource extends AbstractResourceServerResource {
           + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. "
           + "Prepend 'foldersFirst,' to group folders before artifacts, followed by the desired field and direction.")
       @QueryParam(QP_SORT) Optional<String> sortParam,
-      @Parameter(description = "Paging limit")
+      @Parameter(description = "How many resources to return, from 1 to 500. Defaults to 100.")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-      @Parameter(description = "Paging offset")
+      @Parameter(description = "How many resources to skip. Defaults to 0.")
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -206,9 +206,9 @@ public class FolderContentsResource extends AbstractResourceServerResource {
           + "order on that field. The allowed values are: 'name', 'lastUpdatedOnTS', 'createdOnTS', 'foldersFirst'. "
           + "Prepend 'foldersFirst,' to group folders before artifacts, followed by the desired field and direction.")
       @QueryParam(QP_SORT) Optional<String> sortParam,
-      @Parameter(description = "Paging limit")
+      @Parameter(description = "How many resources to return, from 1 to 500. Defaults to 100.")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
-      @Parameter(description = "Paging offset")
+      @Parameter(description = "How many resources to skip. Defaults to 0.")
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
       @Parameter(description = "Field name list, separated by comma.")
       @QueryParam(QP_FIELD_NAMES) Optional<String> fieldNamesParam) throws CedarException {

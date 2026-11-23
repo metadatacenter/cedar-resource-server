@@ -18,6 +18,16 @@ info:
     as `"7-json"`, `"7-yaml"`, and `"7-resource-record"` identify different bytes of the same
     stored revision and are valid write preconditions.
 
+    Listings page by `limit` and `offset`. The limit defaults to 100 and may be at most 500; a
+    larger one is refused with 400. Each page carries `totalCount`, `currentOffset` and `paging`,
+    the links to the first, previous, next and last pages, keyed by relation. A relation with no
+    page is absent.
+
+    `/search-deep` with `continuation` is the exception. It is a walk through one snapshot of the
+    search index rather than an offset-paged listing. Pass `continuation=start` for the first page,
+    then the `continuation` each answer carries, until an answer carries none. Its `paging` holds
+    only `first` and `next`, and the `next` link carries the continuation rather than an offset.
+
     See the [CEDAR REST APIs guide](https://metadatacenter.readthedocs.io/en/latest/developer-guide/cedar-rest-apis/)
     for authentication, request examples, and complete ETag guidance.
   title: CEDAR Resource Server API
@@ -49,13 +59,13 @@ paths:
       description: Get the list of all categories.
       operationId: getAllCategories
       parameters:
-      - description: Paging limit
+      - description: "How many categories to return, from 1 to 500. Defaults to 100."
         in: query
         name: limit
         schema:
           type: integer
           format: int32
-      - description: Paging offset
+      - description: How many categories to skip. Defaults to 0.
         in: query
         name: offset
         schema:
@@ -2880,13 +2890,13 @@ paths:
         name: sort
         schema:
           type: string
-      - description: Paging limit
+      - description: "How many resources to return, from 1 to 500. Defaults to 100."
         in: query
         name: limit
         schema:
           type: integer
           format: int32
-      - description: Paging offset
+      - description: How many resources to skip. Defaults to 0.
         in: query
         name: offset
         schema:
@@ -2994,13 +3004,13 @@ paths:
         name: sort
         schema:
           type: string
-      - description: Paging limit
+      - description: "How many resources to return, from 1 to 500. Defaults to 100."
         in: query
         name: limit
         schema:
           type: integer
           format: int32
-      - description: Paging offset
+      - description: How many resources to skip. Defaults to 0.
         in: query
         name: offset
         schema:
@@ -3877,13 +3887,13 @@ paths:
         name: sort
         schema:
           type: string
-      - description: Paging limit
+      - description: "How many resources to return, from 1 to 500. Defaults to 100."
         in: query
         name: limit
         schema:
           type: integer
           format: int32
-      - description: Paging offset
+      - description: How many resources to skip. Defaults to 0.
         in: query
         name: offset
         schema:
@@ -4038,15 +4048,15 @@ paths:
         name: sort
         schema:
           type: string
-      - description: Paging limit
+      - description: "How many resources to return, from 1 to 500. Defaults to 100."
         in: query
         name: limit
         schema:
           type: integer
           format: int32
-      - description: "Paging offset. This call walks to the offset a page at a time,\
-          \ so a configured maximum bounds the walk; a larger offset is refused with\
-          \ a 400."
+      - description: "How many resources to skip. Defaults to 0. This call walks to\
+          \ the offset a page at a time, so a configured maximum bounds the walk;\
+          \ a larger offset is refused with a 400."
         in: query
         name: offset
         schema:
