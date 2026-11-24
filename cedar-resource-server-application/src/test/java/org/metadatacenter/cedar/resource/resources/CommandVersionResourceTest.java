@@ -126,7 +126,11 @@ public class CommandVersionResourceTest {
   private static final AtomicInteger COMPENSATING_RESTORES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_PUBLISH_RESTORES = new AtomicInteger();
   private static final AtomicInteger COMPENSATING_DRAFT_DELETES = new AtomicInteger();
-  private static final AtomicInteger DELETE_RETRY_ARTIFACT_CALLS = new AtomicInteger();
+  /**
+   * The global request id of every artifact DELETE the retried deletion's stub received. A relay resuming a
+   * deletion another class left behind sends one with no id, so only the test's own command is counted.
+   */
+  private static final List<String> DELETE_RETRY_ARTIFACT_DELETES = new CopyOnWriteArrayList<>();
   private static final AtomicInteger VERSION_RETRY_PUBLISH_WRITES = new AtomicInteger();
   private static final AtomicInteger VERSION_RETRY_DRAFT_WRITES = new AtomicInteger();
   private static final AtomicInteger DRAFT_STATUS_GUARD_POSTS = new AtomicInteger();
@@ -356,7 +360,7 @@ public class CommandVersionResourceTest {
     COMPENSATING_RESTORES.set(0);
     COMPENSATING_PUBLISH_RESTORES.set(0);
     COMPENSATING_DRAFT_DELETES.set(0);
-    DELETE_RETRY_ARTIFACT_CALLS.set(0);
+    DELETE_RETRY_ARTIFACT_DELETES.clear();
     VERSION_RETRY_PUBLISH_WRITES.set(0);
     VERSION_RETRY_DRAFT_WRITES.set(0);
     DRAFT_STATUS_GUARD_POSTS.set(0);
@@ -825,10 +829,12 @@ public class CommandVersionResourceTest {
   @Order(Integer.MAX_VALUE - 4)
   public void deleteRetryFinishesTheGraphDeleteWhenTheArtifactIsAlreadyAbsent() throws Exception {
     retryingDelete = true;
+    String requestId = nextRequestId();
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/templates/"
             + URLEncoder.encode(deleteRetryTemplateId.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authHeader)
+        .header(CedarHeaderParameters.GLOBAL_REQUEST_ID_KEY, requestId)
         .header("If-Match", "*")
         .DELETE()
         .build();
@@ -846,7 +852,7 @@ public class CommandVersionResourceTest {
     Assertions.assertEquals(Boolean.TRUE, job.get("artifactDeleted"), "the job should record the document as gone");
     Assertions.assertEquals(Boolean.TRUE, job.get("graphDeleted"), "the job should record the graph node as gone");
     Assertions.assertNotEquals(Boolean.TRUE, job.get("parked"), "the job should wait for the relay, not a person");
-    Assertions.assertEquals(0, DELETE_RETRY_ARTIFACT_CALLS.get(),
+    Assertions.assertEquals(0, DELETE_RETRY_ARTIFACT_DELETES.stream().filter(requestId::equals).count(),
         "a preflight 404 should skip the redundant artifact DELETE");
   }
 
@@ -1070,7 +1076,8 @@ public class CommandVersionResourceTest {
     }
     if (retryingDelete) {
       if ("DELETE".equals(exchange.getRequestMethod())) {
-        DELETE_RETRY_ARTIFACT_CALLS.incrementAndGet();
+        String requestId = exchange.getRequestHeaders().getFirst(CedarHeaderParameters.GLOBAL_REQUEST_ID_KEY);
+        DELETE_RETRY_ARTIFACT_DELETES.add(requestId == null ? "" : requestId);
       }
       exchange.sendResponseHeaders(404, -1);
       exchange.close();
