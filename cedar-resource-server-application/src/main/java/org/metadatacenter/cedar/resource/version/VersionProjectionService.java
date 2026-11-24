@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
+import org.metadatacenter.server.neo4j.GraphTransactionTimeouts;
 import org.metadatacenter.server.neo4j.Neo4jDrivers;
 import org.metadatacenter.server.search.util.InclusionSubgraphUtil;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
@@ -68,7 +69,7 @@ public final class VersionProjectionService implements AutoCloseable {
   /** Failed projections remain durable; an HTTP retry must not repeat a committed lifecycle change. */
   public void completePending(NodeIndexingService indexing, CedarRequestContext context) {
     try (var session=driver.session()) {
-      var ids=session.run("MATCH (j:CedarVersionProjection) RETURN j.resourceId AS id ORDER BY j.updatedAt, j.resourceId LIMIT 25")
+      var ids=session.run("MATCH (j:CedarVersionProjection) RETURN j.resourceId AS id ORDER BY j.updatedAt, j.resourceId LIMIT 25", GraphTransactionTimeouts.request())
           .list(r -> r.get("id").asString());
       for (String id:ids) {
         if (!complete(id, indexing, context)) break; // One unavailable downstream costs one timeout per batch.
@@ -82,7 +83,7 @@ public final class VersionProjectionService implements AutoCloseable {
   public List<String> relatedIds(String id) {
     try (var session=driver.session()) {
       return session.run("MATCH (a:Artifact {_id:$id}) MATCH (a)-[:PREVIOUSVERSION*0..]-(v:Artifact) "
-          + "RETURN DISTINCT v._id AS id ORDER BY id", Map.of("id",id)).list(r -> r.get("id").asString());
+          + "RETURN DISTINCT v._id AS id ORDER BY id", Map.of("id",id), GraphTransactionTimeouts.request()).list(r -> r.get("id").asString());
     }
   }
 
@@ -98,7 +99,7 @@ public final class VersionProjectionService implements AutoCloseable {
         VersionChainTransaction.lock(tx);
         VersionChainTransaction.enqueue(tx,id,false);
         return null;
-      });
+      }, GraphTransactionTimeouts.request());
     }
     complete(id,indexing,context);
   }
@@ -140,7 +141,7 @@ public final class VersionProjectionService implements AutoCloseable {
     try (var session=driver.session()) {
       // Most members of a version chain have nothing pending, and finding that out needs no lock.
       if (session.run("MATCH (j:CedarVersionProjection {resourceId:$id}) RETURN j.resourceId AS id LIMIT 1",
-          Map.of("id",id)).list().isEmpty()) return Outcome.DONE;
+          Map.of("id",id), GraphTransactionTimeouts.request()).list().isEmpty()) return Outcome.DONE;
       FolderServerArtifact artifact=null;
       try {
         for (int round=0; round<ROUNDS; round++) {
@@ -166,7 +167,7 @@ public final class VersionProjectionService implements AutoCloseable {
               return Outcome.DONE;
             case TAKEN_OVER:
               // This write outlived its claim and may have landed on top of its successor's.
-              try (var tx=session.beginTransaction()) {
+              try (var tx=session.beginTransaction(GraphTransactionTimeouts.request())) {
                 VersionChainTransaction.lock(tx);
                 VersionChainTransaction.enqueue(tx,id,false);
                 tx.commit();
@@ -181,7 +182,7 @@ public final class VersionProjectionService implements AutoCloseable {
         release(session,id,claim,true);
         // A write of an artifact deleted meanwhile can fail after its document reached the index.
         if (artifact!=null && session.run("MATCH (a:Artifact {_id:$id}) RETURN a._id AS id LIMIT 1",
-            Map.of("id",id)).list().isEmpty()) indexing.removeDocumentFromIndex(artifact.getResourceId());
+            Map.of("id",id), GraphTransactionTimeouts.request()).list().isEmpty()) indexing.removeDocumentFromIndex(artifact.getResourceId());
       }
     } catch (Exception e) {
       LoggerFactory.getLogger(getClass()).warn("Cannot complete artifact projection for {}: {}",id,e.toString());
@@ -304,7 +305,7 @@ public final class VersionProjectionService implements AutoCloseable {
     int settled=0;
     try {
       // Explicit transactions: network writes must not be automatically replayed by the driver.
-      try (var session=driver.session(); var tx=session.beginTransaction()) {
+      try (var session=driver.session(); var tx=session.beginTransaction(GraphTransactionTimeouts.request())) {
         VersionChainTransaction.lock(tx);
         // Taken from the queue only once the lock is held, so a caller stuck waiting for the lock
         // holds nobody's work but its own.
@@ -315,7 +316,7 @@ public final class VersionProjectionService implements AutoCloseable {
       } catch (RuntimeException shared) {
         if (batch.isEmpty()) throw shared;
         for (Turn<?> turn : batch) {
-          try (var session=driver.session(); var tx=session.beginTransaction()) {
+          try (var session=driver.session(); var tx=session.beginTransaction(GraphTransactionTimeouts.request())) {
             VersionChainTransaction.lock(tx);
             turn.run(tx);
             tx.commit();
@@ -345,7 +346,7 @@ public final class VersionProjectionService implements AutoCloseable {
     session.run("MATCH (j:CedarVersionProjection {resourceId:$id}) WHERE j.claim=$claim "
         + "REMOVE j.claim, j.claimedAt SET j.updatedAt=timestamp(), "
         + "j.attempts=coalesce(j.attempts,0)+CASE WHEN $failed THEN 1 ELSE 0 END",
-        Map.of("id",id,"claim",claim,"failed",failed)).consume();
+        Map.of("id",id,"claim",claim,"failed",failed), GraphTransactionTimeouts.request()).consume();
   }
 
   private void syncPrevious(FolderServerArtifact artifact,String previous) throws Exception {

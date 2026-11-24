@@ -3,11 +3,13 @@ package org.metadatacenter.cedar.resource.restore;
 import org.metadatacenter.server.neo4j.ArtifactRestoreTransaction;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.server.neo4j.GraphTransactionTimeouts;
 import org.metadatacenter.server.neo4j.Neo4jDrivers;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Result;
 import org.neo4j.driver.Session;
+import org.neo4j.driver.Transaction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,15 +55,15 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
   private void ensureConstraint() {
     try (Session session = driver.session()) {
       session.run("CREATE CONSTRAINT cedar_artifact_restore_resource IF NOT EXISTS "
-          + "FOR (e:" + LABEL + ") REQUIRE e.resourceId IS UNIQUE").consume();
+          + "FOR (e:" + LABEL + ") REQUIRE e.resourceId IS UNIQUE", GraphTransactionTimeouts.longRunning()).consume();
       session.run("CREATE CONSTRAINT cedar_artifact_restore_lock_resource IF NOT EXISTS "
-          + "FOR (m:CedarArtifactRestoreLock) REQUIRE m.resourceId IS UNIQUE").consume();
+          + "FOR (m:CedarArtifactRestoreLock) REQUIRE m.resourceId IS UNIQUE", GraphTransactionTimeouts.longRunning()).consume();
       session.run("CREATE CONSTRAINT cedar_artifact_restore_outcome_job IF NOT EXISTS "
-          + "FOR (o:CedarArtifactRestoreOutcome) REQUIRE o.jobId IS UNIQUE").consume();
+          + "FOR (o:CedarArtifactRestoreOutcome) REQUIRE o.jobId IS UNIQUE", GraphTransactionTimeouts.longRunning()).consume();
       session.run("MATCH (o:CedarArtifactRestoreOutcome) WHERE o.createdAt < timestamp() - 86400000 "
-          + "DELETE o").consume();
+          + "DELETE o", GraphTransactionTimeouts.longRunning()).consume();
       session.run("MATCH (e:" + LABEL + ") WHERE e.protocolVersion IS NULL "
-          + "SET e.parked = true, e.parkedReason = 'Legacy job: graph completion is unknown'").consume();
+          + "SET e.parked = true, e.parkedReason = 'Legacy job: graph completion is unknown'", GraphTransactionTimeouts.longRunning()).consume();
     }
   }
 
@@ -133,7 +135,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
             + "o.state = CASE WHEN coalesce(e.restoreStarted, false) THEN 'RESTORED' ELSE 'SUPERSEDED' END",
             Map.of("resourceId", resourceId)).consume();
         return fromRecord(tx.run(query, parameters).single());
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -165,7 +167,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
           }
         }
         return jobs;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -190,7 +192,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
         if (!ArtifactRestoreTransaction.lock(tx, jobId)) return 0L;
         Result result = tx.run(query, Map.of("jobId", jobId, "delay", 5_000));
         return result.hasNext() ? result.next().get("attempts").asLong(0L) : 0L;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -207,7 +209,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
                 + "SET e.parked = true, e.parkedReason = $reason, e.parkedAt = timestamp()",
             Map.of("jobId", jobId, "reason", reason)).consume();
         return null;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -216,7 +218,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
     try (Session session = driver.session()) {
       return session.readTransaction(tx -> tx.run(
               "MATCH (e:" + LABEL + ") WHERE e.parked = true RETURN count(e) AS parked")
-          .single().get("parked").asLong());
+          .single().get("parked").asLong(), GraphTransactionTimeouts.request());
     }
   }
 
@@ -250,11 +252,15 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
         tx.run("MATCH (e:CedarArtifactRestoreOutbox {jobId: $jobId}) SET e.restoreStarted = true",
             Map.of("jobId", job.jobId())).consume();
         return true;
-      });
+      }, GraphTransactionTimeouts.request());
       if (!started) { return; }
-      session.writeTransaction(tx -> {
+      // The put-back is a call to another service, made while this transaction holds the job's lock.
+      // A transaction function would be run again after a transient failure to commit, and the call
+      // with it, so this is an explicit transaction, which the driver never replays. A job whose
+      // outcome failed to commit keeps its started mark, and the relay settles it on its next pass.
+      try (Transaction tx = session.beginTransaction(GraphTransactionTimeouts.aroundACall())) {
         if (!ArtifactRestoreTransaction.lock(tx, job.jobId())) {
-          return null;
+          return;
         }
         Attempt attempt = restore.apply(job);
         int status = attempt.status();
@@ -281,8 +287,8 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
                 result.get("attempts").asLong(), status);
           }
         }
-        return null;
-      });
+        tx.commit();
+      }
     }
   }
 
@@ -339,7 +345,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
           ArtifactRestoreTransaction.remove(tx, jobId);
         }
         return true;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -348,7 +354,7 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
       session.writeTransaction(tx -> {
         if (ArtifactRestoreTransaction.lock(tx, jobId)) ArtifactRestoreTransaction.remove(tx, jobId);
         return null;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -363,14 +369,14 @@ public final class Neo4jArtifactRestoreOutbox implements AutoCloseable {
         tx.run("MATCH (o:CedarArtifactRestoreOutcome {jobId: $jobId}) DELETE o",
             Map.of("jobId", jobId)).consume();
         return null;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
   public long count() {
     try (Session session = driver.session()) {
       return session.readTransaction(tx -> tx.run(
-          "MATCH (e:" + LABEL + ") RETURN count(e) AS pending").single().get("pending").asLong());
+          "MATCH (e:" + LABEL + ") RETURN count(e) AS pending").single().get("pending").asLong(), GraphTransactionTimeouts.request());
     }
   }
 

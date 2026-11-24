@@ -109,6 +109,93 @@ class Neo4jArtifactRestoreOutboxTest {
     }
   }
 
+  /**
+   * The put-back is a call to another service made inside a graph transaction. When that transaction
+   * fails to commit with an error the driver counts as transient, the call is not sent again at once:
+   * the job keeps its started mark, and the next attempt settles it.
+   */
+  @Test
+  void aPutBackIsSentOnceWhenItsOutcomeFailsToCommit() {
+    java.util.concurrent.atomic.AtomicBoolean failNextCommit = new java.util.concurrent.atomic.AtomicBoolean();
+    try (var outbox = new Neo4jArtifactRestoreOutbox(
+             failingCommits(GraphDatabase.driver(ScratchNeo4j.boltURI(), AuthTokens.none()), failNextCommit), 0)) {
+      var job = outbox.prepare("artifact-1", CedarResourceType.TEMPLATE, PRE_IMAGE, "\"8\"", false);
+      java.util.concurrent.atomic.AtomicInteger sent = new java.util.concurrent.atomic.AtomicInteger();
+
+      org.junit.jupiter.api.Assertions.assertThrows(org.neo4j.driver.exceptions.TransientException.class,
+          () -> outbox.restoreIfPending(job, pending -> {
+            sent.incrementAndGet();
+            failNextCommit.set(true);
+            return 200;
+          }));
+      assertEquals(1, sent.get(), "the put-back was sent again after its transaction failed to commit");
+      assertEquals(1, outbox.count(), "a put-back whose outcome was not recorded stays pending");
+
+      // The document now carries a newer revision, so asking again is answered with 412, which settles it.
+      outbox.restoreIfPending(job, pending -> {
+        sent.incrementAndGet();
+        return 412;
+      });
+      assertEquals(2, sent.get());
+      assertEquals(0, outbox.count());
+    }
+  }
+
+  /**
+   * A driver whose next commit fails with a transient error once {@code failNextCommit} is set, whether
+   * the commit ends an explicit transaction or a transaction function the driver would run again.
+   */
+  private static org.neo4j.driver.Driver failingCommits(org.neo4j.driver.Driver driver,
+                                                        java.util.concurrent.atomic.AtomicBoolean failNextCommit) {
+    java.util.function.Supplier<RuntimeException> failure = () -> new org.neo4j.driver.exceptions.TransientException(
+        "Neo.TransientError.Transaction.DeadlockDetected", "injected by the test");
+    return proxy(org.neo4j.driver.Driver.class, driver, (target, method, arguments) -> {
+      Object result = method.invoke(target, arguments);
+      if (!(result instanceof org.neo4j.driver.Session session)) {
+        return result;
+      }
+      return proxy(org.neo4j.driver.Session.class, session, (s, m, a) -> {
+        if (m.getName().equals("writeTransaction") && a.length == 2) {
+          @SuppressWarnings("unchecked")
+          var work = (org.neo4j.driver.TransactionWork<Object>) a[0];
+          return session.writeTransaction(tx -> {
+            Object value = work.execute(tx);
+            if (failNextCommit.getAndSet(false)) {
+              throw failure.get();
+            }
+            return value;
+          }, (org.neo4j.driver.TransactionConfig) a[1]);
+        }
+        Object value = m.invoke(s, a);
+        if (value instanceof org.neo4j.driver.Transaction tx) {
+          return proxy(org.neo4j.driver.Transaction.class, tx, (t, tm, ta) -> {
+            if (tm.getName().equals("commit") && failNextCommit.getAndSet(false)) {
+              throw failure.get();
+            }
+            return tm.invoke(t, ta);
+          });
+        }
+        return value;
+      });
+    });
+  }
+
+  @FunctionalInterface
+  private interface Delegating {
+    Object invoke(Object target, java.lang.reflect.Method method, Object[] arguments) throws Throwable;
+  }
+
+  private static <T> T proxy(Class<T> type, T target, Delegating handler) {
+    return type.cast(java.lang.reflect.Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] {type},
+        (ignored, method, arguments) -> {
+          try {
+            return handler.invoke(target, method, arguments == null ? new Object[0] : arguments);
+          } catch (java.lang.reflect.InvocationTargetException thrown) {
+            throw thrown.getCause();
+          }
+        }));
+  }
+
   @Test
   void aParkedRestoreStopsBeingRetriedAndStaysFindable() {
     try (var outbox = new Neo4jArtifactRestoreOutbox(

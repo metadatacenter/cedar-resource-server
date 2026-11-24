@@ -2,6 +2,7 @@ package org.metadatacenter.cedar.resource.deletion;
 
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.server.neo4j.GraphTransactionTimeouts;
 import org.metadatacenter.server.neo4j.Neo4jDrivers;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Record;
@@ -45,7 +46,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
   private void ensureConstraint() {
     try (Session session = driver.session()) {
       session.run("CREATE CONSTRAINT cedar_artifact_deletion_resource IF NOT EXISTS "
-          + "FOR (e:" + LABEL + ") REQUIRE e.resourceId IS UNIQUE").consume();
+          + "FOR (e:" + LABEL + ") REQUIRE e.resourceId IS UNIQUE", GraphTransactionTimeouts.longRunning()).consume();
     }
   }
 
@@ -71,7 +72,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
     parameters.put("artifactDeleted", artifactDeleted);
     parameters.put("initialDelayMillis", initialDelayMillis);
     try (Session session = driver.session()) {
-      return session.writeTransaction(tx -> fromRecord(tx.run(query, parameters).single()));
+      return session.writeTransaction(tx -> fromRecord(tx.run(query, parameters).single()), GraphTransactionTimeouts.request());
     }
   }
 
@@ -105,7 +106,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
           }
         }
         return jobs;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -142,7 +143,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
       return session.writeTransaction(tx -> {
         Result result = tx.run(query, Map.of("jobId", jobId, "delay", 5_000));
         return result.hasNext() ? result.next().get("attempts").asLong(0L) : 0L;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -159,7 +160,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
                 + "SET e.parked = true, e.parkedReason = $reason, e.parkedAt = timestamp()",
             Map.of("jobId", jobId, "reason", reason)).consume();
         return null;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -168,7 +169,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
     try (Session session = driver.session()) {
       return session.readTransaction(tx -> tx.run(
           "MATCH (e:" + LABEL + ") WHERE e.parked = true RETURN count(e) AS parked")
-          .single().get("parked").asLong());
+          .single().get("parked").asLong(), GraphTransactionTimeouts.request());
     }
   }
 
@@ -178,7 +179,7 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
         tx.run("MATCH (e:" + LABEL + " {jobId: $jobId}) " + setter,
             Map.of("jobId", jobId, "delay", delay)).consume();
         return null;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
@@ -187,14 +188,14 @@ public final class Neo4jArtifactDeletionOutbox implements AutoCloseable {
       session.writeTransaction(tx -> {
         tx.run("MATCH (e:" + LABEL + " {jobId: $jobId}) DELETE e", Map.of("jobId", jobId)).consume();
         return null;
-      });
+      }, GraphTransactionTimeouts.request());
     }
   }
 
   public long count() {
     try (Session session = driver.session()) {
       return session.readTransaction(tx -> tx.run(
-          "MATCH (e:" + LABEL + ") RETURN count(e) AS pending").single().get("pending").asLong());
+          "MATCH (e:" + LABEL + ") RETURN count(e) AS pending").single().get("pending").asLong(), GraphTransactionTimeouts.request());
     }
   }
 
