@@ -108,6 +108,7 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         .limit(limitParam)
         .offset(offsetParam);
     pagedSearchQuery.setModified(ModifiedDateQuery.parse(uriInfo.getQueryParameters()));
+    pagedSearchQuery.queryParameters(uriInfo.getQueryParameters());
     pagedSearchQuery.validate();
     ModifiedDateRange modified = pagedSearchQuery.getModified();
     builder.queryParam(ModifiedDateQuery.AFTER, Optional.ofNullable(modified.after()).map(String::valueOf));

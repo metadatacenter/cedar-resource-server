@@ -31,11 +31,6 @@ class OpenApiSuccessContractTest {
           "POST /command/load-valuesets-ontology",
           "POST /command/reset-search-index-job",
           "POST /command/reset-valuesets-import",
-          // Reads the artifact named in the path. The POST exists for callers that predate the GET.
-          "POST /template-elements/{template_element_id}/download",
-          "POST /template-fields/{template_field_id}/download",
-          "POST /template-instances/{template_instance_id}/download",
-          "POST /templates/{template_id}/download",
           // Provisions the user's objects for the Keycloak listener, which reads no body back.
           "POST /command/auth-user-callback 201",
           // Reached only when the artifact server returns no entity, which leaves nothing to

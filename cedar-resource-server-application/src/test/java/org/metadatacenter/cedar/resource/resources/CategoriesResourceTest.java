@@ -125,6 +125,14 @@ public class CategoriesResourceTest {
   }
 
   @Test
+  public void aPageNumberParameterIsRefusedNamingIt() throws Exception {
+    for (String name : List.of("page", "pageSize", "page_size")) {
+      JsonNode error = read(get("/categories?" + name + "=2", authHeaderUser1), 400);
+      Assertions.assertEquals("2", error.path("parameters").path(name).asText(null), name + " -> " + error);
+    }
+  }
+
+  @Test
   public void aCategoryIsCreatedOnlyUnderAParentThatExistsWithANameItsSiblingsDoNotUse() throws Exception {
     String stem = "Category " + UUID.randomUUID();
     String parent = ownCategory(stem);

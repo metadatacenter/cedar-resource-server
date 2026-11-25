@@ -318,9 +318,11 @@ public class ResourceStateRoundTripIT {
     Assertions.assertFalse(categorized(category.getId(), template));
 
     for (boolean attached : new boolean[]{true, false, true}) {
-      HttpResponse<String> response = send("POST",
-          attached ? "/command/attach-category" : "/command/detach-category",
-          json(Map.of("artifactId", template, "categoryId", category.getId())), user1Auth, null);
+      HttpResponse<String> response = attached
+          ? send("POST", "/command/attach-categories",
+              json(Map.of("artifactId", template, "categoryIds", List.of(category.getId()))), user1Auth, null)
+          : send("POST", "/command/detach-category",
+              json(Map.of("artifactId", template, "categoryId", category.getId())), user1Auth, null);
       Assertions.assertTrue(response.statusCode() < 300, response.body());
       Assertions.assertEquals(attached, categorized(category.getId(), template),
           "search by category must follow the attachment");

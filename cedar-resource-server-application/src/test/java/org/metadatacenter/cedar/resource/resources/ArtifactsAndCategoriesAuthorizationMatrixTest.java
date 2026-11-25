@@ -607,10 +607,10 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   }
 
   /**
-   * The single-category commands, which attach or detach one category at a time. Attaching is a
-   * graph MERGE, so attaching a second time leaves one attachment rather than failing. The category
-   * is this test's own and ends detached, because the batch test above expects the shared category
-   * to stay off the shared artifact.
+   * One category attached through the list command and detached through the single-category command.
+   * Attaching is a graph MERGE, so attaching a second time leaves one attachment rather than failing.
+   * The category is this test's own and ends detached, because the batch test above expects the
+   * shared category to stay off the shared artifact.
    */
   @Test
   public void anOwnerAttachesAndDetachesOneCategory() throws Exception {
@@ -620,14 +620,15 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
     Artifact artifact = artifacts.get(1);
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(artifact.id());
     String body = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryId\":\"" + single.getId() + "\"}";
+    String attachBody = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryIds\":[\"" + single.getId() + "\"]}";
 
-    HttpResponse<String> attached = request("POST", "/command/attach-category", body, actors.get(OWNER));
+    HttpResponse<String> attached = request("POST", "/command/attach-categories", attachBody, actors.get(OWNER));
     Assertions.assertEquals(200, attached.statusCode(), attached.body());
     Assertions.assertEquals(artifact.id(), JsonMapper.STRICT_MAPPER.readTree(attached.body()).get("@id").asText(),
         "the response should describe the artifact the category was attached to");
     Assertions.assertTrue(categories.getAttachedCategoryIds(artifactId).contains(single.getResourceId()));
 
-    HttpResponse<String> again = request("POST", "/command/attach-category", body, actors.get(OWNER));
+    HttpResponse<String> again = request("POST", "/command/attach-categories", attachBody, actors.get(OWNER));
     Assertions.assertEquals(200, again.statusCode(), again.body());
     Assertions.assertEquals(1, categories.getAttachedCategoryIds(artifactId).stream()
         .filter(single.getResourceId()::equals).count(), "a second attach must not duplicate the attachment");
@@ -644,39 +645,65 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
   }
 
   /**
-   * Attaching needs the updateResource capability on the artifact and attachCategory on the category,
+   * Attaching needs the updateResource capability on the artifact and attachCategory on each category,
    * and detaching the same with detachCategory. Each refusal must leave the graph as it was.
    */
   @Test
-  public void theSingleCategoryCommandsRefuseCallersWithoutBothCapabilities() throws Exception {
+  public void theCategoryCommandsRefuseCallersWithoutBothCapabilities() throws Exception {
     var categories = CedarDataServices.getInstance().getCategoryServiceSession(user1Context);
     Artifact artifact = artifacts.get(2);
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(artifact.id());
-    String ownCategory = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryId\":\"" + categoryId.getId() + "\"}";
-    String othersCategory = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryId\":\""
+    String attachOwn = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryIds\":[\"" + categoryId.getId() + "\"]}";
+    String attachOthers = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryIds\":[\""
+        + inaccessibleCategoryId.getId() + "\"]}";
+    String detachOwn = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryId\":\"" + categoryId.getId() + "\"}";
+    String detachOthers = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryId\":\""
         + inaccessibleCategoryId.getId() + "\"}";
 
-    for (String command : List.of("/command/attach-category", "/command/detach-category")) {
-      HttpResponse<String> anonymous = request("POST", command, ownCategory, null);
+    // Each command with a body naming the owner's category, one naming user 2's, and one carrying an
+    // extra key.
+    List<List<String>> cases = List.of(
+        List.of("/command/attach-categories", attachOwn, attachOthers, attachOwn.replace("}", ",\"categoryId\":\"x\"}")),
+        List.of("/command/detach-category", detachOwn, detachOthers, detachOwn.replace("}", ",\"categoryIds\":[]}")));
+    for (List<String> each : cases) {
+      String command = each.get(0);
+      HttpResponse<String> anonymous = request("POST", command, each.get(1), null);
       Assertions.assertEquals(401, anonymous.statusCode(), command + ": " + anonymous.body());
 
       // User 2 has no grant on user 1's artifact.
-      HttpResponse<String> stranger = request("POST", command, ownCategory, actors.get(OTHER_USER));
+      HttpResponse<String> stranger = request("POST", command, each.get(1), actors.get(OTHER_USER));
       Assertions.assertEquals(403, stranger.statusCode(), command + ": " + stranger.body());
 
       // The owner of the artifact, but not of the category, which belongs to user 2.
-      HttpResponse<String> notTheCategoryOwner = request("POST", command, othersCategory, actors.get(OWNER));
+      HttpResponse<String> notTheCategoryOwner = request("POST", command, each.get(2), actors.get(OWNER));
       Assertions.assertEquals(403, notTheCategoryOwner.statusCode(), command + ": " + notTheCategoryOwner.body());
 
-      // The body may carry the two identifiers and nothing else.
-      HttpResponse<String> extraKey = request("POST", command,
-          ownCategory.replace("}", ",\"categoryIds\":[]}"), actors.get(OWNER));
+      // The body may carry only the keys the command defines.
+      HttpResponse<String> extraKey = request("POST", command, each.get(3), actors.get(OWNER));
       Assertions.assertEquals(400, extraKey.statusCode(), command + ": " + extraKey.body());
     }
 
     List<CedarCategoryId> attached = categories.getAttachedCategoryIds(artifactId);
     Assertions.assertFalse(attached.contains(categoryId), "a refused attach must not attach");
     Assertions.assertFalse(attached.contains(inaccessibleCategoryId), "a refused attach must not attach");
+  }
+
+  /**
+   * The removed routes: the single-category attach command, which the list command replaces, and the
+   * POST on each download path, which the GET replaces. The command path no longer exists, so it is
+   * not found; each download path still answers GET, so a POST to it is not allowed.
+   */
+  @Test
+  public void theRemovedRoutesAreNotServed() throws Exception {
+    Artifact artifact = artifacts.get(0);
+    String body = "{\"artifactId\":\"" + artifact.id() + "\",\"categoryId\":\"" + categoryId.getId() + "\"}";
+    HttpResponse<String> attach = request("POST", "/command/attach-category", body, actors.get(OWNER));
+    Assertions.assertEquals(404, attach.statusCode(), attach.body());
+
+    for (Artifact each : artifacts) {
+      HttpResponse<String> download = request("POST", each.path() + "/download", null, actors.get(OWNER));
+      Assertions.assertEquals(405, download.statusCode(), each.label() + ": " + download.body());
+    }
   }
 
   /**

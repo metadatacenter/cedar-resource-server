@@ -31,6 +31,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarQueryParameters.QP_COMPACT;
 import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_INSTANCE_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_VERBATIM;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
@@ -69,7 +70,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
           + "createInFolder capability on the folder. If not provided, the artifact will be created in the user's home folder.")
       @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
       @Parameter(description = "Not supported on write operations; write responses always render the full form.")
-      @QueryParam("compact") Optional<Boolean> compactParam,
+      @QueryParam(QP_COMPACT) Optional<Boolean> compactParam,
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -113,7 +114,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
           + "'jsonld', 'json', 'rdf-nquad'.")
       @QueryParam(QP_FORMAT) Optional<String> format,
       @Parameter(description = "When requesting YAML, produce a compact representation.")
-      @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
+      @QueryParam(QP_COMPACT) Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
@@ -143,8 +144,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Path("/{template_instance_id}/download")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Download a template instance", description = "Download a template instance as JSON or YAML, selected via the Accept "
-      + "header. This reads and returns the template instance and changes nothing, which is what GET is for; the POST on "
-      + "the same path does the same thing and remains for existing callers.")
+      + "header.")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template instance content as an attachment",
           content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)),
@@ -161,33 +161,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Desired output format: 'application/json' or 'application/yaml'.")
       @HeaderParam("Accept") String acceptHeader,
       @Parameter(description = "When downloading YAML, produce a compact representation.")
-      @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
-    return downloadTemplateInstance(id, acceptHeader, compactParam);
-  }
-
-  @POST
-  @Timed
-  @Path("/{template_instance_id}/download")
-  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
-  @Operation(summary = "Download a template instance", description = "Download a template instance as JSON or YAML, selected "
-      + "via the Accept header.")
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The template instance content as an attachment",
-          content = @Content(schema = @Schema(implementation = InstanceArtifactDocument.class)),
-          headers = @Header(name = "Content-Disposition", description = "The response is an attachment named after the template instance's identifier.",
-              schema = @Schema(type = "string"))),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response downloadTemplateInstance(
-      @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id,
-      @Parameter(description = "Desired output format: 'application/json' or 'application/yaml'.")
-      @HeaderParam("Accept") String acceptHeader,
-      @Parameter(description = "When downloading YAML, produce a compact representation.")
-      @QueryParam("compact") Optional<Boolean> compactParam) throws CedarException {
+      @QueryParam(QP_COMPACT) Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.INSTANCE, id);
@@ -256,7 +230,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @Parameter(description = "Template Instance identifier.", required = true) @PathParam(PP_TEMPLATE_INSTANCE_ID) String id,
       @Parameter(description = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
       @Parameter(description = "Not supported on write operations; write responses always render the full form.")
-      @QueryParam("compact") Optional<Boolean> compactParam,
+      @QueryParam(QP_COMPACT) Optional<Boolean> compactParam,
       @Parameter(description = "Admin only. Replace the artifact with exactly the document supplied: no provenance stamped, no child identifier minted. The artifact must exist and the body must be JSON. A published artifact may be replaced this way, since a verbatim write states the whole document rather than editing it.")
       @QueryParam(QP_VERBATIM) Optional<Boolean> verbatimParam,
       @Parameter(hidden = true) String requestBody) throws CedarException {

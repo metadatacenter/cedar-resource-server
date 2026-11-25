@@ -46,6 +46,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
+import static org.metadatacenter.constant.CedarPathParameters.PP_JOB_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
@@ -156,7 +157,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   })
   public Response loadValueSetsOntologyStatusById(
       @Parameter(description = "Import identifier, as returned when the import was queued.", required = true)
-      @PathParam("jobId") String jobId) throws CedarException {
+      @PathParam(PP_JOB_ID) String jobId) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
@@ -277,7 +278,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   })
   public Response indexJobStatusById(
       @Parameter(description = "Job identifier, as returned when the rebuild was queued.", required = true)
-      @PathParam("jobId") String jobId) throws CedarException {
+      @PathParam(PP_JOB_ID) String jobId) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 

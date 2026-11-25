@@ -70,63 +70,6 @@ public class CommandCategoriesResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/attach-category")
-  @Operation(summary = "Attach category to an artifact", description = "Attach an existing category to an existing artifact. The user must have the updateResource capability on the "
-          + "artifact and the attachCategory capability on the category.", tags = {"Command", "Categories", "Category Operations"})
-  @RequestBody(description = "Parameters of the attach operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryAttachRequest.class)))
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The artifact's details, as they stood before the category was attached",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactDetails"))),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response attachCategoryToArtifact() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-
-    c.request().getRequestBody().mustHaveOnly("artifactId", "categoryId");
-    CedarParameter artifactIdParam = c.request().getRequestBody().get("artifactId");
-    CedarParameter categoryIdParam = c.request().getRequestBody().get("categoryId");
-
-    c.must(artifactIdParam).be(NonEmpty);
-    c.must(categoryIdParam).be(NonEmpty);
-
-    CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
-
-    String artifactId = linkedDataUtil.resolveResourceId(artifactIdParam.stringValue());
-    String categoryId = categoryIdParam.stringValue();
-
-    CedarUntypedArtifactId aid = CedarUntypedArtifactId.build(artifactId);
-
-    CedarCategoryId ccid = CedarCategoryId.build(categoryId);
-
-    userMustHaveCapabilityOnArtifact(c, aid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
-
-    userMustHaveCategoryCapability(c, ccid, CategoryCapability.ATTACH_CATEGORY);
-
-    FolderServerArtifactCurrentUserReport folderServerResource = getArtifactReport(c, aid);
-
-    boolean attached = categorySession.attachCategoryToArtifact(ccid, aid);
-    if (attached) {
-      FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
-      FolderServerArtifact updatedResource = folderSession.findArtifactById(aid);
-      updateIndexResource(updatedResource, c, true);
-      return Response.ok().entity(folderServerResource).build();
-    } else {
-      return CedarResponse.internalServerError()
-          .errorKey(CedarErrorKey.UNABLE_TO_ATTACH_CATEGORY)
-          .message("The category was not attached to the artifact")
-          .parameter("categoryId", categoryId)
-          .parameter("artifactId", artifactId)
-          .build();
-    }
-  }
-
-  @POST
-  @Timed
   @Path("/detach-category")
   @Operation(summary = "Detach category from an artifact", description = "Detach an existing category from an existing artifact. The user must have the updateResource capability on the "
           + "artifact and the detachCategory capability on the category.", tags = {"Command", "Categories", "Category Operations"})

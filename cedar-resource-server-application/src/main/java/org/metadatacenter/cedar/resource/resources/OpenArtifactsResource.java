@@ -46,6 +46,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 
+import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.*;
 
 /**
@@ -72,7 +73,7 @@ public class OpenArtifactsResource extends CedarMicroserviceResource {
   @Operation(summary = "Read an open template anonymously", description = "User credentials never broaden access.")
   @ApiResponse(responseCode = "200", description = "The open artifact as JSON",
       content = @Content(schema = @Schema(implementation = org.metadatacenter.util.artifact.SchemaArtifactDocument.class)))
-  public Response template(@PathParam("id") String id) throws CedarException {
+  public Response template(@PathParam(PP_ID) String id) throws CedarException {
     return readOpen(id, CedarResourceType.TEMPLATE);
   }
 
@@ -80,7 +81,7 @@ public class OpenArtifactsResource extends CedarMicroserviceResource {
   @Operation(summary = "Read an open element anonymously", description = "User credentials never broaden access.")
   @ApiResponse(responseCode = "200", description = "The open artifact as JSON",
       content = @Content(schema = @Schema(implementation = org.metadatacenter.util.artifact.SchemaArtifactDocument.class)))
-  public Response element(@PathParam("id") String id) throws CedarException {
+  public Response element(@PathParam(PP_ID) String id) throws CedarException {
     return readOpen(id, CedarResourceType.ELEMENT);
   }
 
@@ -88,7 +89,7 @@ public class OpenArtifactsResource extends CedarMicroserviceResource {
   @Operation(summary = "Read an open field anonymously", description = "User credentials never broaden access.")
   @ApiResponse(responseCode = "200", description = "The open artifact as JSON",
       content = @Content(schema = @Schema(implementation = org.metadatacenter.util.artifact.SchemaArtifactDocument.class)))
-  public Response field(@PathParam("id") String id) throws CedarException {
+  public Response field(@PathParam(PP_ID) String id) throws CedarException {
     return readOpen(id, CedarResourceType.FIELD);
   }
 
@@ -96,7 +97,7 @@ public class OpenArtifactsResource extends CedarMicroserviceResource {
   @Operation(summary = "Read an open instance anonymously", description = "User credentials never broaden access.")
   @ApiResponse(responseCode = "200", description = "The open artifact as JSON",
       content = @Content(schema = @Schema(implementation = org.metadatacenter.util.artifact.InstanceArtifactDocument.class)))
-  public Response instance(@PathParam("id") String id) throws CedarException {
+  public Response instance(@PathParam(PP_ID) String id) throws CedarException {
     return readOpen(id, CedarResourceType.INSTANCE);
   }
 
@@ -117,7 +118,7 @@ public class OpenArtifactsResource extends CedarMicroserviceResource {
   public Response folder(
       @Parameter(description = "Folder identifier: the bare identifier or the percent-encoded full IRI.",
           required = true)
-      @PathParam("id") String id,
+      @PathParam(PP_ID) String id,
       @Parameter(description = "Comma-separated resource types to include, in place of all of them: "
           + "'folder', 'field', 'element', 'template', 'instance'.")
       @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
@@ -160,6 +161,7 @@ public class OpenArtifactsResource extends CedarMicroserviceResource {
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);
+    query.queryParameters(uriInfo.getQueryParameters());
     query.validate();
 
     URI absoluteURI = uriInfo.getAbsolutePathBuilder()

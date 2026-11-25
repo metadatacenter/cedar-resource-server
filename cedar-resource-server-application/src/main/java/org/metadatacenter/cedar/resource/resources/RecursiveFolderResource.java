@@ -27,6 +27,7 @@ import org.metadatacenter.server.security.model.permission.resource.ResourceCapa
 import org.metadatacenter.util.http.*;
 import org.metadatacenter.util.json.JsonMapper;
 import java.util.*;
+import static org.metadatacenter.constant.CedarPathParameters.PP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 /** Explicit recursive API; the historical DELETE endpoint remains empty-folder-only. */
@@ -62,7 +63,7 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
       @ApiResponse(responseCode = "503", description = UNAVAILABLE,
           content = @Content(schema = @Schema(implementation = CedarError.class)))
   })
-  public Response preview(@PathParam("folder_id") String id) throws Exception {
+  public Response preview(@PathParam(PP_FOLDER_ID) String id) throws Exception {
     CedarRequestContext c = context(id);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     try {
@@ -106,7 +107,7 @@ public final class RecursiveFolderResource extends AbstractResourceServerResourc
       @ApiResponse(responseCode = "503", description = UNAVAILABLE,
           content = @Content(schema = @Schema(implementation = CedarError.class)))
   })
-  public Response delete(@PathParam("folder_id") String id, Confirmation confirmation) throws Exception {
+  public Response delete(@PathParam(PP_FOLDER_ID) String id, Confirmation confirmation) throws Exception {
     CedarRequestContext c = context(id);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
     c.request().getRequestBody().mustHaveOnly("token");

@@ -94,6 +94,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_ID;
+import static org.metadatacenter.constant.CedarQueryParameters.QP_DRAFT_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_NAME;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPES;
 import static org.metadatacenter.model.ModelNodeNames.*;
@@ -110,9 +111,6 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   /** The body key under which the caller of create-draft-artifact may choose the draft's identity. */
   private static final String DRAFT_ID = "draftId";
-
-  /** The query parameter under which the caller of publish-create-draft-template may choose it. */
-  private static final String QP_DRAFT_ID = "draft_id";
 
   private static CloneInstancesEnqueueService cloneInstanceEnqueueService;
 

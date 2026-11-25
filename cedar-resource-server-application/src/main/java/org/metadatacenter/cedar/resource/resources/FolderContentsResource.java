@@ -121,6 +121,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .limit(limitParam)
         .offset(offsetParam);
     pagedSortedTypedQuery.setModified(ModifiedDateQuery.parse(uriInfo.getQueryParameters()));
+    pagedSortedTypedQuery.queryParameters(uriInfo.getQueryParameters());
     pagedSortedTypedQuery.validate();
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -235,6 +236,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .limit(limitParam)
         .offset(offsetParam);
     pagedSortedTypedQuery.setModified(ModifiedDateQuery.parse(uriInfo.getQueryParameters()));
+    pagedSortedTypedQuery.queryParameters(uriInfo.getQueryParameters());
     pagedSortedTypedQuery.validate();
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);

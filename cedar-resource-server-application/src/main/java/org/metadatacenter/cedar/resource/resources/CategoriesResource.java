@@ -111,7 +111,8 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
     PagedQuery pagedQuery = new PagedQuery(cedarConfig.getCategoryRESTAPI().getPagination())
         .limit(limitParam)
-        .offset(offsetParam);
+        .offset(offsetParam)
+        .queryParameters(uriInfo.getQueryParameters());
     pagedQuery.validate();
 
     int limit = pagedQuery.getLimit();
