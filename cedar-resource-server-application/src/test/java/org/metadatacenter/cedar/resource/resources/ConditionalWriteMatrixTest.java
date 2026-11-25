@@ -124,10 +124,10 @@ public class ConditionalWriteMatrixTest {
       new Write("replace a folder's permissions", false, "PUT", id -> "/folders/" + encode(id) + "/permissions",
           id -> "{\"userPermissions\": [], \"groupPermissions\": []}",
           id -> "/folders/" + encode(id) + "/permissions", 200, false),
-      new Write("open a folder", false, "POST", id -> "/command/make-folder-open", id -> "{\"@id\":\"" + id + "\"}",
+      new Write("open a folder", false, "PATCH", id -> "/folders/" + encode(id), id -> "{\"isOpen\": true}",
           id -> "/folders/" + encode(id), 200, false),
-      new Write("close a folder", false, "POST", id -> "/command/make-folder-not-open",
-          id -> "{\"@id\":\"" + id + "\"}", id -> "/folders/" + encode(id), 200, false),
+      new Write("close a folder", false, "PATCH", id -> "/folders/" + encode(id), id -> "{\"isOpen\": false}",
+          id -> "/folders/" + encode(id), 200, false),
       new Write("rename a category", true, "PUT", id -> "/categories/" + encode(id),
           id -> "{\"schema:name\": \"Renamed " + UUID.randomUUID() + "\", \"schema:description\": \"renamed\"}",
           id -> "/categories/" + encode(id), 200, true),
@@ -176,7 +176,7 @@ public class ConditionalWriteMatrixTest {
           String target = (write.category() ? "/categories/" : "/folders/") + encode(id);
           if (write.name().equals("close a folder")) {
             // Closing a folder that is already closed would change nothing a success could show.
-            HttpResponse<String> opened = send("POST", "/command/make-folder-open", "{\"@id\":\"" + id + "\"}",
+            HttpResponse<String> opened = send("PATCH", target, "{\"isOpen\": true}",
                 tagOf(target, auth), auth);
             Assertions.assertEquals(200, opened.statusCode(), opened.body());
           }

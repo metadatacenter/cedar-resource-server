@@ -128,9 +128,6 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final CommandAnnotationsResource commandAnnotations = new CommandAnnotationsResource(cedarConfig);
     environment.jersey().register(commandAnnotations);
 
-    final CommandOpenResource commandOpen = new CommandOpenResource(cedarConfig);
-    environment.jersey().register(commandOpen);
-
     final CommandVersionResource commandVersion = new CommandVersionResource(cedarConfig);
     environment.jersey().register(commandVersion);
 

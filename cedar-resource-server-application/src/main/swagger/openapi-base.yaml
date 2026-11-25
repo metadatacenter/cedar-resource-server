@@ -622,6 +622,15 @@ components:
         description:
           type: string
       additionalProperties: false
+    OpenStatePatch:
+      type: object
+      description: Whether the folder or artifact is served to everyone through OpenView.
+      required:
+        - isOpen
+      properties:
+        isOpen:
+          type: boolean
+      additionalProperties: false
     ArtifactRecord:
       description: |
         An artifact as the workspace graph holds it. Templates, elements and fields carry the

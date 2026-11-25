@@ -255,17 +255,17 @@ public class FolderPermissionLevelMatrixTest {
       int expected = role == ResourceRole.MANAGER ? 200 : 403;
       FolderServerFolder closed = folder("OpenView Closed " + role);
       FolderServerFolder opened = folder("OpenView Opened " + role);
-      matrix().when("POST", "/command/make-folder-open", idBody(opened))
+      matrix().when("PATCH", path(opened), OPEN)
           .header("If-Match", "*")
           .expect(OWNER, 200)
           .verify();
       grantToUser2(closed, role);
       grantToUser2(opened, role);
 
-      matrix().when("POST", "/command/make-folder-open", idBody(closed))
+      matrix().when("PATCH", path(closed), OPEN)
           .header("If-Match", "*")
           .expect(ANONYMOUS, 401).expect(OTHER_USER, expected)
-          .when("POST", "/command/make-folder-not-open", idBody(opened))
+          .when("PATCH", path(opened), NOT_OPEN)
           .header("If-Match", "*")
           .expect(ANONYMOUS, 401).expect(OTHER_USER, expected)
           .verify();
@@ -281,8 +281,7 @@ public class FolderPermissionLevelMatrixTest {
   /** A home folder is never made public, even by its owner, whose authority exceeds a Manager's. */
   @Test
   public void noOneMayMakeAHomeFolderOpen() {
-    String body = JsonMapper.STRICT_MAPPER.createObjectNode().put("@id", user1HomeId.getId()).toString();
-    matrix().when("POST", "/command/make-folder-open", body)
+    matrix().when("PATCH", "/folders/" + URLEncoder.encode(user1HomeId.getId(), StandardCharsets.UTF_8), OPEN)
         .header("If-Match", "*")
         .expect(ANONYMOUS, 401).expect(OWNER, 403)
         .verify();
@@ -409,9 +408,8 @@ public class FolderPermissionLevelMatrixTest {
     apply(resource.getResourceId(), request);
   }
 
-  private static String idBody(FolderServerFolder folder) {
-    return JsonMapper.STRICT_MAPPER.createObjectNode().put("@id", folder.getId()).toString();
-  }
+  private static final String OPEN = "{\"isOpen\":true}";
+  private static final String NOT_OPEN = "{\"isOpen\":false}";
 
   private static boolean isOpen(FolderServerFolder folder) {
     FolderServerFolder current = CedarDataServices.getInstance().getFolderServiceSession(user1Context)

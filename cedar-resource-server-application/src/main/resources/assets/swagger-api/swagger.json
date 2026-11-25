@@ -2208,402 +2208,6 @@
         "tags" : [ "Command" ]
       }
     },
-    "/command/make-artifact-not-open" : {
-      "post" : {
-        "description" : "Remove an artifact from OpenView. Use the ETag returned by the artifact's /details endpoint.",
-        "operationId" : "makeArtifactNotOpen",
-        "parameters" : [ {
-          "$ref" : "#/components/parameters/IfMatch"
-        } ],
-        "requestBody" : {
-          "content" : {
-            "*/*" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/IdRequest"
-              }
-            }
-          },
-          "description" : "Id of the artifact to make not open",
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ArtifactRecord"
-                }
-              }
-            },
-            "description" : "The artifact, with its new OpenView state",
-            "headers" : {
-              "ETag" : {
-                "$ref" : "#/components/headers/ETag",
-                "style" : "simple"
-              }
-            }
-          },
-          "400" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Bad request"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Not found"
-          },
-          "412" : {
-            "$ref" : "#/components/responses/PreconditionFailed"
-          },
-          "428" : {
-            "$ref" : "#/components/responses/PreconditionRequired"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Make artifact not open",
-        "tags" : [ "Command", "OpenView" ]
-      }
-    },
-    "/command/make-artifact-open" : {
-      "post" : {
-        "description" : "Expose an artifact through OpenView. Use the ETag returned by the artifact's /details endpoint.",
-        "operationId" : "makeArtifactOpen",
-        "parameters" : [ {
-          "$ref" : "#/components/parameters/IfMatch"
-        } ],
-        "requestBody" : {
-          "content" : {
-            "*/*" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/IdRequest"
-              }
-            }
-          },
-          "description" : "Id of the artifact to make open",
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ArtifactRecord"
-                }
-              }
-            },
-            "description" : "The artifact, with its new OpenView state",
-            "headers" : {
-              "ETag" : {
-                "$ref" : "#/components/headers/ETag",
-                "style" : "simple"
-              }
-            }
-          },
-          "400" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Bad request"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Not found"
-          },
-          "412" : {
-            "$ref" : "#/components/responses/PreconditionFailed"
-          },
-          "428" : {
-            "$ref" : "#/components/responses/PreconditionRequired"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Make artifact open",
-        "tags" : [ "Command", "OpenView" ]
-      }
-    },
-    "/command/make-folder-not-open" : {
-      "post" : {
-        "description" : "Remove a folder from OpenView. Use the ETag returned by GET /folders/{id}.",
-        "operationId" : "makeFolderNotOpen",
-        "parameters" : [ {
-          "$ref" : "#/components/parameters/IfMatch"
-        } ],
-        "requestBody" : {
-          "content" : {
-            "*/*" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/IdRequest"
-              }
-            }
-          },
-          "description" : "Id of the folder to make not open",
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Folder"
-                }
-              }
-            },
-            "description" : "The folder, with its new OpenView state",
-            "headers" : {
-              "ETag" : {
-                "$ref" : "#/components/headers/ETag",
-                "style" : "simple"
-              }
-            }
-          },
-          "400" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Bad request"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Not found"
-          },
-          "412" : {
-            "$ref" : "#/components/responses/PreconditionFailed"
-          },
-          "428" : {
-            "$ref" : "#/components/responses/PreconditionRequired"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Make folder not open",
-        "tags" : [ "Command", "OpenView" ]
-      }
-    },
-    "/command/make-folder-open" : {
-      "post" : {
-        "description" : "Expose a folder through OpenView. Use the ETag returned by GET /folders/{id}.",
-        "operationId" : "makeFolderOpen",
-        "parameters" : [ {
-          "$ref" : "#/components/parameters/IfMatch"
-        } ],
-        "requestBody" : {
-          "content" : {
-            "*/*" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/IdRequest"
-              }
-            }
-          },
-          "description" : "Id of the folder to make open",
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Folder"
-                }
-              }
-            },
-            "description" : "The folder, with its new OpenView state",
-            "headers" : {
-              "ETag" : {
-                "$ref" : "#/components/headers/ETag",
-                "style" : "simple"
-              }
-            }
-          },
-          "400" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Bad request"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Not found"
-          },
-          "412" : {
-            "$ref" : "#/components/responses/PreconditionFailed"
-          },
-          "428" : {
-            "$ref" : "#/components/responses/PreconditionRequired"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Make folder open",
-        "tags" : [ "Command", "OpenView" ]
-      }
-    },
     "/command/move-resource-to-folder" : {
       "post" : {
         "description" : "Move a folder or artifact to a given folder. Send the ETag returned by the source resource's details endpoint (or GET /folders/{id}) in If-Match. A successful move advances the source resource ETag and the revisions of both affected parent folders.",
@@ -3875,6 +3479,116 @@
         } ],
         "summary" : "Get a folder",
         "tags" : [ "Folders" ]
+      },
+      "patch" : {
+        "description" : "Expose the folder through OpenView, or withdraw it, with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /folders/{id}.",
+        "operationId" : "patchFolder",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        }, {
+          "description" : "Folder identifier.",
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            },
+            "application/merge-patch+json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            }
+          },
+          "description" : "The new OpenView state",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Folder"
+                }
+              }
+            },
+            "description" : "The folder, with its new OpenView state",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The body is not {\"isOpen\": true} or {\"isOpen\": false}"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Change whether a folder is open",
+        "tags" : [ "Folders", "OpenView" ]
       },
       "put" : {
         "description" : "Update a folder, or create one under the supplied identifier. An existing folder is updated only with the ETag returned by GET in If-Match. Without If-Match the request can only create, so on an existing folder it answers 428 whatever its body, and a create repeated after its answer was lost cannot make a second folder.",
@@ -6323,6 +6037,116 @@
         "summary" : "Get a template element",
         "tags" : [ "Template Elements" ]
       },
+      "patch" : {
+        "description" : "Expose the template element through OpenView, or withdraw it, with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /template-elements/{id}/details.",
+        "operationId" : "patchTemplateElement",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        }, {
+          "description" : "Template element identifier.",
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            },
+            "application/merge-patch+json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            }
+          },
+          "description" : "The new OpenView state",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactRecord"
+                }
+              }
+            },
+            "description" : "The template element, with its new OpenView state",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The body is not {\"isOpen\": true} or {\"isOpen\": false}"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Change whether a template element is open",
+        "tags" : [ "Template Elements", "OpenView" ]
+      },
       "put" : {
         "description" : "Update a template element. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "updateTemplateElement",
@@ -7565,6 +7389,116 @@
         } ],
         "summary" : "Get a template field",
         "tags" : [ "Template Fields" ]
+      },
+      "patch" : {
+        "description" : "Expose the template field through OpenView, or withdraw it, with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /template-fields/{id}/details.",
+        "operationId" : "patchTemplateField",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        }, {
+          "description" : "Template field identifier.",
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            },
+            "application/merge-patch+json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            }
+          },
+          "description" : "The new OpenView state",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactRecord"
+                }
+              }
+            },
+            "description" : "The template field, with its new OpenView state",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The body is not {\"isOpen\": true} or {\"isOpen\": false}"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Change whether a template field is open",
+        "tags" : [ "Template Fields", "OpenView" ]
       },
       "put" : {
         "description" : "Update a template field. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
@@ -8846,6 +8780,116 @@
         "summary" : "Get a template instance",
         "tags" : [ "Template Instances" ]
       },
+      "patch" : {
+        "description" : "Expose the template instance through OpenView, or withdraw it, with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /template-instances/{id}/details.",
+        "operationId" : "patchTemplateInstance",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        }, {
+          "description" : "Template instance identifier.",
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            },
+            "application/merge-patch+json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            }
+          },
+          "description" : "The new OpenView state",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactRecord"
+                }
+              }
+            },
+            "description" : "The template instance, with its new OpenView state",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The body is not {\"isOpen\": true} or {\"isOpen\": false}"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Change whether a template instance is open",
+        "tags" : [ "Template Instances", "OpenView" ]
+      },
       "put" : {
         "description" : "Update a template instance. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
         "operationId" : "updateTemplateInstance",
@@ -10006,6 +10050,116 @@
         } ],
         "summary" : "Get a template",
         "tags" : [ "Templates" ]
+      },
+      "patch" : {
+        "description" : "Expose the template through OpenView, or withdraw it, with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /templates/{id}/details.",
+        "operationId" : "patchTemplate",
+        "parameters" : [ {
+          "$ref" : "#/components/parameters/IfMatch"
+        }, {
+          "description" : "Template identifier.",
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            },
+            "application/merge-patch+json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatePatch"
+              }
+            }
+          },
+          "description" : "The new OpenView state",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactRecord"
+                }
+              }
+            },
+            "description" : "The template, with its new OpenView state",
+            "headers" : {
+              "ETag" : {
+                "$ref" : "#/components/headers/ETag",
+                "style" : "simple"
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The body is not {\"isOpen\": true} or {\"isOpen\": false}"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "412" : {
+            "$ref" : "#/components/responses/PreconditionFailed"
+          },
+          "428" : {
+            "$ref" : "#/components/responses/PreconditionRequired"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Change whether a template is open",
+        "tags" : [ "Templates", "OpenView" ]
       },
       "put" : {
         "description" : "Update a template. The body can be JSON or YAML, selected via the Content-Type header. A YAML body must be the full or minimal form: the compact form is a lossy read-time convenience and is rejected.",
@@ -12079,17 +12233,6 @@
           }
         }
       },
-      "IdRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "description" : "Id of the artifact.",
-        "properties" : {
-          "@id" : {
-            "type" : "string",
-            "description" : "Unique URL identifier representing an artifact."
-          }
-        }
-      },
       "InclusionSubgraphElement" : {
         "type" : "object",
         "properties" : {
@@ -12697,6 +12840,17 @@
           }
         },
         "required" : [ "@id", "resourceType", "schema:name" ]
+      },
+      "OpenStatePatch" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "Whether the folder or artifact is served to everyone through OpenView.",
+        "properties" : {
+          "isOpen" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "isOpen" ]
       },
       "Outcome" : {
         "type" : "object",

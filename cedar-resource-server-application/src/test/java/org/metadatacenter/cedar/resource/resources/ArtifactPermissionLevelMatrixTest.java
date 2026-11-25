@@ -259,17 +259,17 @@ public class ArtifactPermissionLevelMatrixTest {
       List<Fixture> closed = fixtures("openview-closed-" + role, role);
       List<Fixture> opened = fixtures("openview-opened-" + role, role);
       for (Fixture f : opened) {
-        changeOpenView(f, "/command/make-artifact-open", actors.get(OWNER));
+        changeOpenView(f, true, actors.get(OWNER));
       }
 
       PermissionMatrix matrix = new PermissionMatrix("http://localhost:" + SERVER.getLocalPort(), actors);
       for (Fixture f : closed) {
-        matrix.when("POST", "/command/make-artifact-open", idBody(f))
+        matrix.when("PATCH", f.path(), openBody(true))
             .header("If-Match", "*")
             .expect(ANONYMOUS, 401).expect(OTHER_USER, expected);
       }
       for (Fixture f : opened) {
-        matrix.when("POST", "/command/make-artifact-not-open", idBody(f))
+        matrix.when("PATCH", f.path(), openBody(false))
             .header("If-Match", "*")
             .expect(ANONYMOUS, 401).expect(OTHER_USER, expected);
       }
@@ -368,20 +368,21 @@ public class ArtifactPermissionLevelMatrixTest {
         .toString();
   }
 
-  private static String idBody(Fixture fixture) {
-    return JsonMapper.STRICT_MAPPER.createObjectNode().put("@id", fixture.node().getId()).toString();
+  private static String openBody(boolean open) {
+    return JsonMapper.STRICT_MAPPER.createObjectNode().put("isOpen", open).toString();
   }
 
-  private static void changeOpenView(Fixture fixture, String command, String authorization) throws Exception {
+  private static void changeOpenView(Fixture fixture, boolean open, String authorization) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + command))
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + fixture.path()))
         .header("Authorization", authorization)
         .header("Content-Type", "application/json")
         .header("If-Match", "*")
-        .POST(HttpRequest.BodyPublishers.ofString(idBody(fixture)))
+        .method("PATCH", HttpRequest.BodyPublishers.ofString(openBody(open)))
         .build();
     HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-    Assertions.assertEquals(200, response.statusCode(), command + " on the " + fixture.label() + ": " + response.body());
+    Assertions.assertEquals(200, response.statusCode(), "isOpen " + open + " on the " + fixture.label() + ": "
+        + response.body());
   }
 
   private static ResourcePermissionServiceSession user2Permissions() {

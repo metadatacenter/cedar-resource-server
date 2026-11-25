@@ -218,6 +218,34 @@ public class TemplatesResource extends AbstractResourceServerResource {
     return negotiateArtifactResponse(artifactResponse, CedarResourceType.TEMPLATE);
   }
 
+  @PATCH
+  @Timed
+  @Path("/{id}")
+  @Consumes({jakarta.ws.rs.core.MediaType.APPLICATION_JSON, org.metadatacenter.constant.HttpConstants.CONTENT_TYPE_APPLICATION_MERGE_PATCH_JSON})
+  @Produces(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
+  @Operation(summary = "Change whether a template is open", description = "Expose the template through OpenView, or "
+      + "withdraw it, with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /templates/{id}/details.",
+      tags = {"Templates", "OpenView"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
+  @RequestBody(description = "The new OpenView state", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/OpenStatePatch")))
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "The template, with its new OpenView state",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord")),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "The body is not {\"isOpen\": true} or {\"isOpen\": false}"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
+  })
+  public Response patchTemplate(
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
+    return patchArtifactOpenState(CedarResourceType.TEMPLATE, id);
+  }
+
   @DELETE
   @Timed
   @Path("/{id}")

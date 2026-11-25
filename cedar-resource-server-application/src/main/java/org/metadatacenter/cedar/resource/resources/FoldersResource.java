@@ -225,6 +225,34 @@ public class FoldersResource extends AbstractResourceServerResource {
     }
   }
 
+  @PATCH
+  @Timed
+  @Path("/{id}")
+  @Consumes({jakarta.ws.rs.core.MediaType.APPLICATION_JSON, org.metadatacenter.constant.HttpConstants.CONTENT_TYPE_APPLICATION_MERGE_PATCH_JSON})
+  @Produces(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
+  @Operation(summary = "Change whether a folder is open", description = "Expose the folder through OpenView, or "
+      + "withdraw it, with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /folders/{id}.",
+      tags = {"Folders", "OpenView"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
+  @RequestBody(description = "The new OpenView state", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/OpenStatePatch")))
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "The folder, with its new OpenView state",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/Folder")),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "The body is not {\"isOpen\": true} or {\"isOpen\": false}"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
+  })
+  public Response patchFolder(
+      @Parameter(description = "Folder identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
+    return patchFolderOpenState(id);
+  }
+
   @DELETE
   @Timed
   @Path("/{id}")

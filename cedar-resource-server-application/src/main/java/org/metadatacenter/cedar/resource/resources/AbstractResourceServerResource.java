@@ -1970,6 +1970,112 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     updateIndexResource(artifact, c);
   }
 
+  protected static final String IS_OPEN = "isOpen";
+
+  /**
+   * Applies {@code PATCH {"isOpen": …}} to the artifact at {@code id}, which must be of {@code resourceType}.
+   * The caller needs the manageOpenView capability and the artifact's ETag in If-Match.
+   */
+  protected Response patchArtifactOpenState(CedarResourceType resourceType, String id) throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn);
+    CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(linkedDataUtil.resolveResourceId(resourceType, id));
+    boolean open = requestedOpenState(c);
+    userMustHaveCapabilityOnArtifact(c, artifactId, ResourceCapability.MANAGE_OPENVIEW);
+
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+    FolderServerArtifact current = folderSession.findArtifactById(artifactId);
+    if (current == null || current.getType() != resourceType) {
+      return CedarResponse.notFound().id(artifactId).errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+          .message("No " + resourceType.getValue() + " has this identifier").build();
+    }
+    RevisionPrecondition precondition = openStatePrecondition(c);
+    if (precondition == null) {
+      return openStatePreconditionRequired(artifactId.getId());
+    }
+    try {
+      VersionedResource<FolderServerArtifact> updated = open
+          ? folderSession.setOpen(artifactId, precondition)
+          : folderSession.setNotOpen(artifactId, precondition);
+      if (updated == null) {
+        return CedarResponse.notFound().id(artifactId).errorKey(CedarErrorKey.ARTIFACT_NOT_FOUND)
+            .message("The artifact can not be found by id").build();
+      }
+      // The indexed document carries isOpen, and search listings derive the OpenView actions from it.
+      // The graph change recorded its own projection job, so this writes that job out. Recording a
+      // second one cost every toggle another turn at the lifecycle lock.
+      completeVersionProjections(c, List.of(artifactId.getId()));
+      return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updated.revision()))
+          .entity(updated.resource()).build();
+    } catch (RevisionConflictException e) {
+      return openStatePreconditionFailed(e);
+    }
+  }
+
+  /**
+   * Applies {@code PATCH {"isOpen": …}} to the folder at {@code id}. The caller needs the manageOpenView
+   * capability and the folder's ETag in If-Match.
+   */
+  protected Response patchFolderOpenState(String id) throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn);
+    CedarFolderId folderId = CedarFolderId.build(linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, id));
+    boolean open = requestedOpenState(c);
+    userMustHaveCapabilityOnFolder(c, folderId, ResourceCapability.MANAGE_OPENVIEW);
+
+    RevisionPrecondition precondition = openStatePrecondition(c);
+    if (precondition == null) {
+      return openStatePreconditionRequired(folderId.getId());
+    }
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+    try {
+      VersionedResource<FolderServerFolder> updated = open
+          ? folderSession.setOpen(folderId, precondition)
+          : folderSession.setNotOpen(folderId, precondition);
+      if (updated == null) {
+        return CedarResponse.notFound().id(folderId).errorKey(CedarErrorKey.FOLDER_NOT_FOUND)
+            .message("The folder can not be found by id").build();
+      }
+      updateIndexFolder(updated.resource(), c);
+      return Response.ok().header(HttpHeaders.ETAG, RevisionPreconditionParser.format(updated.revision()))
+          .entity(updated.resource()).build();
+    } catch (RevisionConflictException e) {
+      return openStatePreconditionFailed(e);
+    }
+  }
+
+  // The body is closed: isOpen is required, must be a JSON boolean, and nothing else may accompany it.
+  private boolean requestedOpenState(CedarRequestContext c) throws CedarException {
+    JsonNode body = c.request().getRequestBody().mustHaveOnly(IS_OPEN).asJson();
+    JsonNode isOpen = body == null || !body.isObject() ? null : body.get(IS_OPEN);
+    if (isOpen == null || !isOpen.isBoolean()) {
+      throw new CedarBadRequestException(new CedarErrorPack()
+          .errorKey(isOpen == null ? CedarErrorKey.MISSING_DATA : CedarErrorKey.INVALID_DATA)
+          .message("The body must be {\"isOpen\": true} or {\"isOpen\": false}")
+          .parameter(IS_OPEN, isOpen == null ? null : isOpen.toString()));
+    }
+    return isOpen.booleanValue();
+  }
+
+  private RevisionPrecondition openStatePrecondition(CedarRequestContext c) {
+    String ifMatch = c.getIfMatchHeader();
+    return RevisionPreconditionParser.isAbsent(ifMatch) ? null : RevisionPreconditionParser.parse(ifMatch);
+  }
+
+  private Response openStatePreconditionRequired(String id) {
+    return CedarResponse.preconditionRequired()
+        .id(id)
+        .message("Changing OpenView visibility requires the resource's ETag in If-Match")
+        .build();
+  }
+
+  private Response openStatePreconditionFailed(RevisionConflictException e) {
+    return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+        .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+        .message("The resource's OpenView state has changed since it was read")
+        .build();
+  }
+
   protected void updateIndexFolder(FolderServerFolder folderServerFolder, CedarRequestContext c) throws CedarProcessingException {
     nodeIndexingService.removeDocumentFromIndex(folderServerFolder.getResourceId());
     nodeIndexingService.indexDocument(folderServerFolder, c);

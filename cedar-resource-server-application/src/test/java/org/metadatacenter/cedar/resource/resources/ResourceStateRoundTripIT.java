@@ -340,9 +340,8 @@ public class ResourceStateRoundTripIT {
 
     for (boolean open : new boolean[]{true, false}) {
       String etag = etag(send("GET", "/folders/" + enc(parent), null, user1Auth, null));
-      HttpResponse<String> changed = send("POST",
-          open ? "/command/make-folder-open" : "/command/make-folder-not-open",
-          json(Map.of("@id", parent)), user1Auth, etag);
+      HttpResponse<String> changed = send("PATCH", "/folders/" + enc(parent),
+          json(Map.of("isOpen", open)), user1Auth, etag);
       Assertions.assertEquals(200, changed.statusCode(), changed.body());
       assertImplicitlyOpen(template, parent, open);
       // The child's own flag is unchanged. The child itself would still have to be made open.
