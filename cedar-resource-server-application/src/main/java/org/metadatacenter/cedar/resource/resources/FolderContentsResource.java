@@ -62,12 +62,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}/contents")
-  @Operation(parameters = {
-      @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-          description = "Inclusive last-modified lower bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000")),
-      @Parameter(name = "modified_before", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-          description = "Exclusive last-modified upper bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000"))
-  }, summary = "Get the contents of a folder", description = "Get the contents of a folder.", tags = {"Folders", "Folder Contents", "Versioning"})
+  @Operation(summary = "Get the contents of a folder", description = "Get the contents of a folder.", tags = {"Folders", "Folder Contents", "Versioning"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "A page of resources in the folder",
           content = @Content(schema = @Schema(ref = "#/components/schemas/ResourceListResponse"))),
@@ -97,7 +92,11 @@ public class FolderContentsResource extends AbstractResourceServerResource {
       @Parameter(description = "How many resources to return, from 1 to 500. Defaults to 100.")
       @QueryParam(QP_LIMIT) Optional<Integer> limitParam,
       @Parameter(description = "How many resources to skip. Defaults to 0.")
-      @QueryParam(QP_OFFSET) Optional<Integer> offsetParam) throws CedarException {
+      @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
+      @Parameter(description = ModifiedDateQuery.AFTER_DESCRIPTION, schema = @Schema(type = "string", format = "date-time"))
+      @QueryParam(QP_MODIFIED_AFTER) List<String> modifiedAfterParam,
+      @Parameter(description = ModifiedDateQuery.BEFORE_DESCRIPTION, schema = @Schema(type = "string", format = "date-time"))
+      @QueryParam(QP_MODIFIED_BEFORE) List<String> modifiedBeforeParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
@@ -120,7 +119,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);
-    pagedSortedTypedQuery.setModified(ModifiedDateQuery.parse(uriInfo.getQueryParameters()));
+    pagedSortedTypedQuery.setModified(ModifiedDateQuery.parse(modifiedAfterParam, modifiedBeforeParam));
     pagedSortedTypedQuery.queryParameters(uriInfo.getQueryParameters());
     pagedSortedTypedQuery.validate();
 
@@ -147,8 +146,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     }
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-    if (pagedSortedTypedQuery.getModified().after() != null) builder.queryParam(ModifiedDateQuery.AFTER, pagedSortedTypedQuery.getModified().after());
-    if (pagedSortedTypedQuery.getModified().before() != null) builder.queryParam(ModifiedDateQuery.BEFORE, pagedSortedTypedQuery.getModified().before());
+    if (pagedSortedTypedQuery.getModified().after() != null) builder.queryParam(QP_MODIFIED_AFTER, ModifiedDateQuery.format(pagedSortedTypedQuery.getModified().after()));
+    if (pagedSortedTypedQuery.getModified().before() != null) builder.queryParam(QP_MODIFIED_BEFORE, ModifiedDateQuery.format(pagedSortedTypedQuery.getModified().before()));
     URI absoluteURI = builder
         .queryParam(QP_RESOURCE_TYPES, pagedSortedTypedQuery.getResourceTypesAsString())
         .queryParam(QP_VERSION, pagedSortedTypedQuery.getVersionAsString())
@@ -172,12 +171,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}/contents-extract")
-  @Operation(parameters = {
-      @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-          description = "Inclusive last-modified lower bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000")),
-      @Parameter(name = "modified_before", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-          description = "Exclusive last-modified upper bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000"))
-  }, summary = "Get the content extracts of a folder", description = "Get the content extracts of a folder. Only "
+  @Operation(summary = "Get the content extracts of a folder", description = "Get the content extracts of a folder. Only "
       + "the enumerated fields will be returned. Multilevel field paths are not supported. It is intended to return "
       + "smaller payload if a lot of artifacts are expected to be returned.", tags = {"Folders", "Folder Contents", "Versioning"})
   @ApiResponses({
@@ -212,7 +206,11 @@ public class FolderContentsResource extends AbstractResourceServerResource {
       @Parameter(description = "How many resources to skip. Defaults to 0.")
       @QueryParam(QP_OFFSET) Optional<Integer> offsetParam,
       @Parameter(description = "Field name list, separated by comma.")
-      @QueryParam(QP_FIELD_NAMES) Optional<String> fieldNamesParam) throws CedarException {
+      @QueryParam(QP_FIELD_NAMES) Optional<String> fieldNamesParam,
+      @Parameter(description = ModifiedDateQuery.AFTER_DESCRIPTION, schema = @Schema(type = "string", format = "date-time"))
+      @QueryParam(QP_MODIFIED_AFTER) List<String> modifiedAfterParam,
+      @Parameter(description = ModifiedDateQuery.BEFORE_DESCRIPTION, schema = @Schema(type = "string", format = "date-time"))
+      @QueryParam(QP_MODIFIED_BEFORE) List<String> modifiedBeforeParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
@@ -235,7 +233,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);
-    pagedSortedTypedQuery.setModified(ModifiedDateQuery.parse(uriInfo.getQueryParameters()));
+    pagedSortedTypedQuery.setModified(ModifiedDateQuery.parse(modifiedAfterParam, modifiedBeforeParam));
     pagedSortedTypedQuery.queryParameters(uriInfo.getQueryParameters());
     pagedSortedTypedQuery.validate();
 
@@ -262,8 +260,8 @@ public class FolderContentsResource extends AbstractResourceServerResource {
     }
 
     UriBuilder builder = uriInfo.getAbsolutePathBuilder();
-    if (pagedSortedTypedQuery.getModified().after() != null) builder.queryParam(ModifiedDateQuery.AFTER, pagedSortedTypedQuery.getModified().after());
-    if (pagedSortedTypedQuery.getModified().before() != null) builder.queryParam(ModifiedDateQuery.BEFORE, pagedSortedTypedQuery.getModified().before());
+    if (pagedSortedTypedQuery.getModified().after() != null) builder.queryParam(QP_MODIFIED_AFTER, ModifiedDateQuery.format(pagedSortedTypedQuery.getModified().after()));
+    if (pagedSortedTypedQuery.getModified().before() != null) builder.queryParam(QP_MODIFIED_BEFORE, ModifiedDateQuery.format(pagedSortedTypedQuery.getModified().before()));
     URI absoluteURI = builder
         .queryParam(QP_RESOURCE_TYPES, pagedSortedTypedQuery.getResourceTypesAsString())
         .queryParam(QP_VERSION, pagedSortedTypedQuery.getVersionAsString())

@@ -63,6 +63,8 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
                          @QueryParam(QP_MODE) Optional<String> modeParam,
                          @QueryParam(QP_CATEGORY_ID) Optional<String> categoryIdParam,
                          @QueryParam(QP_CONTINUATION) Optional<String> continuationParam,
+                         @QueryParam(QP_MODIFIED_AFTER) List<String> modifiedAfterParam,
+                         @QueryParam(QP_MODIFIED_BEFORE) List<String> modifiedBeforeParam,
                          boolean searchDeep) throws CedarException {
 
     CedarRequestContext c = buildRequestContext();
@@ -107,12 +109,12 @@ public abstract class AbstractSearchResource extends AbstractResourceServerResou
         .sort(sortParam)
         .limit(limitParam)
         .offset(offsetParam);
-    pagedSearchQuery.setModified(ModifiedDateQuery.parse(uriInfo.getQueryParameters()));
+    pagedSearchQuery.setModified(ModifiedDateQuery.parse(modifiedAfterParam, modifiedBeforeParam));
     pagedSearchQuery.queryParameters(uriInfo.getQueryParameters());
     pagedSearchQuery.validate();
     ModifiedDateRange modified = pagedSearchQuery.getModified();
-    builder.queryParam(ModifiedDateQuery.AFTER, Optional.ofNullable(modified.after()).map(String::valueOf));
-    builder.queryParam(ModifiedDateQuery.BEFORE, Optional.ofNullable(modified.before()).map(String::valueOf));
+    builder.queryParam(QP_MODIFIED_AFTER, Optional.ofNullable(modified.after()).map(ModifiedDateQuery::format));
+    builder.queryParam(QP_MODIFIED_BEFORE, Optional.ofNullable(modified.before()).map(ModifiedDateQuery::format));
 
     if (continuationParam.isPresent()) {
       if (!searchDeep) {

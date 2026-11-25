@@ -13,12 +13,15 @@ import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
 
+import org.metadatacenter.util.http.ModifiedDateQuery;
+
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.util.List;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.*;
@@ -36,12 +39,7 @@ public class SearchDeepResource extends AbstractSearchResource {
   @GET
   @Timed
   @Path("/search-deep")
-  @Operation(parameters = {
-      @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-          description = "Inclusive last-modified lower bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000")),
-      @Parameter(name = "modified_before", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-          description = "Exclusive last-modified upper bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000"))
-  }, summary = "Search resources", description = "Search resources using different criteria. This call can go further than 10.000 resources, "
+  @Operation(summary = "Search resources", description = "Search resources using different criteria. This call can go further than 10.000 resources, "
           + "by offset or, for a whole result set, by following the continuation each answer carries. It is "
           + "not intended for everyday use. All of the parameters are optional, but you need to provide at least "
           + "one search criteria. The parameters can be combined, but not all of the combinations will work. You "
@@ -97,9 +95,14 @@ public class SearchDeepResource extends AbstractSearchResource {
           + "end of the results. A page costs the same wherever it falls, so this is the way to read a "
           + "whole result set. The query, filters, sort and user must stay as they were, and the walk "
           + "reads one snapshot of the index, so rows created or deleted while it runs do not move it.")
-      @QueryParam(QP_CONTINUATION) Optional<String> continuationParam) throws CedarException {
+      @QueryParam(QP_CONTINUATION) Optional<String> continuationParam,
+      @Parameter(description = ModifiedDateQuery.AFTER_DESCRIPTION, schema = @Schema(type = "string", format = "date-time"))
+      @QueryParam(QP_MODIFIED_AFTER) List<String> modifiedAfterParam,
+      @Parameter(description = ModifiedDateQuery.BEFORE_DESCRIPTION, schema = @Schema(type = "string", format = "date-time"))
+      @QueryParam(QP_MODIFIED_BEFORE) List<String> modifiedBeforeParam) throws CedarException {
 
     return super.search(q, id, resourceTypes, versionParam, publicationStatusParam, isBasedOnParam, sortParam,
-        limitParam, offsetParam, sharing, mode, categoryIdParam, continuationParam, true);
+        limitParam, offsetParam, sharing, mode, categoryIdParam, continuationParam, modifiedAfterParam,
+        modifiedBeforeParam, true);
   }
 }

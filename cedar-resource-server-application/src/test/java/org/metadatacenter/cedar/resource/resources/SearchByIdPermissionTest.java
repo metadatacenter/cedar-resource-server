@@ -228,20 +228,30 @@ public class SearchByIdPermissionTest {
     String home = folderSession.findHomeFolderOf().getId();
     String contents = "/folders/" + URLEncoder.encode(home, StandardCharsets.UTF_8) + "/contents";
     long tomorrow = System.currentTimeMillis() + 86_400_000;
-    JsonNode later = get(contents + "?resource_types=template,folder&modified_after=" + tomorrow, authHeaderUser1);
+    JsonNode later = get(contents + "?resource_types=template,folder&modified_after=" + iso(tomorrow), authHeaderUser1);
     Assertions.assertEquals(0, later.path("totalCount").asLong(), later.toString());
     Assertions.assertEquals(0, later.path("resources").size(), later.toString());
     JsonNode matching = get(contents + "?resource_types=template,folder&limit=1&modified_after="
-        + (tomorrow - 2 * 86_400_000) + "&modified_before=" + tomorrow, authHeaderUser1);
+        + iso(tomorrow - 2 * 86_400_000) + "&modified_before=" + iso(tomorrow), authHeaderUser1);
     Assertions.assertTrue(matching.path("totalCount").asLong() >= 3, matching.toString());
     Assertions.assertEquals(1, matching.path("resources").size(), matching.toString());
+    // The link to the next page carries the bounds as instants, which the server reads back.
+    Assertions.assertTrue(matching.toString().contains("modified_before=" + iso(tomorrow).substring(0, 10)),
+        matching.toString());
+    Assertions.assertFalse(matching.toString().contains("modified_before=" + tomorrow), matching.toString());
+    JsonNode offset = get(contents + "?resource_types=template,folder&limit=1&modified_after="
+        + "2000-01-01T01:00:00%2B01:00", authHeaderUser1);
+    Assertions.assertTrue(offset.path("totalCount").asLong() >= 3, offset.toString());
 
     // Each refusal identifies the parameter at fault.
     Map<String, java.util.Set<String>> refusals = Map.of(
-        "?modified_after=" + tomorrow + "&modified_before=" + (tomorrow - 1), java.util.Set.of("modified_after", "modified_before"),
-        "?modified_after=" + (tomorrow / 1000), java.util.Set.of("modified_after"),
+        "?modified_after=" + iso(tomorrow) + "&modified_before=" + iso(tomorrow - 1),
+        java.util.Set.of("modified_after", "modified_before"),
+        "?modified_after=" + tomorrow, java.util.Set.of("modified_after"),
+        "?modified_before=" + (tomorrow / 1000), java.util.Set.of("modified_before"),
         "?modified_before=yesterday", java.util.Set.of("modified_before"),
-        "?modified_after=" + tomorrow + "&modified_after=" + tomorrow, java.util.Set.of("modified_after"));
+        "?modified_before=2026-11-25", java.util.Set.of("modified_before"),
+        "?modified_after=" + iso(tomorrow) + "&modified_after=" + iso(tomorrow), java.util.Set.of("modified_after"));
     for (var refusal : refusals.entrySet()) {
       HttpResponse<String> response = send(contents + refusal.getKey(), authHeaderUser1);
       Assertions.assertEquals(400, response.statusCode(), response.body());
@@ -276,18 +286,23 @@ public class SearchByIdPermissionTest {
       Assertions.assertNotNull(row, listing.name() + " should hold its fixture when no window is given");
       long modified = OffsetDateTime.parse(row.path("pav:lastUpdatedOn").asText()).toInstant().toEpochMilli();
 
-      assertWindow(listing, "&modified_after=" + modified + "&modified_before=" + (modified + 1), true);
-      assertWindow(listing, "&modified_after=" + modified, true);
-      assertWindow(listing, "&modified_after=" + (modified + 1), false);
-      assertWindow(listing, "&modified_before=" + modified, false);
+      assertWindow(listing, "&modified_after=" + iso(modified) + "&modified_before=" + iso(modified + 1), true);
+      assertWindow(listing, "&modified_after=" + iso(modified), true);
+      assertWindow(listing, "&modified_after=" + iso(modified + 1), false);
+      assertWindow(listing, "&modified_before=" + iso(modified), false);
 
-      JsonNode later = get(listing.path() + "&modified_after=" + tomorrow, listing.authHeader());
+      JsonNode later = get(listing.path() + "&modified_after=" + iso(tomorrow), listing.authHeader());
       Assertions.assertEquals(0, later.path("totalCount").asLong(), listing.name() + ": " + later);
       Assertions.assertEquals(0, later.path("resources").size(), listing.name() + ": " + later);
     }
   }
 
   private record Listing(String name, String path, String id, String authHeader) {}
+
+  /** A bound in the form the routes take: an ISO-8601 instant in UTC. */
+  private static String iso(long milliseconds) {
+    return java.time.Instant.ofEpochMilli(milliseconds).toString();
+  }
 
   /** Asserts that the listing holds its fixture under the given bounds, or omits it, and counts it. */
   private static void assertWindow(Listing listing, String bounds, boolean holds) throws Exception {
