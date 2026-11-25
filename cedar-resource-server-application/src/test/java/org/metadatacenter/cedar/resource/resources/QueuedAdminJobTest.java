@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -142,8 +143,8 @@ public class QueuedAdminJobTest {
     JsonNode queued = JsonMapper.STRICT_MAPPER.readTree(response.body());
     String jobId = queued.get("jobId").asText();
     assertNotNull(jobId);
-    assertTrue(location(response).endsWith("/command/load-valuesets-ontology-status/" + jobId),
-        location(response));
+    assertTrue(location(response).endsWith("/jobs/" + jobId), location(response));
+    assertEquals("value-sets-import", queued.get("kind").asText());
   }
 
   /**
@@ -157,12 +158,15 @@ public class QueuedAdminJobTest {
         "the import was refused rather than queued, so it names no job: " + queued.body());
     String jobId = JsonMapper.STRICT_MAPPER.readTree(queued.body()).get("jobId").asText();
 
-    HttpResponse<String> polled = get("/command/load-valuesets-ontology-status/" + jobId, userAuthHeader);
+    HttpResponse<String> polled = get("/jobs/" + jobId, userAuthHeader);
 
     assertEquals(200, polled.statusCode());
     JsonNode job = JsonMapper.STRICT_MAPPER.readTree(polled.body());
     assertEquals(jobId, job.get("jobId").asText());
-    assertNotNull(job.get("importStatus").asText());
+    assertEquals("load-valuesets-ontology", job.get("command").asText());
+    assertNotNull(job.get("state").asText());
+    assertNotNull(job.get("importStatus").asText(), "the caDSR ingestor reads importStatus");
+    assertFalse(job.has("progress"), "progress belongs to a search index rebuild");
   }
 
   /**
@@ -178,30 +182,85 @@ public class QueuedAdminJobTest {
     assertEquals(409, response.statusCode());
     JsonNode refusal = JsonMapper.STRICT_MAPPER.readTree(response.body());
     assertEquals(running.id(), refusal.get("parameters").get("jobId").asText());
-    assertTrue(location(response).endsWith("/command/index-job-status/" + running.id()), location(response));
+    assertTrue(location(response).endsWith("/jobs/" + running.id()), location(response));
   }
 
   @Test
   public void aRunningRebuildIsPolledByItsOwnIdentifier() throws Exception {
     JobClaim running = claimIndex(IndexJobGuard.Index.SEARCH, "regenerate-search-index");
 
-    HttpResponse<String> polled = get("/command/index-job-status/" + running.id(), userAuthHeader);
+    HttpResponse<String> polled = get("/jobs/" + running.id(), userAuthHeader);
 
     assertEquals(200, polled.statusCode());
     JsonNode job = JsonMapper.STRICT_MAPPER.readTree(polled.body());
     assertEquals(running.id(), job.get("jobId").asText());
+    assertEquals("search-index", job.get("kind").asText());
     assertEquals("RUNNING", job.get("state").asText());
     assertEquals("regenerate-search-index", job.get("command").asText());
+    assertTrue(job.has("progress"));
+    assertFalse(job.has("importStatus"), "importStatus belongs to a value sets import");
   }
 
-  /** The collection status and the job's own route must name the same job, or neither can be trusted. */
+  /** A caller that lost the Location finds the running job as the first of its kind. */
   @Test
-  public void theStatusOfAnIndexNamesTheJobItReports() throws Exception {
+  public void theListingOfAKindStartsWithTheJobRunningNow() throws Exception {
     JobClaim running = claimIndex(IndexJobGuard.Index.SEARCH, "generate-empty-search-index");
 
-    JsonNode statuses = JsonMapper.STRICT_MAPPER.readTree(get("/command/index-job-status", userAuthHeader).body());
+    HttpResponse<String> listed = get("/jobs?kind=search-index&limit=1", userAuthHeader);
 
-    assertEquals(running.id(), statuses.get("SEARCH").get("jobId").asText());
+    assertEquals(200, listed.statusCode(), listed.body());
+    JsonNode page = JsonMapper.STRICT_MAPPER.readTree(listed.body());
+    assertEquals(1, page.get("jobs").size());
+    assertEquals(running.id(), page.get("jobs").get(0).get("jobId").asText());
+    assertEquals(1, page.get("request").get("limit").asInt());
+  }
+
+  @Test
+  public void theListingRefusesAKindThisServerDoesNotRun() throws Exception {
+    assertEquals(400, get("/jobs?kind=inclusion-subgraph", userAuthHeader).statusCode());
+    assertEquals(400, get("/jobs?page=2", userAuthHeader).statusCode());
+  }
+
+  /** A job within its deadline keeps its claim, and the refusal says when it would be believed stopped. */
+  @Test
+  public void aRunningJobWithinItsDeadlineIsNotReset() throws Exception {
+    JobClaim running = claimIndex(IndexJobGuard.Index.SEARCH, "regenerate-search-index");
+
+    HttpResponse<String> response = post("/jobs/" + running.id() + "/reset", adminAuthHeader);
+
+    assertEquals(409, response.statusCode(), response.body());
+    assertEquals("RUNNING", JsonMapper.STRICT_MAPPER.readTree(response.body()).get("parameters").get("state").asText());
+    assertEquals(IndexJobGuard.State.RUNNING, IndexJobGuard.status(IndexJobGuard.Index.SEARCH).state());
+  }
+
+  /** A finished job holds no claim, so there is nothing of its to take back. */
+  @Test
+  public void aFinishedJobIsNotReset() throws Exception {
+    JobClaim finished = claimIndex(IndexJobGuard.Index.SEARCH, "regenerate-search-index");
+    IndexJobGuard.finish(IndexJobGuard.Index.SEARCH, finished, null);
+    taken.clear();
+
+    HttpResponse<String> response = post("/jobs/" + finished.id() + "/reset", adminAuthHeader);
+
+    assertEquals(409, response.statusCode(), response.body());
+    assertEquals("COMPLETE", JsonMapper.STRICT_MAPPER.readTree(response.body()).get("parameters").get("state").asText());
+  }
+
+  @Test
+  public void resettingAJobNothingAnswersToIsNotFound() throws Exception {
+    assertEquals(404, post("/jobs/" + UUID.randomUUID() + "/reset", adminAuthHeader).statusCode());
+  }
+
+  /** The routes the jobs collection replaced are gone rather than kept as aliases. */
+  @Test
+  public void theRemovedJobRoutesAreGone() throws Exception {
+    String id = UUID.randomUUID().toString();
+    assertEquals(404, get("/command/index-job-status", userAuthHeader).statusCode());
+    assertEquals(404, get("/command/index-job-status/" + id, userAuthHeader).statusCode());
+    assertEquals(404, get("/command/load-valuesets-ontology-status", userAuthHeader).statusCode());
+    assertEquals(404, get("/command/load-valuesets-ontology-status/" + id, userAuthHeader).statusCode());
+    assertEquals(404, post("/command/reset-search-index-job", adminAuthHeader).statusCode());
+    assertEquals(404, post("/command/reset-valuesets-import", adminAuthHeader).statusCode());
   }
 
   /**
@@ -211,9 +270,7 @@ public class QueuedAdminJobTest {
    */
   @Test
   public void anIdentifierNoJobAnswersToIsNotFound() throws Exception {
-    assertEquals(404, get("/command/index-job-status/" + UUID.randomUUID(), userAuthHeader).statusCode());
-    assertEquals(404,
-        get("/command/load-valuesets-ontology-status/" + UUID.randomUUID(), userAuthHeader).statusCode());
+    assertEquals(404, get("/jobs/" + UUID.randomUUID(), userAuthHeader).statusCode());
   }
 
   private static String location(HttpResponse<String> response) {

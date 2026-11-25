@@ -106,8 +106,7 @@ public class AdminCommandAuthorizationMatrixTest {
         "/command/load-valuesets-ontology",
         "/command/regenerate-search-index",
         "/command/generate-empty-search-index",
-        "/command/reset-search-index-job",
-        "/command/reset-valuesets-import",
+        "/jobs/00000000-0000-0000-0000-000000000000/reset",
         "/command/auth-user-callback"}) {
       matrix.when("POST", path)
           .expect(ANONYMOUS, 401)
@@ -115,23 +114,19 @@ public class AdminCommandAuthorizationMatrixTest {
           .expect(OTHER_USER, 403);
     }
 
-    // The status poll is logged-in-only, not admin-gated: anonymous is still refused, but a regular user
+    // The job listing is logged-in-only, not admin-gated: anonymous is still refused, but a regular user
     // is allowed. This is the control that shows the 403s above are the admin gate, not a blanket block.
-    matrix.when("GET", "/command/load-valuesets-ontology-status")
+    matrix.when("GET", "/jobs")
         .expect(ANONYMOUS, 401)
         .expect(OWNER, 200)
         .expect(OTHER_USER, 200);
 
     // A job's own status is gated the same way as the collection it belongs to. The 404 is the gate
     // passing: no job answers to this identifier, which a caller can only be told once it is through.
-    for (String path : new String[] {
-        "/command/index-job-status/00000000-0000-0000-0000-000000000000",
-        "/command/load-valuesets-ontology-status/00000000-0000-0000-0000-000000000000"}) {
-      matrix.when("GET", path)
-          .expect(ANONYMOUS, 401)
-          .expect(OWNER, 404)
-          .expect(OTHER_USER, 404);
-    }
+    matrix.when("GET", "/jobs/00000000-0000-0000-0000-000000000000")
+        .expect(ANONYMOUS, 401)
+        .expect(OWNER, 404)
+        .expect(OTHER_USER, 404);
 
     matrix.verify();
   }

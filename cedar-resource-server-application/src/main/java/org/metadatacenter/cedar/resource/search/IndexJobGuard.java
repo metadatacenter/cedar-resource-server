@@ -10,9 +10,11 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
@@ -320,6 +322,21 @@ public final class IndexJobGuard {
   }
 
   /**
+   * The same, for the job named by the identifier its command returned. An identifier that is not the
+   * running holder of an index is left alone, because the claim it once held is no longer its to
+   * release.
+   */
+  public static synchronized boolean reset(String jobId, Instant now) {
+    for (Map.Entry<Index, Entry> held : ENTRIES.entrySet()) {
+      Entry entry = held.getValue();
+      if (entry.state() == State.RUNNING && entry.claim().id().equals(jobId)) {
+        return reset(held.getKey(), now);
+      }
+    }
+    return false;
+  }
+
+  /**
    * The live progress record for a claim, for the job that holds it to write into. Empty once the
    * claim is no longer known, which a caller that has just been handed one will not see.
    *
@@ -428,23 +445,26 @@ public final class IndexJobGuard {
 
   /**
    * What became of one job, named by the identifier its command returned, and empty once no job
-   * answers to it — an identifier from before the last restart, or one pushed out of the window.
+   * answers to it — an identifier pushed out of the window, or one from before the last restart
+   * other than the rebuild that restart interrupted.
    */
   public static Optional<Status> find(String jobId) {
     return find(jobId, Instant.now());
   }
 
   static synchronized Optional<Status> find(String jobId, Instant now) {
-    return Optional.ofNullable(BY_ID.get(jobId)).map(entry -> entry.render(now));
+    Entry entry = BY_ID.get(jobId);
+    if (entry != null) {
+      return Optional.of(entry.render(now));
+    }
+    return RECOVERED.values().stream().filter(status -> jobId.equals(status.jobId())).findFirst();
   }
 
-  public static Map<Index, Status> statuses() {
-    return statuses(Instant.now());
-  }
-
-  static synchronized Map<Index, Status> statuses(Instant now) {
-    Map<Index, Status> rendered = new EnumMap<>(Index.class);
-    ENTRIES.forEach((index, entry) -> rendered.put(index, entry.render(now)));
-    return rendered;
+  /** Every job still answerable by identifier, in no particular order. */
+  public static synchronized List<Status> jobs() {
+    Instant now = Instant.now();
+    List<Status> jobs = new ArrayList<>(RECOVERED.values());
+    BY_ID.values().forEach(entry -> jobs.add(entry.render(now)));
+    return jobs;
   }
 }

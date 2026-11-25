@@ -26,11 +26,10 @@ class OpenApiSuccessContractTest {
   void everySuccessPayloadIsDescribed() throws IOException {
     try (InputStream input = getClass().getResourceAsStream("/assets/swagger-api/swagger.json")) {
       OpenApiSuccessContract.assertDescribed(input,
-          // Administrative commands whose only input is the index or import they claim.
+          // Administrative commands whose only input is the index, import or job they claim.
           "POST /command/generate-empty-search-index",
           "POST /command/load-valuesets-ontology",
-          "POST /command/reset-search-index-job",
-          "POST /command/reset-valuesets-import",
+          "POST /jobs/{id}/reset",
           // Provisions the user's objects for the Keycloak listener, which reads no body back.
           "POST /command/auth-user-callback 201",
           // Reached only when the artifact server returns no entity, which leaves nothing to

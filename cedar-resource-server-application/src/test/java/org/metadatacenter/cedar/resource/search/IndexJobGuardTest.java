@@ -227,6 +227,19 @@ public class IndexJobGuardTest {
         "the point of the reset is that the next rebuild can run");
   }
 
+  /** A reset by identifier takes back only the claim that job holds now. */
+  @Test
+  public void aJobIsResetByItsOwnIdentifierAndOnlyWhileItHoldsTheIndex() {
+    JobClaim claim = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();
+
+    assertFalse(IndexJobGuard.reset(UUID.randomUUID().toString(), PAST_DEADLINE), "no job holds that identifier");
+    assertFalse(IndexJobGuard.reset(claim.id(), WITHIN_DEADLINE), "a job that is merely slow keeps its claim");
+    assertTrue(IndexJobGuard.reset(claim.id(), PAST_DEADLINE));
+    assertEquals(IndexJobGuard.State.ABANDONED, IndexJobGuard.find(claim.id()).orElseThrow().state());
+    assertFalse(IndexJobGuard.reset(claim.id(), PAST_DEADLINE), "an abandoned job holds nothing more");
+    assertTrue(IndexJobGuard.jobs().stream().anyMatch(job -> claim.id().equals(job.jobId())));
+  }
+
   @Test
   public void thereIsNothingToResetOnAnIndexNobodyIsRebuilding() {
     JobClaim claim = claim(IndexJobGuard.Index.SEARCH, "regenerate-search-index").orElseThrow();

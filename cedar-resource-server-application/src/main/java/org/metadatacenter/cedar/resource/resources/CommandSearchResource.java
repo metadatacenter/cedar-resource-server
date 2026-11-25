@@ -3,9 +3,7 @@ package org.metadatacenter.cedar.resource.resources;
 import java.util.Locale;
 
 import com.codahale.metrics.annotation.Timed;
-import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -17,6 +15,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.cedar.resource.search.IndexJobGuard;
 import org.metadatacenter.cedar.resource.search.JobClaim;
+import org.metadatacenter.cedar.resource.search.JobStatus;
+import org.metadatacenter.cedar.resource.search.Jobs;
 import org.metadatacenter.cedar.resource.search.ValueSetsImportStatusManager;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.exception.CedarException;
@@ -32,22 +32,17 @@ import org.metadatacenter.util.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.net.URI;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
-import static org.metadatacenter.constant.CedarPathParameters.PP_JOB_ID;
-import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
 @Path("/command")
 @Produces(MediaType.APPLICATION_JSON)
@@ -58,17 +53,9 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   private static final Logger log = LoggerFactory.getLogger(CommandSearchResource.class);
   private static UserService userService;
 
-  private static final String RESET_DESCRIPTION =
-      "Only one rebuild or import runs at a time, and a job that never returns would otherwise hold its claim "
-          + "until the server restarted, refusing every later command with a conflict naming a job that is not "
-          + "running. A claim is believed for six hours; past that the status reports it as overdue and this "
-          + "command takes it back, so the next command can run. It does not stop the abandoned job — nothing "
-          + "can — so run it only once the log shows that job has stopped making progress. A claim within its "
-          + "deadline is left alone, and answers with a conflict.";
-
   private static final String QUEUED_DESCRIPTION =
       " The work is asynchronous, so this answers as soon as the job is queued rather than once it has been "
-          + "done: 202, the job's identifier, and a Location header naming where to poll it. A 200 would say "
+          + "done: 202, the job, and a Location header naming it under /jobs. A 200 would say "
           + "the work had finished, which is the one thing this response cannot mean.";
 
   public CommandSearchResource(CedarConfig cedarConfig) {
@@ -87,7 +74,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           + "by caDSR CDEs." + QUEUED_DESCRIPTION)
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "The import was queued",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/ValueSetsImportJob")),
+          content = @Content(schema = @Schema(ref = "#/components/schemas/JobStatus")),
           headers = @Header(name = "Location", description = "Where to poll this import.",
               schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
@@ -114,83 +101,18 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       task.loadValueSetsOntology(cedarAdminRequestContext);
     });
 
-    return importQueued(claim.get());
-  }
-
-  @GET
-  @Timed
-  @Path("/load-valuesets-ontology-status")
-  @Operation(summary = "Get the status of the value sets ontology loading",
-      description = "Get the current status of the latest value sets ontology import, whichever import that is. "
-          + "To follow one import in particular, poll it by the identifier its command returned.")
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The latest import and its current state",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/ValueSetsImportJob"))),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response loadValueSetsOntologyStatus() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-
-    JsonNode output = JsonMapper.STRICT_MAPPER.valueToTree(ValueSetsImportStatusManager.getInstance());
-    return Response.ok().entity(output).build();
-  }
-
-  @GET
-  @Timed
-  @Path("/load-valuesets-ontology-status/{jobId}")
-  @Operation(summary = "Get the status of one value sets ontology import",
-      description = "Report what became of the import named by the identifier its command returned, rather than "
-          + "of whichever import ran last. Imports are held in memory, so an identifier from before the last "
-          + "restart, or one that twenty later imports have pushed out, is no longer known.")
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The import and its current state",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/ValueSetsImportJob"))),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "No import answers to this identifier"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response loadValueSetsOntologyStatusById(
-      @Parameter(description = "Import identifier, as returned when the import was queued.", required = true)
-      @PathParam(PP_JOB_ID) String jobId) throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-
-    return ValueSetsImportStatusManager.getInstance().find(jobId)
-        .map(job -> Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(job)).build())
-        .orElseGet(() -> noSuchJob("value sets ontology import", jobId));
-  }
-
-  /** Where a caller polls one index job, whether it started the job or was refused by it. */
-  private static URI indexJobUri(String jobId) {
-    return URI.create("/command/index-job-status/" + jobId);
-  }
-
-  /** The same for the value sets ontology import, which has a status of its own. */
-  private static URI importJobUri(String jobId) {
-    return URI.create("/command/load-valuesets-ontology-status/" + jobId);
+    return queued(claim.get());
   }
 
   /**
-   * A rebuild that has been queued rather than performed. The identifier is the claim's own, so the
-   * Location names the job this request started even if it has already finished by the time the
-   * response is built; the body is that job as the status route renders it.
+   * A rebuild or import that has been queued rather than performed. The identifier is the claim's
+   * own, so the Location names the job this request started even if it has already finished by the
+   * time the response is built. The body is that job as {@code GET /jobs/{id}} renders it.
    */
-  private static Response queued(IndexJobGuard.Index index, JobClaim claim) {
-    IndexJobGuard.Status job = IndexJobGuard.find(claim.id()).orElseGet(() -> IndexJobGuard.status(index));
-    return Response.accepted(JsonMapper.STRICT_MAPPER.valueToTree(job)).location(indexJobUri(claim.id())).build();
-  }
-
-  /** An import that has been queued rather than performed, reported the way a queued rebuild is. */
-  private static Response importQueued(JobClaim claim) {
-    ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
-    ValueSetsImportStatusManager.ImportJob job = imports.find(claim.id()).orElseGet(imports::snapshot);
-    return Response.accepted(JsonMapper.STRICT_MAPPER.valueToTree(job)).location(importJobUri(claim.id())).build();
+  private static Response queued(JobClaim claim) {
+    JobStatus job = Jobs.find(claim.id()).orElseThrow();
+    return Response.accepted(JsonMapper.STRICT_MAPPER.valueToTree(job)).location(JobsResource.jobUri(claim.id()))
+        .build();
   }
 
   /**
@@ -206,12 +128,12 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   private static Response alreadyRunning(IndexJobGuard.Index index) {
     IndexJobGuard.Status status = IndexJobGuard.status(index);
     return CedarResponse.conflict()
-        .header(HttpHeaders.LOCATION, indexJobUri(status.jobId()))
+        .header(HttpHeaders.LOCATION, JobsResource.jobUri(status.jobId()))
         .message("A " + status.command() + " job started at " + status.startedAt()
             + " is still running over the " + index.name().toLowerCase(Locale.ROOT) + " index"
             + (status.overdue()
                ? ", and it has reported no progress for long enough to be believed stopped."
-                 + " Reset it with POST /command/reset-search-index-job"
+                 + " Reset it with POST /jobs/" + status.jobId() + "/reset"
                : ""))
         .parameter("jobId", status.jobId())
         .parameter("index", index.name())
@@ -226,147 +148,17 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   private static Response importAlreadyRunning() {
     ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
     return CedarResponse.conflict()
-        .header(HttpHeaders.LOCATION, importJobUri(imports.getJobId()))
+        .header(HttpHeaders.LOCATION, JobsResource.jobUri(imports.getJobId()))
         .message("A value sets ontology import started at " + imports.getStartedAt() + " is still running"
             + (imports.isOverdue()
                ? ", and it passed its deadline at " + imports.getDeadlineAt()
-                 + ". Reset it with POST /command/reset-valuesets-import if it has stopped making progress"
+                 + ". Reset it with POST /jobs/" + imports.getJobId() + "/reset if it has stopped making progress"
                : ""))
         .parameter("jobId", imports.getJobId())
         .parameter("startedAt", imports.getStartedAt())
         .parameter("deadlineAt", imports.getDeadlineAt())
         .parameter("overdue", imports.isOverdue())
         .build();
-  }
-
-  @GET
-  @Timed
-  @Path("/index-job-status")
-  @Operation(summary = "Status of the index rebuild jobs", description = "What became of the most recent rebuild of "
-          + "each index, and whether one is running now. A rebuild is queued rather than performed, so this is "
-          + "where its outcome is reported. To follow one rebuild in particular, poll it by the identifier its "
-          + "command returned.", tags = {"Command", "Administration"})
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The state of each index",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatusByIndex"))),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response indexJobStatus() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-
-    return Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(IndexJobGuard.statuses())).build();
-  }
-
-  @GET
-  @Timed
-  @Path("/index-job-status/{jobId}")
-  @Operation(summary = "Status of one index rebuild job", description = "Report what became of the rebuild named "
-          + "by the identifier its command returned. Reading an index instead answers a different question: it "
-          + "says what the last job over that index did, which is the same job only until another command runs. "
-          + "Jobs are held in memory, so an identifier from before the last restart, or one that twenty later "
-          + "jobs have pushed out, is no longer known.", tags = {"Command", "Administration"})
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The job and its current state",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus"))),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "No job answers to this identifier"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response indexJobStatusById(
-      @Parameter(description = "Job identifier, as returned when the rebuild was queued.", required = true)
-      @PathParam(PP_JOB_ID) String jobId) throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-
-    return IndexJobGuard.find(jobId)
-        .map(status -> Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(status)).build())
-        .orElseGet(() -> noSuchJob("index rebuild", jobId));
-  }
-
-  /**
-   * Nothing answers to this identifier. Said as a 404 rather than as an empty status, because a
-   * caller polling a job it started needs to tell "not finished yet" from "no longer known": the
-   * first is worth waiting on and the second never resolves.
-   */
-  private static Response noSuchJob(String kind, String jobId) {
-    return CedarResponse.notFound()
-        .message("No " + kind + " answers to " + jobId
-            + ". Jobs are held in memory, so an identifier from before the last restart, or one that later "
-            + "jobs have pushed out, is no longer known")
-        .parameter("jobId", jobId)
-        .build();
-  }
-
-  @POST
-  @Timed
-  @Path("/reset-search-index-job")
-  @Operation(summary = "Take back a search index rebuild that passed its deadline.", description = RESET_DESCRIPTION,
-      tags = {"Command", "Administration"})
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The claim was reset, and the index is free",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus"))),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Nothing is running, or the running job is within its deadline"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response resetSearchIndexJob() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    AdminCommand.RESET_SEARCH_INDEX_JOB.enforce(c);
-
-    return resetIndexJob(IndexJobGuard.Index.SEARCH);
-  }
-
-  private Response resetIndexJob(IndexJobGuard.Index index) {
-    if (!IndexJobGuard.reset(index)) {
-      IndexJobGuard.Status status = IndexJobGuard.status(index);
-      return CedarResponse.conflict()
-          .message("Nothing to reset on the " + index.name().toLowerCase(Locale.ROOT) + " index: it is "
-              + status.state().name().toLowerCase(Locale.ROOT)
-              + (status.state() == IndexJobGuard.State.RUNNING
-                 ? " and still reporting progress; it would be believed stopped at "
-                   + status.deadlineAt() : ""))
-          .parameter("index", index.name())
-          .parameter("state", status.state().name())
-          .parameter("deadlineAt", status.deadlineAt())
-          .build();
-    }
-    return Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(IndexJobGuard.status(index))).build();
-  }
-
-  @POST
-  @Timed
-  @Path("/reset-valuesets-import")
-  @Operation(summary = "Take back a value sets ontology import that passed its deadline.",
-      description = RESET_DESCRIPTION, tags = {"Command", "Administration"})
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The claim was reset, and the import is free",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/ValueSetsImportJob"))),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Nothing is running, or the running import is within its deadline"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response resetValueSetsImport() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    AdminCommand.RESET_VALUESETS_IMPORT.enforce(c);
-
-    ValueSetsImportStatusManager imports = ValueSetsImportStatusManager.getInstance();
-    if (!imports.reset()) {
-      return CedarResponse.conflict()
-          .message("Nothing to reset: the value sets ontology import is "
-              + imports.getImportStatus().name().toLowerCase(Locale.ROOT)
-              + (imports.getImportStatus() == ValueSetsImportStatusManager.ImportStatus.IN_PROGRESS
-                 ? " and within its deadline, which expires at " + imports.getDeadlineAt() : ""))
-          .parameter("importStatus", imports.getImportStatus().name())
-          .parameter("deadlineAt", imports.getDeadlineAt())
-          .build();
-    }
-    return Response.ok().entity(JsonMapper.STRICT_MAPPER.valueToTree(imports)).build();
   }
 
   @POST
@@ -381,7 +173,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
   @RequestBody(description = "Force or not", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.ForceRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "The rebuild was queued",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus")),
+          content = @Content(schema = @Schema(ref = "#/components/schemas/JobStatus")),
           headers = @Header(name = "Location", description = "Where to poll this job's status.",
               schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
@@ -442,7 +234,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       regenerateIndexTask.regenerateSearchIndex(force, cedarAdminRequestContext, progress);
     });
 
-    return queued(IndexJobGuard.Index.SEARCH, claim.get());
+    return queued(claim.get());
   }
 
   @POST
@@ -453,7 +245,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
           + "results, since the index will be empty." + QUEUED_DESCRIPTION, tags = {"Command", "Administration"})
   @ApiResponses({
       @ApiResponse(responseCode = "202", description = "The rebuild was queued",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/IndexJobStatus")),
+          content = @Content(schema = @Schema(ref = "#/components/schemas/JobStatus")),
           headers = @Header(name = "Location", description = "Where to poll this job's status.",
               schema = @Schema(type = "string"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
@@ -480,7 +272,7 @@ public class CommandSearchResource extends AbstractResourceServerResource {
       task.generateEmptySearchIndex(cedarAdminRequestContext);
     });
 
-    return queued(IndexJobGuard.Index.SEARCH, claim.get());
+    return queued(claim.get());
   }
 
   /**

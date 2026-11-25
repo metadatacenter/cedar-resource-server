@@ -133,6 +133,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     final CommandSearchResource commandSearch = new CommandSearchResource(cedarConfig);
     environment.jersey().register(commandSearch);
+    environment.jersey().register(new JobsResource(cedarConfig));
 
     final CommandCategoriesResource commandCategories = new CommandCategoriesResource(cedarConfig);
     environment.jersey().register(commandCategories);

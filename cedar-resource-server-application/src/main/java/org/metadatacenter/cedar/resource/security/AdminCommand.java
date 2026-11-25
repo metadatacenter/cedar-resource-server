@@ -29,11 +29,10 @@ public enum AdminCommand {
   GENERATE_EMPTY_SEARCH_INDEX(CedarPermission.SEARCH_INDEX_REINDEX),
 
   /**
-   * Taking back a claim that passed its deadline frees the index for the next rebuild, so it asks for the
-   * same permission as the rebuild it unblocks rather than one of its own.
+   * Taking back a job's claim frees the index or the import for the next job, so it asks for the same
+   * permission as the commands it unblocks rather than one of its own.
    */
-  RESET_SEARCH_INDEX_JOB(CedarPermission.SEARCH_INDEX_REINDEX),
-  RESET_VALUESETS_IMPORT(CedarPermission.SEARCH_INDEX_REINDEX),
+  RESET_JOB(CedarPermission.SEARCH_INDEX_REINDEX),
 
   /**
    * The Keycloak event listener's user-provisioning callback. {@code USER_UPDATE} comes only from the

@@ -113,6 +113,20 @@ class ValueSetsImportStatusManagerTest {
     assertTrue(manager.tryStart().isPresent(), "the point of the reset is that the next import can run");
   }
 
+  /** A reset by identifier takes back only the claim that import holds now, and marks it abandoned. */
+  @Test
+  void anImportIsResetByItsOwnIdentifierOnly() {
+    JobClaim claim = manager.tryStart(CLAIMED_AT).orElseThrow();
+
+    assertFalse(manager.reset("another import", PAST_DEADLINE));
+    assertTrue(manager.reset(claim.id(), PAST_DEADLINE));
+
+    ValueSetsImportStatusManager.ImportJob found = manager.find(claim.id()).orElseThrow();
+    assertTrue(found.abandoned());
+    assertEquals("load-valuesets-ontology", found.command());
+    assertTrue(manager.jobs().contains(found));
+  }
+
   /**
    * One import keeps one identifier from the moment it is queued to whatever became of it, and keeps
    * answering under it once a later import has replaced the status above.

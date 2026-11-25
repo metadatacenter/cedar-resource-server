@@ -1530,14 +1530,14 @@
     },
     "/command/generate-empty-search-index" : {
       "post" : {
-        "description" : "Empty search index. This is an administrative command, you need special permission to run it. The old index will be deleted and replaced by a new empty one. The search will work, but will not return results, since the index will be empty. The work is asynchronous, so this answers as soon as the job is queued rather than once it has been done: 202, the job's identifier, and a Location header naming where to poll it. A 200 would say the work had finished, which is the one thing this response cannot mean.",
+        "description" : "Empty search index. This is an administrative command, you need special permission to run it. The old index will be deleted and replaced by a new empty one. The search will work, but will not return results, since the index will be empty. The work is asynchronous, so this answers as soon as the job is queued rather than once it has been done: 202, the job, and a Location header naming it under /jobs. A 200 would say the work had finished, which is the one thing this response cannot mean.",
         "operationId" : "generateEmptySearchIndex",
         "responses" : {
           "202" : {
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/IndexJobStatus"
+                  "$ref" : "#/components/schemas/JobStatus"
                 }
               }
             },
@@ -1837,141 +1837,16 @@
         "tags" : [ "Command" ]
       }
     },
-    "/command/index-job-status" : {
-      "get" : {
-        "description" : "What became of the most recent rebuild of each index, and whether one is running now. A rebuild is queued rather than performed, so this is where its outcome is reported. To follow one rebuild in particular, poll it by the identifier its command returned.",
-        "operationId" : "indexJobStatus",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/IndexJobStatusByIndex"
-                }
-              }
-            },
-            "description" : "The state of each index"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Status of the index rebuild jobs",
-        "tags" : [ "Command", "Administration" ]
-      }
-    },
-    "/command/index-job-status/{jobId}" : {
-      "get" : {
-        "description" : "Report what became of the rebuild named by the identifier its command returned. Reading an index instead answers a different question: it says what the last job over that index did, which is the same job only until another command runs. Jobs are held in memory, so an identifier from before the last restart, or one that twenty later jobs have pushed out, is no longer known.",
-        "operationId" : "indexJobStatusById",
-        "parameters" : [ {
-          "description" : "Job identifier, as returned when the rebuild was queued.",
-          "in" : "path",
-          "name" : "jobId",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/IndexJobStatus"
-                }
-              }
-            },
-            "description" : "The job and its current state"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "No job answers to this identifier"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Status of one index rebuild job",
-        "tags" : [ "Command", "Administration" ]
-      }
-    },
     "/command/load-valuesets-ontology" : {
       "post" : {
-        "description" : "Load the OWL value sets ontology generated by the NCI caDSR CDE injestor. Each time the ingestor runs (typically nightly) and new value sets ontology is created, which descibed the value sets used by caDSR CDEs. The work is asynchronous, so this answers as soon as the job is queued rather than once it has been done: 202, the job's identifier, and a Location header naming where to poll it. A 200 would say the work had finished, which is the one thing this response cannot mean.",
+        "description" : "Load the OWL value sets ontology generated by the NCI caDSR CDE injestor. Each time the ingestor runs (typically nightly) and new value sets ontology is created, which descibed the value sets used by caDSR CDEs. The work is asynchronous, so this answers as soon as the job is queued rather than once it has been done: 202, the job, and a Location header naming it under /jobs. A 200 would say the work had finished, which is the one thing this response cannot mean.",
         "operationId" : "loadValueSetsOntology",
         "responses" : {
           "202" : {
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ValueSetsImportJob"
+                  "$ref" : "#/components/schemas/JobStatus"
                 }
               }
             },
@@ -2060,151 +1935,6 @@
           "api_key" : [ ]
         } ],
         "summary" : "Load the OWL value sets ontology generated by the caDSR CDE injestor.",
-        "tags" : [ "Command" ]
-      }
-    },
-    "/command/load-valuesets-ontology-status" : {
-      "get" : {
-        "description" : "Get the current status of the latest value sets ontology import, whichever import that is. To follow one import in particular, poll it by the identifier its command returned.",
-        "operationId" : "loadValueSetsOntologyStatus",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ValueSetsImportJob"
-                }
-              }
-            },
-            "description" : "The latest import and its current state"
-          },
-          "400" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Bad request"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Not found"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Get the status of the value sets ontology loading",
-        "tags" : [ "Command" ]
-      }
-    },
-    "/command/load-valuesets-ontology-status/{jobId}" : {
-      "get" : {
-        "description" : "Report what became of the import named by the identifier its command returned, rather than of whichever import ran last. Imports are held in memory, so an identifier from before the last restart, or one that twenty later imports have pushed out, is no longer known.",
-        "operationId" : "loadValueSetsOntologyStatusById",
-        "parameters" : [ {
-          "description" : "Import identifier, as returned when the import was queued.",
-          "in" : "path",
-          "name" : "jobId",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ValueSetsImportJob"
-                }
-              }
-            },
-            "description" : "The import and its current state"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "No import answers to this identifier"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Get the status of one value sets ontology import",
         "tags" : [ "Command" ]
       }
     },
@@ -2518,7 +2248,7 @@
     },
     "/command/regenerate-search-index" : {
       "post" : {
-        "description" : "Regenerate search index. This is an administrative command, you need special permission to run it. If there is no need for reindexing, the task will not run. It can be forced using the force parameter. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time. The work is asynchronous, so this answers as soon as the job is queued rather than once it has been done: 202, the job's identifier, and a Location header naming where to poll it. A 200 would say the work had finished, which is the one thing this response cannot mean.",
+        "description" : "Regenerate search index. This is an administrative command, you need special permission to run it. If there is no need for reindexing, the task will not run. It can be forced using the force parameter. While the reindexing runs, the old index is still used for searching. Once the new index is ready, the old one will be removed, and the new one will be used for searching. The reindexing computes permissions, it can run for a long time. The work is asynchronous, so this answers as soon as the job is queued rather than once it has been done: 202, the job, and a Location header naming it under /jobs. A 200 would say the work had finished, which is the one thing this response cannot mean.",
         "operationId" : "regenerateSearchIndex",
         "requestBody" : {
           "content" : {
@@ -2536,7 +2266,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/IndexJobStatus"
+                  "$ref" : "#/components/schemas/JobStatus"
                 }
               }
             },
@@ -2729,132 +2459,6 @@
         } ],
         "summary" : "Rename resource",
         "tags" : [ "Command", "File Operations" ]
-      }
-    },
-    "/command/reset-search-index-job" : {
-      "post" : {
-        "description" : "Only one rebuild or import runs at a time, and a job that never returns would otherwise hold its claim until the server restarted, refusing every later command with a conflict naming a job that is not running. A claim is believed for six hours; past that the status reports it as overdue and this command takes it back, so the next command can run. It does not stop the abandoned job — nothing can — so run it only once the log shows that job has stopped making progress. A claim within its deadline is left alone, and answers with a conflict.",
-        "operationId" : "resetSearchIndexJob",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/IndexJobStatus"
-                }
-              }
-            },
-            "description" : "The claim was reset, and the index is free"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "409" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Nothing is running, or the running job is within its deadline"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Take back a search index rebuild that passed its deadline.",
-        "tags" : [ "Command", "Administration" ]
-      }
-    },
-    "/command/reset-valuesets-import" : {
-      "post" : {
-        "description" : "Only one rebuild or import runs at a time, and a job that never returns would otherwise hold its claim until the server restarted, refusing every later command with a conflict naming a job that is not running. A claim is believed for six hours; past that the status reports it as overdue and this command takes it back, so the next command can run. It does not stop the abandoned job — nothing can — so run it only once the log shows that job has stopped making progress. A claim within its deadline is left alone, and answers with a conflict.",
-        "operationId" : "resetValueSetsImport",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ValueSetsImportJob"
-                }
-              }
-            },
-            "description" : "The claim was reset, and the import is free"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "409" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Nothing is running, or the running import is within its deadline"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Take back a value sets ontology import that passed its deadline.",
-        "tags" : [ "Command", "Administration" ]
       }
     },
     "/command/set-doi" : {
@@ -4847,6 +4451,227 @@
         } ],
         "summary" : "Report JVM thread counts",
         "tags" : [ "Service diagnostics" ]
+      }
+    },
+    "/jobs" : {
+      "get" : {
+        "description" : "List the search index rebuilds and value sets ontology imports this server still knows, newest first, so the first job of a kind is the one running now or the one that ran last. Jobs are held in memory: the listing holds the most recent twenty of each kind since the last restart, and the rebuild that restart interrupted.",
+        "operationId" : "listJobs",
+        "parameters" : [ {
+          "description" : "Return only jobs of this kind: search-index or value-sets-import. Omit it for both.",
+          "in" : "query",
+          "name" : "kind",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "How many jobs to return, from 1 to 500. Defaults to 100.",
+          "in" : "query",
+          "name" : "limit",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "How many jobs to skip. Defaults to 0.",
+          "in" : "query",
+          "name" : "offset",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobPage"
+                }
+              }
+            },
+            "description" : "One page of jobs"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The kind is not one this server runs, or the limit or offset is out of range"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "List the jobs this server knows",
+        "tags" : [ "Jobs" ]
+      }
+    },
+    "/jobs/{id}" : {
+      "get" : {
+        "description" : "Report what became of the job named by the identifier its command returned, of whatever kind. Jobs are held in memory, so an identifier from before the last restart, or one that twenty later jobs of its kind have pushed out, is no longer known. The exception is a rebuild the restart interrupted, which answers as INTERRUPTED.",
+        "operationId" : "getJob",
+        "parameters" : [ {
+          "description" : "Job identifier, as returned when the job was queued.",
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobStatus"
+                }
+              }
+            },
+            "description" : "The job and its current state"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "No job answers to this identifier"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Get the status of one job",
+        "tags" : [ "Jobs" ]
+      }
+    },
+    "/jobs/{id}/reset" : {
+      "post" : {
+        "description" : "Only one rebuild of an index, and one value sets import, runs at a time. A job that never returns would otherwise hold its claim until the server restarted, refusing every later command with a conflict naming a job that is not running. Once a rebuild has reported no progress for an hour, or an import has run for six, the status reports it as overdue and this takes its claim back, so the next command can run. It does not stop the abandoned job, which nothing can, so run it only once the log shows that job has stopped making progress. A job within its deadline is left alone and answers with a conflict, as does one that has finished.",
+        "operationId" : "resetJob",
+        "parameters" : [ {
+          "description" : "Job identifier, as returned when the job was queued.",
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobStatus"
+                }
+              }
+            },
+            "description" : "The claim was taken back, and the job is ABANDONED"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "No job answers to this identifier"
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The job has finished, or is running within its deadline"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Take back the claim of a job that stopped reporting progress",
+        "tags" : [ "Jobs", "Administration" ]
       }
     },
     "/monitor/artifact-counts" : {
@@ -12465,64 +12290,6 @@
           }
         }
       },
-      "IndexJobStatus" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "description" : "What became of the most recent rebuild of one index, or that none has run since this server\nstarted. `deadlineAt` and `overdue` describe a running job and are empty otherwise.\n",
-        "properties" : {
-          "command" : {
-            "type" : "string",
-            "description" : "The command that started the job.",
-            "nullable" : true
-          },
-          "deadlineAt" : {
-            "type" : "string",
-            "format" : "date-time",
-            "nullable" : true
-          },
-          "failure" : {
-            "type" : "string",
-            "description" : "What went wrong, when the state is FAILED or INTERRUPTED.",
-            "nullable" : true
-          },
-          "finishedAt" : {
-            "type" : "string",
-            "format" : "date-time",
-            "nullable" : true
-          },
-          "jobId" : {
-            "type" : "string",
-            "nullable" : true
-          },
-          "overdue" : {
-            "type" : "boolean"
-          },
-          "progress" : {
-            "allOf" : [ {
-              "$ref" : "#/components/schemas/IndexingProgress"
-            } ],
-            "description" : "How far this job got. Present for a job that is running and for one that has finished,\nfailed or was interrupted; absent for an index no job has run over.\n",
-            "nullable" : true
-          },
-          "startedAt" : {
-            "type" : "string",
-            "format" : "date-time",
-            "nullable" : true
-          },
-          "state" : {
-            "type" : "string",
-            "enum" : [ "IDLE", "RUNNING", "COMPLETE", "FAILED", "ABANDONED", "INTERRUPTED" ]
-          }
-        },
-        "required" : [ "overdue", "state" ]
-      },
-      "IndexJobStatusByIndex" : {
-        "type" : "object",
-        "additionalProperties" : {
-          "$ref" : "#/components/schemas/IndexJobStatus"
-        },
-        "description" : "The state of each index a rebuild can contend over, keyed by the index name."
-      },
       "IndexingProgress" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -12678,6 +12445,129 @@
             "type" : "string"
           }
         }
+      },
+      "JobPage" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "One page of the jobs a server knows, newest first.",
+        "properties" : {
+          "currentOffset" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "The offset of the first job on this page"
+          },
+          "jobs" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JobStatus"
+            }
+          },
+          "paging" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Links to the first, previous, next and last pages, keyed by relation. A relation with no page is absent."
+          },
+          "request" : {
+            "$ref" : "#/components/schemas/JobPageRequest"
+          },
+          "totalCount" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "How many jobs the filter admits"
+          }
+        },
+        "required" : [ "currentOffset", "jobs", "paging", "request", "totalCount" ]
+      },
+      "JobPageRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "The page that was asked for, after defaults were applied",
+        "properties" : {
+          "limit" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "offset" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "limit", "offset" ]
+      },
+      "JobStatus" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "One job, in the shape every CEDAR server that runs jobs reports it in. `deadlineAt` and\n`overdue` describe a running job and are empty otherwise. The properties after `failure`\nbelong to one kind of job each and are absent for the others.\n",
+        "properties" : {
+          "command" : {
+            "type" : "string",
+            "description" : "The command that started the job.",
+            "nullable" : true
+          },
+          "deadlineAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "When a running job that reports nothing more will be believed to have stopped.",
+            "nullable" : true
+          },
+          "failure" : {
+            "type" : "string",
+            "description" : "What went wrong, when the state is FAILED, ABANDONED or INTERRUPTED.",
+            "nullable" : true
+          },
+          "finishedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "importStatus" : {
+            "type" : "string",
+            "description" : "A value sets import's state under the name the caDSR ingestor reads.",
+            "enum" : [ "NOT_YET_INITIATED", "IN_PROGRESS", "COMPLETE", "ERROR" ]
+          },
+          "jobId" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "search-index", "value-sets-import", "inclusion-subgraph" ]
+          },
+          "overdue" : {
+            "type" : "boolean"
+          },
+          "progress" : {
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/IndexingProgress"
+            } ],
+            "description" : "How far a search index rebuild got."
+          },
+          "startedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "state" : {
+            "type" : "string",
+            "description" : "ABANDONED is a job whose claim was reset with `POST /jobs/{id}/reset`, which may still be\nrunning. INTERRUPTED is a job the server did not survive.\n",
+            "enum" : [ "QUEUED", "RUNNING", "COMPLETE", "FAILED", "ABANDONED", "INTERRUPTED" ]
+          },
+          "submittedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "When an inclusion-subgraph regeneration was asked for."
+          },
+          "unreadableArtifacts" : {
+            "type" : "array",
+            "description" : "The artifacts a completed inclusion-subgraph regeneration left as they were because the\nartifact server answered something other than 200 for them. Their inclusion arcs were\nneither refreshed nor removed. Empty when every artifact was read; null until the job\ncompletes.\n",
+            "items" : {
+              "type" : "string"
+            },
+            "nullable" : true
+          }
+        },
+        "required" : [ "jobId", "kind", "overdue", "state" ]
       },
       "MoveRequest" : {
         "type" : "object",
@@ -13499,45 +13389,6 @@
             "$ref" : "#/components/schemas/SchemaArtifactDocument"
           }
         }
-      },
-      "ValueSetsImportJob" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "description" : "What became of one value sets ontology import, or that none has run since this server\nstarted. `deadlineAt` and `overdue` describe a running import and are empty otherwise.\n",
-        "properties" : {
-          "deadlineAt" : {
-            "type" : "string",
-            "format" : "date-time",
-            "nullable" : true
-          },
-          "failure" : {
-            "type" : "string",
-            "description" : "What went wrong, when the status is ERROR.",
-            "nullable" : true
-          },
-          "finishedAt" : {
-            "type" : "string",
-            "format" : "date-time",
-            "nullable" : true
-          },
-          "importStatus" : {
-            "type" : "string",
-            "enum" : [ "NOT_YET_INITIATED", "IN_PROGRESS", "COMPLETE", "ERROR" ]
-          },
-          "jobId" : {
-            "type" : "string",
-            "nullable" : true
-          },
-          "overdue" : {
-            "type" : "boolean"
-          },
-          "startedAt" : {
-            "type" : "string",
-            "format" : "date-time",
-            "nullable" : true
-          }
-        },
-        "required" : [ "importStatus", "overdue" ]
       },
       "WarningItem" : {
         "type" : "object",
