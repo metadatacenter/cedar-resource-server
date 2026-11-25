@@ -122,6 +122,91 @@ components:
           format: uri
           nullable: true
       additionalProperties: false
+    OpenResourceSummary:
+      type: object
+      description: |
+        The complete public summary of one direct child of an open folder. A field, element or
+        template also states its version and publication status, as its own document does. ACLs,
+        caller-specific permissions, provenance, timestamps, DOI data and every other stored graph
+        property are deliberately left out.
+      required:
+        - '@id'
+        - resourceType
+        - 'schema:name'
+      properties:
+        '@id':
+          type: string
+          format: uri
+        resourceType:
+          type: string
+          enum: [folder, field, element, template, instance]
+        'schema:name':
+          type: string
+          nullable: true
+        'pav:version':
+          type: string
+          description: The version of a field, element or template; absent for folders and instances.
+        'bibo:status':
+          type: string
+          enum: ['bibo:draft', 'bibo:published']
+          description: The publication status of a field, element or template; absent for folders and instances.
+      additionalProperties: false
+    OpenPathSegment:
+      type: object
+      description: |
+        One breadcrumb segment. Ancestor names are public when a folder is open, but ancestor
+        identifiers and all other graph properties are not.
+      required:
+        - 'schema:name'
+      properties:
+        'schema:name':
+          type: string
+          nullable: true
+      additionalProperties: false
+    OpenFolderResponse:
+      type: object
+      description: |
+        One page of an anonymously readable folder. Opening a folder makes the full subtree below
+        it public. The response is caller-independent and contains only public child summaries,
+        ancestor names, and normalized paging metadata. OpenView relays this body under its own URL
+        as its OpenViewFolderResponse.
+      required:
+        - resources
+        - pathInfo
+        - totalCount
+        - currentOffset
+        - nodeListQueryType
+        - request
+        - '@context'
+      properties:
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpenResourceSummary'
+        pathInfo:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpenPathSegment'
+        totalCount:
+          type: integer
+          format: int64
+        currentOffset:
+          type: integer
+          format: int64
+        paging:
+          type: object
+          additionalProperties:
+            type: string
+            format: uri
+        nodeListQueryType:
+          type: string
+        request:
+          $ref: '#/components/schemas/NodeListRequest'
+        '@context':
+          type: object
+          additionalProperties:
+            type: string
+      additionalProperties: false
     ResourceListResponse:
       type: object
       description: |

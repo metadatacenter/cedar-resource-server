@@ -1,5 +1,6 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.sun.net.httpserver.HttpServer;
 import io.dropwizard.testing.DropwizardTestSupport;
 import io.dropwizard.testing.ResourceHelpers;
@@ -10,12 +11,14 @@ import org.metadatacenter.cedar.resource.ResourceServerConfiguration;
 import org.metadatacenter.config.CedarConfig;
 import org.metadatacenter.config.ArtifactServiceConfig;
 import org.metadatacenter.config.environment.CedarEnvironmentVariableProvider;
+import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.id.CedarFolderId;
 import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.model.SystemComponent;
 import org.metadatacenter.model.folderserver.basic.*;
 import org.metadatacenter.rest.context.CedarRequestContextFactory;
 import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.test.EmbeddedCedarNeo4j;
 import org.metadatacenter.util.test.TestAuthUtil;
 
@@ -152,6 +155,94 @@ class OpenArtifactsResourceTest {
             "the explicit reader keeps content and export access after the move");
       }
     }
+  }
+
+  @Test void aFolderInsideAnOpenTreeListsOnlyThePublicProjection() throws Exception {
+    FolderServerFolder listed = folder(openChild);
+    FolderServerArtifact child = create(CedarResourceType.TEMPLATE, listed.getResourceId());
+
+    var response = getFolder(listed.getId(), null, "");
+    assertEquals(200, response.statusCode(), response.body());
+    assertEquals("no-store", response.headers().firstValue("Cache-Control").orElse(""));
+    JsonNode body = JsonMapper.STRICT_MAPPER.readTree(response.body());
+    assertEquals(1, body.path("totalCount").asInt(), response.body());
+    assertEquals("folder-content", body.path("nodeListQueryType").asText(), response.body());
+
+    JsonNode summary = body.path("resources").path(0);
+    assertEquals(child.getId(), summary.path("@id").asText(), response.body());
+    assertEquals("template", summary.path("resourceType").asText(), response.body());
+    assertEquals("Open fixture", summary.path("schema:name").asText(), response.body());
+    assertEquals("1.0.0", summary.path("pav:version").asText(), response.body());
+    assertEquals("bibo:draft", summary.path("bibo:status").asText(), response.body());
+    assertEquals(Set.of("@id", "resourceType", "schema:name", "pav:version", "bibo:status"), fieldNames(summary));
+
+    assertTrue(body.path("pathInfo").size() > 1, response.body());
+    for (JsonNode segment : body.path("pathInfo")) {
+      assertEquals(Set.of("schema:name"), fieldNames(segment), response.body());
+    }
+    for (String disclosure : List.of("activeUserCanRead", "currentUserPermissions", "ownedBy")) {
+      assertFalse(response.body().contains(disclosure), disclosure + " in " + response.body());
+    }
+    assertTrue(body.path("paging").path("first").asText().contains("/open/folders/"), response.body());
+  }
+
+  @Test void aChildFolderSummaryCarriesNoVersion() throws Exception {
+    FolderServerFolder parent = folder(openChild);
+    FolderServerFolder child = folder(parent.getResourceId());
+
+    var response = getFolder(parent.getId(), null, "");
+    assertEquals(200, response.statusCode(), response.body());
+    JsonNode summary = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("resources").path(0);
+    assertEquals(child.getId(), summary.path("@id").asText(), response.body());
+    assertEquals(Set.of("@id", "resourceType", "schema:name"), fieldNames(summary), response.body());
+  }
+
+  @Test void aPrivateFolderIsRefusedToEveryCallerAndDisclosesNothing() throws Exception {
+    FolderServerFolder closed = folder(home);
+    for (String auth : Arrays.asList(null, ownerAuth, "apiKey invalid")) {
+      var response = getFolder(closed.getId(), auth, "");
+      assertEquals(401, response.statusCode(), "A private folder stays private even for its owner");
+      JsonNode body = JsonMapper.STRICT_MAPPER.readTree(response.body());
+      for (String disclosure : List.of("resources", "pathInfo", "totalCount", "nodeListQueryType")) {
+        assertFalse(body.has(disclosure), disclosure + " in " + response.body());
+      }
+      assertFalse(response.body().contains(closed.getName()), response.body());
+    }
+    assertEquals(401, getFolder(closed.getId(), null, "?limit=0").statusCode(),
+        "Openness is decided before any parameter is read");
+  }
+
+  @Test void folderOpennessIsReadOnEveryRequest() throws Exception {
+    FolderServerFolder subject = folder(home);
+    assertEquals(401, getFolder(subject.getId(), null, "").statusCode());
+    assertTrue(folders.setOpen(subject.getResourceId()));
+    assertEquals(200, getFolder(subject.getId(), null, "").statusCode());
+    String bare = subject.getId().substring(subject.getId().lastIndexOf('/') + 1);
+    assertEquals(200, getFolder(bare, null, "").statusCode(), "A bare identifier names the same folder");
+    assertTrue(folders.setNotOpen(subject.getResourceId()));
+    assertEquals(401, getFolder(subject.getId(), null, "").statusCode(), "Revocation is immediately effective");
+  }
+
+  @Test void aMissingFolderIsNotFoundAndABadParameterIsRefused() throws Exception {
+    var missing = getFolder(UUID.randomUUID().toString(), null, "");
+    assertEquals(404, missing.statusCode(), missing.body());
+    assertEquals(CedarErrorKey.FOLDER_NOT_FOUND.getValue(),
+        JsonMapper.STRICT_MAPPER.readTree(missing.body()).path("errorKey").asText(), missing.body());
+    FolderServerFolder open = folder(openChild);
+    assertEquals(400, getFolder(open.getId(), null, "?limit=501").statusCode());
+  }
+
+  private static Set<String> fieldNames(JsonNode node) {
+    Set<String> names = new HashSet<>();
+    node.fieldNames().forEachRemaining(names::add);
+    return names;
+  }
+
+  private static HttpResponse<String> getFolder(String id, String auth, String query) throws Exception {
+    var request = HttpRequest.newBuilder(URI.create("http://localhost:" + SERVER.getLocalPort()
+        + "/open/folders/" + URLEncoder.encode(id, StandardCharsets.UTF_8) + query));
+    if (auth != null) request.header("Authorization", auth);
+    return CLIENT.send(request.GET().build(), HttpResponse.BodyHandlers.ofString());
   }
 
   private static FolderServerFolder folder(CedarFolderId parent) {

@@ -5286,6 +5286,119 @@
         "tags" : [ "Monitoring" ]
       }
     },
+    "/open/folders/{id}" : {
+      "get" : {
+        "description" : "Return a caller-independent public projection of what an open folder holds. A folder is listed when it is open itself or when a folder above it is, and opening a folder makes its whole subtree readable here. The breadcrumb carries ancestor names only. A child summary carries its identifier, type and name, and for a field, element or template also its version and publication status. No ACL, provenance, timestamp, DOI or caller-specific permission is returned. User credentials never broaden access. Openness is checked before any parameter, so a private folder answers 401 whatever the request asks for.",
+        "operationId" : "folder",
+        "parameters" : [ {
+          "description" : "Folder identifier: the bare identifier or the percent-encoded full IRI.",
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Comma-separated resource types to include, in place of all of them: 'folder', 'field', 'element', 'template', 'instance'.",
+          "in" : "query",
+          "name" : "resource_types",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Which versions of fields, elements and templates to include: 'latest', 'latest-published', 'latest-draft' or 'all'.",
+          "in" : "query",
+          "name" : "version",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Publication status of fields, elements and templates to include: 'bibo:draft', 'bibo:published' or 'all'.",
+          "in" : "query",
+          "name" : "publication_status",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Comma-separated sort fields; a leading '-' reverses one.",
+          "in" : "query",
+          "name" : "sort",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "How many entries to return, from 1 to 500. Defaults to 100.",
+          "in" : "query",
+          "name" : "limit",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "How many entries to skip. Defaults to 0.",
+          "in" : "query",
+          "name" : "offset",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OpenFolderResponse"
+                }
+              }
+            },
+            "description" : "One page of the folder's contents, and its path"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A paging, sort or filter parameter is not valid"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact or folder is private, and so is every folder above it"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "The artifact or folder does not exist"
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "A required backend is unavailable"
+          }
+        },
+        "summary" : "List the contents of an open folder anonymously",
+        "tags" : [ "Open artifacts" ]
+      }
+    },
     "/open/template-elements/{id}" : {
       "get" : {
         "description" : "User credentials never broaden access.",
@@ -5317,7 +5430,7 @@
                 }
               }
             },
-            "description" : "The artifact and its ancestors are private"
+            "description" : "The artifact or folder is private, and so is every folder above it"
           },
           "404" : {
             "content" : {
@@ -5327,7 +5440,7 @@
                 }
               }
             },
-            "description" : "The artifact does not exist"
+            "description" : "The artifact or folder does not exist"
           },
           "503" : {
             "content" : {
@@ -5375,7 +5488,7 @@
                 }
               }
             },
-            "description" : "The artifact and its ancestors are private"
+            "description" : "The artifact or folder is private, and so is every folder above it"
           },
           "404" : {
             "content" : {
@@ -5385,7 +5498,7 @@
                 }
               }
             },
-            "description" : "The artifact does not exist"
+            "description" : "The artifact or folder does not exist"
           },
           "503" : {
             "content" : {
@@ -5433,7 +5546,7 @@
                 }
               }
             },
-            "description" : "The artifact and its ancestors are private"
+            "description" : "The artifact or folder is private, and so is every folder above it"
           },
           "404" : {
             "content" : {
@@ -5443,7 +5556,7 @@
                 }
               }
             },
-            "description" : "The artifact does not exist"
+            "description" : "The artifact or folder does not exist"
           },
           "503" : {
             "content" : {
@@ -5491,7 +5604,7 @@
                 }
               }
             },
-            "description" : "The artifact and its ancestors are private"
+            "description" : "The artifact or folder is private, and so is every folder above it"
           },
           "404" : {
             "content" : {
@@ -5501,7 +5614,7 @@
                 }
               }
             },
-            "description" : "The artifact does not exist"
+            "description" : "The artifact or folder does not exist"
           },
           "503" : {
             "content" : {
@@ -13242,6 +13355,94 @@
             "nullable" : true
           }
         }
+      },
+      "OpenFolderResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "One page of an anonymously readable folder. Opening a folder makes the full subtree below\nit public. The response is caller-independent and contains only public child summaries,\nancestor names, and normalized paging metadata. OpenView relays this body under its own URL\nas its OpenViewFolderResponse.\n",
+        "properties" : {
+          "@context" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "currentOffset" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "nodeListQueryType" : {
+            "type" : "string"
+          },
+          "paging" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string",
+              "format" : "uri"
+            }
+          },
+          "pathInfo" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OpenPathSegment"
+            }
+          },
+          "request" : {
+            "$ref" : "#/components/schemas/NodeListRequest"
+          },
+          "resources" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OpenResourceSummary"
+            }
+          },
+          "totalCount" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "@context", "currentOffset", "nodeListQueryType", "pathInfo", "request", "resources", "totalCount" ]
+      },
+      "OpenPathSegment" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "One breadcrumb segment. Ancestor names are public when a folder is open, but ancestor\nidentifiers and all other graph properties are not.\n",
+        "properties" : {
+          "schema:name" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        },
+        "required" : [ "schema:name" ]
+      },
+      "OpenResourceSummary" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "The complete public summary of one direct child of an open folder. A field, element or\ntemplate also states its version and publication status, as its own document does. ACLs,\ncaller-specific permissions, provenance, timestamps, DOI data and every other stored graph\nproperty are deliberately left out.\n",
+        "properties" : {
+          "@id" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "bibo:status" : {
+            "type" : "string",
+            "description" : "The publication status of a field, element or template; absent for folders and instances.",
+            "enum" : [ "bibo:draft", "bibo:published" ]
+          },
+          "pav:version" : {
+            "type" : "string",
+            "description" : "The version of a field, element or template; absent for folders and instances."
+          },
+          "resourceType" : {
+            "type" : "string",
+            "enum" : [ "folder", "field", "element", "template", "instance" ]
+          },
+          "schema:name" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        },
+        "required" : [ "@id", "resourceType", "schema:name" ]
       },
       "Outcome" : {
         "type" : "object",
