@@ -449,6 +449,10 @@ public class RepresentationMatrixTest {
     String path = command.equals("check-update")
         ? "/command/check-update-template/" + encode(id)
         : "/command/publish-create-draft-template/" + encode(id);
+    // The draft command takes the definition as the template property of its body.
+    if (!command.equals("check-update") && !content.isEmpty()) {
+      content = "{\"template\":" + content + "}";
+    }
     HttpResponse<String> response = TestHttpClient.send(request(path)
         .header("Content-Type", "application/json").header("If-Match", "*")
         .POST(HttpRequest.BodyPublishers.ofString(content)).build());

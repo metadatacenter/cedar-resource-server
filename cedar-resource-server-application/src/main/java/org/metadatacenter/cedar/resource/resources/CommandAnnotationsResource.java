@@ -65,7 +65,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/annotations/doi")
+  @Path("/set-doi")
   @Operation(summary = "Set the DOI of an artifact", description = "Set the DOI annotation of an artifact. The user must have the updateResource capability on the artifact. The "
           + "resource type must support DOIs, and an existing DOI can not be altered.")
   @RequestBody(description = "The artifact and the DOI to record", required = true,

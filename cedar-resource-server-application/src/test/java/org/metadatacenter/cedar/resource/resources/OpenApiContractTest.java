@@ -23,7 +23,7 @@ class OpenApiContractTest {
     JsonNode spec = readSpec();
     assertResponseSchema(spec, "/search", RESOURCE_LIST);
     assertResponseSchema(spec, "/search-deep", RESOURCE_LIST);
-    assertResponseSchema(spec, "/folders/{folder_id}/contents", RESOURCE_LIST);
+    assertResponseSchema(spec, "/folders/{id}/contents", RESOURCE_LIST);
 
     JsonNode envelope = spec.at("/components/schemas/ResourceListResponse");
     assertTrue(envelope.path("additionalProperties").asBoolean());
@@ -112,7 +112,7 @@ class OpenApiContractTest {
     assertEquals("#/components/schemas/CategoryGroupGrant",
         schemas.at("/CategoryPermissions/properties/groupPermissions/items/$ref").asText());
 
-    JsonNode categoryAclPath = readSpec().at("/paths/~1categories~1{category_id}~1permissions");
+    JsonNode categoryAclPath = readSpec().at("/paths/~1categories~1{id}~1permissions");
     assertEquals("#/components/schemas/CategoryPermissions",
         categoryAclPath.at("/get/responses/200/content/application~1json/schema/$ref").asText());
     assertEquals("#/components/schemas/CategoryAclUpdateRequest",
@@ -128,7 +128,7 @@ class OpenApiContractTest {
    */
   @Test
   void recursiveFolderDeletionDocumentsEveryAnswer() throws IOException {
-    JsonNode path = readSpec().at("/paths/~1folders~1{folder_id}~1deletion");
+    JsonNode path = readSpec().at("/paths/~1folders~1{id}~1deletion");
     assertAnswers(path.path("get"), "#/components/schemas/Plan",
         "400", "401", "403", "404", "406", "409", "429", "500", "503");
     assertAnswers(path.path("post"), "#/components/schemas/Outcome",

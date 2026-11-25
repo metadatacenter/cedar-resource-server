@@ -308,7 +308,7 @@
         "parameters" : [ {
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "category_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -383,7 +383,7 @@
         "tags" : [ "Categories" ]
       }
     },
-    "/categories/{category_id}" : {
+    "/categories/{id}" : {
       "delete" : {
         "description" : "Delete a category.",
         "operationId" : "deleteCategory",
@@ -392,7 +392,7 @@
         }, {
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "category_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -481,7 +481,7 @@
         "parameters" : [ {
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "category_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -569,7 +569,7 @@
         }, {
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "category_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -677,14 +677,14 @@
         "tags" : [ "Categories" ]
       }
     },
-    "/categories/{category_id}/permissions" : {
+    "/categories/{id}/permissions" : {
       "get" : {
         "description" : "Get the category owner, direct user grants and direct group grants. Any user with the readCategory capability may read this response.",
         "operationId" : "getCategoryPermissions",
         "parameters" : [ {
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "category_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -772,7 +772,7 @@
         }, {
           "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "category_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -868,90 +868,6 @@
         } ],
         "summary" : "Replace category grants",
         "tags" : [ "Categories", "Permissions" ]
-      }
-    },
-    "/command/annotations/doi" : {
-      "post" : {
-        "description" : "Set the DOI annotation of an artifact. The user must have the updateResource capability on the artifact. The resource type must support DOIs, and an existing DOI can not be altered.",
-        "operationId" : "setDOI",
-        "requestBody" : {
-          "content" : {
-            "*/*" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/SetDoiRequest"
-              }
-            }
-          },
-          "description" : "The artifact and the DOI to record",
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ArtifactRecord"
-                }
-              }
-            },
-            "description" : "The artifact, carrying its DOI"
-          },
-          "400" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Bad request"
-          },
-          "401" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Unauthorized"
-          },
-          "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Forbidden"
-          },
-          "404" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Not found"
-          },
-          "500" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CedarError"
-                }
-              }
-            },
-            "description" : "Internal server error"
-          }
-        },
-        "security" : [ {
-          "api_key" : [ ]
-        } ],
-        "summary" : "Set the DOI of an artifact",
-        "tags" : [ "Command" ]
       }
     },
     "/command/attach-categories" : {
@@ -1115,14 +1031,14 @@
         "tags" : [ "Command" ]
       }
     },
-    "/command/check-update-template/{template_id}" : {
+    "/command/check-update-template/{id}" : {
       "post" : {
         "description" : "Check whether an existing template can be updated with the supplied template definition. The destructive and non-destructive changes between the stored template and the supplied template are computed, and the number of affected instances is reported.",
         "operationId" : "checkUpdateTemplate",
         "parameters" : [ {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -2871,7 +2787,7 @@
         "tags" : [ "Validation", "Command", "Versioning" ]
       }
     },
-    "/command/publish-create-draft-template/{template_id}" : {
+    "/command/publish-create-draft-template/{id}" : {
       "post" : {
         "description" : "Publish the given template, then create a new draft version from it and apply the supplied template definition. Instances of the source template can be copied into a new folder. The command succeeds or fails as a whole. What a later step would refuse is refused before the template is published: a parent folder the caller cannot create in, a draft identifier already in use and a definition the draft would not accept. If a step fails after publication, the command removes the draft it created and returns the template to the draft it was, then answers with the failing step's status, or 503 when that step received no answer. Returning the template to a draft gives it a new ETag. A retry sends that ETag in If-Match and publishes the template at the same version.",
         "operationId" : "publishCreateDraftTemplate",
@@ -2880,22 +2796,8 @@
         }, {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        }, {
-          "description" : "Name of the folder to copy the template instances into.",
-          "in" : "query",
-          "name" : "folder_name",
-          "schema" : {
-            "type" : "string"
-          }
-        }, {
-          "description" : "The full identifier the new draft is to have, chosen by the caller so that it can read the outcome by it if the answer is lost. Example: https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e. Without it, the server chooses one.",
-          "in" : "query",
-          "name" : "draft_id",
           "schema" : {
             "type" : "string"
           }
@@ -2904,11 +2806,11 @@
           "content" : {
             "*/*" : {
               "schema" : {
-                "$ref" : "#/components/schemas/SchemaArtifactDocument"
+                "$ref" : "#/components/schemas/PublishCreateDraftTemplateRequest"
               }
             }
           },
-          "description" : "The template definition to apply to the new draft",
+          "description" : "The template definition to apply to the new draft, and how to create it",
           "required" : true
         },
         "responses" : {
@@ -2930,7 +2832,7 @@
                 }
               }
             },
-            "description" : "The definition or the draft identifier is refused, or the template cannot be published, for example because it is already published; nothing was published"
+            "description" : "The definition or the draft identifier is refused, the request sends the withdrawn folder_name or draft_id query parameter, or the template cannot be published, for example because it is already published; nothing was published"
           },
           "401" : {
             "content" : {
@@ -3351,6 +3253,90 @@
         "tags" : [ "Command", "Administration" ]
       }
     },
+    "/command/set-doi" : {
+      "post" : {
+        "description" : "Set the DOI annotation of an artifact. The user must have the updateResource capability on the artifact. The resource type must support DOIs, and an existing DOI can not be altered.",
+        "operationId" : "setDOI",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SetDoiRequest"
+              }
+            }
+          },
+          "description" : "The artifact and the DOI to record",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArtifactRecord"
+                }
+              }
+            },
+            "description" : "The artifact, carrying its DOI"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Bad request"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Unauthorized"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Forbidden"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CedarError"
+                }
+              }
+            },
+            "description" : "Internal server error"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ],
+        "summary" : "Set the DOI of an artifact",
+        "tags" : [ "Command" ]
+      }
+    },
     "/command/transfer-category-ownership" : {
       "post" : {
         "description" : "Replace the owner of a category with another user. Only the current owner may perform this operation. Send the ETag returned by the category permissions endpoint in If-Match.",
@@ -3722,7 +3708,7 @@
         "tags" : [ "Folders" ]
       }
     },
-    "/folders/{folder_id}" : {
+    "/folders/{id}" : {
       "delete" : {
         "description" : "Delete a folder.",
         "operationId" : "deleteFolder",
@@ -3731,7 +3717,7 @@
         }, {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -3810,7 +3796,7 @@
         "parameters" : [ {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -3898,7 +3884,7 @@
         }, {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -4012,7 +3998,7 @@
         "tags" : [ "Folders" ]
       }
     },
-    "/folders/{folder_id}/contents" : {
+    "/folders/{id}/contents" : {
       "get" : {
         "description" : "Get the contents of a folder.",
         "operationId" : "findFolderContentsById",
@@ -4037,7 +4023,7 @@
         }, {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -4156,7 +4142,7 @@
         "tags" : [ "Folders", "Folder Contents", "Versioning" ]
       }
     },
-    "/folders/{folder_id}/contents-extract" : {
+    "/folders/{id}/contents-extract" : {
       "get" : {
         "description" : "Get the content extracts of a folder. Only the enumerated fields will be returned. Multilevel field paths are not supported. It is intended to return smaller payload if a lot of artifacts are expected to be returned.",
         "operationId" : "findFolderContentsExtractById",
@@ -4181,7 +4167,7 @@
         }, {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -4307,12 +4293,12 @@
         "tags" : [ "Folders", "Folder Contents", "Versioning" ]
       }
     },
-    "/folders/{folder_id}/deletion" : {
+    "/folders/{id}/deletion" : {
       "get" : {
         "operationId" : "preview",
         "parameters" : [ {
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -4430,7 +4416,7 @@
         "operationId" : "delete",
         "parameters" : [ {
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -4564,14 +4550,14 @@
         "tags" : [ "Folders" ]
       }
     },
-    "/folders/{folder_id}/details" : {
+    "/folders/{id}/details" : {
       "get" : {
         "description" : "Get the details of a folder.",
         "operationId" : "findFolderDetails",
         "parameters" : [ {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -4652,14 +4638,14 @@
         "tags" : [ "Folders" ]
       }
     },
-    "/folders/{folder_id}/permissions" : {
+    "/folders/{id}/permissions" : {
       "get" : {
         "description" : "Get permissions of a folder.",
         "operationId" : "getFolderPermissions",
         "parameters" : [ {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -4747,7 +4733,7 @@
         }, {
           "description" : "Folder identifier. Example: https://repo.metadatacenter.org/folders/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "folder_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -6092,7 +6078,7 @@
         "tags" : [ "Template Elements" ]
       }
     },
-    "/template-elements/{template_element_id}" : {
+    "/template-elements/{id}" : {
       "delete" : {
         "description" : "Conditionally delete a template element using its current ETag. CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted workspace-graph or search-index cleanup.",
         "operationId" : "deleteTemplateElement",
@@ -6101,7 +6087,7 @@
         }, {
           "description" : "Template Element identifier.",
           "in" : "path",
-          "name" : "template_element_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -6190,7 +6176,7 @@
         "parameters" : [ {
           "description" : "Template Element identifier. Example: https://repo.metadatacenter.org/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "template_element_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -6345,7 +6331,7 @@
         }, {
           "description" : "Template Element identifier.",
           "in" : "path",
-          "name" : "template_element_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -6550,14 +6536,14 @@
         "tags" : [ "Template Elements" ]
       }
     },
-    "/template-elements/{template_element_id}/details" : {
+    "/template-elements/{id}/details" : {
       "get" : {
         "description" : "Get details of a template element.",
         "operationId" : "findTemplateElementDetails",
         "parameters" : [ {
           "description" : "Template Element identifier.",
           "in" : "path",
-          "name" : "template_element_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -6638,14 +6624,14 @@
         "tags" : [ "Template Elements", "Resource Details" ]
       }
     },
-    "/template-elements/{template_element_id}/download" : {
+    "/template-elements/{id}/download" : {
       "get" : {
         "description" : "Download a template element as JSON or YAML, selected via the Accept header.",
         "operationId" : "getTemplateElementDownload",
         "parameters" : [ {
           "description" : "Template Element identifier.",
           "in" : "path",
-          "name" : "template_element_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -6803,14 +6789,14 @@
         "tags" : [ "Template Elements" ]
       }
     },
-    "/template-elements/{template_element_id}/permissions" : {
+    "/template-elements/{id}/permissions" : {
       "get" : {
         "description" : "Get permissions of a template element.",
         "operationId" : "getTemplateElementPermissions",
         "parameters" : [ {
           "description" : "Template Element identifier.",
           "in" : "path",
-          "name" : "template_element_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -6898,7 +6884,7 @@
         }, {
           "description" : "Template Element identifier.",
           "in" : "path",
-          "name" : "template_element_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -6996,14 +6982,14 @@
         "tags" : [ "Template Elements", "Permissions" ]
       }
     },
-    "/template-elements/{template_element_id}/report" : {
+    "/template-elements/{id}/report" : {
       "get" : {
         "description" : "Get report of a template element.",
         "operationId" : "getTemplateElementInstanceReport",
         "parameters" : [ {
           "description" : "Template Element identifier.",
           "in" : "path",
-          "name" : "template_element_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -7078,14 +7064,14 @@
         "tags" : [ "Template Elements", "Resource Report", "Versioning" ]
       }
     },
-    "/template-elements/{template_element_id}/versions" : {
+    "/template-elements/{id}/versions" : {
       "get" : {
         "description" : "Get a list of versions of a template element.",
         "operationId" : "getTemplateElementVersions",
         "parameters" : [ {
           "description" : "Template Element identifier.",
           "in" : "path",
-          "name" : "template_element_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -7335,7 +7321,7 @@
         "tags" : [ "Template Fields" ]
       }
     },
-    "/template-fields/{template_field_id}" : {
+    "/template-fields/{id}" : {
       "delete" : {
         "description" : "Conditionally delete a template field using its current ETag. CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted workspace-graph or search-index cleanup.",
         "operationId" : "deleteTemplateField",
@@ -7344,7 +7330,7 @@
         }, {
           "description" : "Template Field identifier.",
           "in" : "path",
-          "name" : "template_field_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -7433,7 +7419,7 @@
         "parameters" : [ {
           "description" : "Template Field identifier. Example: https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "template_field_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -7588,7 +7574,7 @@
         }, {
           "description" : "Template Field identifier.",
           "in" : "path",
-          "name" : "template_field_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -7793,14 +7779,14 @@
         "tags" : [ "Template Fields" ]
       }
     },
-    "/template-fields/{template_field_id}/details" : {
+    "/template-fields/{id}/details" : {
       "get" : {
         "description" : "Get details of a template field.",
         "operationId" : "findTemplateFieldDetails",
         "parameters" : [ {
           "description" : "Template Field identifier.",
           "in" : "path",
-          "name" : "template_field_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -7881,14 +7867,14 @@
         "tags" : [ "Template Fields", "Resource Details" ]
       }
     },
-    "/template-fields/{template_field_id}/download" : {
+    "/template-fields/{id}/download" : {
       "get" : {
         "description" : "Download a template field as JSON or YAML, selected via the Accept header.",
         "operationId" : "getTemplateFieldDownload",
         "parameters" : [ {
           "description" : "Template Field identifier.",
           "in" : "path",
-          "name" : "template_field_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -8046,14 +8032,14 @@
         "tags" : [ "Template Fields" ]
       }
     },
-    "/template-fields/{template_field_id}/permissions" : {
+    "/template-fields/{id}/permissions" : {
       "get" : {
         "description" : "Get permissions of a template field.",
         "operationId" : "getTemplateFieldPermissions",
         "parameters" : [ {
           "description" : "Template Field identifier.",
           "in" : "path",
-          "name" : "template_field_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -8141,7 +8127,7 @@
         }, {
           "description" : "Template Field identifier.",
           "in" : "path",
-          "name" : "template_field_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -8239,14 +8225,14 @@
         "tags" : [ "Template Fields", "Permissions" ]
       }
     },
-    "/template-fields/{template_field_id}/report" : {
+    "/template-fields/{id}/report" : {
       "get" : {
         "description" : "Get report of a template field.",
         "operationId" : "getTemplateFieldInstanceReport",
         "parameters" : [ {
           "description" : "Template Field identifier.",
           "in" : "path",
-          "name" : "template_field_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -8321,14 +8307,14 @@
         "tags" : [ "Template Fields", "Resource Report", "Versioning" ]
       }
     },
-    "/template-fields/{template_field_id}/versions" : {
+    "/template-fields/{id}/versions" : {
       "get" : {
         "description" : "Get a list of versions of a template field.",
         "operationId" : "getTemplateFieldVersions",
         "parameters" : [ {
           "description" : "Template Field identifier.",
           "in" : "path",
-          "name" : "template_field_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -8578,7 +8564,7 @@
         "tags" : [ "Template Instances" ]
       }
     },
-    "/template-instances/{template_instance_id}" : {
+    "/template-instances/{id}" : {
       "delete" : {
         "description" : "Conditionally delete a template instance using its current ETag. CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted workspace-graph or search-index cleanup.",
         "operationId" : "deleteTemplateInstance",
@@ -8587,7 +8573,7 @@
         }, {
           "description" : "Template Instance identifier.",
           "in" : "path",
-          "name" : "template_instance_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -8676,7 +8662,7 @@
         "parameters" : [ {
           "description" : "Template Instance identifier. Example: https://repo.metadatacenter.org/template-instances/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "template_instance_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -8868,7 +8854,7 @@
         }, {
           "description" : "Template Instance identifier.",
           "in" : "path",
-          "name" : "template_instance_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -9073,14 +9059,14 @@
         "tags" : [ "Template Instances" ]
       }
     },
-    "/template-instances/{template_instance_id}/details" : {
+    "/template-instances/{id}/details" : {
       "get" : {
         "description" : "Get details of a template instance.",
         "operationId" : "findTemplateInstanceDetails",
         "parameters" : [ {
           "description" : "Template Instance identifier.",
           "in" : "path",
-          "name" : "template_instance_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -9161,14 +9147,14 @@
         "tags" : [ "Template Instances", "Resource Details" ]
       }
     },
-    "/template-instances/{template_instance_id}/download" : {
+    "/template-instances/{id}/download" : {
       "get" : {
         "description" : "Download a template instance as JSON or YAML, selected via the Accept header.",
         "operationId" : "getTemplateInstanceDownload",
         "parameters" : [ {
           "description" : "Template Instance identifier.",
           "in" : "path",
-          "name" : "template_instance_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -9326,14 +9312,14 @@
         "tags" : [ "Template Instances" ]
       }
     },
-    "/template-instances/{template_instance_id}/permissions" : {
+    "/template-instances/{id}/permissions" : {
       "get" : {
         "description" : "Get permissions of a template instance.",
         "operationId" : "getTemplateInstancePermissions",
         "parameters" : [ {
           "description" : "Template Instance identifier.",
           "in" : "path",
-          "name" : "template_instance_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -9421,7 +9407,7 @@
         }, {
           "description" : "Template Instance identifier.",
           "in" : "path",
-          "name" : "template_instance_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -9519,14 +9505,14 @@
         "tags" : [ "Template Instances", "Permissions" ]
       }
     },
-    "/template-instances/{template_instance_id}/report" : {
+    "/template-instances/{id}/report" : {
       "get" : {
         "description" : "Get report of a template instance.",
         "operationId" : "getTemplateInstanceReport",
         "parameters" : [ {
           "description" : "Template Instance identifier.",
           "in" : "path",
-          "name" : "template_instance_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -9776,7 +9762,7 @@
         "tags" : [ "Templates" ]
       }
     },
-    "/templates/{template_id}" : {
+    "/templates/{id}" : {
       "delete" : {
         "description" : "Conditionally delete a template using its current ETag. CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted workspace-graph or search-index cleanup.",
         "operationId" : "deleteTemplate",
@@ -9785,7 +9771,7 @@
         }, {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -9874,7 +9860,7 @@
         "parameters" : [ {
           "description" : "Template identifier. Example: https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -10029,7 +10015,7 @@
         }, {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -10234,14 +10220,14 @@
         "tags" : [ "Templates" ]
       }
     },
-    "/templates/{template_id}/details" : {
+    "/templates/{id}/details" : {
       "get" : {
         "description" : "Get details of a template.",
         "operationId" : "findTemplateDetails",
         "parameters" : [ {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -10322,14 +10308,14 @@
         "tags" : [ "Templates", "Resource Details" ]
       }
     },
-    "/templates/{template_id}/download" : {
+    "/templates/{id}/download" : {
       "get" : {
         "description" : "Download a template as JSON or YAML, selected via the Accept header.",
         "operationId" : "getTemplateDownload",
         "parameters" : [ {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -10487,14 +10473,14 @@
         "tags" : [ "Templates" ]
       }
     },
-    "/templates/{template_id}/permissions" : {
+    "/templates/{id}/permissions" : {
       "get" : {
         "description" : "Get permissions of a template.",
         "operationId" : "getTemplatePermissions",
         "parameters" : [ {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -10582,7 +10568,7 @@
         }, {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -10680,14 +10666,14 @@
         "tags" : [ "Templates", "Permissions" ]
       }
     },
-    "/templates/{template_id}/report" : {
+    "/templates/{id}/report" : {
       "get" : {
         "description" : "Get report of a template.",
         "operationId" : "getTemplateReport",
         "parameters" : [ {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -10762,14 +10748,14 @@
         "tags" : [ "Templates", "Resource Report", "Versioning" ]
       }
     },
-    "/templates/{template_id}/versions" : {
+    "/templates/{id}/versions" : {
       "get" : {
         "description" : "Get a list of versions of a template.",
         "operationId" : "getTemplateVersions",
         "parameters" : [ {
           "description" : "Template identifier.",
           "in" : "path",
-          "name" : "template_id",
+          "name" : "id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -11776,6 +11762,10 @@
           "folderId" : {
             "type" : "string",
             "description" : "Unique URL identifier representing the target folder that the new artifact will be created in."
+          },
+          "newFolderName" : {
+            "type" : "string",
+            "description" : "For a template, the name of a new folder to copy its instances into, as instances of the draft. Optional. Without it, no instance is copied."
           },
           "newVersion" : {
             "type" : "string",
@@ -12791,6 +12781,25 @@
             "description" : "Version string. Must have three positive decimal numbers, separated by period."
           }
         }
+      },
+      "PublishCreateDraftTemplateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "The template definition to apply to the new draft, and how to create the draft.",
+        "properties" : {
+          "draftId" : {
+            "type" : "string",
+            "description" : "The full identifier the new draft is to have, chosen by the caller so that it can read the outcome by it if the answer is lost. Optional. Example: https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e. Without it, the server chooses one."
+          },
+          "newFolderName" : {
+            "type" : "string",
+            "description" : "Name of a new folder to copy the source template's instances into, as instances of the draft. Optional. Without it, no instance is copied."
+          },
+          "template" : {
+            "$ref" : "#/components/schemas/SchemaArtifactDocument"
+          }
+        },
+        "required" : [ "template" ]
       },
       "RenameRequest" : {
         "type" : "object",

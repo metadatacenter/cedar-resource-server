@@ -324,6 +324,18 @@ public class CommandAnnotationsResourceTest {
         "the artifact pre-image was not restored");
   }
 
+  @Test
+  public void theNestedDoiPathIsGone() throws Exception {
+    HttpResponse<String> response = TestHttpClient.send(HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/annotations/doi"))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString("{\"@id\": \"" + artifactId.getId() + "\", \"doi\": \"x\"}"))
+        .build());
+    Assertions.assertEquals(404, response.statusCode(), response.body());
+    Assertions.assertEquals(0, PUT_REQUESTS.get(), "the retired path wrote to the artifact server");
+  }
+
   private static HttpResponse<String> setDoi(String doi) throws Exception {
     String body = "{\"@id\": \"" + artifactId.getId() + "\", \"doi\": \"" + doi + "\"}";
     return postDoiCommand(body);
@@ -331,7 +343,7 @@ public class CommandAnnotationsResourceTest {
 
   private static HttpResponse<String> postDoiCommand(String body) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/annotations/doi"))
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/set-doi"))
         .header("Authorization", authHeader)
         .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(body))

@@ -180,7 +180,7 @@ public class CreatedArtifactSurvivesAnEditTest {
     submitted.put(ModelNodeNames.SCHEMA_ORG_NAME, "Publish-and-draft source, edited");
 
     HttpResponse<String> drafted = post("/command/publish-create-draft-template/" + encode(sourceId),
-        submitted.toString());
+        "{\"template\":" + submitted + "}");
     Assertions.assertEquals(200, drafted.statusCode(), drafted.body());
 
     assertSurvivesAnEdit("publish and draft", idOf(drafted), "/templates/");
@@ -215,7 +215,7 @@ public class CreatedArtifactSurvivesAnEditTest {
   }
 
   private static void setDoi(String artifactId, String doi) throws Exception {
-    HttpResponse<String> response = post("/command/annotations/doi",
+    HttpResponse<String> response = post("/command/set-doi",
         "{\"@id\":\"" + artifactId + "\",\"doi\":\"" + doi + "\"}");
     Assertions.assertEquals(200, response.statusCode(), response.body());
   }

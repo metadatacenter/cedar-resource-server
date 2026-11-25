@@ -249,7 +249,7 @@ public class StoreConsistencyMatrixTest {
     String id = createTemplate("Consistency publish-and-draft fixture", "https://doi.org/10.5072/FK2-consistency-published");
 
     HttpResponse<String> response = post("/command/publish-create-draft-template/" + encode(id),
-        templateDocument("Consistency publish-and-draft fixture, edited", null).toString());
+        "{\"template\":" + templateDocument("Consistency publish-and-draft fixture, edited", null) + "}");
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
     String draftId = JsonMapper.STRICT_MAPPER.readTree(response.body()).path("@id").asText();
@@ -338,7 +338,7 @@ public class StoreConsistencyMatrixTest {
   }
 
   private static void setDoi(String artifactId, String doi) throws Exception {
-    HttpResponse<String> response = post("/command/annotations/doi",
+    HttpResponse<String> response = post("/command/set-doi",
         "{\"@id\":\"" + artifactId + "\",\"doi\":\"" + doi + "\"}");
     Assertions.assertEquals(200, response.statusCode(), response.body());
   }

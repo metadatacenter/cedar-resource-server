@@ -55,6 +55,8 @@ import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServer
 import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerSchemaArtifactCurrentUserReport;
 import org.metadatacenter.model.folderserver.extract.FolderServerResourceExtract;
 import org.metadatacenter.rest.assertion.noun.CedarParameter;
+import org.metadatacenter.rest.assertion.noun.CedarRequestBody;
+import org.metadatacenter.rest.exception.CedarAssertionException;
 import org.metadatacenter.rest.context.CedarRequestContext;
 import org.metadatacenter.server.FolderServiceSession;
 import org.metadatacenter.server.ResourcePermissionServiceSession;
@@ -93,7 +95,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_DRAFT_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_NAME;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPES;
@@ -111,6 +113,8 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   /** The body key under which the caller of create-draft-artifact may choose the draft's identity. */
   private static final String DRAFT_ID = "draftId";
+  private static final String NEW_FOLDER_NAME = "newFolderName";
+  private static final String TEMPLATE = "template";
 
   private static CloneInstancesEnqueueService cloneInstanceEnqueueService;
 
@@ -427,12 +431,12 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     c.must(c.user()).be(LoggedIn);
 
     c.request().getRequestBody()
-        .mustHaveOnly("@id", "newVersion", "folderId", "propagateSharing", "newFolderName", DRAFT_ID);
+        .mustHaveOnly("@id", "newVersion", "folderId", "propagateSharing", NEW_FOLDER_NAME, DRAFT_ID);
     CedarParameter idParam = c.request().getRequestBody().get("@id");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
     CedarParameter folderIdParam = c.request().getRequestBody().get("folderId");
     CedarParameter propagateSharingParam = c.request().getRequestBody().get("propagateSharing");
-    CedarParameter newFolderNameParam = c.request().getRequestBody().get("newFolderName");
+    CedarParameter newFolderNameParam = c.request().getRequestBody().get(NEW_FOLDER_NAME);
     CedarParameter draftIdParam = c.request().getRequestBody().get(DRAFT_ID);
 
     String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
@@ -648,7 +652,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/check-update-template/{template_id}")
+  @Path("/check-update-template/{id}")
   @Operation(summary = "Check whether a template can be updated", description = "Check whether an existing template can be updated with the supplied template definition. The "
           + "destructive and non-destructive changes between the stored template and the supplied template are "
           + "computed, and the number of affected instances is reported.", tags = {"Command", "Versioning"})
@@ -664,7 +668,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response checkUpdateTemplate(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(CedarResourceType.TEMPLATE, id);
@@ -674,7 +678,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
     userMustHaveCapabilityOnArtifact(c, tid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
 
-    ObjectNode newTemplateObjectNode = submittedTemplate(c);
+    ObjectNode newTemplateObjectNode = submittedTemplate(c.request().getRequestBody().asJson(), "The request body");
     Map<String, Object> resp = new HashMap<>();
 
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -735,7 +739,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/publish-create-draft-template/{template_id}")
+  @Path("/publish-create-draft-template/{id}")
   @Operation(summary = "Publish a template and create a new draft", description = "Publish the given template, then create a new draft version from it and apply the supplied template "
           + "definition. Instances of the source template can be copied into a new folder. The command succeeds "
           + "or fails as a whole. What a later step would refuse is refused before the template is published: "
@@ -746,14 +750,16 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           + "A retry sends that ETag in If-Match and publishes the template at the same version.",
       tags = {"Command", "Versioning"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
-  @RequestBody(description = "The template definition to apply to the new draft", required = true,
-      content = @Content(schema = @Schema(implementation = SchemaArtifactDocument.class)))
+  @RequestBody(description = "The template definition to apply to the new draft, and how to create it",
+      required = true, content = @Content(schema = @Schema(
+          implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.PublishCreateDraftTemplateRequest.class)))
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The new draft template",
           content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)),
-          description = "The definition or the draft identifier is refused, or the template cannot be published, "
-              + "for example because it is already published; nothing was published"),
+          description = "The definition or the draft identifier is refused, the request sends the withdrawn "
+              + "folder_name or draft_id query parameter, or the template cannot be published, for example "
+              + "because it is already published; nothing was published"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
           description = "Only the template's owner may version it, whatever role another user holds "
@@ -769,15 +775,22 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           description = "A step received no answer from the artifact server; whatever the command had done was undone")
   })
   public Response publishCreateDraftTemplate(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
-      @Parameter(description = "Name of the folder to copy the template instances into.")
-      @QueryParam(QP_FOLDER_NAME) Optional<String> folderName,
-      @Parameter(description = "The full identifier the new draft is to have, chosen by the caller so that it "
-          + "can read the outcome by it if the answer is lost. Example: https://repo.metadatacenter.org/templates/"
-          + "8bc64ab5-df6b-48c8-8c61-6c016245918e. Without it, the server chooses one.")
-      @QueryParam(QP_DRAFT_ID) Optional<String> draftIdParam) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id)
+      throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    // Both inputs moved into the body. Ignoring them here would publish without the draft identity the
+    // caller chose, or without copying the instances it asked for.
+    for (String withdrawn : List.of(QP_FOLDER_NAME, QP_DRAFT_ID)) {
+      List<String> values = uriInfo.getQueryParameters().get(withdrawn);
+      if (values != null) {
+        throw new CedarAssertionException(withdrawn + " is no longer a query parameter. Send "
+            + (withdrawn.equals(QP_DRAFT_ID) ? DRAFT_ID : NEW_FOLDER_NAME) + " in the request body instead.")
+            .errorKey(CedarErrorKey.INVALID_INPUT)
+            .parameter(withdrawn, values.isEmpty() ? null : values.get(0))
+            .badRequest();
+      }
+    }
     id = linkedDataUtil.resolveResourceId(CedarResourceType.TEMPLATE, id);
 
     c.must(c.user()).have(CedarPermission.TEMPLATE_READ);
@@ -792,11 +805,15 @@ public class CommandVersionResource extends AbstractResourceServerResource {
           .message("Creating a draft from an edited template requires its original ETag in If-Match")
           .build();
     }
-    ObjectNode newTemplateJsonNode = submittedTemplate(c);
+    CedarRequestBody body = c.request().getRequestBody().mustHaveOnly(TEMPLATE, NEW_FOLDER_NAME, DRAFT_ID);
+    ObjectNode newTemplateJsonNode = submittedTemplate(body.asJson() == null ? null : body.asJson().get(TEMPLATE),
+        "The template property of the request body");
+    Optional<String> folderName = optionalString(body.get(NEW_FOLDER_NAME));
+    Optional<String> draftIdParam = optionalString(body.get(DRAFT_ID));
     // The draft's identity is settled before anything is read, so that the definition can be judged at
     // the identity it will have and whatever is created there can be found again if a step fails.
     CedarArtifactId draftId = draftIdParam.isPresent() && !draftIdParam.get().isBlank()
-        ? suppliedArtifactIdentity(QP_DRAFT_ID, draftIdParam.get(), CedarResourceType.TEMPLATE)
+        ? suppliedArtifactIdentity(DRAFT_ID, draftIdParam.get(), CedarResourceType.TEMPLATE)
         : CedarArtifactId.build(linkedDataUtil.buildNewLinkedDataId(CedarResourceType.TEMPLATE),
             CedarResourceType.TEMPLATE);
     var source = ArtifactServerUtil.getSchemaArtifactWithEtagFromArtifactServer(
@@ -1183,18 +1200,23 @@ public class CommandVersionResource extends AbstractResourceServerResource {
    * was a 500, after the command had already looked up the stored template, and check-update said such
    * a body could replace a template that had no instances, without reading it at all.
    */
-  private static ObjectNode submittedTemplate(CedarRequestContext c) throws CedarException {
-    if (!(c.request().getRequestBody().asJson() instanceof ObjectNode submitted)) {
+  private static ObjectNode submittedTemplate(JsonNode definition, String source) throws CedarException {
+    if (!(definition instanceof ObjectNode submitted)) {
       throw new CedarBadRequestException(new CedarErrorPack()
-          .message("The request body must be the template definition, as a JSON object"));
+          .message(source + " must be the template definition, as a JSON object"));
     }
     try {
       new JsonArtifactReader().readTemplateSchemaArtifact(submitted.deepCopy());
     } catch (RuntimeException e) {
       throw new CedarBadRequestException(new CedarErrorPack()
-          .message("The request body is not a template the artifact library can read: " + e.getMessage()));
+          .message(source + " is not a template the artifact library can read: " + e.getMessage()));
     }
     return submitted;
+  }
+
+  /** A string property of a command body, absent when it was not sent or was null. */
+  private static Optional<String> optionalString(CedarParameter parameter) {
+    return parameter.isEmpty() ? Optional.empty() : Optional.ofNullable(parameter.stringValue());
   }
 
   /**

@@ -29,7 +29,7 @@ import jakarta.ws.rs.core.Response;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_COMPACT;
-import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_VERBATIM;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -79,7 +79,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_id}")
+  @Path("/{id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Get a template", description = "Get a template as JSON or YAML, selected via the Accept header.")
   @ApiResponses({
@@ -94,7 +94,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
   public Response findTemplate(
       @Parameter(description = "Template identifier. Example: https://repo.metadatacenter.org/templates/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_TEMPLATE_ID) String id,
+      @PathParam(PP_ID) String id,
       @Parameter(description = "When requesting YAML, produce a compact representation.")
       @QueryParam(QP_COMPACT) Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -110,7 +110,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_id}/download")
+  @Path("/{id}/download")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Download a template", description = "Download a template as JSON or YAML, selected via the Accept "
       + "header.")
@@ -126,7 +126,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateDownload(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id,
       @Parameter(description = "Desired output format: 'application/json' or 'application/yaml'.")
       @HeaderParam("Accept") String acceptHeader,
       @Parameter(description = "When downloading YAML, produce a compact representation.")
@@ -145,7 +145,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_id}/details")
+  @Path("/{id}/details")
   @Operation(summary = "Get details of a template", description = "Get details of a template.", tags = {"Templates", "Resource Details"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template's details",
@@ -158,7 +158,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response findTemplateDetails(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
@@ -171,7 +171,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{template_id}")
+  @Path("/{id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Update a template", description = "Update a template. The body can be JSON or YAML, selected via "
@@ -195,7 +195,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response updateTemplate(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id,
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id,
       @Parameter(description = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
       @Parameter(description = "Not supported on write operations; write responses always render the full form.")
       @QueryParam(QP_COMPACT) Optional<Boolean> compactParam,
@@ -220,7 +220,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @DELETE
   @Timed
-  @Path("/{template_id}")
+  @Path("/{id}")
   @Operation(summary = "Delete a template", description = "Conditionally delete a template using its current ETag. "
       + "CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted "
       + "workspace-graph or search-index cleanup.",
@@ -241,7 +241,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response deleteTemplate(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
@@ -254,7 +254,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_id}/permissions")
+  @Path("/{id}/permissions")
   @Operation(summary = "Get permissions of a template", description = "Get permissions of a template.", tags = {"Templates", "Permissions"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template's permissions",
@@ -267,7 +267,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplatePermissions(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
@@ -280,7 +280,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{template_id}/permissions")
+  @Path("/{id}/permissions")
   @Operation(summary = "Update permissions of a template", description = "Update permissions of a template.", tags = {"Templates", "Permissions"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Complete replacement for the template's direct grants.", required = true,
@@ -298,7 +298,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response updateTemplatePermissions(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
@@ -311,7 +311,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_id}/report")
+  @Path("/{id}/report")
   @Operation(summary = "Get report of a template", description = "Get report of a template.", tags = {"Templates", "Resource Report", "Versioning"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template's report",
@@ -323,7 +323,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateReport(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);
@@ -336,7 +336,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_id}/versions")
+  @Path("/{id}/versions")
   @Operation(summary = "Get a list of versions of a template", description = "Get a list of versions of a template.", tags = {"Templates", "Resource Report", "Versioning"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template's versions, newest first",
@@ -348,7 +348,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateVersions(
-      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_TEMPLATE_ID) String id) throws CedarException {
+      @Parameter(description = "Template identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.TEMPLATE, id);

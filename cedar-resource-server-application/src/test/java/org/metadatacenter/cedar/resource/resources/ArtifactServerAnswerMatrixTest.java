@@ -186,7 +186,7 @@ public class ArtifactServerAnswerMatrixTest {
           "{\"@id\":\"" + id + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
               + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}"),
       "publish and draft", id -> post("/command/publish-create-draft-template/" + encode(id),
-          templateDocument("Answer matrix fixture, edited").toString()),
+          "{\"template\":" + templateDocument("Answer matrix fixture, edited") + "}"),
       "copy", id -> post("/command/copy-artifact-to-folder",
           "{\"@id\":\"" + id + "\",\"targetFolderId\":\"" + homeFolderId.getId()
               + "\",\"nameTemplate\":\"Copy of {{name}}\"}"),

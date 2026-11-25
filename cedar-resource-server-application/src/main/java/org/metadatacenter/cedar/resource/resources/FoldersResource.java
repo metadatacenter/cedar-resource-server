@@ -45,7 +45,7 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 
-import static org.metadatacenter.constant.CedarPathParameters.PP_FOLDER_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_DESCRIPTION;
 import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
 import static org.metadatacenter.rest.assertion.GenericAssertions.*;
@@ -83,7 +83,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{folder_id}")
+  @Path("/{id}")
   @Operation(summary = "Get a folder", description = "Get a folder.")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "A folder and what the current user may do with it",
@@ -98,7 +98,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   public Response findFolder(
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_FOLDER_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
@@ -123,7 +123,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{folder_id}/details")
+  @Path("/{id}/details")
   @Operation(summary = "Get the details of a folder", description = "Get the details of a folder.")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "A folder and what the current user may do with it",
@@ -138,13 +138,13 @@ public class FoldersResource extends AbstractResourceServerResource {
   public Response findFolderDetails(
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_FOLDER_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     return findFolder(id);
   }
 
   @PUT
   @Timed
-  @Path("/{folder_id}")
+  @Path("/{id}")
   @Operation(summary = "Update a folder", description = "Update a folder, or create one under the supplied "
       + "identifier. An existing folder is updated only with the ETag returned by GET in If-Match. Without "
       + "If-Match the request can only create, so on an existing folder it answers 428 whatever its body, and "
@@ -170,7 +170,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   public Response createOrUpdateFolder(
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_FOLDER_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
@@ -227,7 +227,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
   @DELETE
   @Timed
-  @Path("/{folder_id}")
+  @Path("/{id}")
   @Operation(summary = "Delete a folder", description = "Delete a folder.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
@@ -243,7 +243,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   public Response deleteFolder(
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_FOLDER_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
@@ -325,7 +325,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{folder_id}/permissions")
+  @Path("/{id}/permissions")
   @Operation(summary = "Get permissions of a folder", description = "Get permissions of a folder.", tags = {"Folders", "Permissions"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The folder's permissions",
@@ -340,7 +340,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   public Response getFolderPermissions(
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_FOLDER_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);
@@ -353,7 +353,7 @@ public class FoldersResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{folder_id}/permissions")
+  @Path("/{id}/permissions")
   @Operation(summary = "Update permissions of a folder", description = "Update permissions of a folder.", tags = {"Folders", "Permissions"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Complete replacement for the folder's direct grants.", required = true,
@@ -373,7 +373,7 @@ public class FoldersResource extends AbstractResourceServerResource {
   public Response updateFolderPermissions(
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_FOLDER_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.FOLDER, id);

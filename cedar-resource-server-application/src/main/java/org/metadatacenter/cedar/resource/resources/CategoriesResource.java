@@ -69,7 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.metadatacenter.constant.CedarPathParameters.PP_CATEGORY_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_LIMIT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_OFFSET;
 import static org.metadatacenter.id.CedarCategoryId.CATEGORY_ID_ROOT;
@@ -261,7 +261,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{category_id}")
+  @Path("/{id}")
   @Operation(summary = "Get a category", description = "Get a category.")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "A category and what the current user may do with it",
@@ -276,7 +276,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
   public Response findCategory(
       @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
@@ -315,7 +315,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
   public Response findCategoryTree(
       @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
@@ -335,7 +335,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{category_id}")
+  @Path("/{id}")
   @Operation(summary = "Update a category", description = "Update a category.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "The category to be updated", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CategoryUpdateRequest.class)))
@@ -355,7 +355,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
   public Response updateCategory(
       @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
@@ -446,7 +446,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @DELETE
   @Timed
-  @Path("/{category_id}")
+  @Path("/{id}")
   @Operation(summary = "Delete a category", description = "Delete a category.",
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @ApiResponses({
@@ -463,7 +463,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
   public Response deleteCategory(
       @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
@@ -530,7 +530,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{category_id}/permissions")
+  @Path("/{id}/permissions")
   @Operation(summary = "Get category permissions",
       description = "Get the category owner, direct user grants and direct group grants. Any user with the readCategory capability may read this response.",
       tags = {"Categories", "Permissions"})
@@ -547,7 +547,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
   public Response getCategoryPermissions(
       @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
@@ -567,7 +567,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{category_id}/permissions")
+  @Path("/{id}/permissions")
   @Operation(summary = "Replace category grants",
       description = "Atomically replace the direct user and group role grants. This operation does not change ownership or inherited roles. The caller must have the manageGrants capability.",
       tags = {"Categories", "Permissions"},
@@ -589,7 +589,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
   public Response updateCategoryPermissions(
       @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_CATEGORY_ID) String id) throws CedarException {
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 

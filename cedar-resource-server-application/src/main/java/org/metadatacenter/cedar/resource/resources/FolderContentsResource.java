@@ -45,7 +45,7 @@ import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 import java.util.*;
 
-import static org.metadatacenter.constant.CedarPathParameters.PP_FOLDER_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.*;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
@@ -61,7 +61,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{folder_id}/contents")
+  @Path("/{id}/contents")
   @Operation(parameters = {
       @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
           description = "Inclusive last-modified lower bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000")),
@@ -80,7 +80,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   public Response findFolderContentsById(
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_FOLDER_ID) String id,
+      @PathParam(PP_ID) String id,
       @Parameter(description = "Resource types as comma separated values. The allowed values are: 'folder', 'field', "
           + "'element', 'template', 'instance'")
       @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,
@@ -171,7 +171,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{folder_id}/contents-extract")
+  @Path("/{id}/contents-extract")
   @Operation(parameters = {
       @Parameter(name = "modified_after", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
           description = "Inclusive last-modified lower bound, in epoch milliseconds. A value below 100000000000, which falls in March 1973, is refused as most likely a time in seconds.", schema = @Schema(type = "integer", format = "int64", minimum = "100000000000")),
@@ -193,7 +193,7 @@ public class FolderContentsResource extends AbstractResourceServerResource {
   public Response findFolderContentsExtractById(
       @Parameter(description = "Folder identifier. Example: https://repo.metadatacenter.org/folders/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_FOLDER_ID) String id,
+      @PathParam(PP_ID) String id,
       @Parameter(description = "Resource types as comma separated values. The allowed values are: 'folder', 'field', "
           + "'element', 'template', 'instance'")
       @QueryParam(QP_RESOURCE_TYPES) Optional<String> resourceTypes,

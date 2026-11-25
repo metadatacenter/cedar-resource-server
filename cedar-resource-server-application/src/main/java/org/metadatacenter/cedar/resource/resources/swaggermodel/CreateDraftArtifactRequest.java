@@ -27,6 +27,10 @@ public class CreateDraftArtifactRequest {
   @Schema(name = "propagateSharing", description = "Copy sharing settings, or leave the new artifact unshared")
   private Boolean propagateSharing;
 
+  @Schema(name = "newFolderName", description = "For a template, the name of a new folder to copy its instances "
+      + "into, as instances of the draft. Optional. Without it, no instance is copied.")
+  private String newFolderName;
+
   @Schema(name = "draftId", description = "The full identifier the draft is to have, in the source artifact's "
       + "collection. Optional. A caller that may lose the answer chooses it, so that it can read the outcome by "
       + "it rather than draft again: a repeat finds the identifier taken and answers 412. Example: "
@@ -64,6 +68,14 @@ public class CreateDraftArtifactRequest {
 
   public void setPropagateSharing(Boolean propagateSharing) {
     this.propagateSharing = propagateSharing;
+  }
+
+  public String getNewFolderName() {
+    return newFolderName;
+  }
+
+  public void setNewFolderName(String newFolderName) {
+    this.newFolderName = newFolderName;
   }
 
   public String getDraftId() {

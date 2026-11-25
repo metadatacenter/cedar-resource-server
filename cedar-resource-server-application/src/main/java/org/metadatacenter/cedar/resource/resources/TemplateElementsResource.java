@@ -29,7 +29,7 @@ import jakarta.ws.rs.core.Response;
 import java.util.Optional;
 
 import static org.metadatacenter.constant.CedarQueryParameters.QP_COMPACT;
-import static org.metadatacenter.constant.CedarPathParameters.PP_TEMPLATE_ELEMENT_ID;
+import static org.metadatacenter.constant.CedarPathParameters.PP_ID;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_VERBATIM;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_FOLDER_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
@@ -79,7 +79,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_element_id}")
+  @Path("/{id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Get a template element", description = "Get a template element as JSON or YAML, selected via the "
       + "Accept header.")
@@ -95,7 +95,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   public Response findTemplateElement(
       @Parameter(description = "Template Element identifier. Example: https://repo.metadatacenter.org/template-elements/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_TEMPLATE_ELEMENT_ID) String id,
+      @PathParam(PP_ID) String id,
       @Parameter(description = "When requesting YAML, produce a compact representation.")
       @QueryParam(QP_COMPACT) Optional<Boolean> compactParam) throws CedarException {
     CedarRequestContext c = buildRequestContext();
@@ -111,7 +111,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_element_id}/download")
+  @Path("/{id}/download")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Download a template element", description = "Download a template element as JSON or YAML, selected via the Accept "
       + "header.")
@@ -127,7 +127,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateElementDownload(
-      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id,
+      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_ID) String id,
       @Parameter(description = "Desired output format: 'application/json' or 'application/yaml'.")
       @HeaderParam("Accept") String acceptHeader,
       @Parameter(description = "When downloading YAML, produce a compact representation.")
@@ -146,7 +146,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_element_id}/details")
+  @Path("/{id}/details")
   @Operation(summary = "Get details of a template element", description = "Get details of a template element.", tags = {"Template Elements", "Resource Details"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template element's details",
@@ -159,7 +159,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response findTemplateElementDetails(
-      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
+      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
@@ -172,7 +172,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{template_element_id}")
+  @Path("/{id}")
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Consumes({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Update a template element", description = "Update a template element. The body can be JSON or "
@@ -196,7 +196,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response updateTemplateElement(
-      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id,
+      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_ID) String id,
       @Parameter(description = "Folder identifier.") @QueryParam(QP_FOLDER_ID) Optional<String> folderId,
       @Parameter(description = "Not supported on write operations; write responses always render the full form.")
       @QueryParam(QP_COMPACT) Optional<Boolean> compactParam,
@@ -222,7 +222,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @DELETE
   @Timed
-  @Path("/{template_element_id}")
+  @Path("/{id}")
   @Operation(summary = "Delete a template element", description = "Conditionally delete a template element using its current ETag. "
       + "CEDAR durably records an accepted deletion before removing content and automatically resumes any interrupted "
       + "workspace-graph or search-index cleanup.",
@@ -243,7 +243,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response deleteTemplateElement(
-      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
+      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
@@ -256,7 +256,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_element_id}/permissions")
+  @Path("/{id}/permissions")
   @Operation(summary = "Get permissions of a template element", description = "Get permissions of a template element.", tags = {"Template Elements", "Permissions"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template element's permissions",
@@ -269,7 +269,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateElementPermissions(
-      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
+      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
@@ -282,7 +282,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @PUT
   @Timed
-  @Path("/{template_element_id}/permissions")
+  @Path("/{id}/permissions")
   @Operation(summary = "Update permissions of a template element", description = "Update permissions of a template element.", tags = {"Template Elements", "Permissions"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
   @RequestBody(description = "Complete replacement for the template element's direct grants.", required = true,
@@ -300,7 +300,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response updateTemplateElementPermissions(
-      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
+      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
@@ -313,7 +313,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_element_id}/report")
+  @Path("/{id}/report")
   @Operation(summary = "Get report of a template element", description = "Get report of a template element.", tags = {"Template Elements", "Resource Report", "Versioning"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template element's report",
@@ -325,7 +325,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateElementInstanceReport(
-      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
+      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);
@@ -338,7 +338,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
 
   @GET
   @Timed
-  @Path("/{template_element_id}/versions")
+  @Path("/{id}/versions")
   @Operation(summary = "Get a list of versions of a template element", description = "Get a list of versions of a template element.", tags = {"Template Elements", "Resource Report", "Versioning"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template element's versions, newest first",
@@ -350,7 +350,7 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateElementVersions(
-      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_TEMPLATE_ELEMENT_ID) String id) throws CedarException {
+      @Parameter(description = "Template Element identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
     id = linkedDataUtil.resolveResourceId(org.metadatacenter.model.CedarResourceType.ELEMENT, id);

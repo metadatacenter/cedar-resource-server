@@ -51,6 +51,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -238,12 +239,41 @@ public class PublishCreateDraftTemplateTest {
     HttpRequest.Builder request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort()
             + "/command/publish-create-draft-template/"
-            + URLEncoder.encode(sourceId.getId(), StandardCharsets.UTF_8)
-            + (draftId == null ? "" : "?draft_id=" + URLEncoder.encode(draftId, StandardCharsets.UTF_8))))
+            + URLEncoder.encode(sourceId.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authorization)
         .header("Content-Type", "application/json");
     if (etag != null) request.header("If-Match", etag);
-    return CLIENT.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+    String command = "{\"template\":" + body
+        + (draftId == null ? "" : ",\"draftId\":" + JsonMapper.STRICT_MAPPER.writeValueAsString(draftId)) + "}";
+    return CLIENT.send(request.POST(HttpRequest.BodyPublishers.ofString(command)).build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  @Test
+  public void theWithdrawnQueryParametersAndABareDefinitionAreRefusedBeforeAnyWrite() throws Exception {
+    CedarTemplateId id = createSourceTemplate("Withdrawn parameter source", null);
+    ObjectNode before = ARTIFACTS.get(id.getId()).deepCopy();
+    int count = ARTIFACTS.size();
+    String etag = "\"" + ETAGS.get(id.getId()) + "\"";
+    for (String parameter : List.of("draft_id", "folder_name")) {
+      HttpResponse<String> refused = CLIENT.send(HttpRequest.newBuilder()
+          .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/publish-create-draft-template/"
+              + URLEncoder.encode(id.getId(), StandardCharsets.UTF_8) + "?" + parameter + "=x"))
+          .header("Authorization", authHeader).header("Content-Type", "application/json").header("If-Match", etag)
+          .POST(HttpRequest.BodyPublishers.ofString("{\"template\":" + before + "}")).build(),
+          HttpResponse.BodyHandlers.ofString());
+      Assertions.assertEquals(400, refused.statusCode(), refused.body());
+      Assertions.assertTrue(refused.body().contains(parameter), refused.body());
+    }
+    HttpResponse<String> bare = CLIENT.send(HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/publish-create-draft-template/"
+            + URLEncoder.encode(id.getId(), StandardCharsets.UTF_8)))
+        .header("Authorization", authHeader).header("Content-Type", "application/json").header("If-Match", etag)
+        .POST(HttpRequest.BodyPublishers.ofString(before.toString())).build(), HttpResponse.BodyHandlers.ofString());
+    Assertions.assertEquals(400, bare.statusCode(), bare.body());
+    Assertions.assertEquals(before, ARTIFACTS.get(id.getId()));
+    Assertions.assertEquals(count, ARTIFACTS.size(), "no draft may be minted");
+    Assertions.assertEquals(BiboStatus.DRAFT,
+        ((FolderServerTemplate) folderSession.findArtifactById(id)).getPublicationStatus());
   }
 
   @Test

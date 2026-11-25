@@ -97,7 +97,7 @@ public class ArtifactRoutesRespondTest {
     List<RouteSurface.Endpoint> routes = RouteSurface.endpoints(registeredAuthenticatedResources()).stream()
         .filter(endpoint -> endpoint.fullPath.contains("{"))
         .toList();
-    Assertions.assertTrue(routes.stream().anyMatch(endpoint -> endpoint.key().equals("PUT /templates/{template_id}")),
+    Assertions.assertTrue(routes.stream().anyMatch(endpoint -> endpoint.key().equals("PUT /templates/{id}")),
         "the routes with a path parameter should include the template write: " + routes);
     List<String> divergences = new ArrayList<>();
     for (RouteSurface.Endpoint endpoint : routes) {
@@ -116,11 +116,11 @@ public class ArtifactRoutesRespondTest {
   @Test
   public void anAuthenticatedCallersUnresolvableIdentifierIsRefusedWith400() throws Exception {
     List<RouteSurface.Endpoint> routes = RouteSurface.endpoints(registeredAuthenticatedResources()).stream()
-        .filter(endpoint -> PATH_VARIABLE.matcher(endpoint.fullPath).results()
-            .anyMatch(variable -> RESOURCE_IDENTIFIERS.contains(variable.group(1))))
+        .filter(endpoint -> endpoint.fullPath.contains("{id}")
+            && RESOURCE_COLLECTIONS.stream().anyMatch(endpoint.fullPath::startsWith))
         .toList();
-    for (String route : List.of("PUT /templates/{template_id}", "GET /folders/{folder_id}/contents",
-        "GET /folders/{folder_id}/contents-extract", "GET /folders/{folder_id}/details")) {
+    for (String route : List.of("PUT /templates/{id}", "GET /folders/{id}/contents",
+        "GET /folders/{id}/contents-extract", "GET /folders/{id}/details")) {
       Assertions.assertTrue(routes.stream().anyMatch(endpoint -> endpoint.key().equals(route)), route);
     }
     List<String> divergences = new ArrayList<>();
@@ -138,9 +138,10 @@ public class ArtifactRoutesRespondTest {
 
   private static final Pattern PATH_VARIABLE = Pattern.compile("\\{([^}]+)}");
 
-  /** The path parameters that name an artifact or a folder. */
-  private static final Set<String> RESOURCE_IDENTIFIERS = Set.of("folder_id", "template_id", "template_element_id",
-      "template_field_id", "template_instance_id");
+  /** The paths whose {id} identifies an artifact or a folder. */
+  private static final Set<String> RESOURCE_COLLECTIONS = Set.of("/folders/", "/templates/", "/template-elements/",
+      "/template-fields/", "/template-instances/", "/command/check-update-template/",
+      "/command/publish-create-draft-template/");
 
   /**
    * Sends one request at a route with every path parameter set to a value no identifier can take, with
