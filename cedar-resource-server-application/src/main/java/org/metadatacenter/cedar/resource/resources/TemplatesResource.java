@@ -467,7 +467,7 @@ public class TemplatesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
-  public Response setDOI(@PathParam("id") String id) throws CedarException {
+  public Response setDOI(@PathParam(PP_ID) String id) throws CedarException {
     return operationResource(new CommandAnnotationsResource(cedarConfig)).setDOI("templates", id);
   }
 }

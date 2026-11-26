@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import static org.metadatacenter.constant.CedarPathParameters.PP_KIND;
+
 import org.metadatacenter.server.ArtifactGraphUpdateResult;
 
 import com.codahale.metrics.annotation.Timed;
@@ -126,7 +128,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     cloneInstanceEnqueueService = cies;
   }
 
-  public Response publishArtifact(@PathParam("kind") String kind, @PathParam(PP_ID) String id) throws CedarException {
+  public Response publishArtifact(@PathParam(PP_KIND) String kind, @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
