@@ -107,14 +107,16 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "406", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The requested representation is not supported for this artifact"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response findTemplateInstance(
       @Parameter(description = "Template Instance identifier. Example: https://repo.metadatacenter.org/template-instances/"
           + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
       @PathParam(PP_ID) String id,
-      @Parameter(description = "Output format type to display the content of the template instance. The allowed values are: "
-          + "'jsonld', 'json', 'rdf-nquad'.")
+      @Parameter(description = "Output representation; overrides Accept. Unknown or repeated values return 400.",
+          schema = @Schema(type = "string", allowableValues = {"jsonld", "json", "yaml", "rdf-nquad"}))
       @QueryParam(QP_FORMAT) Optional<String> format,
       @Parameter(description = "When requesting YAML, produce a compact representation.")
       @QueryParam(QP_COMPACT) Optional<Boolean> compactParam) throws CedarException {
@@ -146,9 +148,11 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/download")
   @Parameter(name = "format", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-      description = "Output representation: jsonld, json, yaml or rdf-nquad; overrides Accept.")
+      description = "Output representation; overrides Accept. Unknown or repeated values return 400. "
+          + "RDF N-Quads is supported for instances only; schema artifacts return 406.",
+      schema = @Schema(type = "string", allowableValues = {"jsonld", "json", "yaml", "rdf-nquad"}))
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml", "application/n-quads"})
-  @Operation(summary = "Download a template instance", description = "Download a template instance as JSON or YAML, selected via the Accept "
+  @Operation(summary = "Download a template instance", description = "Download a template instance as JSON, YAML or N-Quads, selected via format or the Accept "
       + "header.")
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template instance content as an attachment",
@@ -159,6 +163,8 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "406", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The requested representation is not supported for this artifact"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateInstanceDownload(

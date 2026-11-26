@@ -84,7 +84,9 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}")
   @Parameter(name = "format", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-      description = "Output representation: jsonld, json, yaml or rdf-nquad; overrides Accept.")
+      description = "Output representation; overrides Accept. Unknown or repeated values return 400. "
+          + "RDF N-Quads is supported for instances only; schema artifacts return 406.",
+      schema = @Schema(type = "string", allowableValues = {"jsonld", "json", "yaml", "rdf-nquad"}))
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Get a template element", description = "Get a template element as JSON or YAML, selected via the "
       + "Accept header.")
@@ -95,6 +97,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "406", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The requested representation is not supported for this artifact"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response findTemplateElement(
@@ -118,7 +122,9 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
   @Timed
   @Path("/{id}/download")
   @Parameter(name = "format", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
-      description = "Output representation: jsonld, json, yaml or rdf-nquad; overrides Accept.")
+      description = "Output representation; overrides Accept. Unknown or repeated values return 400. "
+          + "RDF N-Quads is supported for instances only; schema artifacts return 406.",
+      schema = @Schema(type = "string", allowableValues = {"jsonld", "json", "yaml", "rdf-nquad"}))
   @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
   @Operation(summary = "Download a template element", description = "Download a template element as JSON or YAML, selected via the Accept "
       + "header.")
@@ -131,6 +137,8 @@ public class TemplateElementsResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "406", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The requested representation is not supported for this artifact"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getTemplateElementDownload(

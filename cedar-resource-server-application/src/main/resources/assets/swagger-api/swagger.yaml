@@ -121,14 +121,16 @@ paths:
       - Command
   /artifact-validations/{resource_type}:
     post:
-      description: "Validate CEDAR resources (i.e., templates, elements and instances)\
-        \ against the CEDAR meta-model. To use this service you will need to append\
-        \ the resource text in the request body as the payload. However, in the case\
-        \ of validating the template instance, you have an additional option to include\
-        \ the template text by organizing them as follows: { \"schema\": <template\
-        \ text>, \"instance\": <instance text> }. The validation service will return\
-        \ a report in JSON format as follows: { \"validates\": \"\", \"warnings\"\
-        : [], \"errors\": [] }"
+      description: "Validate CEDAR resources (i.e., templates, elements, fields and\
+        \ instances) against the CEDAR meta-model. To use this service you will need\
+        \ to append the resource text in the request body as the payload. However,\
+        \ in the case of validating the template instance, you have an additional\
+        \ option to include the template text by organizing them as follows: { \"\
+        schema\": <template text>, \"instance\": <instance text> }. The validation\
+        \ service will return a report in JSON format as follows: { \"validates\"\
+        : true, \"warnings\": [], \"errors\": [] }. A completed validation returns\
+        \ 200 whether or not the artifact is valid; inspect the report to decide whether\
+        \ to save."
       operationId: validateResource
       parameters:
       - description: "The type of CEDAR resource. The allowed values are: 'field',\
@@ -138,6 +140,11 @@ paths:
         required: true
         schema:
           type: string
+          enum:
+          - template
+          - element
+          - field
+          - instance
       requestBody:
         content:
           application/json:
@@ -366,13 +373,6 @@ paths:
     get:
       description: Get category tree.
       operationId: findCategoryTree
-      parameters:
-      - description: "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e"
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -3801,12 +3801,18 @@ paths:
         \ header."
       operationId: findTemplateElement
       parameters:
-      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
-          \ Accept."
+      - description: Output representation; overrides Accept. Unknown or repeated
+          values return 400. RDF N-Quads is supported for instances only; schema artifacts
+          return 406.
         in: query
         name: format
         schema:
           type: string
+          enum:
+          - jsonld
+          - json
+          - yaml
+          - rdf-nquad
       - description: "Template Element identifier. Example: https://repo.metadatacenter.org/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: id
@@ -3883,6 +3889,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The requested representation is not supported for this artifact
         "500":
           content:
             application/json:
@@ -4240,12 +4258,18 @@ paths:
         \ Accept header."
       operationId: getTemplateElementDownload
       parameters:
-      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
-          \ Accept."
+      - description: Output representation; overrides Accept. Unknown or repeated
+          values return 400. RDF N-Quads is supported for instances only; schema artifacts
+          return 406.
         in: query
         name: format
         schema:
           type: string
+          enum:
+          - jsonld
+          - json
+          - yaml
+          - rdf-nquad
       - description: Template Element identifier.
         in: path
         name: id
@@ -4330,6 +4354,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The requested representation is not supported for this artifact
         "500":
           content:
             application/json:
@@ -4901,12 +4937,18 @@ paths:
         \ header."
       operationId: findTemplateField
       parameters:
-      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
-          \ Accept."
+      - description: Output representation; overrides Accept. Unknown or repeated
+          values return 400. RDF N-Quads is supported for instances only; schema artifacts
+          return 406.
         in: query
         name: format
         schema:
           type: string
+          enum:
+          - jsonld
+          - json
+          - yaml
+          - rdf-nquad
       - description: "Template Field identifier. Example: https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: id
@@ -4983,6 +5025,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The requested representation is not supported for this artifact
         "500":
           content:
             application/json:
@@ -5340,12 +5394,18 @@ paths:
         \ header."
       operationId: getTemplateFieldDownload
       parameters:
-      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
-          \ Accept."
+      - description: Output representation; overrides Accept. Unknown or repeated
+          values return 400. RDF N-Quads is supported for instances only; schema artifacts
+          return 406.
         in: query
         name: format
         schema:
           type: string
+          enum:
+          - jsonld
+          - json
+          - yaml
+          - rdf-nquad
       - description: Template Field identifier.
         in: path
         name: id
@@ -5430,6 +5490,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The requested representation is not supported for this artifact
         "500":
           content:
             application/json:
@@ -6007,12 +6079,17 @@ paths:
         required: true
         schema:
           type: string
-      - description: "Output format type to display the content of the template instance.\
-          \ The allowed values are: 'jsonld', 'json', 'rdf-nquad'."
+      - description: Output representation; overrides Accept. Unknown or repeated
+          values return 400.
         in: query
         name: format
         schema:
           type: string
+          enum:
+          - jsonld
+          - json
+          - yaml
+          - rdf-nquad
       - description: "When requesting YAML, produce a compact representation."
         in: query
         name: compact
@@ -6098,6 +6175,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The requested representation is not supported for this artifact
         "500":
           content:
             application/json:
@@ -6454,16 +6546,22 @@ paths:
       - Resource Details
   /template-instances/{id}/download:
     get:
-      description: "Download a template instance as JSON or YAML, selected via the\
-        \ Accept header."
+      description: "Download a template instance as JSON, YAML or N-Quads, selected\
+        \ via format or the Accept header."
       operationId: getTemplateInstanceDownload
       parameters:
-      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
-          \ Accept."
+      - description: Output representation; overrides Accept. Unknown or repeated
+          values return 400. RDF N-Quads is supported for instances only; schema artifacts
+          return 406.
         in: query
         name: format
         schema:
           type: string
+          enum:
+          - jsonld
+          - json
+          - yaml
+          - rdf-nquad
       - description: Template Instance identifier.
         in: path
         name: id
@@ -6563,6 +6661,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The requested representation is not supported for this artifact
         "500":
           content:
             application/json:
@@ -7081,12 +7194,18 @@ paths:
       description: "Get a template as JSON or YAML, selected via the Accept header."
       operationId: findTemplate
       parameters:
-      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
-          \ Accept."
+      - description: Output representation; overrides Accept. Unknown or repeated
+          values return 400. RDF N-Quads is supported for instances only; schema artifacts
+          return 406.
         in: query
         name: format
         schema:
           type: string
+          enum:
+          - jsonld
+          - json
+          - yaml
+          - rdf-nquad
       - description: "Template identifier. Example: https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: id
@@ -7163,6 +7282,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The requested representation is not supported for this artifact
         "500":
           content:
             application/json:
@@ -7519,12 +7650,18 @@ paths:
       description: "Download a template as JSON or YAML, selected via the Accept header."
       operationId: getTemplateDownload
       parameters:
-      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
-          \ Accept."
+      - description: Output representation; overrides Accept. Unknown or repeated
+          values return 400. RDF N-Quads is supported for instances only; schema artifacts
+          return 406.
         in: query
         name: format
         schema:
           type: string
+          enum:
+          - jsonld
+          - json
+          - yaml
+          - rdf-nquad
       - description: Template identifier.
         in: path
         name: id
@@ -7609,6 +7746,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/CedarError"
           description: Not found
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The requested representation is not supported for this artifact
         "500":
           content:
             application/json:

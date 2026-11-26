@@ -327,10 +327,7 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
-  public Response findCategoryTree(
-      @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
-          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
-      @PathParam(PP_ID) String id) throws CedarException {
+  public Response findCategoryTree() throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);

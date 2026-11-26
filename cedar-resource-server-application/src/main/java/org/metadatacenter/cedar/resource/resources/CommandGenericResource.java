@@ -199,12 +199,13 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   @POST
   @Timed
   @Path("/artifact-validations/{resource_type}")
-  @Operation(summary = "Validate resources", description = "Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model. To "
+  @Operation(summary = "Validate resources", description = "Validate CEDAR resources (i.e., templates, elements, fields and instances) against the CEDAR meta-model. To "
           + "use this service you will need to append the resource text in the request body as the payload. "
           + "However, in the case of validating the template instance, you have an additional option to include "
           + "the template text by organizing them as follows: { \"schema\": <template text>, \"instance\": "
           + "<instance text> }. The validation service will return a report in JSON format as follows: { "
-          + "\"validates\": \"\", \"warnings\": [], \"errors\": [] }", tags = {"Validation", "Command"})
+          + "\"validates\": true, \"warnings\": [], \"errors\": [] }. A completed validation returns 200 "
+          + "whether or not the artifact is valid; inspect the report to decide whether to save.", tags = {"Validation", "Command"})
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The validation report",
           content = @Content(mediaType = MediaType.APPLICATION_JSON,
@@ -220,7 +221,8 @@ public class CommandGenericResource extends AbstractResourceServerResource {
       required = true, content = @Content(schema = @Schema(ref = "#/components/schemas/ValidationRequest")))
   public Response validateResource(
       @Parameter(description = "The type of CEDAR resource. The allowed values are: 'field', 'element', 'template', "
-          + "'instance'", required = true)
+          + "'instance'", required = true,
+          schema = @Schema(type = "string", allowableValues = {"template", "element", "field", "instance"}))
       @PathParam(QP_RESOURCE_TYPE) String resourceType,
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
