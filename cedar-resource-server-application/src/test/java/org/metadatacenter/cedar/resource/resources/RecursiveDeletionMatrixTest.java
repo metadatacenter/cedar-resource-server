@@ -319,7 +319,9 @@ class RecursiveDeletionMatrixTest {
     return JsonMapper.STRICT_MAPPER.readTree(reply.body());
   }
 
-  private static void handleArtifact(HttpExchange exchange) throws IOException {
+  // Match the real store's atomic revision check and write. A background projection and the
+  // deletion request can otherwise both accept the same ETag and overwrite each other here.
+  private static synchronized void handleArtifact(HttpExchange exchange) throws IOException {
     String path = exchange.getRequestURI().getPath();
     if (path.equals("/templates/deletion-references")) {
       var references = JsonMapper.STRICT_MAPPER.createObjectNode();

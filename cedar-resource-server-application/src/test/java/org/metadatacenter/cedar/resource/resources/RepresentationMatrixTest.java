@@ -252,7 +252,7 @@ public class RepresentationMatrixTest {
     String id = FIXTURES.get(kind).get(stored);
     String path = "/" + kind.getPrefix() + "/" + encode(id) + (endpoint == Endpoint.DOWNLOAD ? "/download" : "");
 
-    Representation preferred = endpoint == Endpoint.GET && kind == CedarResourceType.INSTANCE
+    Representation preferred = kind == CedarResourceType.INSTANCE
         ? accept.instance() : accept.schema();
     Representation expected = preferred;
     if (stored == Stored.UNREADABLE && preferred.isYaml()) {
@@ -303,7 +303,7 @@ public class RepresentationMatrixTest {
       Assertions.assertEquals("\"" + revision + suffix + "\"", response.headers().firstValue("ETag").orElse(null),
           "the validator names the representation served");
     } else {
-      String extension = expected == Representation.JSON ? ".json" : ".yaml";
+      String extension = expected == Representation.JSON ? ".json" : expected == Representation.NQUADS ? ".nq" : ".yaml";
       Assertions.assertTrue(response.headers().firstValue("Content-Disposition").orElse("").contains(extension),
           "the file is named for what it holds: " + response.headers().firstValue("Content-Disposition"));
     }
@@ -385,7 +385,7 @@ public class RepresentationMatrixTest {
     };
     VALIDATED.set(null);
     CREATED.set(null);
-    HttpResponse<String> validated = TestHttpClient.send(request("/command/validate?resource_type=" + body.kind().getValue())
+    HttpResponse<String> validated = TestHttpClient.send(request("/artifact-validations/" + body.kind().getValue())
         .header("Content-Type", "application/yaml").POST(HttpRequest.BodyPublishers.ofString(yaml)).build());
     Assertions.assertEquals(200, validated.statusCode(), validated.body());
     HttpResponse<String> created = TestHttpClient.send(request("/" + body.kind().getPrefix() + "?folder_id="
@@ -447,8 +447,8 @@ public class RepresentationMatrixTest {
     WRITES.clear();
 
     String path = command.equals("check-update")
-        ? "/command/check-update-template/" + encode(id)
-        : "/command/publish-create-draft-template/" + encode(id);
+        ? "/template-update-checks/" + encode(id)
+        : "/template-drafts/" + encode(id);
     // The draft command takes the definition as the template property of its body.
     if (!command.equals("check-update") && !content.isEmpty()) {
       content = "{\"template\":" + content + "}";
@@ -535,7 +535,7 @@ public class RepresentationMatrixTest {
     String path = exchange.getRequestURI().getPath();
     String query = exchange.getRequestURI().getQuery();
 
-    if (path.equals("/command/validate")) {
+    if (path.startsWith("/artifact-validations/")) {
       VALIDATED.set(JsonMapper.STRICT_MAPPER.readTree(requestBody));
       respond(exchange, 200, "application/json", "{\"validates\":\"true\",\"warnings\":[],\"errors\":[]}", null);
       return;

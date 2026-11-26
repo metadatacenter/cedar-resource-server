@@ -157,7 +157,7 @@ public class InclusionSubgraphAuthorizationTest {
    */
   @Test
   public void previewOmitsTheArtifactsTheCallerCannotRead() throws Exception {
-    HttpResponse<String> response = post("/command/inclusions-subgraph-preview", requestBody());
+    HttpResponse<String> response = post("/inclusion-subgraphs/query", requestBody());
 
     Assertions.assertEquals(200, response.statusCode(), "user 2 may read the source element");
     JsonNode templates = JsonMapper.STRICT_MAPPER.readTree(response.body()).get("templates");
@@ -174,7 +174,7 @@ public class InclusionSubgraphAuthorizationTest {
    */
   @Test
   public void updateRefusesATargetTheCallerCannotWrite() throws Exception {
-    HttpResponse<String> response = post("/command/inclusions-subgraph-update", requestBody(readableTemplate.getId()));
+    HttpResponse<String> response = post("/command/update-inclusions-subgraph", requestBody(readableTemplate.getId()));
 
     Assertions.assertEquals(403, response.statusCode(),
         "user 2 holds only READ on the target, so the propagation must be refused before anything is written");
@@ -187,7 +187,7 @@ public class InclusionSubgraphAuthorizationTest {
    */
   @Test
   public void updateDoesNoWorkForATargetTheCallerCannotRead() throws Exception {
-    HttpResponse<String> response = post("/command/inclusions-subgraph-update", requestBody(invisibleTemplate.getId()));
+    HttpResponse<String> response = post("/command/update-inclusions-subgraph", requestBody(invisibleTemplate.getId()));
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
     JsonNode outcomes = JsonMapper.STRICT_MAPPER.readTree(response.body()).get("outcomes");
@@ -204,7 +204,7 @@ public class InclusionSubgraphAuthorizationTest {
    */
   @Test
   public void updateRefusesAPublishedTarget() throws Exception {
-    HttpResponse<String> response = post("/command/inclusions-subgraph-update", requestBody(publishedTemplate.getId()));
+    HttpResponse<String> response = post("/command/update-inclusions-subgraph", requestBody(publishedTemplate.getId()));
 
     Assertions.assertEquals(400, response.statusCode(),
         "a published artifact must not take a propagated change, whatever the caller may do to a draft");
@@ -220,7 +220,7 @@ public class InclusionSubgraphAuthorizationTest {
    */
   @Test
   public void updateWritesNothingWhenOneTargetIsPublished() throws Exception {
-    HttpResponse<String> response = post("/command/inclusions-subgraph-update",
+    HttpResponse<String> response = post("/command/update-inclusions-subgraph",
         requestBody(writableDraftTemplate.getId(), publishedTemplate.getId()));
 
     Assertions.assertEquals(400, response.statusCode(),
@@ -236,7 +236,7 @@ public class InclusionSubgraphAuthorizationTest {
    */
   @Test
   public void previewReportsThePublicationStatusOfEachTarget() throws Exception {
-    HttpResponse<String> response = post("/command/inclusions-subgraph-preview", requestBody());
+    HttpResponse<String> response = post("/inclusion-subgraphs/query", requestBody());
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
     JsonNode templates = JsonMapper.STRICT_MAPPER.readTree(response.body()).get("templates");
@@ -253,10 +253,10 @@ public class InclusionSubgraphAuthorizationTest {
    */
   @Test
   public void updateAcceptsAPreviewResponseVerbatim() throws Exception {
-    HttpResponse<String> preview = post("/command/inclusions-subgraph-preview", requestBody());
+    HttpResponse<String> preview = post("/inclusion-subgraphs/query", requestBody());
     Assertions.assertEquals(200, preview.statusCode(), preview.body());
 
-    HttpResponse<String> response = post("/command/inclusions-subgraph-update", preview.body());
+    HttpResponse<String> response = post("/command/update-inclusions-subgraph", preview.body());
 
     Assertions.assertEquals(200, response.statusCode(),
         "the update rejected the body the preview had just produced, which is the body the selector "
@@ -277,7 +277,7 @@ public class InclusionSubgraphAuthorizationTest {
     String body = "{\"@id\":\"" + sourceElement.getId() + "\",\"templates\":{\"" + id + "\":{},\"" + compact
         + "\":{}}}";
 
-    HttpResponse<String> response = post("/command/inclusions-subgraph-preview", body);
+    HttpResponse<String> response = post("/inclusion-subgraphs/query", body);
 
     Assertions.assertEquals(400, response.statusCode(), response.body());
     JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());

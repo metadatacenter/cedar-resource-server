@@ -577,12 +577,12 @@ public class ArtifactsAndCategoriesAuthorizationMatrixTest {
         initial.headers().firstValue("ETag").orElseThrow());
     Assertions.assertEquals(200, granted.statusCode(), granted.body());
 
-    String transferBody = "{\"@id\":\"" + category.getId() + "\",\"newOwnerId\":\"" + user2Id + "\"}";
-    HttpResponse<String> adminAttempt = request("POST", "/command/transfer-category-ownership",
+    String transferBody = "{\"newOwnerId\":\"" + user2Id + "\"}";
+    HttpResponse<String> adminAttempt = request("PATCH", aclRoute,
         transferBody, adminAuthHeader, granted.headers().firstValue("ETag").orElseThrow());
     Assertions.assertEquals(403, adminAttempt.statusCode(), adminAttempt.body());
 
-    HttpResponse<String> transferred = request("POST", "/command/transfer-category-ownership",
+    HttpResponse<String> transferred = request("PATCH", aclRoute,
         transferBody, actors.get(OWNER), granted.headers().firstValue("ETag").orElseThrow());
     Assertions.assertEquals(200, transferred.statusCode(), transferred.body());
     JsonNode response = JsonMapper.STRICT_MAPPER.readTree(transferred.body());

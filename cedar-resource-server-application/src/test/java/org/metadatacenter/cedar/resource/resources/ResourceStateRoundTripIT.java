@@ -598,8 +598,8 @@ public class ResourceStateRoundTripIT {
   }
 
   private static void transferOwnership(String id, CedarUser newOwner, String auth) throws Exception {
-    HttpResponse<String> response = send("POST", "/command/transfer-resource-ownership",
-        json(Map.of("@id", id, "newOwnerId", newOwner.getId())), auth, "*");
+    HttpResponse<String> response = send("PATCH", "/" + org.metadatacenter.id.CedarResourceAddress.selector(id) + "/permissions",
+        json(Map.of("newOwnerId", newOwner.getId())), auth, "*");
     Assertions.assertEquals(200, response.statusCode(), response.body());
     relay.drain();
   }
@@ -643,8 +643,8 @@ public class ResourceStateRoundTripIT {
   }
 
   private static void publish(String id, String version) throws Exception {
-    HttpResponse<String> response = send("POST", "/command/publish-artifact",
-        json(Map.of("@id", id, "newVersion", version)), user1Auth, null);
+    HttpResponse<String> response = send("PATCH", "/" + org.metadatacenter.id.CedarResourceAddress.selector(id) + "/publication",
+        json(Map.of("newVersion", version)), user1Auth, null);
     Assertions.assertEquals(200, response.statusCode(), response.body());
   }
 

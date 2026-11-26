@@ -140,8 +140,8 @@ public class ArtifactRoutesRespondTest {
 
   /** The paths whose {id} identifies an artifact or a folder. */
   private static final Set<String> RESOURCE_COLLECTIONS = Set.of("/folders/", "/templates/", "/template-elements/",
-      "/template-fields/", "/template-instances/", "/command/check-update-template/",
-      "/command/publish-create-draft-template/");
+      "/template-fields/", "/template-instances/", "/template-update-checks/",
+      "/template-drafts/");
 
   /**
    * Sends one request at a route with every path parameter set to a value no identifier can take, with

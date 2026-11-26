@@ -103,7 +103,7 @@ import static org.metadatacenter.model.ModelNodeNames.*;
 import static org.metadatacenter.model.ModelPaths.AT_ID;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
-@Path("/command")
+@Path("/")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Command")
 @SecurityRequirement(name = "api_key")
@@ -126,33 +126,19 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     cloneInstanceEnqueueService = cies;
   }
 
-  @POST
-  @Timed
-  @Path("/publish-artifact")
-  @Operation(summary = "Publish artifact.", description = "Publish artifact. The 'bibo:status' of the artifact will be changed from 'bibo:draft' to "
-          + "'bibo:published'. The 'pav:version' will be also set.", tags = {"Validation", "Command", "Versioning"})
-  @RequestBody(description = "Info about the publishing process", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.PublishArtifactRequest.class)))
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The published artifact",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
-          description = "Only the artifact's owner may publish it, whatever role another user holds "
-              + "(versioningOnlyByOwner). A caller who cannot read the artifact, or lacks the permission to "
-              + "update artifacts of its type, is also refused."),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response publishArtifact() throws CedarException {
+  public Response publishArtifact(@PathParam("kind") String kind, @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    c.request().getRequestBody().mustHaveOnly("@id", "newVersion");
-    CedarParameter idParam = c.request().getRequestBody().get("@id");
+    c.request().getRequestBody().mustHaveOnly("newVersion");
     CedarParameter newVersionParam = c.request().getRequestBody().get("newVersion");
 
-    String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
+    CedarResourceType type = switch (kind) {
+      case "templates" -> CedarResourceType.TEMPLATE;
+      case "template-elements" -> CedarResourceType.ELEMENT;
+      default -> CedarResourceType.FIELD;
+    };
+    id = linkedDataUtil.resolveResourceId(type, id);
     CedarUntypedSchemaArtifactId aid = CedarUntypedSchemaArtifactId.build(id);
 
     ResourceVersion newVersion = null;
@@ -397,35 +383,6 @@ public class CommandVersionResource extends AbstractResourceServerResource {
     }
   }
 
-  @POST
-  @Timed
-  @Path("/create-draft-artifact")
-  @Operation(summary = "Create draft artifact.", description = "Create draft artifact out of a published artifact. A new artifact will be created in the supplied "
-          + "folder. The version of the new artifact must be set, and must follow the current published version. "
-          + "The sharing settings of the old artifact can be copied over to the new artifact. The caller may "
-          + "choose the draft's identifier in draftId; an identifier already in use is refused with 412 before "
-          + "anything is written, so repeating a request whose answer was lost cannot make a second draft.",
-      tags = {"Validation", "Command", "Versioning"})
-  @RequestBody(description = "Info about the creation process", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CreateDraftArtifactRequest.class)))
-  @ApiResponses({
-      @ApiResponse(responseCode = "201", description = "The draft artifact",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord")),
-          headers = @Header(name = "Location", description = "Where the draft artifact can be read.",
-              schema = @Schema(type = "string"))),
-      @ApiResponse(responseCode = "200",
-          description = "Reached only when the artifact server returns no entity for the draft, which leaves nothing "
-              + "to return. The response carries no body."),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
-          description = "Only the artifact's owner may create a draft from it, whatever role another user holds "
-              + "(versioningOnlyByOwner). A caller who cannot read the artifact, cannot create in the target "
-              + "folder, or lacks the permission to update artifacts of its type, is also refused."),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "412", content = @Content(schema = @Schema(implementation = CedarError.class)),
-          description = "The identifier in draftId already names an artifact; nothing was written"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
   public Response createDraftArtifact() throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -652,7 +609,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/check-update-template/{id}")
+  @Path("/template-update-checks/{id}")
   @Operation(summary = "Check whether a template can be updated", description = "Check whether an existing template can be updated with the supplied template definition. The "
           + "destructive and non-destructive changes between the stored template and the supplied template are "
           + "computed, and the number of affected instances is reported.", tags = {"Command", "Versioning"})
@@ -739,7 +696,7 @@ public class CommandVersionResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/publish-create-draft-template/{id}")
+  @Path("/template-drafts/{id}")
   @Operation(summary = "Publish a template and create a new draft", description = "Publish the given template, then create a new draft version from it and apply the supplied template "
           + "definition. Instances of the source template can be copied into a new folder. The command succeeds "
           + "or fails as a whole. What a later step would refuse is refused before the template is published: "

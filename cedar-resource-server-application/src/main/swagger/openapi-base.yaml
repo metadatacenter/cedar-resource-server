@@ -622,6 +622,29 @@ components:
         description:
           type: string
       additionalProperties: false
+    RenameRequest:
+      type: object
+      minProperties: 1
+      properties:
+        schema:name:
+          type: string
+        schema:description:
+          type: string
+      additionalProperties: false
+    ResourceStatePatch:
+      type: object
+      properties:
+        schema:name:
+          type: string
+        schema:description:
+          type: string
+        isOpen:
+          type: boolean
+      additionalProperties: false
+      description: Change name/description, or change the OpenView state in a separate request.
+      oneOf:
+        - $ref: '#/components/schemas/OpenStatePatch'
+        - $ref: '#/components/schemas/RenameRequest'
     OpenStatePatch:
       type: object
       description: Whether the folder or artifact is served to everyone through OpenView.

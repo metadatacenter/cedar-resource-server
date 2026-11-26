@@ -347,7 +347,7 @@ public class CommandFileSystemResourceTest {
     String body = "{\"@id\":\"" + missingArtifactId + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
 
-    HttpResponse<String> response = postCommand("rename-resource", body);
+    HttpResponse<String> response = patchResource( body);
 
     Assertions.assertEquals(404, response.statusCode(), response.body());
   }
@@ -358,11 +358,11 @@ public class CommandFileSystemResourceTest {
     String body = "{\"@id\":\"" + sourceArtifact.getId() + "\","
         + "\"schema:name\":\"Renamed artifact\"}";
 
-    HttpResponse<String> missing = postCommand("rename-resource", body);
+    HttpResponse<String> missing = patchResource( body);
     Assertions.assertEquals(428, missing.statusCode(), missing.body());
 
     receivedPutIfMatch = null;
-    HttpResponse<String> stale = postCommand("rename-resource", body, "\"0\"");
+    HttpResponse<String> stale = patchResource( body, "\"0\"");
     Assertions.assertEquals(412, stale.statusCode(), stale.body());
     Assertions.assertEquals("\"0\"", receivedPutIfMatch,
         "rename must forward the caller's validator, not replace it with the internal GET ETag");
@@ -379,7 +379,7 @@ public class CommandFileSystemResourceTest {
         + "\"schema:name\":\"Renamed artifact\"}";
     receivedPutBody = null;
 
-    HttpResponse<String> renamed = postCommand("rename-resource", body, "\"1\"");
+    HttpResponse<String> renamed = patchResource( body, "\"1\"");
 
     Assertions.assertEquals(200, renamed.statusCode(), renamed.body());
     Assertions.assertNotNull(receivedPutBody, "the rename should be written to the artifact server");
@@ -394,7 +394,7 @@ public class CommandFileSystemResourceTest {
 
     // The stored document still carries the name it had, so asking for that name again is refused.
     String sameName = "{\"@id\":\"" + sourceArtifact.getId() + "\",\"schema:name\":\"" + SOURCE_NAME + "\"}";
-    JsonNode unchanged = refusal(postCommand("rename-resource", sameName, "*"), 400);
+    JsonNode unchanged = refusal(patchResource( sameName, "*"), 400);
     Assertions.assertEquals("nothingToDo", unchanged.path("errorKey").asText(), unchanged.toString());
   }
 
@@ -574,7 +574,7 @@ public class CommandFileSystemResourceTest {
       omitSourceGetBody = true;
       receivedPutBody = null;
 
-      HttpResponse<String> response = postCommand("rename-resource",
+      HttpResponse<String> response = patchResource(
           "{\"@id\":\"" + sourceArtifact.getId() + "\",\"schema:name\":\"Never written\"}", "*");
 
       Assertions.assertEquals(502, response.statusCode(), response.body());
@@ -930,6 +930,23 @@ public class CommandFileSystemResourceTest {
     JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());
     Assertions.assertEquals("SERVICE_UNAVAILABLE", error.path("status").asText(), response.body());
     Assertions.assertEquals("Downstream service is unavailable", error.path("message").asText(), response.body());
+  }
+
+  private static HttpResponse<String> patchResource(String body) throws Exception {
+    return patchResource(body, null);
+  }
+
+  private static HttpResponse<String> patchResource(String body, String ifMatch) throws Exception {
+    var patch = (com.fasterxml.jackson.databind.node.ObjectNode) JsonMapper.STRICT_MAPPER.readTree(body);
+    String id = patch.path("@id").asText();
+    patch.remove("@id");
+    HttpRequest.Builder request = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/"
+            + org.metadatacenter.id.CedarResourceAddress.selector(id)))
+        .header("Authorization", authHeader).header("Content-Type", "application/json");
+    if (ifMatch != null) request.header("If-Match", ifMatch);
+    return CLIENT.send(request.method("PATCH", HttpRequest.BodyPublishers.ofString(patch.toString())).build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 
   private static HttpResponse<String> postCommand(String command, String body) throws Exception {

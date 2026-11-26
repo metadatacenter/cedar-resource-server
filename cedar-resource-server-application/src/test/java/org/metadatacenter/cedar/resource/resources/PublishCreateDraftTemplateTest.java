@@ -238,7 +238,7 @@ public class PublishCreateDraftTemplateTest {
                                                          String draftId, String authorization) throws Exception {
     HttpRequest.Builder request = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort()
-            + "/command/publish-create-draft-template/"
+            + "/template-drafts/"
             + URLEncoder.encode(sourceId.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authorization)
         .header("Content-Type", "application/json");
@@ -256,7 +256,7 @@ public class PublishCreateDraftTemplateTest {
     String etag = "\"" + ETAGS.get(id.getId()) + "\"";
     for (String parameter : List.of("draft_id", "folder_name")) {
       HttpResponse<String> refused = CLIENT.send(HttpRequest.newBuilder()
-          .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/publish-create-draft-template/"
+          .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/template-drafts/"
               + URLEncoder.encode(id.getId(), StandardCharsets.UTF_8) + "?" + parameter + "=x"))
           .header("Authorization", authHeader).header("Content-Type", "application/json").header("If-Match", etag)
           .POST(HttpRequest.BodyPublishers.ofString("{\"template\":" + before + "}")).build(),
@@ -265,7 +265,7 @@ public class PublishCreateDraftTemplateTest {
       Assertions.assertTrue(refused.body().contains(parameter), refused.body());
     }
     HttpResponse<String> bare = CLIENT.send(HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/publish-create-draft-template/"
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/template-drafts/"
             + URLEncoder.encode(id.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authHeader).header("Content-Type", "application/json").header("If-Match", etag)
         .POST(HttpRequest.BodyPublishers.ofString(before.toString())).build(), HttpResponse.BodyHandlers.ofString());

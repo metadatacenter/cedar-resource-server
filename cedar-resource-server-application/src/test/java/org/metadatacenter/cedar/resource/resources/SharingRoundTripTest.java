@@ -575,17 +575,16 @@ public class SharingRoundTripTest {
   private static HttpResponse<String> transfer(Target target, String newOwnerId, String authHeader,
                                                String ifMatch) throws Exception {
     String body = JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of(
-        "@id", target.id().getId(),
         "newOwnerId", newOwnerId));
     HttpRequest.Builder builder = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + SERVER.getLocalPort()
-            + "/command/transfer-resource-ownership"))
+            + "/" + org.metadatacenter.id.CedarResourceAddress.selector(target.id().getId()) + "/permissions"))
         .header("Content-Type", "application/json")
         .header("Authorization", authHeader);
     if (ifMatch != null) {
       builder.header("If-Match", ifMatch);
     }
-    builder.POST(HttpRequest.BodyPublishers.ofString(body));
+    builder.method("PATCH", HttpRequest.BodyPublishers.ofString(body));
     return CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
   }
 
@@ -598,7 +597,7 @@ public class SharingRoundTripTest {
       builder.header("Authorization", authHeader);
     }
     if (("PUT".equals(method) && path.endsWith("/permissions"))
-        || path.equals("/command/transfer-resource-ownership")) {
+        || ("PATCH".equals(method) && path.endsWith("/permissions"))) {
       builder.header("If-Match", "*");
     }
     builder.method(method, body == null

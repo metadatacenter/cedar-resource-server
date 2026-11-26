@@ -58,7 +58,7 @@ import java.util.Map;
 
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
-@Path("/command")
+@Path("/")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Command")
 @SecurityRequirement(name = "api_key")
@@ -72,7 +72,7 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
 
   @POST
   @Timed
-  @Path("/inclusions-subgraph-preview")
+  @Path("/inclusion-subgraphs/query")
   @Operation(summary = "Preview the inclusion subgraph of an artifact", description = "Build a preview of the tree of artifacts affected by a change to the given artifact, without "
           + "applying any update.")
   @RequestBody(description = "The artifact that changed, and the elements and templates to consider", required = true,
@@ -113,45 +113,6 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
     return Response.ok(treeResponse).build();
   }
 
-  @POST
-  @Timed
-  @Path("/inclusions-subgraph-update")
-  @Operation(summary = "Update the inclusion subgraph of an artifact", description = "Propagate a change to the given artifact across the tree of affected artifacts, updating each "
-          + "referencing artifact on the artifact server. The caller needs the readResource capability on the artifact "
-          + "that changed and the updateResource capability on every artifact selected for update, and every artifact "
-          + "selected for update must still be a draft, since publication fixes an artifact's content. If the caller "
-          + "lacks either capability, or names a published target, the whole request is refused and nothing is "
-          + "written. The response reports what became of each target.")
-  @RequestBody(description = "The artifact that changed, and the elements and templates to consider", required = true,
-      content = @Content(schema = @Schema(implementation = InclusionSubgraphRequest.class)))
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Every target was written, or needed no write",
-          content = @Content(schema = @Schema(implementation = InclusionSubgraphUpdateReport.class))),
-      @ApiResponse(responseCode = "400", description = "The body is not JSON in the form of an inclusion subgraph "
-          + "request (malformedJsonRequestBody), names no @id or a target that is not an artifact (invalidData), or "
-          + "names one artifact twice. A target that is published (publishedArtifactCanNotBeChanged), or a template "
-          + "whose instances the change would invalidate (invalidData), is refused too. Nothing was written.",
-          content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "401", description = UNAUTHORIZED,
-          content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "403", description = "The caller cannot read the artifact that changed, or cannot "
-          + "update a target. Nothing was written.",
-          content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "404", description = "The artifact that changed, or a target, does not exist",
-          content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "406", description = NOT_ACCEPTABLE,
-          content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "429", description = RATE_LIMITED,
-          content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "500", description = INTERNAL_ERROR,
-          content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "502", description = "The artifact server refused at least one of the writes "
-          + "(upstreamServerError). The targets it accepted were updated. The body's objects.report holds the update "
-          + "report, with the outcome of every target.",
-          content = @Content(schema = @Schema(implementation = CedarError.class))),
-      @ApiResponse(responseCode = "503", description = UNAVAILABLE,
-          content = @Content(schema = @Schema(implementation = CedarError.class)))
-  })
   public Response updateInclusionSubgraph() throws CedarException, IOException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
@@ -299,12 +260,12 @@ public class CommandInclusionSubgraphResource extends AbstractResourceServerReso
         .build();
   }
 
-  private static final String UNAUTHORIZED = "The request carries no valid credentials";
-  private static final String NOT_ACCEPTABLE = "The request does not accept a JSON response";
-  private static final String RATE_LIMITED = "The deployment limits each user's request rate, and the caller "
+  public static final String UNAUTHORIZED = "The request carries no valid credentials";
+  public static final String NOT_ACCEPTABLE = "The request does not accept a JSON response";
+  public static final String RATE_LIMITED = "The deployment limits each user's request rate, and the caller "
       + "exceeded it";
-  private static final String INTERNAL_ERROR = "Internal server error";
-  private static final String UNAVAILABLE = "The graph database, the artifact server or another service the "
+  public static final String INTERNAL_ERROR = "Internal server error";
+  public static final String UNAVAILABLE = "The graph database, the artifact server or another service the "
       + "request depends on is unavailable";
 
   static boolean requiresNewVersion(long instances, JsonNode stored, JsonNode proposed) {

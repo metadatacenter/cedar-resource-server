@@ -192,8 +192,8 @@ public class StoreConsistencyMatrixTest {
   public void aRenamedTemplateIsDescribedTheSameWayByBothStores() throws Exception {
     String id = createTemplate("Consistency rename fixture", null);
 
-    HttpResponse<String> renamed = post("/command/rename-resource",
-        "{\"@id\":\"" + id + "\",\"schema:name\":\"Consistency rename fixture, renamed\","
+    HttpResponse<String> renamed = patch("/templates/" + encode(id),
+        "{\"schema:name\":\"Consistency rename fixture, renamed\","
             + "\"schema:description\":\"A description the rename introduced\"}");
 
     Assertions.assertEquals(200, renamed.statusCode(), renamed.body());
@@ -230,8 +230,7 @@ public class StoreConsistencyMatrixTest {
   public void aPublishedTemplateAndItsDraftAreDescribedTheSameWayByBothStores() throws Exception {
     String id = createTemplate("Consistency version fixture", null);
 
-    HttpResponse<String> published = post("/command/publish-artifact",
-        "{\"@id\":\"" + id + "\",\"newVersion\":\"1.0.0\"}");
+    HttpResponse<String> published = patch("/" + org.metadatacenter.id.CedarResourceAddress.selector(id) + "/publication", "{\"newVersion\":\"1.0.0\"}");
     Assertions.assertEquals(200, published.statusCode(), published.body());
     assertStoresAgree("publish", id, CedarResourceType.TEMPLATE);
 
@@ -248,7 +247,7 @@ public class StoreConsistencyMatrixTest {
   public void aTemplateDraftedFromAPublishedOneIsDescribedTheSameWayByBothStores() throws Exception {
     String id = createTemplate("Consistency publish-and-draft fixture", "https://doi.org/10.5072/FK2-consistency-published");
 
-    HttpResponse<String> response = post("/command/publish-create-draft-template/" + encode(id),
+    HttpResponse<String> response = post("/template-drafts/" + encode(id),
         "{\"template\":" + templateDocument("Consistency publish-and-draft fixture, edited", null) + "}");
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
@@ -338,8 +337,8 @@ public class StoreConsistencyMatrixTest {
   }
 
   private static void setDoi(String artifactId, String doi) throws Exception {
-    HttpResponse<String> response = post("/command/set-doi",
-        "{\"@id\":\"" + artifactId + "\",\"doi\":\"" + doi + "\"}");
+    HttpResponse<String> response = patch("/templates/" + encode(artifactId) + "/annotations",
+        "{\"doi\":\"" + doi + "\"}");
     Assertions.assertEquals(200, response.statusCode(), response.body());
   }
 
@@ -386,6 +385,15 @@ public class StoreConsistencyMatrixTest {
         .header("Content-Type", "application/json")
         .header("If-Match", "*")
         .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build());
+  }
+  private static HttpResponse<String> patch(String path, String body) throws Exception {
+    return TestHttpClient.send(HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .header("If-Match", "*")
+        .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
         .build());
   }
 

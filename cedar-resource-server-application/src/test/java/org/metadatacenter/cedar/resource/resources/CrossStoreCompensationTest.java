@@ -556,8 +556,7 @@ public class CrossStoreCompensationTest {
     replaceDocument(id, DOCUMENTS.get(id).body().deepCopy().put(ModelNodeNames.PAV_VERSION, "1.0.0"));
     Stored before = DOCUMENTS.get(id);
 
-    HttpResponse<String> response = send("POST", "/command/publish-artifact",
-        "{\"@id\":\"" + id + "\",\"newVersion\":\"2.0.0\"}", null, userAuthHeader);
+    HttpResponse<String> response = send("PATCH", "/" + org.metadatacenter.id.CedarResourceAddress.selector(id) + "/publication", "{\"newVersion\":\"2.0.0\"}", null, userAuthHeader);
 
     Assertions.assertEquals(409, response.statusCode(), response.body());
     Assertions.assertEquals("versioningOnlyOnLatest",
@@ -602,8 +601,7 @@ public class CrossStoreCompensationTest {
       Fault refusal = refusing("PUT", id, answer.endsWith("503") ? 503 : null);
       FAULTS.add((exchange, request) -> appliedTo(id).size() == 1 && refusal.answer(exchange, request));
     }
-    Call publish = () -> send("POST", "/command/publish-artifact",
-        "{\"@id\":\"" + id + "\",\"newVersion\":\"2.0.0\"}", null, userAuthHeader);
+    Call publish = () -> send("PATCH", "/" + org.metadatacenter.id.CedarResourceAddress.selector(id) + "/publication", "{\"newVersion\":\"2.0.0\"}", null, userAuthHeader);
 
     HttpResponse<String> response = answer.endsWith("without an ETag") ? publish.run() : withoutTheRestoreOutbox(publish);
 

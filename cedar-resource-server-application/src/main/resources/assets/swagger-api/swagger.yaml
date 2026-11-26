@@ -54,6 +54,147 @@ paths:
       summary: Describe this CEDAR service
       tags:
       - Service
+  /artifact-conversions:
+    post:
+      description: Convert the resource supplied in the request body to the requested
+        output format.
+      operationId: convertResource
+      parameters:
+      - description: "Output format type to display the content of the template instance.\
+          \ The allowed values are: 'jsonld', 'json', 'rdf-nquad'"
+        in: query
+        name: format
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/ArtifactDocument"
+        description: The artifact to convert
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDocument"
+            application/n-quads:
+              schema:
+                type: string
+                description: "The artifact as RDF N-Quads, one statement per line."
+          description: "The converted artifact, in the requested format"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Convert a resource
+      tags:
+      - Command
+  /artifact-validations/{resource_type}:
+    post:
+      description: "Validate CEDAR resources (i.e., templates, elements and instances)\
+        \ against the CEDAR meta-model. To use this service you will need to append\
+        \ the resource text in the request body as the payload. However, in the case\
+        \ of validating the template instance, you have an additional option to include\
+        \ the template text by organizing them as follows: { \"schema\": <template\
+        \ text>, \"instance\": <instance text> }. The validation service will return\
+        \ a report in JSON format as follows: { \"validates\": \"\", \"warnings\"\
+        : [], \"errors\": [] }"
+      operationId: validateResource
+      parameters:
+      - description: "The type of CEDAR resource. The allowed values are: 'field',\
+          \ 'element', 'template', 'instance'"
+        in: path
+        name: resource_type
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidationRequest"
+          application/x-yaml:
+            schema:
+              $ref: "#/components/schemas/ValidationRequest"
+          application/yaml:
+            schema:
+              $ref: "#/components/schemas/ValidationRequest"
+        description: "The artifact to validate, as JSON or YAML selected via the Content-Type\
+          \ header"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationReport"
+          description: The validation report
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Validate resources
+      tags:
+      - Validation
+      - Command
   /categories:
     get:
       description: Get the list of all categories.
@@ -524,6 +665,71 @@ paths:
       tags:
       - Categories
       - Permissions
+    patch:
+      description: Replace the owner of a category with another user. Only the current
+        owner may perform this operation. Send the ETag returned by the category permissions
+        endpoint in If-Match.
+      operationId: transferCategoryOwnership
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipRequest"
+        description: The category and new owner.
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryPermissions"
+          description: Ownership transferred
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+      security:
+      - api_key: []
+      summary: Transfer category ownership
+      tags:
+      - Command
+      - Categories
+      - Permissions
     put:
       description: Atomically replace the direct user and group role grants. This
         operation does not change ownership or inherited roles. The caller must have
@@ -705,137 +911,6 @@ paths:
       security:
       - api_key: []
       summary: Authentication user callback
-      tags:
-      - Command
-  /command/check-update-template/{id}:
-    post:
-      description: "Check whether an existing template can be updated with the supplied\
-        \ template definition. The destructive and non-destructive changes between\
-        \ the stored template and the supplied template are computed, and the number\
-        \ of affected instances is reported."
-      operationId: checkUpdateTemplate
-      parameters:
-      - description: Template identifier.
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          '*/*':
-            schema:
-              $ref: "#/components/schemas/SchemaArtifactDocument"
-        description: The template definition the stored template would be replaced
-          by
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TemplateUpdateCheck"
-          description: "Whether the template can be updated, and what updating it\
-            \ would cost"
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Bad request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Internal server error
-      security:
-      - api_key: []
-      summary: Check whether a template can be updated
-      tags:
-      - Command
-      - Versioning
-  /command/convert:
-    post:
-      description: Convert the resource supplied in the request body to the requested
-        output format.
-      operationId: convertResource
-      parameters:
-      - description: "Output format type to display the content of the template instance.\
-          \ The allowed values are: 'jsonld', 'json', 'rdf-nquad'"
-        in: query
-        name: format
-        schema:
-          type: string
-      requestBody:
-        content:
-          '*/*':
-            schema:
-              $ref: "#/components/schemas/ArtifactDocument"
-        description: The artifact to convert
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ArtifactDocument"
-            application/n-quads:
-              schema:
-                type: string
-                description: "The artifact as RDF N-Quads, one statement per line."
-          description: "The converted artifact, in the requested format"
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Bad request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Internal server error
-      security:
-      - api_key: []
-      summary: Convert a resource
       tags:
       - Command
   /command/copy-artifact-to-folder:
@@ -1128,156 +1203,6 @@ paths:
       tags:
       - Command
       - Administration
-  /command/inclusions-subgraph-preview:
-    post:
-      description: "Build a preview of the tree of artifacts affected by a change\
-        \ to the given artifact, without applying any update."
-      operationId: previewInclusionSubgraph
-      requestBody:
-        content:
-          '*/*':
-            schema:
-              $ref: "#/components/schemas/InclusionSubgraphRequest"
-        description: "The artifact that changed, and the elements and templates to\
-          \ consider"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/InclusionSubgraphResponse"
-          description: The tree of affected artifacts
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Bad request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Internal server error
-      security:
-      - api_key: []
-      summary: Preview the inclusion subgraph of an artifact
-      tags:
-      - Command
-  /command/inclusions-subgraph-update:
-    post:
-      description: "Propagate a change to the given artifact across the tree of affected\
-        \ artifacts, updating each referencing artifact on the artifact server. The\
-        \ caller needs the readResource capability on the artifact that changed and\
-        \ the updateResource capability on every artifact selected for update, and\
-        \ every artifact selected for update must still be a draft, since publication\
-        \ fixes an artifact's content. If the caller lacks either capability, or names\
-        \ a published target, the whole request is refused and nothing is written.\
-        \ The response reports what became of each target."
-      operationId: updateInclusionSubgraph
-      requestBody:
-        content:
-          '*/*':
-            schema:
-              $ref: "#/components/schemas/InclusionSubgraphRequest"
-        description: "The artifact that changed, and the elements and templates to\
-          \ consider"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/InclusionSubgraphUpdateReport"
-          description: "Every target was written, or needed no write"
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "The body is not JSON in the form of an inclusion subgraph\
-            \ request (malformedJsonRequestBody), names no @id or a target that is\
-            \ not an artifact (invalidData), or names one artifact twice. A target\
-            \ that is published (publishedArtifactCanNotBeChanged), or a template\
-            \ whose instances the change would invalidate (invalidData), is refused\
-            \ too. Nothing was written."
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: The request carries no valid credentials
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "The caller cannot read the artifact that changed, or cannot\
-            \ update a target. Nothing was written."
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "The artifact that changed, or a target, does not exist"
-        "406":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: The request does not accept a JSON response
-        "429":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "The deployment limits each user's request rate, and the caller\
-            \ exceeded it"
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Internal server error
-        "502":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "The artifact server refused at least one of the writes (upstreamServerError).\
-            \ The targets it accepted were updated. The body's objects.report holds\
-            \ the update report, with the outcome of every target."
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "The graph database, the artifact server or another service\
-            \ the request depends on is unavailable"
-      security:
-      - api_key: []
-      summary: Update the inclusion subgraph of an artifact
-      tags:
-      - Command
   /command/load-valuesets-ontology:
     post:
       description: "Load the OWL value sets ontology generated by the NCI caDSR CDE\
@@ -1415,162 +1340,6 @@ paths:
       tags:
       - Command
       - File Operations
-  /command/publish-artifact:
-    post:
-      description: Publish artifact. The 'bibo:status' of the artifact will be changed
-        from 'bibo:draft' to 'bibo:published'. The 'pav:version' will be also set.
-      operationId: publishArtifact
-      requestBody:
-        content:
-          '*/*':
-            schema:
-              $ref: "#/components/schemas/PublishArtifactRequest"
-        description: Info about the publishing process
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ArtifactRecord"
-          description: The published artifact
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Bad request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "Only the artifact's owner may publish it, whatever role another\
-            \ user holds (versioningOnlyByOwner). A caller who cannot read the artifact,\
-            \ or lacks the permission to update artifacts of its type, is also refused."
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Internal server error
-      security:
-      - api_key: []
-      summary: Publish artifact.
-      tags:
-      - Validation
-      - Command
-      - Versioning
-  /command/publish-create-draft-template/{id}:
-    post:
-      description: "Publish the given template, then create a new draft version from\
-        \ it and apply the supplied template definition. Instances of the source template\
-        \ can be copied into a new folder. The command succeeds or fails as a whole.\
-        \ What a later step would refuse is refused before the template is published:\
-        \ a parent folder the caller cannot create in, a draft identifier already\
-        \ in use and a definition the draft would not accept. If a step fails after\
-        \ publication, the command removes the draft it created and returns the template\
-        \ to the draft it was, then answers with the failing step's status, or 503\
-        \ when that step received no answer. Returning the template to a draft gives\
-        \ it a new ETag. A retry sends that ETag in If-Match and publishes the template\
-        \ at the same version."
-      operationId: publishCreateDraftTemplate
-      parameters:
-      - $ref: "#/components/parameters/IfMatch"
-      - description: Template identifier.
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          '*/*':
-            schema:
-              $ref: "#/components/schemas/PublishCreateDraftTemplateRequest"
-        description: "The template definition to apply to the new draft, and how to\
-          \ create it"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ArtifactRecord"
-          description: The new draft template
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "The definition or the draft identifier is refused, the request\
-            \ sends the withdrawn folder_name or draft_id query parameter, or the\
-            \ template cannot be published, for example because it is already published;\
-            \ nothing was published"
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "Only the template's owner may version it, whatever role another\
-            \ user holds (versioningOnlyByOwner), and the caller must be able to create\
-            \ in its folder; nothing was published"
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: "The source template changed, or the draft identifier already\
-            \ names an artifact; nothing was published and no draft was created"
-        "428":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: The source template ETag is required in If-Match
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Internal server error
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: A step received no answer from the artifact server; whatever
-            the command had done was undone
-      security:
-      - api_key: []
-      summary: Publish a template and create a new draft
-      tags:
-      - Command
-      - Versioning
   /command/regenerate-search-index:
     post:
       description: "Regenerate search index. This is an administrative command, you\
@@ -1652,55 +1421,75 @@ paths:
       tags:
       - Command
       - Administration
-  /command/rename-resource:
+  /command/update-inclusions-subgraph:
     post:
-      description: "Change name and/or description of a resource. Folders or artifacts\
-        \ (fields, elements, templates, instances) can be altered."
-      operationId: renameResource
-      parameters:
-      - $ref: "#/components/parameters/IfMatch"
+      description: "Propagate a change to the given artifact across the tree of affected\
+        \ artifacts, updating each referencing artifact on the artifact server. The\
+        \ caller needs the readResource capability on the artifact that changed and\
+        \ the updateResource capability on every artifact selected for update, and\
+        \ every artifact selected for update must still be a draft, since publication\
+        \ fixes an artifact's content. If the caller lacks either capability, or names\
+        \ a published target, the whole request is refused and nothing is written.\
+        \ The response reports what became of each target."
+      operationId: updateInclusionSubgraph
       requestBody:
         content:
           '*/*':
             schema:
-              $ref: "#/components/schemas/RenameRequest"
-        description: Parameters of the rename operation
+              $ref: "#/components/schemas/InclusionSubgraphRequest"
+        description: "The artifact that changed, and the elements and templates to\
+          \ consider"
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FolderOrArtifactRecord"
-          description: The renamed folder or artifact
+                $ref: "#/components/schemas/InclusionSubgraphUpdateReport"
+          description: "Every target was written, or needed no write"
         "400":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Bad request
+          description: "The body is not JSON in the form of an inclusion subgraph\
+            \ request (malformedJsonRequestBody), names no @id or a target that is\
+            \ not an artifact (invalidData), or names one artifact twice. A target\
+            \ that is published (publishedArtifactCanNotBeChanged), or a template\
+            \ whose instances the change would invalidate (invalidData), is refused\
+            \ too. Nothing was written."
         "401":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
+          description: The request carries no valid credentials
         "403":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Forbidden
+          description: "The caller cannot read the artifact that changed, or cannot\
+            \ update a target. Nothing was written."
         "404":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "412":
-          $ref: "#/components/responses/PreconditionFailed"
-        "428":
-          $ref: "#/components/responses/PreconditionRequired"
+          description: "The artifact that changed, or a target, does not exist"
+        "406":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The request does not accept a JSON response
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The deployment limits each user's request rate, and the caller\
+            \ exceeded it"
         "500":
           content:
             application/json:
@@ -1712,264 +1501,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
-          description: Invalid response from artifact service
+          description: "The artifact server refused at least one of the writes (upstreamServerError).\
+            \ The targets it accepted were updated. The body's objects.report holds\
+            \ the update report, with the outcome of every target."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The graph database, the artifact server or another service\
+            \ the request depends on is unavailable"
       security:
       - api_key: []
-      summary: Rename resource
+      summary: Update the inclusion subgraph of an artifact
       tags:
-      - Command
-      - File Operations
-  /command/set-doi:
-    post:
-      description: "Set the DOI annotation of an artifact. The user must have the\
-        \ updateResource capability on the artifact. The resource type must support\
-        \ DOIs, and an existing DOI can not be altered."
-      operationId: setDOI
-      requestBody:
-        content:
-          '*/*':
-            schema:
-              $ref: "#/components/schemas/SetDoiRequest"
-        description: The artifact and the DOI to record
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ArtifactRecord"
-          description: "The artifact, carrying its DOI"
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Bad request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Internal server error
-      security:
-      - api_key: []
-      summary: Set the DOI of an artifact
-      tags:
-      - Command
-  /command/transfer-category-ownership:
-    post:
-      description: Replace the owner of a category with another user. Only the current
-        owner may perform this operation. Send the ETag returned by the category permissions
-        endpoint in If-Match.
-      operationId: transferCategoryOwnership
-      parameters:
-      - $ref: "#/components/parameters/IfMatch"
-      requestBody:
-        content:
-          '*/*':
-            schema:
-              $ref: "#/components/schemas/TransferOwnershipRequest"
-        description: The category and new owner.
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CategoryPermissions"
-          description: Ownership transferred
-          headers:
-            ETag:
-              $ref: "#/components/headers/ETag"
-              style: simple
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Bad request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "412":
-          $ref: "#/components/responses/PreconditionFailed"
-        "428":
-          $ref: "#/components/responses/PreconditionRequired"
-      security:
-      - api_key: []
-      summary: Transfer category ownership
-      tags:
-      - Command
-      - Categories
-      - Permissions
-  /command/transfer-resource-ownership:
-    post:
-      description: Replace the owner of an artifact or folder with another user. The
-        current owner alone may perform this operation. Send the ETag returned by
-        the resource permissions endpoint in If-Match.
-      operationId: transferResourceOwnership
-      parameters:
-      - $ref: "#/components/parameters/IfMatch"
-      requestBody:
-        content:
-          '*/*':
-            schema:
-              $ref: "#/components/schemas/TransferOwnershipRequest"
-        description: The resource and new owner.
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ResourcePermissions"
-          description: Ownership transferred
-          headers:
-            ETag:
-              $ref: "#/components/headers/ETag"
-              style: simple
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Bad request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "412":
-          $ref: "#/components/responses/PreconditionFailed"
-        "428":
-          $ref: "#/components/responses/PreconditionRequired"
-      security:
-      - api_key: []
-      summary: Transfer resource ownership
-      tags:
-      - Command
-      - Permissions
-  /command/validate:
-    post:
-      description: "Validate CEDAR resources (i.e., templates, elements and instances)\
-        \ against the CEDAR meta-model. To use this service you will need to append\
-        \ the resource text in the request body as the payload. However, in the case\
-        \ of validating the template instance, you have an additional option to include\
-        \ the template text by organizing them as follows: { \"schema\": <template\
-        \ text>, \"instance\": <instance text> }. The validation service will return\
-        \ a report in JSON format as follows: { \"validates\": \"\", \"warnings\"\
-        : [], \"errors\": [] }"
-      operationId: validateResource
-      parameters:
-      - description: "The type of CEDAR resource. The allowed values are: 'field',\
-          \ 'element', 'template', 'instance'"
-        in: query
-        name: resource_type
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ValidationRequest"
-          application/x-yaml:
-            schema:
-              $ref: "#/components/schemas/ValidationRequest"
-          application/yaml:
-            schema:
-              $ref: "#/components/schemas/ValidationRequest"
-        description: "The artifact to validate, as JSON or YAML selected via the Content-Type\
-          \ header"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ValidationReport"
-          description: The validation report
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Bad request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CedarError"
-          description: Internal server error
-      security:
-      - api_key: []
-      summary: Validate resources
-      tags:
-      - Validation
       - Command
   /folders:
     post:
@@ -2139,8 +1684,9 @@ paths:
       tags:
       - Folders
     patch:
-      description: "Expose the folder through OpenView, or withdraw it, with {\"isOpen\"\
-        : true} or {\"isOpen\": false}. Use the ETag returned by GET /folders/{id}."
+      description: "Set schema:name and/or schema:description, or expose the folder\
+        \ through OpenView, or withdraw it, with {\"isOpen\": true} or {\"isOpen\"\
+        : false}. Use the ETag returned by GET /folders/{id}."
       operationId: patchFolder
       parameters:
       - $ref: "#/components/parameters/IfMatch"
@@ -2154,11 +1700,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
+              $ref: "#/components/schemas/ResourceStatePatch"
           application/merge-patch+json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
-        description: The new OpenView state
+              $ref: "#/components/schemas/ResourceStatePatch"
+        description: "The new name and/or description, or the OpenView state"
         required: true
       responses:
         "200":
@@ -2207,7 +1753,7 @@ paths:
           description: Internal server error
       security:
       - api_key: []
-      summary: Change whether a folder is open
+      summary: "Change the name, description or open state of a folder"
       tags:
       - Folders
       - OpenView
@@ -2819,6 +2365,72 @@ paths:
       tags:
       - Folders
       - Permissions
+    patch:
+      description: Change the owner using the permissions ETag in If-Match.
+      operationId: transferOwnership
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: Updated permissions
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Invalid owner or request body
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Resource not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Transfer ownership
+      tags:
+      - Folders
     put:
       description: Update permissions of a folder.
       operationId: updateFolderPermissions
@@ -2921,6 +2533,61 @@ paths:
       summary: Run this service's health checks
       tags:
       - Service diagnostics
+  /inclusion-subgraphs/query:
+    post:
+      description: "Build a preview of the tree of artifacts affected by a change\
+        \ to the given artifact, without applying any update."
+      operationId: previewInclusionSubgraph
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/InclusionSubgraphRequest"
+        description: "The artifact that changed, and the elements and templates to\
+          \ consider"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InclusionSubgraphResponse"
+          description: The tree of affected artifacts
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Preview the inclusion subgraph of an artifact
+      tags:
+      - Command
   /insight/full:
     get:
       operationId: full
@@ -3850,6 +3517,104 @@ paths:
       - Folders
       - Folder Contents
       - Versioning
+  /template-drafts/{id}:
+    post:
+      description: "Publish the given template, then create a new draft version from\
+        \ it and apply the supplied template definition. Instances of the source template\
+        \ can be copied into a new folder. The command succeeds or fails as a whole.\
+        \ What a later step would refuse is refused before the template is published:\
+        \ a parent folder the caller cannot create in, a draft identifier already\
+        \ in use and a definition the draft would not accept. If a step fails after\
+        \ publication, the command removes the draft it created and returns the template\
+        \ to the draft it was, then answers with the failing step's status, or 503\
+        \ when that step received no answer. Returning the template to a draft gives\
+        \ it a new ETag. A retry sends that ETag in If-Match and publishes the template\
+        \ at the same version."
+      operationId: publishCreateDraftTemplate
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
+      - description: Template identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/PublishCreateDraftTemplateRequest"
+        description: "The template definition to apply to the new draft, and how to\
+          \ create it"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: The new draft template
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The definition or the draft identifier is refused, the request\
+            \ sends the withdrawn folder_name or draft_id query parameter, or the\
+            \ template cannot be published, for example because it is already published;\
+            \ nothing was published"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "Only the template's owner may version it, whatever role another\
+            \ user holds (versioningOnlyByOwner), and the caller must be able to create\
+            \ in its folder; nothing was published"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "The source template changed, or the draft identifier already\
+            \ names an artifact; nothing was published and no draft was created"
+        "428":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: The source template ETag is required in If-Match
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: A step received no answer from the artifact server; whatever
+            the command had done was undone
+      security:
+      - api_key: []
+      summary: Publish a template and create a new draft
+      tags:
+      - Command
+      - Versioning
   /template-elements:
     post:
       description: "Create a template element. The body can be JSON or YAML, selected\
@@ -4036,6 +3801,12 @@ paths:
         \ header."
       operationId: findTemplateElement
       parameters:
+      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
+          \ Accept."
+        in: query
+        name: format
+        schema:
+          type: string
       - description: "Template Element identifier. Example: https://repo.metadatacenter.org/template-elements/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: id
@@ -4130,9 +3901,9 @@ paths:
       tags:
       - Template Elements
     patch:
-      description: "Expose the template element through OpenView, or withdraw it,\
-        \ with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by\
-        \ GET /template-elements/{id}/details."
+      description: "Set schema:name and/or schema:description, or expose the template\
+        \ element through OpenView, or withdraw it, with {\"isOpen\": true} or {\"\
+        isOpen\": false}. Use the ETag returned by GET /template-elements/{id}/details."
       operationId: patchTemplateElement
       parameters:
       - $ref: "#/components/parameters/IfMatch"
@@ -4146,11 +3917,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
+              $ref: "#/components/schemas/ResourceStatePatch"
           application/merge-patch+json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
-        description: The new OpenView state
+              $ref: "#/components/schemas/ResourceStatePatch"
+        description: "The new name and/or description, or the OpenView state"
         required: true
       responses:
         "200":
@@ -4199,7 +3970,7 @@ paths:
           description: Internal server error
       security:
       - api_key: []
-      summary: Change whether a template element is open
+      summary: "Change the name, description or open state of a template element"
       tags:
       - Template Elements
       - OpenView
@@ -4344,6 +4115,67 @@ paths:
       summary: Update a template element
       tags:
       - Template Elements
+  /template-elements/{id}/annotations:
+    patch:
+      description: "Set the DOI annotation of an artifact. The user must have the\
+        \ updateResource capability on the artifact. The resource type must support\
+        \ DOIs, and an existing DOI can not be altered."
+      operationId: setDOI
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/SetDoiRequest"
+        description: The artifact and the DOI to record
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: "The artifact, carrying its DOI"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Set the DOI of an artifact
+      tags:
+      - Template Elements
   /template-elements/{id}/details:
     get:
       description: Get details of a template element.
@@ -4408,6 +4240,12 @@ paths:
         \ Accept header."
       operationId: getTemplateElementDownload
       parameters:
+      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
+          \ Accept."
+        in: query
+        name: format
+        schema:
+          type: string
       - description: Template Element identifier.
         in: path
         name: id
@@ -4567,6 +4405,72 @@ paths:
       tags:
       - Template Elements
       - Permissions
+    patch:
+      description: Change the owner using the permissions ETag in If-Match.
+      operationId: transferOwnership_1
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: Updated permissions
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Invalid owner or request body
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Resource not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Transfer ownership
+      tags:
+      - Template Elements
     put:
       description: Update permissions of a template element.
       operationId: updateTemplateElementPermissions
@@ -4636,6 +4540,71 @@ paths:
       tags:
       - Template Elements
       - Permissions
+  /template-elements/{id}/publication:
+    patch:
+      description: Publish artifact. The 'bibo:status' of the artifact will be changed
+        from 'bibo:draft' to 'bibo:published'. The 'pav:version' will be also set.
+      operationId: publishArtifact
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/PublishArtifactRequest"
+        description: Info about the publishing process
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: The published artifact
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "Only the artifact's owner may publish it, whatever role another\
+            \ user holds (versioningOnlyByOwner). A caller who cannot read the artifact,\
+            \ or lacks the permission to update artifacts of its type, is also refused."
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Publish artifact.
+      tags:
+      - Validation
+      - Command
+      - Versioning
+      - Template Elements
   /template-elements/{id}/report:
     get:
       description: Get report of a template element.
@@ -4932,6 +4901,12 @@ paths:
         \ header."
       operationId: findTemplateField
       parameters:
+      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
+          \ Accept."
+        in: query
+        name: format
+        schema:
+          type: string
       - description: "Template Field identifier. Example: https://repo.metadatacenter.org/template-fields/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: id
@@ -5026,9 +5001,9 @@ paths:
       tags:
       - Template Fields
     patch:
-      description: "Expose the template field through OpenView, or withdraw it, with\
-        \ {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET\
-        \ /template-fields/{id}/details."
+      description: "Set schema:name and/or schema:description, or expose the template\
+        \ field through OpenView, or withdraw it, with {\"isOpen\": true} or {\"isOpen\"\
+        : false}. Use the ETag returned by GET /template-fields/{id}/details."
       operationId: patchTemplateField
       parameters:
       - $ref: "#/components/parameters/IfMatch"
@@ -5042,11 +5017,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
+              $ref: "#/components/schemas/ResourceStatePatch"
           application/merge-patch+json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
-        description: The new OpenView state
+              $ref: "#/components/schemas/ResourceStatePatch"
+        description: "The new name and/or description, or the OpenView state"
         required: true
       responses:
         "200":
@@ -5095,7 +5070,7 @@ paths:
           description: Internal server error
       security:
       - api_key: []
-      summary: Change whether a template field is open
+      summary: "Change the name, description or open state of a template field"
       tags:
       - Template Fields
       - OpenView
@@ -5240,6 +5215,67 @@ paths:
       summary: Update a template field
       tags:
       - Template Fields
+  /template-fields/{id}/annotations:
+    patch:
+      description: "Set the DOI annotation of an artifact. The user must have the\
+        \ updateResource capability on the artifact. The resource type must support\
+        \ DOIs, and an existing DOI can not be altered."
+      operationId: setDOI_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/SetDoiRequest"
+        description: The artifact and the DOI to record
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: "The artifact, carrying its DOI"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Set the DOI of an artifact
+      tags:
+      - Template Fields
   /template-fields/{id}/details:
     get:
       description: Get details of a template field.
@@ -5304,6 +5340,12 @@ paths:
         \ header."
       operationId: getTemplateFieldDownload
       parameters:
+      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
+          \ Accept."
+        in: query
+        name: format
+        schema:
+          type: string
       - description: Template Field identifier.
         in: path
         name: id
@@ -5463,6 +5505,72 @@ paths:
       tags:
       - Template Fields
       - Permissions
+    patch:
+      description: Change the owner using the permissions ETag in If-Match.
+      operationId: transferOwnership_2
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: Updated permissions
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Invalid owner or request body
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Resource not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Transfer ownership
+      tags:
+      - Template Fields
     put:
       description: Update permissions of a template field.
       operationId: updateTemplateFieldPermissions
@@ -5532,6 +5640,71 @@ paths:
       tags:
       - Template Fields
       - Permissions
+  /template-fields/{id}/publication:
+    patch:
+      description: Publish artifact. The 'bibo:status' of the artifact will be changed
+        from 'bibo:draft' to 'bibo:published'. The 'pav:version' will be also set.
+      operationId: publishArtifact_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/PublishArtifactRequest"
+        description: Info about the publishing process
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: The published artifact
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "Only the artifact's owner may publish it, whatever role another\
+            \ user holds (versioningOnlyByOwner). A caller who cannot read the artifact,\
+            \ or lacks the permission to update artifacts of its type, is also refused."
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Publish artifact.
+      tags:
+      - Validation
+      - Command
+      - Versioning
+      - Template Fields
   /template-fields/{id}/report:
     get:
       description: Get report of a template field.
@@ -5946,9 +6119,9 @@ paths:
       tags:
       - Template Instances
     patch:
-      description: "Expose the template instance through OpenView, or withdraw it,\
-        \ with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by\
-        \ GET /template-instances/{id}/details."
+      description: "Set schema:name and/or schema:description, or expose the template\
+        \ instance through OpenView, or withdraw it, with {\"isOpen\": true} or {\"\
+        isOpen\": false}. Use the ETag returned by GET /template-instances/{id}/details."
       operationId: patchTemplateInstance
       parameters:
       - $ref: "#/components/parameters/IfMatch"
@@ -5962,11 +6135,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
+              $ref: "#/components/schemas/ResourceStatePatch"
           application/merge-patch+json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
-        description: The new OpenView state
+              $ref: "#/components/schemas/ResourceStatePatch"
+        description: "The new name and/or description, or the OpenView state"
         required: true
       responses:
         "200":
@@ -6015,7 +6188,7 @@ paths:
           description: Internal server error
       security:
       - api_key: []
-      summary: Change whether a template instance is open
+      summary: "Change the name, description or open state of a template instance"
       tags:
       - Template Instances
       - OpenView
@@ -6160,6 +6333,67 @@ paths:
       summary: Update a template instance
       tags:
       - Template Instances
+  /template-instances/{id}/annotations:
+    patch:
+      description: "Set the DOI annotation of an artifact. The user must have the\
+        \ updateResource capability on the artifact. The resource type must support\
+        \ DOIs, and an existing DOI can not be altered."
+      operationId: setDOI_2
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/SetDoiRequest"
+        description: The artifact and the DOI to record
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: "The artifact, carrying its DOI"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Set the DOI of an artifact
+      tags:
+      - Template Instances
   /template-instances/{id}/details:
     get:
       description: Get details of a template instance.
@@ -6224,6 +6458,12 @@ paths:
         \ Accept header."
       operationId: getTemplateInstanceDownload
       parameters:
+      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
+          \ Accept."
+        in: query
+        name: format
+        schema:
+          type: string
       - description: Template Instance identifier.
         in: path
         name: id
@@ -6246,6 +6486,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InstanceArtifactDocument"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/InstanceArtifactDocument"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/InstanceArtifactDocument"
@@ -6265,6 +6508,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/CedarError"
@@ -6275,6 +6521,9 @@ paths:
         "401":
           content:
             application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/n-quads:
               schema:
                 $ref: "#/components/schemas/CedarError"
             application/x-yaml:
@@ -6289,6 +6538,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/CedarError"
@@ -6301,6 +6553,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CedarError"
+            application/n-quads:
+              schema:
+                $ref: "#/components/schemas/CedarError"
             application/x-yaml:
               schema:
                 $ref: "#/components/schemas/CedarError"
@@ -6311,6 +6566,9 @@ paths:
         "500":
           content:
             application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+            application/n-quads:
               schema:
                 $ref: "#/components/schemas/CedarError"
             application/x-yaml:
@@ -6383,6 +6641,72 @@ paths:
       tags:
       - Template Instances
       - Permissions
+    patch:
+      description: Change the owner using the permissions ETag in If-Match.
+      operationId: transferOwnership_3
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: Updated permissions
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Invalid owner or request body
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Resource not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Transfer ownership
+      tags:
+      - Template Instances
     put:
       description: Update permissions of a template instance.
       operationId: updateTemplateInstancePermissions
@@ -6506,6 +6830,72 @@ paths:
       tags:
       - Template Instances
       - Resource Report
+  /template-update-checks/{id}:
+    post:
+      description: "Check whether an existing template can be updated with the supplied\
+        \ template definition. The destructive and non-destructive changes between\
+        \ the stored template and the supplied template are computed, and the number\
+        \ of affected instances is reported."
+      operationId: checkUpdateTemplate
+      parameters:
+      - description: Template identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/SchemaArtifactDocument"
+        description: The template definition the stored template would be replaced
+          by
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateUpdateCheck"
+          description: "Whether the template can be updated, and what updating it\
+            \ would cost"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Check whether a template can be updated
+      tags:
+      - Command
+      - Versioning
   /templates:
     post:
       description: "Create a template. The body can be JSON or YAML, selected via\
@@ -6691,6 +7081,12 @@ paths:
       description: "Get a template as JSON or YAML, selected via the Accept header."
       operationId: findTemplate
       parameters:
+      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
+          \ Accept."
+        in: query
+        name: format
+        schema:
+          type: string
       - description: "Template identifier. Example: https://repo.metadatacenter.org/templates/8bc64ab5-df6b-48c8-8c61-6c016245918e"
         in: path
         name: id
@@ -6785,8 +7181,9 @@ paths:
       tags:
       - Templates
     patch:
-      description: "Expose the template through OpenView, or withdraw it, with {\"\
-        isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /templates/{id}/details."
+      description: "Set schema:name and/or schema:description, or expose the template\
+        \ through OpenView, or withdraw it, with {\"isOpen\": true} or {\"isOpen\"\
+        : false}. Use the ETag returned by GET /templates/{id}/details."
       operationId: patchTemplate
       parameters:
       - $ref: "#/components/parameters/IfMatch"
@@ -6800,11 +7197,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
+              $ref: "#/components/schemas/ResourceStatePatch"
           application/merge-patch+json:
             schema:
-              $ref: "#/components/schemas/OpenStatePatch"
-        description: The new OpenView state
+              $ref: "#/components/schemas/ResourceStatePatch"
+        description: "The new name and/or description, or the OpenView state"
         required: true
       responses:
         "200":
@@ -6853,7 +7250,7 @@ paths:
           description: Internal server error
       security:
       - api_key: []
-      summary: Change whether a template is open
+      summary: "Change the name, description or open state of a template"
       tags:
       - Templates
       - OpenView
@@ -6998,6 +7395,67 @@ paths:
       summary: Update a template
       tags:
       - Templates
+  /templates/{id}/annotations:
+    patch:
+      description: "Set the DOI annotation of an artifact. The user must have the\
+        \ updateResource capability on the artifact. The resource type must support\
+        \ DOIs, and an existing DOI can not be altered."
+      operationId: setDOI_3
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/SetDoiRequest"
+        description: The artifact and the DOI to record
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: "The artifact, carrying its DOI"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Set the DOI of an artifact
+      tags:
+      - Templates
   /templates/{id}/details:
     get:
       description: Get details of a template.
@@ -7061,6 +7519,12 @@ paths:
       description: "Download a template as JSON or YAML, selected via the Accept header."
       operationId: getTemplateDownload
       parameters:
+      - description: "Output representation: jsonld, json, yaml or rdf-nquad; overrides\
+          \ Accept."
+        in: query
+        name: format
+        schema:
+          type: string
       - description: Template identifier.
         in: path
         name: id
@@ -7220,6 +7684,72 @@ paths:
       tags:
       - Templates
       - Permissions
+    patch:
+      description: Change the owner using the permissions ETag in If-Match.
+      operationId: transferOwnership_4
+      parameters:
+      - $ref: "#/components/parameters/IfMatch"
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePermissions"
+          description: Updated permissions
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+              style: simple
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Invalid owner or request body
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Resource not found
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Transfer ownership
+      tags:
+      - Templates
     put:
       description: Update permissions of a template.
       operationId: updateTemplatePermissions
@@ -7289,6 +7819,71 @@ paths:
       tags:
       - Templates
       - Permissions
+  /templates/{id}/publication:
+    patch:
+      description: Publish artifact. The 'bibo:status' of the artifact will be changed
+        from 'bibo:draft' to 'bibo:published'. The 'pav:version' will be also set.
+      operationId: publishArtifact_2
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: "#/components/schemas/PublishArtifactRequest"
+        description: Info about the publishing process
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRecord"
+          description: The published artifact
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Bad request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: "Only the artifact's owner may publish it, whatever role another\
+            \ user holds (versioningOnlyByOwner). A caller who cannot read the artifact,\
+            \ or lacks the permission to update artifacts of its type, is also refused."
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CedarError"
+          description: Internal server error
+      security:
+      - api_key: []
+      summary: Publish artifact.
+      tags:
+      - Validation
+      - Command
+      - Versioning
+      - Templates
   /templates/{id}/report:
     get:
       description: Get report of a template.
@@ -9276,9 +9871,6 @@ components:
       additionalProperties: false
       description: Info about the publishing process.
       properties:
-        '@id':
-          type: string
-          description: Unique URL identifier of the artifact.
         newVersion:
           type: string
           description: "Version string. Must have three positive decimal numbers,\
@@ -9307,17 +9899,12 @@ components:
     RenameRequest:
       type: object
       additionalProperties: false
-      description: Parameters of the rename operation.
+      minProperties: 1
       properties:
-        '@id':
-          type: string
-          description: Unique URL identifier representing the resource.
         schema:description:
           type: string
-          description: New description of the resource.
         schema:name:
           type: string
-          description: New name of the resource.
     ResourceAclUpdateRequest:
       type: object
       additionalProperties: false
@@ -9466,6 +10053,21 @@ components:
       - viewer
       - editor
       - manager
+    ResourceStatePatch:
+      type: object
+      additionalProperties: false
+      description: "Change name/description, or change the OpenView state in a separate\
+        \ request."
+      oneOf:
+      - $ref: "#/components/schemas/OpenStatePatch"
+      - $ref: "#/components/schemas/RenameRequest"
+      properties:
+        isOpen:
+          type: boolean
+        schema:description:
+          type: string
+        schema:name:
+          type: string
     ResourceSummary:
       type: object
       additionalProperties: true
@@ -9623,15 +10225,11 @@ components:
       additionalProperties: false
       description: The artifact and the DOI to annotate it with.
       properties:
-        '@id':
-          type: string
-          description: Identifier of the artifact.
         doi:
           type: string
           description: The DOI to record. An artifact that already carries a different
             DOI is refused.
       required:
-      - '@id'
       - doi
     TemplateUpdateCheck:
       type: object
@@ -9669,14 +10267,10 @@ components:
       additionalProperties: false
       description: The resource or category and user involved in an ownership transfer.
       properties:
-        '@id':
-          type: string
-          description: "Identifier of the artifact, folder or category."
         newOwnerId:
           type: string
           description: Identifier of the user who will become the owner.
       required:
-      - '@id'
       - newOwnerId
     User:
       type: object

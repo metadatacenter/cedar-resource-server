@@ -106,6 +106,7 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
 
     final CedarMicroserviceIndexResource index =
         new CedarMicroserviceIndexResource(cedarConfig, getServerName());
+    environment.jersey().register(new org.metadatacenter.cedar.util.dw.ArtifactReadFormatFilter());
     environment.jersey().register(index);
     environment.jersey().register(new ArtifactCountsResource(cedarConfig));
 
@@ -125,8 +126,6 @@ public class ResourceServerApplication extends CedarMicroserviceApplication<Reso
     final CommandFileSystemResource commandFileSystem = new CommandFileSystemResource(cedarConfig);
     environment.jersey().register(commandFileSystem);
 
-    final CommandAnnotationsResource commandAnnotations = new CommandAnnotationsResource(cedarConfig);
-    environment.jersey().register(commandAnnotations);
 
     final CommandVersionResource commandVersion = new CommandVersionResource(cedarConfig);
     environment.jersey().register(commandVersion);

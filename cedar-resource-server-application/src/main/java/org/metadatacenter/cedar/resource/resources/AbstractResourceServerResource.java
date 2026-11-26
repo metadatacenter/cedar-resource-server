@@ -1,5 +1,39 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import static org.metadatacenter.model.ModelNodeNames.*;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.POST;
+import org.metadatacenter.server.VersionedResourcePermissions;
+import org.metadatacenter.server.VersionedResource;
+import org.metadatacenter.server.SiblingNameConflictException;
+import org.metadatacenter.server.ResourcePermissionServiceSession;
+import org.metadatacenter.server.RevisionPrecondition;
+import org.metadatacenter.server.RevisionConflictException;
+import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.model.ResourceVersion;
+import org.metadatacenter.model.CedarResourceType;
+import org.metadatacenter.model.BiboStatus;
+import org.metadatacenter.exception.CedarProcessingException;
+import org.metadatacenter.exception.CedarObjectNotFoundException;
+import org.metadatacenter.exception.CedarException;
+import org.metadatacenter.exception.CedarBackendException;
+import org.metadatacenter.error.CedarErrorType;
+import org.metadatacenter.constant.LinkedData;
+import org.metadatacenter.util.artifact.ArtifactDocument;
+import org.metadatacenter.util.http.CedarError;
+import org.apache.hc.core5.http.Header;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.Operation;
+import com.codahale.metrics.annotation.Timed;
 import java.util.Locale;
 
 import org.metadatacenter.server.ArtifactGraphUpdateResult;
@@ -98,6 +132,15 @@ import static org.metadatacenter.model.ModelNodeNames.SCHEMA_ORG_NAME;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
 public abstract class AbstractResourceServerResource extends CedarMicroserviceResource {
+
+  @jakarta.ws.rs.core.Context
+  private jakarta.ws.rs.container.ResourceContext resourceContext;
+
+  /** Initializes request-scoped context on a shared operation implementation. */
+  protected <T> T operationResource(T operation) {
+    return resourceContext.initResource(operation);
+  }
+
 
   private static final Logger log = LoggerFactory.getLogger(AbstractResourceServerResource.class);
 
@@ -593,6 +636,15 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
    * admits JSON, and is refused where it does not.
    */
   protected Response executeArtifactGetNegotiated(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id, Optional<Boolean> compact) throws CedarException {
+    Optional<String> format = Optional.ofNullable(uriInfo.getQueryParameters().getFirst("format"));
+    if (resourceType == CedarResourceType.INSTANCE && format.isEmpty() && ArtifactYamlTranscoder.APPLICATION_NQUADS_TYPE.equals(
+        ArtifactYamlTranscoder.negotiateInstanceResponseType(httpHeaders.getAcceptableMediaTypes()).orElse(null))) {
+      format = Optional.of("rdf-nquad");
+    }
+    if (format.isPresent()) {
+      return org.metadatacenter.proxy.ArtifactProxy.executeResourceGetByProxyFromArtifactServer(
+          cedarConfig, response, resourceType, id.getId(), format, compact, context);
+    }
     Optional<MediaType> responseType = negotiatedArtifactResponseType();
     if (responseType.isEmpty()) {
       return notAcceptableArtifactFormatResponse();
@@ -644,6 +696,23 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
    */
   protected Response downloadArtifact(CedarRequestContext context, CedarResourceType resourceType, CedarArtifactId id,
                                       Optional<Boolean> compact) throws CedarException {
+    Optional<String> format = Optional.ofNullable(uriInfo.getQueryParameters().getFirst("format"));
+    if (resourceType == CedarResourceType.INSTANCE && format.isEmpty() && ArtifactYamlTranscoder.APPLICATION_NQUADS_TYPE.equals(
+        ArtifactYamlTranscoder.negotiateInstanceResponseType(httpHeaders.getAcceptableMediaTypes()).orElse(null))) {
+      format = Optional.of("rdf-nquad");
+    }
+    if (format.isPresent()) {
+      Response rendered = org.metadatacenter.proxy.ArtifactProxy.executeResourceGetByProxyFromArtifactServer(
+          cedarConfig, response, resourceType, id.getId(), format, compact, context);
+      if (rendered.getStatus() != 200) return rendered;
+      String extension = switch (format.get()) {
+        case "yaml" -> ".yaml";
+        case "rdf-nquad" -> ".nq";
+        default -> ".json";
+      };
+      return Response.fromResponse(rendered).header("Content-Disposition", "attachment; filename=\""
+          + linkedDataUtil.getUUID(id.getId(), resourceType) + extension + "\"").build();
+    }
     Optional<MediaType> responseType = negotiatedArtifactResponseType();
     if (responseType.isEmpty()) {
       return notAcceptableArtifactFormatResponse();
@@ -1976,8 +2045,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
    * Applies {@code PATCH {"isOpen": …}} to the artifact at {@code id}, which must be of {@code resourceType}.
    * The caller needs the manageOpenView capability and the artifact's ETag in If-Match.
    */
-  protected Response patchArtifactOpenState(CedarResourceType resourceType, String id) throws CedarException {
-    CedarRequestContext c = buildRequestContext();
+  protected Response patchArtifactOpenState(CedarResourceType resourceType, String id, CedarRequestContext c) throws CedarException {
     c.must(c.user()).be(org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn);
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(linkedDataUtil.resolveResourceId(resourceType, id));
     boolean open = requestedOpenState(c);
@@ -2016,8 +2084,7 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
    * Applies {@code PATCH {"isOpen": …}} to the folder at {@code id}. The caller needs the manageOpenView
    * capability and the folder's ETag in If-Match.
    */
-  protected Response patchFolderOpenState(String id) throws CedarException {
-    CedarRequestContext c = buildRequestContext();
+  protected Response patchFolderOpenState(String id, CedarRequestContext c) throws CedarException {
     c.must(c.user()).be(org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn);
     CedarFolderId folderId = CedarFolderId.build(linkedDataUtil.resolveResourceId(CedarResourceType.FOLDER, id));
     boolean open = requestedOpenState(c);
@@ -2322,6 +2389,212 @@ public abstract class AbstractResourceServerResource extends CedarMicroserviceRe
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(context);
     ResourcePermissionServiceSession permissionSession = dataServices.getResourcePermissionServiceSession(context);
     return GraphDbPermissionReader.getArtifactCurrentUserReport(context, folderSession, permissionSession, artifactId);
+  }
+
+  protected Response renameResource(CedarResourceType expectedType, String id, CedarRequestContext c) throws CedarException {
+    c.must(c.user()).be(LoggedIn);
+
+    id = linkedDataUtil.resolveResourceId(expectedType, id);
+    c.request().getRequestBody().mustHaveOnly(SCHEMA_ORG_NAME, SCHEMA_ORG_DESCRIPTION);
+    JsonNode patch = c.request().getRequestBody().asJson();
+    if (patch == null || !patch.isObject() || patch.isEmpty()
+        || patch.has(SCHEMA_ORG_NAME) && !patch.get(SCHEMA_ORG_NAME).isTextual()
+        || patch.has(SCHEMA_ORG_DESCRIPTION) && !patch.get(SCHEMA_ORG_DESCRIPTION).isTextual()) {
+      return CedarResponse.badRequest().message("Provide schema:name and/or schema:description as strings").build();
+    }
+    CedarParameter nameParam = c.request().getRequestBody().get(SCHEMA_ORG_NAME);
+    CedarParameter descriptionParam = c.request().getRequestBody().get(SCHEMA_ORG_DESCRIPTION);
+    c.must(c.request().getRequestBody()).be(NonEmpty);
+    id = linkedDataUtil.resolveResourceId(expectedType, id);
+
+    CedarResourceId untypedResourceId = CedarUntypedResourceId.build(id);
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+
+    CedarResourceType resourceType = folderSession.getResourceType(untypedResourceId);
+    if (resourceType == null || resourceType != expectedType) {
+      throw new CedarObjectNotFoundException("Resource not found by id")
+          .errorKey(CedarErrorKey.NODE_NOT_FOUND)
+          .parameter("resourceId", untypedResourceId);
+    }
+    CedarFilesystemResourceId fsResourceId = CedarFilesystemResourceId.build(id, resourceType);
+
+    userMustHaveCapabilityOnFilesystemResource(c, fsResourceId,
+        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
+
+    String name = null;
+    if (!nameParam.isEmpty()) {
+      name = nameParam.stringValue();
+    }
+    String description = null;
+    if (!descriptionParam.isEmpty()) {
+      description = descriptionParam.stringValue();
+    }
+
+    boolean isFolder = false;
+
+    CedarPermission permission = null;
+    switch (resourceType) {
+      case FIELD:
+        permission = CedarPermission.TEMPLATE_FIELD_UPDATE;
+        break;
+      case ELEMENT:
+        permission = CedarPermission.TEMPLATE_ELEMENT_UPDATE;
+        break;
+      case TEMPLATE:
+        permission = CedarPermission.TEMPLATE_UPDATE;
+        break;
+      case INSTANCE:
+        permission = CedarPermission.TEMPLATE_INSTANCE_UPDATE;
+        break;
+      case FOLDER:
+        permission = CedarPermission.FOLDER_UPDATE;
+        isFolder = true;
+        break;
+    }
+
+    if (permission == null) {
+      return CedarResponse.badRequest()
+          .errorKey(CedarErrorKey.UNKNOWN_RESOURCE_TYPE)
+          .message("Unknown resource type:" + resourceType.getValue())
+          .parameter("resourceType", resourceType.getValue())
+          .build();
+    }
+
+    // Check read permission
+    c.must(c.user()).have(permission);
+
+    String expectedEtag = c.getIfMatchHeader();
+    if (RevisionPreconditionParser.isAbsent(expectedEtag)) {
+      return CedarResponse.preconditionRequired()
+          .message("Renaming a resource requires the ETag returned by GET in If-Match")
+          .build();
+    }
+
+    if (isFolder) {
+      return updateFolderNameAndDescriptionInGraphDb(c, (CedarFolderId) fsResourceId);
+    } else {
+      String artifactServerUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, (CedarArtifactId) fsResourceId);
+
+      ClassicHttpResponse templateCurrentProxyResponse = new ArtifactServiceClient(cedarConfig).get(artifactServerUrl, c);
+      int currentStatusCode = templateCurrentProxyResponse.getCode();
+      if (currentStatusCode != HttpStatus.SC_OK) {
+        // artifact was not created
+        return generateStatusResponse(templateCurrentProxyResponse);
+      } else {
+        HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
+        String currentTemplateEntityContent;
+        try {
+          currentTemplateEntityContent = currentTemplateEntity == null ? null
+              : EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
+        } catch (IOException | ParseException e) {
+          throw new CedarProcessingException(e);
+        }
+        if (currentTemplateEntityContent != null && !currentTemplateEntityContent.isBlank()) {
+          try {
+            JsonNode currentTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(currentTemplateEntityContent);
+            String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
+            String currentDescription = ModelUtil.extractDescriptionFromResource(resourceType, currentTemplateJsonNode).getValue();
+            String publicationStatusString = ModelUtil.extractPublicationStatusFromResource(resourceType, currentTemplateJsonNode).getValue();
+            BiboStatus biboStatus = BiboStatus.forValue(publicationStatusString);
+            if (biboStatus == BiboStatus.PUBLISHED) {
+              return CedarResponse.badRequest()
+                  .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
+                  .message("The artifact can not be changed since it is published!")
+                  .parameter("name", currentName)
+                  .build();
+            }
+            boolean changeName = false;
+            boolean changeDescription = false;
+            if (name != null && !name.equals(currentName)) {
+              changeName = true;
+            }
+            if (description != null && !description.equals(currentDescription)) {
+              changeDescription = true;
+            }
+            if (changeName || changeDescription) {
+              if (changeName) {
+                updateNameInObject(currentTemplateJsonNode, name);
+              }
+              if (changeDescription) {
+                updateDescriptionInObject(currentTemplateJsonNode, description);
+              }
+              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId,
+                  Optional.empty(), JsonMapper.STRICT_MAPPER.writeValueAsString(currentTemplateJsonNode), false,
+                  expectedEtag);
+            } else {
+              return CedarResponse.badRequest()
+                  .errorKey(CedarErrorKey.NOTHING_TO_DO)
+                  .message("The name and the description are unchanged. There is nothing to do!")
+                  .parameter(SCHEMA_ORG_NAME, name)
+                  .parameter(SCHEMA_ORG_DESCRIPTION, description)
+                  .build();
+            }
+          } catch (IOException e) {
+            throw new CedarProcessingException(e);
+          }
+        }
+        return CedarResponse.badGateway()
+            .message("Artifact service returned an empty artifact")
+            .id(fsResourceId)
+            .build();
+      }
+    }
+  }
+
+
+  protected Response transferResourceOwnership(CedarResourceType expectedType, String id) throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(expectedType, id);
+    c.request().getRequestBody().mustHaveOnly("newOwnerId");
+    CedarParameter newOwnerIdParam = c.request().getRequestBody().get("newOwnerId");
+    c.must(newOwnerIdParam).be(NonEmpty);
+
+    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
+    CedarResourceId untypedId = CedarUntypedResourceId.build(linkedDataUtil.resolveResourceId(expectedType, id));
+    CedarResourceType resourceType = folderSession.getResourceType(untypedId);
+    boolean permissionControlledResource = resourceType == expectedType && switch (resourceType) {
+      case FOLDER, FIELD, ELEMENT, TEMPLATE, INSTANCE -> true;
+      default -> false;
+    };
+    if (!permissionControlledResource) {
+      throw new CedarObjectNotFoundException("Resource not found by id")
+          .errorKey(CedarErrorKey.NODE_NOT_FOUND)
+          .parameter("resourceId", untypedId);
+    }
+    CedarFilesystemResourceId resourceId = CedarFilesystemResourceId.build(untypedId.getId(), resourceType);
+    userMustHaveCapabilityOnFilesystemResource(c, resourceId, ResourceCapability.TRANSFER_OWNERSHIP);
+
+    String ifMatch = c.getIfMatchHeader();
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
+          .id(resourceId)
+          .message("Transferring ownership requires the permissions ETag in If-Match")
+          .build();
+    }
+
+    ResourcePermissionServiceSession permissions = dataServices.getResourcePermissionServiceSession(c);
+    BackendCallResult<VersionedResourcePermissions> result;
+    try {
+      // The search event commits in the transfer's own transaction, as a permissions change's does.
+      result = permissions.transferResourceOwnership(resourceId,
+          CedarUserId.build(newOwnerIdParam.stringValue()), RevisionPreconditionParser.parse(ifMatch),
+          searchPermissionEnqueueService.permissionsChangedEvent(resourceId, resourceType == CedarResourceType.FOLDER));
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .id(resourceId)
+          .message("The resource permissions have changed since they were read")
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .build();
+    }
+    if (result.isError()) {
+      throw new CedarBackendException(result);
+    }
+
+    VersionedResourcePermissions transferred = result.getPayload();
+    return Response.ok(transferred.content())
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(transferred.revision()))
+        .build();
   }
 
 }

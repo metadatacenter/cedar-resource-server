@@ -15,19 +15,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
     additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class PublishArtifactRequest {
 
-  @Schema(name = "@id", description = "Unique URL identifier of the artifact.")
-  private String id;
 
   @Schema(name = "newVersion", description = "Version string. Must have three positive decimal numbers, separated by period.")
   private String newVersion;
 
-  public String getId() {
-    return id;
-  }
-
-  public void setId(String id) {
-    this.id = id;
-  }
 
   public String getNewVersion() {
     return newVersion;

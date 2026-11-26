@@ -43,7 +43,7 @@ class TerminologyVersionResolverTest {
 
     resolver.currentVersionByClassUri(URI.create("http://example.org/C-1?x=y&z=a"));
 
-    assertEquals("https://terms.example/bioportal/classes/version-current?uri=http%3A%2F%2Fexample.org%2FC-1%3Fx%3Dy%26z%3Da",
+    assertEquals("https://terms.example/bioportal/classes/version-current?term_iri=http%3A%2F%2Fexample.org%2FC-1%3Fx%3Dy%26z%3Da",
         seen.get().uri().toString());
     assertTrue(seen.get().headers().firstValue("Authorization").isEmpty());
   }

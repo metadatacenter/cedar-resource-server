@@ -59,7 +59,7 @@ public class TerminologyVersionResolver implements ControlledTermVersionFreezer.
 
   @Override
   public Optional<VersionSpec> currentVersionByClassUri(URI classUri) {
-    return get("bioportal/classes/version-current?uri=" + enc(classUri.toString()));
+    return get("bioportal/classes/version-current?term_iri=" + enc(classUri.toString()));
   }
 
   @Override

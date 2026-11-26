@@ -1,5 +1,8 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.PATCH;
 import com.codahale.metrics.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -124,7 +127,7 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
 
     userMustHaveCapabilityOnArtifact(c, tiid, org.metadatacenter.server.security.model.permission.resource.ResourceCapability.READ_RESOURCE);
     if (format.isPresent()) {
-      return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(cedarConfig, response, CedarResourceType.INSTANCE, id, format, c);
+      return ArtifactProxy.executeResourceGetByProxyFromArtifactServer(cedarConfig, response, CedarResourceType.INSTANCE, id, format, compactParam, c);
     }
     // N-Quads is the representation format=rdf-nquad names, so an Accept preferring it asks for that.
     Optional<MediaType> responseType =
@@ -142,7 +145,9 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @GET
   @Timed
   @Path("/{id}/download")
-  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml"})
+  @Parameter(name = "format", in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
+      description = "Output representation: jsonld, json, yaml or rdf-nquad; overrides Accept.")
+  @Produces({MediaType.APPLICATION_JSON, HttpConstants.CONTENT_TYPE_APPLICATION_YAML, "application/yaml", "application/n-quads"})
   @Operation(summary = "Download a template instance", description = "Download a template instance as JSON or YAML, selected via the Accept "
       + "header.")
   @ApiResponses({
@@ -256,12 +261,12 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   @Path("/{id}")
   @Consumes({jakarta.ws.rs.core.MediaType.APPLICATION_JSON, org.metadatacenter.constant.HttpConstants.CONTENT_TYPE_APPLICATION_MERGE_PATCH_JSON})
   @Produces(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
-  @Operation(summary = "Change whether a template instance is open", description = "Expose the template instance through OpenView, or "
+  @Operation(summary = "Change the name, description or open state of a template instance", description = "Set schema:name and/or schema:description, or expose the template instance through OpenView, or "
       + "withdraw it, with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /template-instances/{id}/details.",
       tags = {"Template Instances", "OpenView"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
-  @RequestBody(description = "The new OpenView state", required = true,
-      content = @Content(schema = @Schema(ref = "#/components/schemas/OpenStatePatch")))
+  @RequestBody(description = "The new name and/or description, or the OpenView state", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/ResourceStatePatch")))
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The template instance, with its new OpenView state",
           content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord")),
@@ -276,7 +281,12 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
   })
   public Response patchTemplateInstance(
       @Parameter(description = "Template instance identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
-    return patchArtifactOpenState(CedarResourceType.INSTANCE, id);
+    CedarRequestContext c = buildRequestContext();
+    if (c.request().getRequestBody().asJson() == null
+        || !c.request().getRequestBody().asJson().has("isOpen")) {
+      return renameResource(CedarResourceType.INSTANCE, id, c);
+    }
+    return patchArtifactOpenState(CedarResourceType.INSTANCE, id, c);
   }
 
   @DELETE
@@ -395,4 +405,46 @@ public class TemplateInstancesResource extends AbstractResourceServerResource {
     return generateArtifactReportResponse(c, tiid);
   }
 
+  @PATCH
+  @Timed
+  @Path("/{id}/permissions")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Operation(summary = "Transfer ownership", description = "Change the owner using the permissions ETag in If-Match.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
+  @RequestBody(required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TransferOwnershipRequest.class)))
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "Updated permissions",
+          content = @Content(schema = @Schema(implementation = CedarNodePermissionsWithExtract.class)),
+          headers = @io.swagger.v3.oas.annotations.headers.Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "400", description = "Invalid owner or request body", content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "404", description = "Resource not found", content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
+      @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content(schema = @Schema(implementation = CedarError.class)))
+  })
+  public Response transferOwnership(@PathParam(PP_ID) String id) throws CedarException {
+    return transferResourceOwnership(CedarResourceType.INSTANCE, id);
+  }
+
+  @PATCH
+  @Timed
+  @Path("/{id}/annotations")
+  @Operation(summary = "Set the DOI of an artifact", description = "Set the DOI annotation of an artifact. The user must have the updateResource capability on the artifact. The "
+          + "resource type must support DOIs, and an existing DOI can not be altered.")
+  @RequestBody(description = "The artifact and the DOI to record", required = true,
+      content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.SetDoiRequest.class)))
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "The artifact, carrying its DOI",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
+  })
+  public Response setDOI(@PathParam("id") String id) throws CedarException {
+    return operationResource(new CommandAnnotationsResource(cedarConfig)).setDOI("template-instances", id);
+  }
 }

@@ -181,11 +181,11 @@ public class ArtifactServerAnswerMatrixTest {
   private static final Map<String, Command> COMMANDS = Map.of(
       "create", id -> post("/templates?folder_id=" + encode(homeFolderId.getId()),
           templateDocument("Answer matrix fixture, created beside it").toString()),
-      "publish", id -> post("/command/publish-artifact", "{\"@id\":\"" + id + "\",\"newVersion\":\"1.0.0\"}"),
+      "publish", id -> patch("/" + org.metadatacenter.id.CedarResourceAddress.selector(id) + "/publication", "{\"newVersion\":\"1.0.0\"}"),
       "create a draft", id -> post("/command/create-draft-artifact",
           "{\"@id\":\"" + id + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
               + "\",\"propagateSharing\":false,\"newFolderName\":\"\"}"),
-      "publish and draft", id -> post("/command/publish-create-draft-template/" + encode(id),
+      "publish and draft", id -> post("/template-drafts/" + encode(id),
           "{\"template\":" + templateDocument("Answer matrix fixture, edited") + "}"),
       "copy", id -> post("/command/copy-artifact-to-folder",
           "{\"@id\":\"" + id + "\",\"targetFolderId\":\"" + homeFolderId.getId()
@@ -317,6 +317,10 @@ public class ArtifactServerAnswerMatrixTest {
 
   private static HttpResponse<String> post(String path, String body) throws Exception {
     return send("POST", path, body);
+  }
+
+  /** Every write names the revision it means as "whatever is there now"; the stub does not version. */  private static HttpResponse<String> patch(String path, String body) throws Exception {
+    return send("PATCH", path, body);
   }
 
   /** Every write names the revision it means as "whatever is there now"; the stub does not version. */

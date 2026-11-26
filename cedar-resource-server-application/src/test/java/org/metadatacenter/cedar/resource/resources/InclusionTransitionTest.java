@@ -113,7 +113,7 @@ class InclusionTransitionTest {
         CedarRequestContextFactory.fromUser(TestAuthUtil.getTestUser1(config)))
         .updateInclusionArcs(targetNode.getResourceId(), java.util.List.of(sourceId)));
     String body = "{\"@id\":\"" + sourceId + "\",\"templates\":{\"" + targetId + "\":{\"operation\":\"update\"}}}";
-    var preview = post("/command/inclusions-subgraph-preview", body);
+    var preview = post("/inclusion-subgraphs/query", body);
     assertEquals(200, preview.statusCode(), preview.body());
     if (change.equals("counted")) {
       // An instance the graph already holds, so the resource server's own count refuses the change
@@ -124,7 +124,7 @@ class InclusionTransitionTest {
       instance.setIsBasedOn(org.metadatacenter.id.CedarTemplateId.build(targetId));
       assertNotNull(folders.createResourceAsChildOfId(instance, home));
     }
-    var result = post("/command/inclusions-subgraph-update", body);
+    var result = post("/command/update-inclusions-subgraph", body);
     if (change.equals("counted")) {
       assertEquals(400, result.statusCode(), result.body());
       var refusal = JsonMapper.STRICT_MAPPER.readTree(result.body());

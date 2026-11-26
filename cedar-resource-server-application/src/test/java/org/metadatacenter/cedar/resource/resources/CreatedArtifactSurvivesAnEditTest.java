@@ -157,8 +157,7 @@ public class CreatedArtifactSurvivesAnEditTest {
   public void aDraftSurvivesAnEdit() throws Exception {
     String sourceId = createTemplate("Draft source that carries a DOI");
     setDoi(sourceId, "https://doi.org/10.5072/FK2-survives-draft");
-    Assertions.assertEquals(200, post("/command/publish-artifact",
-        "{\"@id\":\"" + sourceId + "\",\"newVersion\":\"1.0.0\"}").statusCode());
+    Assertions.assertEquals(200, patch("/" + org.metadatacenter.id.CedarResourceAddress.selector(sourceId) + "/publication", "{\"newVersion\":\"1.0.0\"}").statusCode());
 
     HttpResponse<String> drafted = post("/command/create-draft-artifact",
         "{\"@id\":\"" + sourceId + "\",\"newVersion\":\"1.0.1\",\"folderId\":\"" + homeFolderId.getId()
@@ -179,7 +178,7 @@ public class CreatedArtifactSurvivesAnEditTest {
         get("/templates/" + encode(sourceId)).body());
     submitted.put(ModelNodeNames.SCHEMA_ORG_NAME, "Publish-and-draft source, edited");
 
-    HttpResponse<String> drafted = post("/command/publish-create-draft-template/" + encode(sourceId),
+    HttpResponse<String> drafted = post("/template-drafts/" + encode(sourceId),
         "{\"template\":" + submitted + "}");
     Assertions.assertEquals(200, drafted.statusCode(), drafted.body());
 
@@ -215,8 +214,8 @@ public class CreatedArtifactSurvivesAnEditTest {
   }
 
   private static void setDoi(String artifactId, String doi) throws Exception {
-    HttpResponse<String> response = post("/command/set-doi",
-        "{\"@id\":\"" + artifactId + "\",\"doi\":\"" + doi + "\"}");
+    HttpResponse<String> response = patch("/templates/" + encode(artifactId) + "/annotations",
+        "{\"doi\":\"" + doi + "\"}");
     Assertions.assertEquals(200, response.statusCode(), response.body());
   }
 
@@ -252,6 +251,15 @@ public class CreatedArtifactSurvivesAnEditTest {
         .header("Content-Type", "application/json")
         .header("If-Match", "*")
         .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build());
+  }
+  private static HttpResponse<String> patch(String path, String body) throws Exception {
+    return TestHttpClient.send(HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
+        .header("Authorization", authHeader)
+        .header("Content-Type", "application/json")
+        .header("If-Match", "*")
+        .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
         .build());
   }
 

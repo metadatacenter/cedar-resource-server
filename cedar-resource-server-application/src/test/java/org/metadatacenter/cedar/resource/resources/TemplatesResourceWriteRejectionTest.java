@@ -123,7 +123,7 @@ public class TemplatesResourceWriteRejectionTest {
 
   private HttpResponse<String> postCommand(String command, String body) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/" + command))
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/" + command))
         .header("Authorization", authHeaderUser1)
         .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(body))
@@ -320,7 +320,7 @@ public class TemplatesResourceWriteRejectionTest {
 
   @Test
   public void unavailableArtifactServerRemainsServiceUnavailableThroughValidationCommand() throws Exception {
-    HttpResponse<String> response = postCommand("validate?resourceType=template", "{}");
+    HttpResponse<String> response = postCommand("artifact-validations/template", "{}");
 
     Assertions.assertEquals(503, response.statusCode(), response.body());
     JsonNode error = JsonMapper.STRICT_MAPPER.readTree(response.body());

@@ -1,5 +1,20 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import jakarta.ws.rs.PATCH;
+import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
+import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
+import java.util.ArrayList;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.POST;
+import org.metadatacenter.server.security.model.auth.CedarResourceBatchAttachCategoryRequest;
+import org.metadatacenter.server.FolderServiceSession;
+import org.metadatacenter.rest.assertion.noun.CedarInPlaceParameter;
+import org.metadatacenter.model.folderserver.currentuserpermissions.FolderServerArtifactCurrentUserReport;
+import org.metadatacenter.model.folderserver.basic.FolderServerArtifact;
+import org.metadatacenter.id.CedarUntypedArtifactId;
+import org.metadatacenter.id.CedarUserId;
+import org.metadatacenter.constant.LinkedData;
 import java.util.Locale;
 
 import com.codahale.metrics.annotation.Timed;
@@ -643,5 +658,65 @@ public class CategoriesResource extends AbstractResourceServerResource {
         .entity(permissions.content()).build();
   }
 
+  @PATCH
+  @Timed
+  @Path("/{id}/permissions")
+  @Operation(summary = "Transfer category ownership",
+      description = "Replace the owner of a category with another user. Only the current owner may perform this operation. "
+          + "Send the ETag returned by the category permissions endpoint in If-Match.",
+      tags = {"Command", "Categories", "Permissions"},
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
+  @RequestBody(description = "The category and new owner.", required = true,
+      content = @Content(schema = @Schema(
+          implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TransferOwnershipRequest.class)))
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "Ownership transferred",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/CategoryPermissions")),
+          headers = @Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired")
+  })
+  public Response transferCategoryOwnership(@PathParam(PP_ID) String id) throws CedarException {
+    CedarRequestContext c = buildRequestContext();
+    c.must(c.user()).be(LoggedIn);
+    c.request().getRequestBody().mustHaveOnly("newOwnerId");
+    CedarParameter newOwnerIdParam = c.request().getRequestBody().get("newOwnerId");
+    c.must(newOwnerIdParam).be(NonEmpty);
 
+    CedarCategoryId categoryId = CedarCategoryId.build(id);
+    userMustHaveCategoryCapability(c, categoryId, CategoryCapability.TRANSFER_OWNERSHIP);
+
+    String ifMatch = c.getIfMatchHeader();
+    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
+      return CedarResponse.preconditionRequired()
+          .id(categoryId)
+          .message("Transferring category ownership requires the permissions ETag in If-Match")
+          .build();
+    }
+
+    CategoryPermissionServiceSession permissions = dataServices.getCategoryPermissionServiceSession(c);
+    BackendCallResult<VersionedCategoryPermissions> result;
+    try {
+      result = permissions.transferCategoryOwnership(categoryId,
+          CedarUserId.build(newOwnerIdParam.stringValue()), RevisionPreconditionParser.parse(ifMatch));
+    } catch (RevisionConflictException e) {
+      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
+          .id(categoryId)
+          .message("The category permissions have changed since they were read")
+          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
+          .build();
+    }
+    if (result.isError()) {
+      throw new CedarBackendException(result);
+    }
+
+    VersionedCategoryPermissions transferred = result.getPayload();
+    return Response.ok(transferred.content())
+        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(transferred.revision()))
+        .build();
+  }
 }

@@ -8,19 +8,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
     additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class TransferOwnershipRequest {
 
-  @Schema(name = "@id", description = "Identifier of the artifact, folder or category.", requiredMode = Schema.RequiredMode.REQUIRED)
-  private String id;
 
   @Schema(description = "Identifier of the user who will become the owner.", requiredMode = Schema.RequiredMode.REQUIRED)
   private String newOwnerId;
 
-  public String getId() {
-    return id;
-  }
-
-  public void setId(String id) {
-    this.id = id;
-  }
 
   public String getNewOwnerId() {
     return newOwnerId;

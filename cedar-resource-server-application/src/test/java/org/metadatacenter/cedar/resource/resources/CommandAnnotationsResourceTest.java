@@ -181,12 +181,11 @@ public class CommandAnnotationsResourceTest {
   }
 
   @Test
-  public void missingNullAndBlankArtifactIdAreRejectedBeforeAnyWrite() throws Exception {
+  public void artifactIdentityInTheBodyIsRejectedBeforeAnyWrite() throws Exception {
     for (String body : List.of(
-        "{\"doi\": \"10.1234/missing-id\"}",
         "{\"@id\": null, \"doi\": \"10.1234/null-id\"}",
         "{\"@id\": \"   \", \"doi\": \"10.1234/blank-id\"}")) {
-      HttpResponse<String> response = postDoiCommand(body);
+      HttpResponse<String> response = patchAnnotations(artifactId.getId(), body);
       Assertions.assertEquals(400, response.statusCode(), response.body());
     }
 
@@ -342,11 +341,18 @@ public class CommandAnnotationsResourceTest {
   }
 
   private static HttpResponse<String> postDoiCommand(String body) throws Exception {
+    var patch = JsonMapper.STRICT_MAPPER.readTree(body);
+    String target = patch != null && patch.path("@id").isTextual() ? patch.path("@id").asText() : artifactId.getId();
+    if (patch != null && patch.isObject()) ((ObjectNode) patch).remove("@id");
+    return patchAnnotations(target, patch == null ? body : patch.toString());
+  }
+
+  private static HttpResponse<String> patchAnnotations(String target, String body) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/set-doi"))
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/" + org.metadatacenter.id.CedarResourceAddress.selector(target) + "/annotations"))
         .header("Authorization", authHeader)
         .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
         .build();
     return TestHttpClient.send(request);
   }

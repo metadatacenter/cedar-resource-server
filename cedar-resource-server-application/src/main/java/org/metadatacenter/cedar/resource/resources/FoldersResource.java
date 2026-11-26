@@ -230,12 +230,12 @@ public class FoldersResource extends AbstractResourceServerResource {
   @Path("/{id}")
   @Consumes({jakarta.ws.rs.core.MediaType.APPLICATION_JSON, org.metadatacenter.constant.HttpConstants.CONTENT_TYPE_APPLICATION_MERGE_PATCH_JSON})
   @Produces(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
-  @Operation(summary = "Change whether a folder is open", description = "Expose the folder through OpenView, or "
+  @Operation(summary = "Change the name, description or open state of a folder", description = "Set schema:name and/or schema:description, or expose the folder through OpenView, or "
       + "withdraw it, with {\"isOpen\": true} or {\"isOpen\": false}. Use the ETag returned by GET /folders/{id}.",
       tags = {"Folders", "OpenView"},
       parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
-  @RequestBody(description = "The new OpenView state", required = true,
-      content = @Content(schema = @Schema(ref = "#/components/schemas/OpenStatePatch")))
+  @RequestBody(description = "The new name and/or description, or the OpenView state", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/ResourceStatePatch")))
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "The folder, with its new OpenView state",
           content = @Content(schema = @Schema(ref = "#/components/schemas/Folder")),
@@ -250,7 +250,12 @@ public class FoldersResource extends AbstractResourceServerResource {
   })
   public Response patchFolder(
       @Parameter(description = "Folder identifier.", required = true) @PathParam(PP_ID) String id) throws CedarException {
-    return patchFolderOpenState(id);
+    CedarRequestContext c = buildRequestContext();
+    if (c.request().getRequestBody().asJson() == null
+        || !c.request().getRequestBody().asJson().has("isOpen")) {
+      return renameResource(CedarResourceType.FOLDER, id, c);
+    }
+    return patchFolderOpenState(id, c);
   }
 
   @DELETE
@@ -537,4 +542,27 @@ public class FoldersResource extends AbstractResourceServerResource {
     return Response.created(uri).header(HttpHeaders.ETAG, RevisionPreconditionParser.format(1L))
         .entity(newFolder).build();
   }
+  @PATCH
+  @Timed
+  @Path("/{id}/permissions")
+  @Consumes(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
+  @Operation(summary = "Transfer ownership", description = "Change the owner using the permissions ETag in If-Match.",
+      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
+  @RequestBody(required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TransferOwnershipRequest.class)))
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "Updated permissions",
+          content = @Content(schema = @Schema(implementation = CedarNodePermissionsWithExtract.class)),
+          headers = @io.swagger.v3.oas.annotations.headers.Header(name = "ETag", ref = "#/components/headers/ETag")),
+      @ApiResponse(responseCode = "400", description = "Invalid owner or request body", content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "404", description = "Resource not found", content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
+      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
+      @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content(schema = @Schema(implementation = CedarError.class)))
+  })
+  public Response transferOwnership(@PathParam(PP_ID) String id) throws CedarException {
+    return transferResourceOwnership(CedarResourceType.FOLDER, id);
+  }
+
 }

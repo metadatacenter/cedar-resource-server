@@ -446,7 +446,7 @@ public class CommandVersionResourceTest {
     String body = "{\"@id\":\"" + publishTemplateId.getId() + "\",\"newVersion\":\"1.0.1\"}";
     int sent = SENT_REQUESTS.size();
 
-    HttpResponse<String> response = postVersionCommand("publish-artifact", body);
+    HttpResponse<String> response = patchPublication( body);
 
     Assertions.assertEquals(200, response.statusCode(), response.body());
     // The refusal tests expect no traced writes. This shows that the count sees the write a command makes
@@ -514,10 +514,10 @@ public class CommandVersionResourceTest {
         "bibo:published");
     int sent = SENT_REQUESTS.size();
 
-    HttpResponse<String> manager = postVersionCommand("publish-artifact",
+    HttpResponse<String> manager = patchPublication(
         "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.0.0\"}",
         TestAuthUtil.getTestUser2AuthHeader(cedarConfig));
-    HttpResponse<String> owner = postVersionCommand("publish-artifact",
+    HttpResponse<String> owner = patchPublication(
         "{\"@id\":\"" + published.getId() + "\",\"newVersion\":\"1.0.1\"}");
 
     assertRefusal(manager, 403, "versioningOnlyByOwner");
@@ -558,9 +558,9 @@ public class CommandVersionResourceTest {
         "1.0.0", "bibo:published");
     int sent = SENT_REQUESTS.size();
 
-    assertRefusal(postVersionCommand("publish-artifact", "{\"@id\":\"" + draft.getId() + "\"}"), 400, "invalidData");
+    assertRefusal(patchPublication( "{\"@id\":\"" + draft.getId() + "\"}"), 400, "invalidData");
     for (String version : List.of("", "1.0", "v1.0.1", "1.0.1-rc1", "0.0.0")) {
-      assertRefusal(postVersionCommand("publish-artifact",
+      assertRefusal(patchPublication(
           "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"" + version + "\"}"), 400, "invalidData");
       assertRefusal(postVersionCommand("create-draft-artifact", draftRequest(published, version)), 400,
           "invalidData");
@@ -599,7 +599,7 @@ public class CommandVersionResourceTest {
       });
       AbstractResourceServerResource.injectArtifactRestoreCompletionService(completion);
 
-      HttpResponse<String> response = postVersionCommand("publish-artifact",
+      HttpResponse<String> response = patchPublication(
           "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.0.0\"}");
 
       Assertions.assertEquals(200, response.statusCode(), response.body());
@@ -628,7 +628,7 @@ public class CommandVersionResourceTest {
     scriptedDocument = documentOf(draft, "2.0.0", "bibo:draft");
     ObjectNode before = scriptedDocument.deepCopy();
 
-    HttpResponse<String> response = postVersionCommand("publish-artifact",
+    HttpResponse<String> response = patchPublication(
         "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.9.9\"}");
 
     assertRefusal(response, 400, "invalidData");
@@ -652,7 +652,7 @@ public class CommandVersionResourceTest {
     CedarTemplateId draft = ownedTemplate("Draft whose document is published", "1.0.0", "bibo:draft");
     scriptedDocument = documentOf(draft, "1.0.0", "bibo:published");
 
-    HttpResponse<String> response = postVersionCommand("publish-artifact",
+    HttpResponse<String> response = patchPublication(
         "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"1.0.1\"}");
 
     assertRefusal(response, 400, "publishOnlyDraft");
@@ -674,7 +674,7 @@ public class CommandVersionResourceTest {
     ObjectNode draftDocument = documentOf(draft, "1.0.0", "bibo:draft");
     scriptedDocument = draftDocument.deepCopy();
 
-    HttpResponse<String> response = postVersionCommand("publish-artifact",
+    HttpResponse<String> response = patchPublication(
         "{\"@id\":\"" + draft.getId() + "\",\"newVersion\":\"2.0.0\"}");
 
     assertRefusal(response, 409, "versioningOnlyOnLatest");
@@ -783,8 +783,8 @@ public class CommandVersionResourceTest {
     String publishBody = "{\"@id\":\"" + versionRetrySourceId.getId()
         + "\",\"newVersion\":\"1.0.1\"}";
 
-    HttpResponse<String> firstPublish = postVersionCommand("publish-artifact", publishBody);
-    HttpResponse<String> repeatedPublish = postVersionCommand("publish-artifact", publishBody);
+    HttpResponse<String> firstPublish = patchPublication( publishBody);
+    HttpResponse<String> repeatedPublish = patchPublication( publishBody);
 
     Assertions.assertEquals(200, firstPublish.statusCode(), firstPublish.body());
     Assertions.assertEquals(400, repeatedPublish.statusCode(), repeatedPublish.body());
@@ -888,14 +888,7 @@ public class CommandVersionResourceTest {
     failingPublish = true;
     String body = "{\"@id\":\"" + failedPublishTemplateId.getId()
         + "\",\"newVersion\":\"1.0.1\"}";
-    HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/publish-artifact"))
-        .header("Authorization", authHeader)
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(body))
-        .build();
-
-    HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    HttpResponse<String> response = patchPublication(body);
 
     Assertions.assertEquals(500, response.statusCode(), response.body());
     Assertions.assertEquals(failedPublishTemplateDocument, currentFailedPublishArtifact,
@@ -968,13 +961,29 @@ public class CommandVersionResourceTest {
 
   private static HttpResponse<String> checkUpdateTemplate(String body) throws Exception {
     HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/command/check-update-template/"
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/template-update-checks/"
             + URLEncoder.encode(templateId.getId(), StandardCharsets.UTF_8)))
         .header("Authorization", authHeader)
         .header(CedarHeaderParameters.GLOBAL_REQUEST_ID_KEY, nextRequestId())
         .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build();
+    return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static HttpResponse<String> patchPublication(String body) throws Exception {
+    return patchPublication(body, authHeader);
+  }
+
+  private static HttpResponse<String> patchPublication(String body, String authorization) throws Exception {
+    var patch = (ObjectNode) JsonMapper.STRICT_MAPPER.readTree(body);
+    String id = patch.path("@id").asText();
+    patch.remove("@id");
+    var request = HttpRequest.newBuilder().uri(URI.create("http://localhost:" + SERVER.getLocalPort() + "/"
+        + org.metadatacenter.id.CedarResourceAddress.selector(id) + "/publication"))
+        .header("Authorization", authorization).header("Content-Type", "application/json")
+        .header(CedarHeaderParameters.GLOBAL_REQUEST_ID_KEY, nextRequestId())
+        .method("PATCH", HttpRequest.BodyPublishers.ofString(patch.toString())).build();
     return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
   }
 

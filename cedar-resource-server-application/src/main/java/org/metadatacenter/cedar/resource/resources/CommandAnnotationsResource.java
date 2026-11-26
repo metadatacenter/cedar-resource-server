@@ -39,7 +39,8 @@ import org.metadatacenter.util.http.ArtifactServiceClient;
 import org.metadatacenter.util.json.JsonMapper;
 import org.metadatacenter.util.ModelUtil;
 
-import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PATCH;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
@@ -53,7 +54,7 @@ import java.util.Optional;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 import static org.metadatacenter.rest.assertion.GenericAssertions.NonEmpty;
 
-@Path("/command")
+@Path("/")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Command")
 @SecurityRequirement(name = "api_key")
@@ -63,34 +64,23 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
     super(cedarConfig);
   }
 
-  @POST
-  @Timed
-  @Path("/set-doi")
-  @Operation(summary = "Set the DOI of an artifact", description = "Set the DOI annotation of an artifact. The user must have the updateResource capability on the artifact. The "
-          + "resource type must support DOIs, and an existing DOI can not be altered.")
-  @RequestBody(description = "The artifact and the DOI to record", required = true,
-      content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.SetDoiRequest.class)))
-  @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The artifact, carrying its DOI",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord"))),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
-  public Response setDOI() throws CedarException {
+  public Response setDOI(@PathParam("kind") String kind, @PathParam("id") String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
 
-    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("@id", "doi");
+    CedarResourceType expectedType = switch (kind) {
+      case "templates" -> CedarResourceType.TEMPLATE;
+      case "template-elements" -> CedarResourceType.ELEMENT;
+      case "template-fields" -> CedarResourceType.FIELD;
+      default -> CedarResourceType.INSTANCE;
+    };
+    id = linkedDataUtil.resolveResourceId(expectedType, id);
+
+    CedarRequestBody requestBody = c.request().getRequestBody().mustHaveOnly("doi");
     c.must(requestBody).be(NonEmpty);
-    CedarParameter idParameter = requestBody.get("@id");
     CedarParameter doiParameter = requestBody.get("doi");
-    c.must(idParameter).be(NonEmpty);
     c.must(doiParameter).be(NonEmpty);
 
-    String id = linkedDataUtil.resolveResourceId(idParameter.stringValue());
     String doiInRequest = doiParameter.stringValue();
     CedarUntypedArtifactId artifactId = CedarUntypedArtifactId.build(id);
     FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
@@ -101,6 +91,7 @@ public class CommandAnnotationsResource extends AbstractResourceServerResource {
 
     CedarResourceType resourceType = folderServerOldResource.getType();
 
+    if (resourceType != expectedType) return CedarResponse.notFound().build();
     if (!resourceType.supportsDOI()) {
       return CedarResponse.badRequest()
           .message("The doi is not supported by the given resource type")

@@ -1,5 +1,7 @@
 package org.metadatacenter.cedar.resource.resources;
 
+import org.metadatacenter.model.request.inclusionsubgraph.InclusionSubgraphRequest;
+import org.metadatacenter.cedar.resource.model.InclusionSubgraphUpdateReport;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -518,247 +520,99 @@ public class CommandFileSystemResource extends AbstractResourceServerResource {
     }
   }
 
+
   @POST
   @Timed
-  @Path("/rename-resource")
-  @Operation(summary = "Rename resource", description = "Change name and/or description of a resource. Folders or artifacts (fields, elements, templates, "
-          + "instances) can be altered.", tags = {"Command", "File Operations"},
-      parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
-  @RequestBody(description = "Parameters of the rename operation", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.RenameRequest.class)))
+  @Path("/create-draft-artifact")
+  @Operation(summary = "Create draft artifact.", description = "Create draft artifact out of a published artifact. A new artifact will be created in the supplied "
+          + "folder. The version of the new artifact must be set, and must follow the current published version. "
+          + "The sharing settings of the old artifact can be copied over to the new artifact. The caller may "
+          + "choose the draft's identifier in draftId; an identifier already in use is refused with 412 before "
+          + "anything is written, so repeating a request whose answer was lost cannot make a second draft.",
+      tags = {"Validation", "Command", "Versioning"})
+  @RequestBody(description = "Info about the creation process", required = true, content = @Content(schema = @Schema(implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.CreateDraftArtifactRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "The renamed folder or artifact",
-          content = @Content(schema = @Schema(ref = "#/components/schemas/FolderOrArtifactRecord"))),
+      @ApiResponse(responseCode = "201", description = "The draft artifact",
+          content = @Content(schema = @Schema(ref = "#/components/schemas/ArtifactRecord")),
+          headers = @io.swagger.v3.oas.annotations.headers.Header(name = "Location", description = "Where the draft artifact can be read.",
+              schema = @Schema(type = "string"))),
+      @ApiResponse(responseCode = "200",
+          description = "Reached only when the artifact server returns no entity for the draft, which leaves nothing "
+              + "to return. The response carries no body."),
+      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
+      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
+      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "Only the artifact's owner may create a draft from it, whatever role another user holds "
+              + "(versioningOnlyByOwner). A caller who cannot read the artifact, cannot create in the target "
+              + "folder, or lacks the permission to update artifacts of its type, is also refused."),
+      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
+      @ApiResponse(responseCode = "412", content = @Content(schema = @Schema(implementation = CedarError.class)),
+          description = "The identifier in draftId already names an artifact; nothing was written"),
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
+  })
+  public Response createDraftArtifact() throws CedarException {
+    return operationResource(new CommandVersionResource(cedarConfig)).createDraftArtifact();
+  }
+  @POST
+  @Timed
+  @Path("/auth-user-callback")
+  @Operation(summary = "Authentication user callback", description = "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home "
+          + "folder, group membership) upon authentication. The caller must hold the user administration "
+          + "permission, since the user to provision is named in the request body.")
+  @RequestBody(description = "The authentication event and the user it concerns", required = true,
+      content = @Content(schema = @Schema(ref = "#/components/schemas/AuthUserCallbackRequest")))
+  @ApiResponses({
+      @ApiResponse(responseCode = "201",
+          description = "The user's objects were provisioned. The response carries no body."),
       @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
       @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
       @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
       @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
-      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error"),
-      @ApiResponse(responseCode = "502", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Invalid response from artifact service")
+      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
-  public Response renameResource() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-
-    c.request().getRequestBody().mustHaveOnly(LinkedData.ID, SCHEMA_ORG_NAME, SCHEMA_ORG_DESCRIPTION);
-    CedarParameter nameParam = c.request().getRequestBody().get(SCHEMA_ORG_NAME);
-    CedarParameter descriptionParam = c.request().getRequestBody().get(SCHEMA_ORG_DESCRIPTION);
-    CedarParameter idParam = c.request().getRequestBody().get(LinkedData.ID);
-    // Was read without checking, so a body with no identifier became a 500 further down.
-    c.must(idParam).be(NonEmpty);
-
-    String id = linkedDataUtil.resolveResourceId(idParam.stringValue());
-
-    CedarResourceId untypedResourceId = CedarUntypedResourceId.build(id);
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
-
-    CedarResourceType resourceType = folderSession.getResourceType(untypedResourceId);
-    if (resourceType == null) {
-      throw new CedarObjectNotFoundException("Resource not found by id")
-          .errorKey(CedarErrorKey.NODE_NOT_FOUND)
-          .parameter("resourceId", untypedResourceId);
-    }
-    CedarFilesystemResourceId fsResourceId = CedarFilesystemResourceId.build(id, resourceType);
-
-    userMustHaveCapabilityOnFilesystemResource(c, fsResourceId,
-        org.metadatacenter.server.security.model.permission.resource.ResourceCapability.UPDATE_RESOURCE);
-
-    String name = null;
-    if (!nameParam.isEmpty()) {
-      name = nameParam.stringValue();
-    }
-    String description = null;
-    if (!descriptionParam.isEmpty()) {
-      description = descriptionParam.stringValue();
-    }
-
-    boolean isFolder = false;
-
-    CedarPermission permission = null;
-    switch (resourceType) {
-      case FIELD:
-        permission = CedarPermission.TEMPLATE_FIELD_UPDATE;
-        break;
-      case ELEMENT:
-        permission = CedarPermission.TEMPLATE_ELEMENT_UPDATE;
-        break;
-      case TEMPLATE:
-        permission = CedarPermission.TEMPLATE_UPDATE;
-        break;
-      case INSTANCE:
-        permission = CedarPermission.TEMPLATE_INSTANCE_UPDATE;
-        break;
-      case FOLDER:
-        permission = CedarPermission.FOLDER_UPDATE;
-        isFolder = true;
-        break;
-    }
-
-    if (permission == null) {
-      return CedarResponse.badRequest()
-          .errorKey(CedarErrorKey.UNKNOWN_RESOURCE_TYPE)
-          .message("Unknown resource type:" + resourceType.getValue())
-          .parameter("resourceType", resourceType.getValue())
-          .build();
-    }
-
-    // Check read permission
-    c.must(c.user()).have(permission);
-
-    String expectedEtag = c.getIfMatchHeader();
-    if (RevisionPreconditionParser.isAbsent(expectedEtag)) {
-      return CedarResponse.preconditionRequired()
-          .message("Renaming a resource requires the ETag returned by GET in If-Match")
-          .build();
-    }
-
-    if (isFolder) {
-      return updateFolderNameAndDescriptionInGraphDb(c, (CedarFolderId) fsResourceId);
-    } else {
-      String artifactServerUrl = microserviceUrlUtil.getArtifact().getArtifactTypeWithId(resourceType, (CedarArtifactId) fsResourceId);
-
-      ClassicHttpResponse templateCurrentProxyResponse = new ArtifactServiceClient(cedarConfig).get(artifactServerUrl, c);
-      int currentStatusCode = templateCurrentProxyResponse.getCode();
-      if (currentStatusCode != HttpStatus.SC_OK) {
-        // artifact was not created
-        return generateStatusResponse(templateCurrentProxyResponse);
-      } else {
-        HttpEntity currentTemplateEntity = templateCurrentProxyResponse.getEntity();
-        String currentTemplateEntityContent;
-        try {
-          currentTemplateEntityContent = currentTemplateEntity == null ? null
-              : EntityUtils.toString(currentTemplateEntity, StandardCharsets.UTF_8);
-        } catch (IOException | ParseException e) {
-          throw new CedarProcessingException(e);
-        }
-        if (currentTemplateEntityContent != null && !currentTemplateEntityContent.isBlank()) {
-          try {
-            JsonNode currentTemplateJsonNode = JsonMapper.STRICT_MAPPER.readTree(currentTemplateEntityContent);
-            String currentName = ModelUtil.extractNameFromResource(resourceType, currentTemplateJsonNode).getValue();
-            String currentDescription = ModelUtil.extractDescriptionFromResource(resourceType, currentTemplateJsonNode).getValue();
-            String publicationStatusString = ModelUtil.extractPublicationStatusFromResource(resourceType, currentTemplateJsonNode).getValue();
-            BiboStatus biboStatus = BiboStatus.forValue(publicationStatusString);
-            if (biboStatus == BiboStatus.PUBLISHED) {
-              return CedarResponse.badRequest()
-                  .errorKey(CedarErrorKey.PUBLISHED_ARTIFACT_CAN_NOT_BE_CHANGED)
-                  .message("The artifact can not be changed since it is published!")
-                  .parameter("name", currentName)
-                  .build();
-            }
-            boolean changeName = false;
-            boolean changeDescription = false;
-            if (name != null && !name.equals(currentName)) {
-              changeName = true;
-            }
-            if (description != null && !description.equals(currentDescription)) {
-              changeDescription = true;
-            }
-            if (changeName || changeDescription) {
-              if (changeName) {
-                updateNameInObject(currentTemplateJsonNode, name);
-              }
-              if (changeDescription) {
-                updateDescriptionInObject(currentTemplateJsonNode, description);
-              }
-              return executeResourceCreateOrUpdateViaPut(c, resourceType, (CedarArtifactId) fsResourceId,
-                  Optional.empty(), JsonMapper.STRICT_MAPPER.writeValueAsString(currentTemplateJsonNode), false,
-                  expectedEtag);
-            } else {
-              return CedarResponse.badRequest()
-                  .errorKey(CedarErrorKey.NOTHING_TO_DO)
-                  .message("The name and the description are unchanged. There is nothing to do!")
-                  .parameter(SCHEMA_ORG_NAME, name)
-                  .parameter(SCHEMA_ORG_DESCRIPTION, description)
-                  .build();
-            }
-          } catch (IOException e) {
-            throw new CedarProcessingException(e);
-          }
-        }
-        return CedarResponse.badGateway()
-            .message("Artifact service returned an empty artifact")
-            .id(fsResourceId)
-            .build();
-      }
-    }
+  public Response authUserCallback() throws CedarException {
+    return operationResource(new CommandGenericResource(cedarConfig)).authUserCallback();
   }
-
   @POST
   @Timed
-  @Path("/transfer-resource-ownership")
-  @Operation(summary = "Transfer resource ownership",
-      description = "Replace the owner of an artifact or folder with another user. The current owner alone may perform this operation. "
-          + "Send the ETag returned by the resource permissions endpoint in If-Match.",
-      tags = {"Command", "Permissions"}, parameters = @Parameter(ref = "#/components/parameters/IfMatch"))
-  @RequestBody(description = "The resource and new owner.", required = true,
-      content = @Content(schema = @Schema(
-          implementation = org.metadatacenter.cedar.resource.resources.swaggermodel.TransferOwnershipRequest.class)))
+  @Path("/update-inclusions-subgraph")
+  @Operation(summary = "Update the inclusion subgraph of an artifact", description = "Propagate a change to the given artifact across the tree of affected artifacts, updating each "
+          + "referencing artifact on the artifact server. The caller needs the readResource capability on the artifact "
+          + "that changed and the updateResource capability on every artifact selected for update, and every artifact "
+          + "selected for update must still be a draft, since publication fixes an artifact's content. If the caller "
+          + "lacks either capability, or names a published target, the whole request is refused and nothing is "
+          + "written. The response reports what became of each target.")
+  @RequestBody(description = "The artifact that changed, and the elements and templates to consider", required = true,
+      content = @Content(schema = @Schema(implementation = InclusionSubgraphRequest.class)))
   @ApiResponses({
-      @ApiResponse(responseCode = "200", description = "Ownership transferred",
-          content = @Content(schema = @Schema(implementation = CedarNodePermissionsWithExtract.class)),
-          headers = @io.swagger.v3.oas.annotations.headers.Header(name = "ETag", ref = "#/components/headers/ETag")),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
-      @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired")
+      @ApiResponse(responseCode = "200", description = "Every target was written, or needed no write",
+          content = @Content(schema = @Schema(implementation = InclusionSubgraphUpdateReport.class))),
+      @ApiResponse(responseCode = "400", description = "The body is not JSON in the form of an inclusion subgraph "
+          + "request (malformedJsonRequestBody), names no @id or a target that is not an artifact (invalidData), or "
+          + "names one artifact twice. A target that is published (publishedArtifactCanNotBeChanged), or a template "
+          + "whose instances the change would invalidate (invalidData), is refused too. Nothing was written.",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "401", description = CommandInclusionSubgraphResource.UNAUTHORIZED,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "403", description = "The caller cannot read the artifact that changed, or cannot "
+          + "update a target. Nothing was written.",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "404", description = "The artifact that changed, or a target, does not exist",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "406", description = CommandInclusionSubgraphResource.NOT_ACCEPTABLE,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "429", description = CommandInclusionSubgraphResource.RATE_LIMITED,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "500", description = CommandInclusionSubgraphResource.INTERNAL_ERROR,
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "502", description = "The artifact server refused at least one of the writes "
+          + "(upstreamServerError). The targets it accepted were updated. The body's objects.report holds the update "
+          + "report, with the outcome of every target.",
+          content = @Content(schema = @Schema(implementation = CedarError.class))),
+      @ApiResponse(responseCode = "503", description = CommandInclusionSubgraphResource.UNAVAILABLE,
+          content = @Content(schema = @Schema(implementation = CedarError.class)))
   })
-  public Response transferResourceOwnership() throws CedarException {
-    CedarRequestContext c = buildRequestContext();
-    c.must(c.user()).be(LoggedIn);
-    c.request().getRequestBody().mustHaveOnly(LinkedData.ID, "newOwnerId");
-    CedarParameter idParam = c.request().getRequestBody().get(LinkedData.ID);
-    CedarParameter newOwnerIdParam = c.request().getRequestBody().get("newOwnerId");
-    c.must(idParam).be(NonEmpty);
-    c.must(newOwnerIdParam).be(NonEmpty);
-
-    FolderServiceSession folderSession = dataServices.getFolderServiceSession(c);
-    CedarResourceId untypedId = CedarUntypedResourceId.build(linkedDataUtil.resolveResourceId(idParam.stringValue()));
-    CedarResourceType resourceType = folderSession.getResourceType(untypedId);
-    boolean permissionControlledResource = resourceType != null && switch (resourceType) {
-      case FOLDER, FIELD, ELEMENT, TEMPLATE, INSTANCE -> true;
-      default -> false;
-    };
-    if (!permissionControlledResource) {
-      throw new CedarObjectNotFoundException("Resource not found by id")
-          .errorKey(CedarErrorKey.NODE_NOT_FOUND)
-          .parameter("resourceId", untypedId);
-    }
-    CedarFilesystemResourceId resourceId = CedarFilesystemResourceId.build(untypedId.getId(), resourceType);
-    userMustHaveCapabilityOnFilesystemResource(c, resourceId, ResourceCapability.TRANSFER_OWNERSHIP);
-
-    String ifMatch = c.getIfMatchHeader();
-    if (RevisionPreconditionParser.isAbsent(ifMatch)) {
-      return CedarResponse.preconditionRequired()
-          .id(resourceId)
-          .message("Transferring ownership requires the permissions ETag in If-Match")
-          .build();
-    }
-
-    ResourcePermissionServiceSession permissions = dataServices.getResourcePermissionServiceSession(c);
-    BackendCallResult<VersionedResourcePermissions> result;
-    try {
-      // The search event commits in the transfer's own transaction, as a permissions change's does.
-      result = permissions.transferResourceOwnership(resourceId,
-          CedarUserId.build(newOwnerIdParam.stringValue()), RevisionPreconditionParser.parse(ifMatch),
-          searchPermissionEnqueueService.permissionsChangedEvent(resourceId, resourceType == CedarResourceType.FOLDER));
-    } catch (RevisionConflictException e) {
-      return CedarResponse.status(CedarResponseStatus.PRECONDITION_FAILED)
-          .id(resourceId)
-          .message("The resource permissions have changed since they were read")
-          .parameter("currentETag", RevisionPreconditionParser.format(e.getCurrentRevision()))
-          .build();
-    }
-    if (result.isError()) {
-      throw new CedarBackendException(result);
-    }
-
-    VersionedResourcePermissions transferred = result.getPayload();
-    return Response.ok(transferred.content())
-        .header(HttpHeaders.ETAG, RevisionPreconditionParser.format(transferred.revision()))
-        .build();
+  public Response updateInclusionSubgraph() throws CedarException, IOException {
+    return operationResource(new CommandInclusionSubgraphResource(cedarConfig)).updateInclusionSubgraph();
   }
-
 }

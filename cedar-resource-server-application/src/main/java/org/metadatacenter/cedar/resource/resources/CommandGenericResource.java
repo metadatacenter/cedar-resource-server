@@ -44,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.Consumes;
@@ -59,7 +60,7 @@ import static org.metadatacenter.constant.CedarQueryParameters.QP_FORMAT;
 import static org.metadatacenter.constant.CedarQueryParameters.QP_RESOURCE_TYPE;
 import static org.metadatacenter.rest.assertion.GenericAssertions.LoggedIn;
 
-@Path("/command")
+@Path("/")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Command")
 @SecurityRequirement(name = "api_key")
@@ -99,23 +100,6 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   }
 
   // This is the endpoint called by the Keycloak Event Listener
-  @POST
-  @Timed
-  @Path("/auth-user-callback")
-  @Operation(summary = "Authentication user callback", description = "Endpoint called by the Keycloak Event Listener. Creates the CEDAR objects related to a user (home "
-          + "folder, group membership) upon authentication. The caller must hold the user administration "
-          + "permission, since the user to provision is named in the request body.")
-  @RequestBody(description = "The authentication event and the user it concerns", required = true,
-      content = @Content(schema = @Schema(ref = "#/components/schemas/AuthUserCallbackRequest")))
-  @ApiResponses({
-      @ApiResponse(responseCode = "201",
-          description = "The user's objects were provisioned. The response carries no body."),
-      @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Bad request"),
-      @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Unauthorized"),
-      @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Forbidden"),
-      @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Not found"),
-      @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
-  })
   public Response authUserCallback() throws CedarException {
     CedarRequestContext adminContext = buildRequestContext();
     AdminCommand.AUTH_USER_CALLBACK.enforce(adminContext);
@@ -181,7 +165,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/convert")
+  @Path("/artifact-conversions")
   @Operation(summary = "Convert a resource", description = "Convert the resource supplied in the request body to the requested output format.")
   @RequestBody(description = "The artifact to convert", required = true,
       content = @Content(schema = @Schema(implementation = ArtifactDocument.class)))
@@ -214,7 +198,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
 
   @POST
   @Timed
-  @Path("/validate")
+  @Path("/artifact-validations/{resource_type}")
   @Operation(summary = "Validate resources", description = "Validate CEDAR resources (i.e., templates, elements and instances) against the CEDAR meta-model. To "
           + "use this service you will need to append the resource text in the request body as the payload. "
           + "However, in the case of validating the template instance, you have an additional option to include "
@@ -237,7 +221,7 @@ public class CommandGenericResource extends AbstractResourceServerResource {
   public Response validateResource(
       @Parameter(description = "The type of CEDAR resource. The allowed values are: 'field', 'element', 'template', "
           + "'instance'", required = true)
-      @QueryParam(QP_RESOURCE_TYPE) String resourceType,
+      @PathParam(QP_RESOURCE_TYPE) String resourceType,
       @Parameter(hidden = true) String requestBody) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);

@@ -15,8 +15,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
     additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public class RenameRequest {
 
-  @Schema(name = "@id", description = "Unique URL identifier representing the resource.")
-  private String id;
 
   @Schema(name = "schema:name", description = "New name of the resource.")
   private String name;
@@ -24,13 +22,6 @@ public class RenameRequest {
   @Schema(name = "schema:description", description = "New description of the resource.")
   private String description;
 
-  public String getId() {
-    return id;
-  }
-
-  public void setId(String id) {
-    this.id = id;
-  }
 
   public String getName() {
     return name;

@@ -144,7 +144,7 @@ class OpenApiContractTest {
    */
   @Test
   void inclusionSubgraphUpdateDocumentsEveryAnswer() throws IOException {
-    JsonNode operation = readSpec().at("/paths/~1command~1inclusions-subgraph-update/post");
+    JsonNode operation = readSpec().at("/paths/~1command~1update-inclusions-subgraph/post");
     assertAnswers(operation, "#/components/schemas/InclusionSubgraphUpdateReport",
         "400", "401", "403", "404", "406", "429", "500", "502", "503");
     assertTrue(operation.at("/responses/502/description").asText().contains("objects.report"),
