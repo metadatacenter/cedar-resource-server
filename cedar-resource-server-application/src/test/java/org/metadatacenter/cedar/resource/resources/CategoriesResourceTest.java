@@ -56,6 +56,8 @@ public class CategoriesResourceTest {
 
   private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
+  private static String authHeaderAdmin;
+  private static String user2Id;
   private static String authHeaderUser1;
   private static String authHeaderUser2;
   private static String rootCategoryId;
@@ -66,6 +68,8 @@ public class CategoriesResourceTest {
     SERVER.before();
     CedarConfig cedarConfig = CedarConfig.getInstance(CedarEnvironmentVariableProvider.getFor(SystemComponent.SERVER_RESOURCE));
     TestAuthUtil.installInMemoryUserService(cedarConfig);
+    authHeaderAdmin = TestAuthUtil.getAdminUserAuthHeader(cedarConfig);
+    user2Id = TestAuthUtil.getTestUser2(cedarConfig).getId();
     authHeaderUser1 = TestAuthUtil.getTestUser1AuthHeader(cedarConfig);
     authHeaderUser2 = TestAuthUtil.getTestUser2AuthHeader(cedarConfig);
     EmbeddedCedarNeo4j.seed(cedarConfig);
@@ -154,6 +158,108 @@ public class CategoriesResourceTest {
     for (String path : List.of("/categories", "/categories/tree", "/categories/root")) {
       Assertions.assertEquals(401, get(path, null).statusCode(), path);
     }
+  }
+
+  @Test
+  public void categoryAliasesShareReadsRevisionsAndAuthorization() throws Exception {
+    String id = ownCategory("Addressing " + UUID.randomUUID());
+    String uuid = id.substring(id.lastIndexOf('/') + 1);
+    for (String suffix : List.of("", "/permissions")) {
+      HttpResponse<String> full = get("/categories/" + encode(id) + suffix, authHeaderUser1);
+      read(full, 200);
+      for (String alias : List.of(uuid, "categories/" + uuid)) {
+        String path = "/categories/" + encode(alias) + suffix;
+        HttpResponse<String> shortRead = get(path, authHeaderUser1);
+        Assertions.assertEquals(read(full, 200), read(shortRead, 200), path);
+        Assertions.assertEquals(full.headers().firstValue("ETag"), shortRead.headers().firstValue("ETag"), path);
+        Assertions.assertEquals(401, get(path, null).statusCode(), path);
+        read(get(path, authHeaderUser2), 200); // Categories remain shared vocabulary.
+      }
+    }
+    String rootUuid = rootCategoryId.substring(rootCategoryId.lastIndexOf('/') + 1);
+    Assertions.assertEquals(read(get("/categories/" + encode(rootCategoryId), authHeaderUser1), 200),
+        read(get("/categories/" + rootUuid, authHeaderUser1), 200));
+    Assertions.assertEquals(rootCategoryId, read(get("/categories/root", authHeaderUser1), 200).path("@id").asText());
+    Assertions.assertEquals(rootCategoryId, read(get("/categories/tree", authHeaderUser1), 200).path("@id").asText());
+    HttpResponse<String> deletion = write("DELETE", "/categories/" + rootUuid, null, authHeaderAdmin, "*");
+    Assertions.assertEquals("noWriteAccessToCategory", read(deletion, 403).path("errorKey").asText());
+    HttpResponse<String> fullDeletion = write("DELETE", "/categories/" + encode(rootCategoryId), null, authHeaderAdmin, "*");
+    Assertions.assertEquals(deletion.statusCode(), fullDeletion.statusCode());
+    Assertions.assertEquals(read(deletion, 403).path("errorKey"), read(fullDeletion, 403).path("errorKey"));
+  }
+
+  @Test
+  public void categoryAliasesShareConditionalRecordWritesAndDeletion() throws Exception {
+    String id = ownCategory("Addressed record " + UUID.randomUUID());
+    String full = "/categories/" + encode(id);
+    String shortPath = "/categories/" + id.substring(id.lastIndexOf('/') + 1);
+    String etag = get(full, authHeaderUser1).headers().firstValue("ETag").orElseThrow();
+    String update = JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of(
+        "schema:name", "Addressed rename " + UUID.randomUUID(), "schema:description", "changed"));
+    read(write("PUT", shortPath, update, authHeaderUser1, null), 428);
+    read(write("PUT", shortPath, update, authHeaderUser2, etag), 403);
+    HttpResponse<String> updated = write("PUT", shortPath, update, authHeaderUser1, etag);
+    Assertions.assertEquals(id, read(updated, 200).path("@id").asText());
+    Assertions.assertEquals(updated.headers().firstValue("ETag"), get(full, authHeaderUser1).headers().firstValue("ETag"));
+    read(write("PUT", full, update, authHeaderUser1, etag), 412);
+    read(write("DELETE", shortPath, null, authHeaderUser2, "*"), 403);
+    read(write("DELETE", shortPath, null, authHeaderUser1, null), 428);
+    read(write("DELETE", shortPath, null, authHeaderUser1, etag), 412);
+    Assertions.assertEquals(204, write("DELETE", shortPath, null, authHeaderUser1,
+        updated.headers().firstValue("ETag").orElseThrow()).statusCode());
+    read(get(full, authHeaderUser1), 404);
+    read(write("PUT", full, update, authHeaderUser1, etag), 412);
+  }
+
+  @Test
+  public void categoryAliasesShareAclRevisionsAndOwnership() throws Exception {
+    String id = ownCategory("Addressed permissions " + UUID.randomUUID());
+    String full = "/categories/" + encode(id) + "/permissions";
+    String shortPath = "/categories/" + id.substring(id.lastIndexOf('/') + 1) + "/permissions";
+    String typed = "/categories/" + encode("categories/" + id.substring(id.lastIndexOf('/') + 1)) + "/permissions";
+    String etag = get(full, authHeaderUser1).headers().firstValue("ETag").orElseThrow();
+    String grants = "{\"userPermissions\":[],\"groupPermissions\":[]}";
+    read(write("PUT", shortPath, grants, authHeaderUser1, null), 428);
+    read(write("PUT", shortPath, grants, authHeaderUser2, etag), 403);
+    HttpResponse<String> replaced = write("PUT", shortPath, grants, authHeaderUser1, etag);
+    read(replaced, 200);
+    read(write("PUT", full, grants, authHeaderUser1, etag), 412);
+    Assertions.assertEquals(read(replaced, 200), read(get(full, authHeaderUser1), 200));
+    String transfer = JsonMapper.STRICT_MAPPER.writeValueAsString(Map.of("newOwnerId", user2Id));
+    read(write("PATCH", typed, transfer, authHeaderUser1, null), 428);
+    read(write("PATCH", shortPath, transfer, authHeaderUser2, "*"), 403);
+    read(write("PATCH", typed, transfer, authHeaderUser1, etag), 412);
+    HttpResponse<String> transferred = write("PATCH", typed, transfer, authHeaderUser1,
+        replaced.headers().firstValue("ETag").orElseThrow());
+    Assertions.assertEquals(user2Id, read(transferred, 200).path("owner").path("@id").asText());
+    Assertions.assertEquals(read(transferred, 200), read(get(full, authHeaderUser2), 200));
+    Assertions.assertEquals(transferred.headers().firstValue("ETag"), get(full, authHeaderUser2).headers().firstValue("ETag"));
+    read(write("PUT", shortPath, grants, authHeaderUser1, "*"), 403);
+  }
+
+  @Test
+  public void categoryPathsRejectWrongKindsAndDoNotRetargetFullIris() throws Exception {
+    String uuid = UUID.randomUUID().toString();
+    String wrong = "/categories/" + encode("groups/" + uuid);
+    for (String suffix : List.of("", "/permissions")) {
+      read(get(wrong + suffix, authHeaderUser1), 400);
+      read(write("PUT", wrong + suffix, "{}", authHeaderUser1, "*"), 400);
+    }
+    read(write("DELETE", wrong, null, authHeaderUser1, "*"), 400);
+    read(write("PATCH", wrong + "/permissions", "{}", authHeaderUser1, "*"), 400);
+    read(get("/categories/" + uuid, authHeaderUser1), 404);
+    String id = ownCategory("Opaque category " + UUID.randomUUID());
+    read(get("/categories/" + encode(id.replace("/categories/", "/groups/")), authHeaderUser1), 404);
+  }
+
+  private static HttpResponse<String> write(String method, String path, String body, String auth, String etag)
+      throws Exception {
+    HttpRequest.Builder builder = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:" + SERVER.getLocalPort() + path))
+        .header("Authorization", auth).header("Content-Type", "application/json");
+    if (etag != null) builder.header("If-Match", etag);
+    return CLIENT.send(builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody()
+        : HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
   }
 
   /** A category directly under the root, owned by the first user, as an administrator would create it. */

@@ -33,6 +33,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.metadatacenter.util.http.CedarError;
 import org.metadatacenter.bridge.CedarDataServices;
 import org.metadatacenter.config.CedarConfig;
+import org.metadatacenter.model.CedarResourceType;
 import org.metadatacenter.error.CedarErrorKey;
 import org.metadatacenter.error.CedarErrorPack;
 import org.metadatacenter.error.CedarErrorReasonKey;
@@ -289,12 +290,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response findCategory(
-      @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
-          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @Parameter(description = "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.", required = true)
       @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(CedarResourceType.CATEGORY, id);
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
 
@@ -365,12 +366,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response updateCategory(
-      @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
-          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @Parameter(description = "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.", required = true)
       @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(CedarResourceType.CATEGORY, id);
     CedarCategoryId ccid = CedarCategoryId.build(id);
 
     CedarRequestBody requestBody = c.request().getRequestBody()
@@ -473,12 +474,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response deleteCategory(
-      @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
-          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @Parameter(description = "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.", required = true)
       @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
 
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(CedarResourceType.CATEGORY, id);
     CedarCategoryId ccid = CedarCategoryId.build(id);
 
     CategoryServiceSession categorySession = dataServices.getCategoryServiceSession(c);
@@ -557,11 +558,11 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response getCategoryPermissions(
-      @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
-          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @Parameter(description = "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.", required = true)
       @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(CedarResourceType.CATEGORY, id);
 
     CategoryPermissionServiceSession categoryPermissionSession =
         dataServices.getCategoryPermissionServiceSession(c);
@@ -599,11 +600,11 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = CedarError.class)), description = "Internal server error")
   })
   public Response updateCategoryPermissions(
-      @Parameter(description = "Category identifier. Example: https://repo.metadatacenter.org/categories/"
-          + "8bc64ab5-df6b-48c8-8c61-6c016245918e", required = true)
+      @Parameter(description = "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.", required = true)
       @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(CedarResourceType.CATEGORY, id);
 
     c.must(c.request().getRequestBody()).be(NonEmpty);
     JsonNode permissionUpdateRequest = c.request().getRequestBody().asJson();
@@ -677,9 +678,12 @@ public class CategoriesResource extends AbstractResourceServerResource {
       @ApiResponse(responseCode = "412", ref = "#/components/responses/PreconditionFailed"),
       @ApiResponse(responseCode = "428", ref = "#/components/responses/PreconditionRequired")
   })
-  public Response transferCategoryOwnership(@PathParam(PP_ID) String id) throws CedarException {
+  public Response transferCategoryOwnership(
+      @Parameter(description = "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.", required = true)
+      @PathParam(PP_ID) String id) throws CedarException {
     CedarRequestContext c = buildRequestContext();
     c.must(c.user()).be(LoggedIn);
+    id = linkedDataUtil.resolveResourceId(CedarResourceType.CATEGORY, id);
     c.request().getRequestBody().mustHaveOnly("newOwnerId");
     CedarParameter newOwnerIdParam = c.request().getRequestBody().get("newOwnerId");
     c.must(newOwnerIdParam).be(NonEmpty);

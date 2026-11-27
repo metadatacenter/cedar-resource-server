@@ -583,7 +583,7 @@
         "parameters" : [ {
           "$ref" : "#/components/parameters/IfMatch"
         }, {
-          "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "description" : "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.",
           "in" : "path",
           "name" : "id",
           "required" : true,
@@ -672,7 +672,7 @@
         "description" : "Get a category.",
         "operationId" : "findCategory",
         "parameters" : [ {
-          "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "description" : "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.",
           "in" : "path",
           "name" : "id",
           "required" : true,
@@ -760,7 +760,7 @@
         "parameters" : [ {
           "$ref" : "#/components/parameters/IfMatch"
         }, {
-          "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "description" : "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.",
           "in" : "path",
           "name" : "id",
           "required" : true,
@@ -875,7 +875,7 @@
         "description" : "Get the category owner, direct user grants and direct group grants. Any user with the readCategory capability may read this response.",
         "operationId" : "getCategoryPermissions",
         "parameters" : [ {
-          "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "description" : "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.",
           "in" : "path",
           "name" : "id",
           "required" : true,
@@ -963,6 +963,7 @@
         "parameters" : [ {
           "$ref" : "#/components/parameters/IfMatch"
         }, {
+          "description" : "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.",
           "in" : "path",
           "name" : "id",
           "required" : true,
@@ -1057,7 +1058,7 @@
         "parameters" : [ {
           "$ref" : "#/components/parameters/IfMatch"
         }, {
-          "description" : "Category identifier. Example: https://repo.metadatacenter.org/categories/8bc64ab5-df6b-48c8-8c61-6c016245918e",
+          "description" : "Category UUID, categories/UUID selector, or full stored IRI encoded as one path segment.",
           "in" : "path",
           "name" : "id",
           "required" : true,
